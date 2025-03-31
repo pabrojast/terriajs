@@ -200,17 +200,26 @@ export default class CogCatalogItem extends MappableMixin(
         minimumLevel: this.minimumLevel,
         enablePickFeatures: this.allowFeaturePicking,
         hasAlphaChannel: this.hasAlphaChannel,
-        cache: this.cache,
         // used for reprojecting from an unknown projection to 4326/3857
         projFunc: this.reprojector(proj4),
         // make sure we omit `undefined` options so as not to override the library defaults
         renderOptions: omitUndefined({
+          single: omitUndefined({
+            band: this.renderOptions.single?.band,
+            colorScale: this.renderOptions.single?.colorScale,
+            colors: this.renderOptions.single?.colors,
+            useRealValue: this.renderOptions.single?.useRealValue,
+            type: this.renderOptions.single?.type,
+            domain: this.renderOptions.single?.domain,
+            displayRange: this.renderOptions.single?.displayRange,
+            applyDisplayRange: this.renderOptions.single?.applyDisplayRange,
+            clampLow: this.renderOptions.single?.clampLow,
+            clampHigh: this.renderOptions.single?.clampHigh,
+            expression: this.renderOptions.single?.expression
+          }),
           nodata: this.renderOptions.nodata,
           convertToRGB: this.renderOptions.convertToRGB,
-          resampleMethod: this.renderOptions.resampleMethod,
-          color: this.renderOptions.color,
-          singleBandOptions: this.renderOptions.color ? 
-            { color: this.renderOptions.color } : undefined
+          resampleMethod: this.renderOptions.resampleMethod
         })
       })
     );
