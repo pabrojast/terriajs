@@ -31,6 +31,13 @@ export class CogRenderOptionsTraits extends ModelTraits {
     description: "Geotiff resample method. Defaults to `bilinear`."
   })
   resampleMethod?: "nearest" | "bilinear" = "nearest";
+  
+  @primitiveTrait({
+    type: "string",
+    name: "Color",
+    description: "Color for single band rendering"
+  })
+  color?: string;
 }
 
 @traitClass({

@@ -5,6 +5,7 @@ import {
   observable,
   onBecomeObserved,
   onBecomeUnobserved,
+  override,
   runInAction
 } from "mobx";
 import GeographicTilingScheme from "terriajs-cesium/Source/Core/GeographicTilingScheme";
@@ -44,7 +45,7 @@ class CogLoadableStratum extends LoadableStratum(CogCatalogItemTraits) {
       ? // Warn for 2D mode
         i18next.t("models.commonModelErrors.3dTypeIn2dMode", this)
       : this.model._imageryProvider?.tilingScheme &&
-        // Show warning for experimental reprojection freature if not using EPSG 3857 or 4326
+        // Show warning for experimental reprojection feature if not using EPSG 3857 or 4326
         isCustomTilingScheme(this.model._imageryProvider?.tilingScheme)
       ? i18next.t("models.cogCatalogItem.experimentalReprojectionWarning", this)
       : undefined;
@@ -132,6 +133,20 @@ export default class CogCatalogItem extends MappableMixin(
     });
   }
 
+  @override
+  get shortReport(): string | undefined {
+    if (this.terria.currentViewer.type === "Leaflet") {
+      return i18next.t("models.commonModelErrors.3dTypeIn2dMode", this);
+    }
+    
+    if (this._imageryProvider?.tilingScheme && 
+        isCustomTilingScheme(this._imageryProvider.tilingScheme)) {
+      return i18next.t("models.cogCatalogItem.experimentalReprojectionWarning", this);
+    }
+    
+    return undefined;
+  }
+
   protected async forceLoadMapItems(): Promise<void> {
     if (!this.url) {
       return;
@@ -185,14 +200,17 @@ export default class CogCatalogItem extends MappableMixin(
         minimumLevel: this.minimumLevel,
         enablePickFeatures: this.allowFeaturePicking,
         hasAlphaChannel: this.hasAlphaChannel,
+        cache: this.cache,
         // used for reprojecting from an unknown projection to 4326/3857
-        // note that this is experimental and could be slow as it runs on the main thread
         projFunc: this.reprojector(proj4),
         // make sure we omit `undefined` options so as not to override the library defaults
         renderOptions: omitUndefined({
           nodata: this.renderOptions.nodata,
           convertToRGB: this.renderOptions.convertToRGB,
-          resampleMethod: this.renderOptions.resampleMethod
+          resampleMethod: this.renderOptions.resampleMethod,
+          color: this.renderOptions.color,
+          singleBandOptions: this.renderOptions.color ? 
+            { color: this.renderOptions.color } : undefined
         })
       })
     );
