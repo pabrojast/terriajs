@@ -162,6 +162,18 @@ class Tabs extends Component {
               </ButtonTab>
             </li>
           ))}
+
+          {/* Nuevo botón con enlace externo */}
+          <li className={Styles.tabListItem}>
+            <a
+              href="https://ejemplo.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className={classNames(Styles.btnTab)}
+            >
+              Mi Enlace
+            </a>
+          </li>
         </ul>
 
         <section
