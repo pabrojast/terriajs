@@ -60,16 +60,6 @@ class Tabs extends Component {
       )
     };
 
-    // Add link object
-    const externalLink = {
-      title: "external-link",
-      name: t("addData.externalLink") || "External Link", // Provide a default in case translation is missing
-      category: "external-link",
-      isLink: true,
-      url: this.props.terria.configParameters.externalLinkUrl || "https://example.com", // URL from config or default
-      openInNewTab: true
-    };
-
     if (this.props.terria.configParameters.tabbedCatalog) {
       return [].concat(
         this.props.terria.catalog.group.memberModels
@@ -88,9 +78,7 @@ class Tabs extends Component {
               />
             )
           })),
-        [myDataTab],
-        // Add the link to the tabs array if enabled in config
-        this.props.terria.configParameters.showExternalLink ? [externalLink] : []
+        [myDataTab]
       );
     } else {
       return [
@@ -105,9 +93,7 @@ class Tabs extends Component {
             />
           )
         },
-        myDataTab,
-        // Add the link to the tabs array if enabled in config
-        ...(this.props.terria.configParameters.showExternalLink ? [externalLink] : [])
+        myDataTab
       ];
     }
   }
@@ -156,35 +142,24 @@ class Tabs extends Component {
               key={i}
               id={"tablist--" + item.title}
               className={Styles.tabListItem}
-              role={item.isLink ? "none" : "tab"}
-              aria-controls={item.isLink ? undefined : "panel--" + item.title}
-              aria-selected={!item.isLink && item === currentTab}
+              role="tab"
+              aria-controls={"panel--" + item.title}
+              aria-selected={item === currentTab}
             >
-              {item.isLink ? (
-                <LinkTab
-                  href={item.url}
-                  target={item.openInNewTab ? "_blank" : undefined}
-                  rel={item.openInNewTab ? "noopener noreferrer" : undefined}
-                  className={Styles.btnTab}
-                >
-                  {item.name}
-                </LinkTab>
-              ) : (
-                <ButtonTab
-                  type="button"
-                  onClick={this.activateTab.bind(
-                    this,
-                    item.category,
-                    item.idInCategory
-                  )}
-                  className={classNames(Styles.btnTab, {
-                    [Styles.btnSelected]: item === currentTab
-                  })}
-                  isCurrent={item === currentTab}
-                >
-                  {item.name}
-                </ButtonTab>
-              )}
+              <ButtonTab
+                type="button"
+                onClick={this.activateTab.bind(
+                  this,
+                  item.category,
+                  item.idInCategory
+                )}
+                className={classNames(Styles.btnTab, {
+                  [Styles.btnSelected]: item === currentTab
+                })}
+                isCurrent={item === currentTab}
+              >
+                {item.name}
+              </ButtonTab>
             </li>
           ))}
         </ul>
@@ -226,26 +201,6 @@ const ButtonTab = styled.button`
     `
     }
 
-  `}
-`;
-
-// Add styled component for links
-const LinkTab = styled.a`
-  ${(props) => `
-    /* overrides padding and margin in scss */
-    padding: 10px 12px;
-    margin: 0;
-    display: inline-block;
-    text-decoration: none;
-
-    background: transparent;
-    color: ${props.theme.dark};
-    border: 1px solid transparent;
-    &:hover,
-    &:focus {
-      background: ${props.theme.textLight};
-      text-decoration: underline;
-    }
   `}
 `;
 
