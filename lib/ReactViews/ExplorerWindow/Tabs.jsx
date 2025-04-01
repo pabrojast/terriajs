@@ -57,8 +57,7 @@ class Tabs extends Component {
           onFileAddFinished={(files) => this.onFileAddFinished(files)}
           onUrlAddFinished={() => this.onUrlAddFinished()}
         />
-      ),
-      link: "https://example.com/my-data"
+      )
     };
 
     if (this.props.terria.configParameters.tabbedCatalog) {
@@ -77,8 +76,7 @@ class Tabs extends Component {
                 items={member.memberModels || [member]}
                 searchPlaceholder={t("addData.searchPlaceholderWhole")}
               />
-            ),
-            link: "https://example.com/data-catalog"
+            )
           })),
         [myDataTab]
       );
@@ -93,8 +91,7 @@ class Tabs extends Component {
               items={this.props.terria.catalog.group.memberModels}
               searchPlaceholder={t("addData.searchPlaceholder")}
             />
-          ),
-          link: "https://example.com/data-catalog"
+          )
         },
         myDataTab
       ];
@@ -163,9 +160,6 @@ class Tabs extends Component {
               >
                 {item.name}
               </ButtonTab>
-              <a href={item.link} target="_blank" rel="noopener noreferrer">
-                {t("addData.link")}
-              </a>
             </li>
           ))}
         </ul>
