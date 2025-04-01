@@ -108,8 +108,78 @@ class MyDataTab extends Component {
         <div className={Styles.dndBoxInfo}>
           <Trans i18nKey="addData.infoText">
             <div>Drag and drop a file here to view it locally on the map</div>
-            <div>(it won’t be saved or uploaded to the internet)</div>
+            <div>(it won't be saved or uploaded to the internet)</div>
           </Trans>
+          <div style={{ display: "flex", justifyContent: "center", marginTop: "10px", gap: "10px" }}>
+            <button 
+              className="btn btn-primary" 
+              onClick={() => this.changeTab("local")}
+              css={`
+                display: flex;
+                align-items: center;
+                padding: 5px 10px;
+                color: ${(p) => p.theme.textLight};
+                background: ${(p) => p.theme.colorPrimary};
+                border: none;
+                border-radius: 4px;
+                svg {
+                  fill: ${(p) => p.theme.textLight};
+                  margin-right: 5px;
+                }
+                &:hover {
+                  background: ${(p) => p.theme.colorSecondary};
+                }
+              `}
+            >
+              <Icon glyph={Icon.GLYPHS.local} />
+              {t("addData.localTitle")}
+            </button>
+            
+            <button 
+              className="btn btn-primary" 
+              onClick={() => this.changeTab("web")}
+              css={`
+                display: flex;
+                align-items: center;
+                padding: 5px 10px;
+                color: ${(p) => p.theme.textLight};
+                background: ${(p) => p.theme.colorPrimary};
+                border: none;
+                border-radius: 4px;
+                svg {
+                  fill: ${(p) => p.theme.textLight};
+                  margin-right: 5px;
+                }
+                &:hover {
+                  background: ${(p) => p.theme.colorSecondary};
+                }
+              `}
+            >
+              <Icon glyph={Icon.GLYPHS.web} />
+              {t("addData.webTitle")}
+            </button>
+            
+            <a 
+              href="https://google.com" 
+              target="_blank"
+              rel="noopener noreferrer"
+              css={`
+                display: flex;
+                align-items: center;
+                padding: 5px 10px;
+                color: ${(p) => p.theme.textLight};
+                background: ${(p) => p.theme.colorPrimary};
+                border: none;
+                border-radius: 4px;
+                text-decoration: none;
+                &:hover {
+                  background: ${(p) => p.theme.colorSecondary};
+                }
+              `}
+            >
+              Ejemplo
+            </a>
+          </div>
           <div className={Styles.tabCenter}>{this.renderTabs()}</div>
         </div>
         <div className={Styles.dndBox}>

@@ -172,9 +172,6 @@ class Tabs extends Component {
           role="tabpanel"
           tabIndex="0"
         >
-          <ExampleButton href="https://google.com" target="_blank">
-            Ejemplo
-          </ExampleButton>
           <div className={Styles.panelContent}>{currentTab.panel}</div>
         </section>
       </div>
@@ -205,21 +202,6 @@ const ButtonTab = styled.button`
     }
 
   `}
-`;
-
-const ExampleButton = styled.a`
-  display: block;
-  padding: 10px 15px;
-  margin: 15px auto;
-  background: ${(props) => props.theme.colorPrimary};
-  color: white;
-  text-align: center;
-  border-radius: 4px;
-  text-decoration: none;
-  max-width: 200px;
-  &:hover, &:focus {
-    background: ${(props) => props.theme.colorSecondary};
-  }
 `;
 
 export default withTranslation()(Tabs);
