@@ -10,6 +10,7 @@ import MappableMixin from "../../ModelMixins/MappableMixin";
 import DataCatalogTab from "./Tabs/DataCatalogTab";
 import MyDataTab from "./Tabs/MyDataTab/MyDataTab";
 import Styles from "./tabs.scss";
+import { ThemeContext } from "styled-components";
 
 @observer
 class Tabs extends Component {
@@ -19,6 +20,8 @@ class Tabs extends Component {
     tabs: PropTypes.array,
     t: PropTypes.func.isRequired
   };
+
+  static contextType = ThemeContext;
 
   async onFileAddFinished(files) {
     const file = files.find((f) => MappableMixin.isMixedInto(f));
@@ -129,52 +132,60 @@ class Tabs extends Component {
       )[0] ||
       sameCategory[0] ||
       tabs[0];
+      
+    const theme = this.context;
 
     return (
       <div className={Styles.tabs}>
-        <ul
-          className={Styles.tabList}
-          role="tablist"
-          style={{ padding: "10px 24px", background: "#fff" }}
-        >
-          {tabs.map((item, i) => (
-            <li
-              key={i}
-              id={"tablist--" + item.title}
-              className={Styles.tabListItem}
-              role="tab"
-              aria-controls={"panel--" + item.title}
-              aria-selected={item === currentTab}
-            >
-              <ButtonTab
-                type="button"
-                onClick={this.activateTab.bind(
-                  this,
-                  item.category,
-                  item.idInCategory
-                )}
-                className={classNames(Styles.btnTab, {
-                  [Styles.btnSelected]: item === currentTab
-                })}
-                isCurrent={item === currentTab}
+        <div style={{ 
+          display: "flex", 
+          background: "#fff", 
+          padding: "10px 24px", 
+          alignItems: "center"
+        }}>
+          <ul
+            className={Styles.tabList}
+            role="tablist"
+            style={{ padding: 0, background: "transparent", flexGrow: 1 }}
+          >
+            {tabs.map((item, i) => (
+              <li
+                key={i}
+                id={"tablist--" + item.title}
+                className={Styles.tabListItem}
+                role="tab"
+                aria-controls={"panel--" + item.title}
+                aria-selected={item === currentTab}
               >
-                {item.name}
-              </ButtonTab>
-            </li>
-          ))}
-
-          {/* Nuevo botón con enlace externo */}
-          <li className={Styles.tabListItem}>
-            <a
-              href="https://ejemplo.com"
-              target="_blank"
+                <ButtonTab
+                  type="button"
+                  onClick={this.activateTab.bind(
+                    this,
+                    item.category,
+                    item.idInCategory
+                  )}
+                  className={classNames(Styles.btnTab, {
+                    [Styles.btnSelected]: item === currentTab
+                  })}
+                  isCurrent={item === currentTab}
+                >
+                  {item.name}
+                </ButtonTab>
+              </li>
+            ))}
+          </ul>
+          
+          <li className={Styles.tabListItem} style={{ listStyle: "none" }}>
+            <ButtonTab
+              as="a"
+              href="https://ihp-wins.unesco.org/terria/#https://ihp-wins.unesco.org/dataset/8aadbf95-c6ed-4366-9ad7-deafd033ae15/resource/52bb756a-f766-46d2-9bd4-582c8bf07202/download/tag_horn_of_africa.json"
               rel="noopener noreferrer"
-              className={classNames(Styles.btnTab)}
+              className={Styles.btnTab}
             >
-              Mi Enlace
-            </a>
+              Horn of Africa
+            </ButtonTab>
           </li>
-        </ul>
+        </div>
 
         <section
           key={currentTab.title}
