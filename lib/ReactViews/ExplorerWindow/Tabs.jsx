@@ -175,16 +175,7 @@ class Tabs extends Component {
             ))}
           </ul>
           
-          <li className={Styles.tabListItem} style={{ listStyle: "none" }}>
-            <ButtonTab
-              as="a"
-              href="https://ihp-wins.unesco.org/terria/#https://ihp-wins.unesco.org/dataset/8aadbf95-c6ed-4366-9ad7-deafd033ae15/resource/52bb756a-f766-46d2-9bd4-582c8bf07202/download/tag_horn_of_africa.json"
-              rel="noopener noreferrer"
-              className={Styles.btnTab}
-            >
-              Horn of Africa
-            </ButtonTab>
-          </li>
+
         </div>
 
         <section
