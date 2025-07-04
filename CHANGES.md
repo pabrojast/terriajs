@@ -1,8 +1,58 @@
 # Change Log
 
-#### next release (8.9.3)
+#### next release (8.9.6)
 
+- **Breaking changes:**
+
+  - Update `protomaps-leafet` package to 5.0.1 which only support protomaps basempap tileset >v4.0
+    - See [protomaps leaflet CHANGELOG](https://github.com/protomaps/protomaps-leaflet/blob/main/CHANGELOG.md#500).
+  - Update react and react-dom to version 18
+  - Update mobx-react to version 9
+    - It no longer convert props automatically to observable in class components. See [MobX React v9 class components guide](https://github.com/mobxjs/mobx/blob/mobx-react%409.2.0/packages/mobx-react/README.md#class-components) for more details on how to migrate
+
+- Fix a bug where `.pmtiles` urls with a query string at the end was not being rendered as PMTILES.
+- Add `MapboxSearchProvider` for geocoding using Mapbox.
+- Upgrade yarn to 1.22.22
+- Fix `ApiTableCatalogItem` to add `queryParameters` and `updateQueryParameters` to the API requests. These were previously being ignored.
 - [The next improvement]
+
+#### 8.9.5 - 2025-06-03
+
+- Upgrade terriajs-server to version 4.0.2
+
+#### 8.9.4 - 2025-06-03
+
+- Remove regenerator-runtime polyfill as generators are now widely supported. #7615
+- Remove direct usage of core-js polyfills. #7615
+- TSify `ChartPanel` and convert to a functional component #7581
+- Convert `Chart` component of `FeatureInfoPanelChart` to functional component. #7598
+- TSify `DataCatalogGroup` and convert to a functional component. #7575
+- TSify `BottomDockChart`, `ChartPanel`, `LineAndPointChart`, `LineChart`, `MomentLinesChart`, `MomentPointsChart`, `Chart Tooltip` to typescript and convert to functional components. #7617
+- Upgrade mkdocs to 1.6.1
+- Refactor the `DateTimePicker` component and split it into multiple components. #7585
+- Update data-attribution and terms of conditions links to point to terria.io. #7627
+- Hide the related maps button. #7627
+- Change `BingMapSearchProvider` to correctly logs bing search action. #7601
+- fix `MapboxStyleCatalogItem` scaleFactor bug where tiles are always scaled-up in Cesium. #7639
+
+#### 8.9.3 - 2025-04-24
+
+- Remove unused d3-array dependency.
+- Update to plugin-error 2.0.1
+- TSify `MenuButton` and convert it to functional component. #7576
+- Convert `WorkbenchItem` to functional component #7564
+- Remove BrowserStack and SauceLabs gulp tasks.
+- Remove `test-travis` gulp task.
+- Allow to modify `lookupCookie` for i18next
+- TSify dropdown and convert it to a functional component. #7577
+- Convert SettingPanel to a functional component. #7589
+- Update html-to-react to 1.7.0
+- Pass explicit refs to css transition component to avoid findDomNode usage. #7590
+- TSify FadeIn component. #7590
+- Convert `ViewingControls` to a functional component. #7574
+- DOMPurify updated to 3.2.5 to fix CVE-2025-26791.
+- Fix pmtiles rendering issue. #7607
+- Remove unused types/rbush dependency.
 
 #### 8.9.2 - 2025-03-31
 
@@ -19,12 +69,12 @@
 - Update to shpjs 6.1.0.
 - Enable `noUncheckedSideEffectImports` in `tsconfig.json` to get errors from tsc when non-existent modules are imported for side effects.
 - Return lat/lon as numbers from `geoJsonGeometryFromGeoRssSimpleGeometry` and `geoJsonGeometryFromW3cGeometry`.
+- Remove unused babel/parser dependency.
 
 #### 8.9.1 - 2025-03-24
 
 - Tweak `ArcGisFeatureServerCatalogItem.imageryProvider` to return undefined until metadata has finished loading
 - Fix scss theming regression by restoring webpack alias
-- Remove unused babel/parser dependency.
 
 #### 8.9.0 - 2025-03-17
 
