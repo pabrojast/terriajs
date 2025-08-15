@@ -13,8 +13,10 @@ import { animateEnd } from "../../../Core/animation";
 import getPath from "../../../Core/getPath";
 import TerriaError from "../../../Core/TerriaError";
 import Terria from "../../../Models/Terria";
+import { StoryData } from "../../../Models/InitSource";
 import Box from "../../../Styled/Box";
 import { WithViewState, withViewState } from "../../Context";
+import { useDraggable } from "../../Drag/useDraggable";
 import { onStoryButtonClick } from "../../Map/MenuBar/StoryButton/StoryButton";
 import { Story } from "../Story";
 import Styles from "../story-panel.scss";
@@ -94,6 +96,8 @@ const Swipeable = ({
 class StoryPanel extends Component<Props, State> {
   keydownListener: EventListener | undefined;
   slideRef: RefObject<HTMLElement>;
+  dragRef: RefObject<HTMLDivElement>;
+  resizeObserver: ResizeObserver | undefined;
 
   constructor(props: Props) {
     super(props);
@@ -102,6 +106,7 @@ class StoryPanel extends Component<Props, State> {
       inView: false
     };
     this.slideRef = createRef();
+    this.dragRef = createRef();
   }
 
   componentDidMount() {
@@ -216,6 +221,30 @@ class StoryPanel extends Component<Props, State> {
 
   render() {
     const stories = this.props.viewState.terria.stories || [];
+
+    // Use the new draggable component if stories have position data or should be draggable
+    if (stories.length > 0) {
+      const DraggableStoryPanel = require('./DraggableStoryPanel').default;
+      return (
+        <DraggableStoryPanel
+          stories={stories}
+          currentStoryId={this.props.viewState.currentStoryId}
+          onStoryChange={(index: number) => {
+            runInAction(() => {
+              this.props.viewState.currentStoryId = index;
+            });
+          }}
+          onClose={() => {
+            runInAction(() => {
+              this.props.viewState.storyShown = false;
+            });
+          }}
+          onActivateStory={(story: any) => this.activateStory(story)}
+        />
+      );
+    }
+
+    // Fallback to original implementation
     const story = stories[this.props.viewState.currentStoryId];
 
     return (
@@ -265,7 +294,7 @@ class StoryPanel extends Component<Props, State> {
             className={classNames(Styles.storyContainer, {
               [Styles.isMounted]: this.state.inView
             })}
-            key={story.id}
+            key={story?.id}
             ref={this.slideRef as RefObject<HTMLDivElement>}
             css={`
               @media (min-width: 992px) {
@@ -282,7 +311,7 @@ class StoryPanel extends Component<Props, State> {
               column
             >
               <TitleBar
-                title={story.title}
+                title={story?.title}
                 isCollapsed={this.state.isCollapsed}
                 collapseHandler={() => this.toggleCollapse()}
                 closeHandler={() => this.exitStory()}

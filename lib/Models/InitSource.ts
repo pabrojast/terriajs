@@ -39,6 +39,15 @@ export interface StoryData {
   text: string;
   id: string;
   shareData: ShareInitSourceData;
+  /** Position and dimensions for draggable story panel */
+  position?: {
+    x: number;
+    y: number;
+  };
+  dimensions?: {
+    width: number;
+    height: number;
+  };
 }
 export interface ShareInitSourceData {
   version: string;

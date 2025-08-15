@@ -16,18 +16,17 @@ export const useDraggable = (options?: { handleSelector?: string }) => {
     setNode(nodeEle);
   }, []);
 
-  // Function to calculate bounds
+  // Function to calculate bounds using client rects (more robust for absolutely positioned parents)
   const calculateBounds = useCallback(() => {
     if (!node) return null;
 
-    const parent = node?.parentElement;
-    if (!parent) return null;
-
+    // Use viewport bounds so the panel can be dragged anywhere on screen, regardless of parent sizing
+    const margin = 8; // small margin to avoid clipping
     return {
-      minX: parent.offsetLeft,
-      maxX: parent.offsetLeft + parent.offsetWidth,
-      minY: parent.offsetTop,
-      maxY: parent.offsetTop + parent.offsetHeight
+      minX: margin,
+      maxX: window.innerWidth - margin,
+      minY: margin,
+      maxY: window.innerHeight - margin
     };
   }, [node]);
 
@@ -45,15 +44,18 @@ export const useDraggable = (options?: { handleSelector?: string }) => {
     const currentDy = dyRef.current;
 
     // Calculate constrained position
-    const constrainedDx = Math.min(
-      Math.max(currentDx, minX - elementRect.left + currentDx),
-      maxX - elementRect.width - elementRect.left + currentDx
-    );
+    // elementRect.left/top already include current transform (dx/dy)
+    // base position without transform
+    const baseLeft = elementRect.left - currentDx;
+    const baseTop = elementRect.top - currentDy;
 
-    const constrainedDy = Math.min(
-      Math.max(currentDy, minY - elementRect.top + currentDy),
-      maxY - elementRect.height - elementRect.top + currentDy
-    );
+    const minAllowedDx = minX - baseLeft;
+    const maxAllowedDx = maxX - elementRect.width - baseLeft;
+    const minAllowedDy = minY - baseTop;
+    const maxAllowedDy = maxY - elementRect.height - baseTop;
+
+    const constrainedDx = Math.min(Math.max(currentDx, minAllowedDx), maxAllowedDx);
+    const constrainedDy = Math.min(Math.max(currentDy, minAllowedDy), maxAllowedDy);
 
     // Directly update the DOM for immediate visual effect
     node.style.transform = `translate3d(${constrainedDx}px, ${constrainedDy}px, 0)`;
@@ -206,5 +208,14 @@ export const useDraggable = (options?: { handleSelector?: string }) => {
     };
   }, [node, handleMouseDown, handleTouchStart]);
 
-  return [ref];
+  // Public controls for external consumers
+  const setPosition = useCallback(
+    (dx: number, dy: number, clampToBounds: boolean = false) => {
+      updateElementPosition(dx, dy);
+      if (clampToBounds) constrainToBounds();
+    },
+    [updateElementPosition, constrainToBounds]
+  );
+
+  return [ref, { setPosition, constrainToBounds }] as const;
 };

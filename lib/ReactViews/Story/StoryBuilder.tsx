@@ -154,11 +154,19 @@ class StoryBuilder extends Component<
 
     if (storyIndex >= 0) {
       const oldStory = this.props.viewState.terria.stories[storyIndex];
-      // replace the old story, we need to replace the stories array so that
-      // it is observable
+      // replace the old story, preserving position and dimensions
+      const updatedStory = combine(story, oldStory);
+      // Preserve position and dimensions from the original story
+      if (oldStory.position) {
+        updatedStory.position = oldStory.position;
+      }
+      if (oldStory.dimensions) {
+        updatedStory.dimensions = oldStory.dimensions;
+      }
+      
       this.props.viewState.terria.stories = [
         ...this.props.viewState.terria.stories.slice(0, storyIndex),
-        combine(story, oldStory),
+        updatedStory,
         ...this.props.viewState.terria.stories.slice(storyIndex + 1)
       ];
     } else {
@@ -191,16 +199,29 @@ class StoryBuilder extends Component<
       (st) => st.id === story.id
     );
     if (storyIndex >= 0) {
-      story.shareData = JSON.parse(
-        JSON.stringify(
-          getShareData(this.props.viewState.terria, this.props.viewState, {
-            includeStories: false
-          })
+      const oldStory = this.props.viewState.terria.stories[storyIndex];
+      const updatedStory = {
+        ...story,
+        shareData: JSON.parse(
+          JSON.stringify(
+            getShareData(this.props.viewState.terria, this.props.viewState, {
+              includeStories: false
+            })
+          )
         )
-      );
+      };
+      
+      // Preserve position and dimensions from the original story
+      if (oldStory.position) {
+        updatedStory.position = oldStory.position;
+      }
+      if (oldStory.dimensions) {
+        updatedStory.dimensions = oldStory.dimensions;
+      }
+      
       this.props.viewState.terria.stories = [
         ...this.props.viewState.terria.stories.slice(0, storyIndex),
-        story,
+        updatedStory,
         ...this.props.viewState.terria.stories.slice(storyIndex + 1)
       ];
       this.setState({
