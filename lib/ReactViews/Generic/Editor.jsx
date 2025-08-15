@@ -32,6 +32,7 @@ export default function TinyEditor(props) {
       value={props.html}
       onEditorChange={props.onChange}
       init={{
+        license_key: "gpl",
         height: 450,
         skin: false,
         menubar: false,
