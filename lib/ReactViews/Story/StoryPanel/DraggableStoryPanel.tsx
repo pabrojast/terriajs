@@ -337,11 +337,11 @@ const DraggableStoryPanel = observer(
           >
             <Box
               backgroundColor={theme.dark}
-              css={{ color: "white" }}
               paddedRatio={3}
               column
               className="story-drag-handle"
               css={`
+                color: white;
                 cursor: move;
                 user-select: none;
               `}

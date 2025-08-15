@@ -397,13 +397,13 @@ class StoryBuilder extends Component<
               text={
                 this.state.storyToRemove ? (
                   <Text textLight large>
-                    <Trans i18nKey="story.removeStoryDialog" i18n={i18n}>
-                      Are you sure you wish to delete
-                      <TextSpan textLight large bold>
-                        {/* @ts-expect-error i18next won't properly interpolate text if not in double brackets({{ }}) */}
-                        {{ storyName }}
-                      </TextSpan>
-                      ?
+                    <Trans
+                      i18nKey="story.removeStoryDialog"
+                      i18n={i18n}
+                      values={{ storyName }}
+                      components={{ strong: <TextSpan textLight large bold /> }}
+                    >
+                      Are you sure you wish to delete <strong>{{ storyName }}</strong>?
                     </Trans>
                   </Text>
                 ) : (

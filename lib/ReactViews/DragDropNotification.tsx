@@ -97,15 +97,13 @@ const DragDropNotification: FC<DragDropNotificationProps> = observer(
           `}
         >
           <Text extraLarge breakWord>
-            <Trans i18nKey="dragDrop.notification" count={uploadedFiles.length}>
-              <TextSpan bold noFontSize>
-                {/* @ts-expect-error i18next won't properly interpolate text if not in double brackets({{ }}) */}
-                &quot;{{ fileNames }}&quot;
-              </TextSpan>
-              {{ count: uploadedFiles.length }} been added to{" "}
-              <TextSpan primary noFontSize>
-                My data
-              </TextSpan>
+            <Trans
+              i18nKey="dragDrop.notification"
+              count={uploadedFiles.length}
+              values={{ fileNames: fileNames.join(", ") }}
+              components={{ b: <TextSpan bold noFontSize />, i: <TextSpan primary noFontSize /> }}
+            >
+              <b>"{{ fileNames }}"</b> {{ count }} been added to <i>My data</i>
             </Trans>
           </Text>
         </Box>
