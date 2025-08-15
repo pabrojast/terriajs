@@ -56,7 +56,7 @@ const DragDropNotification: FC<DragDropNotificationProps> = observer(
       viewState.openUserData();
     };
 
-    const fileNames = uploadedFiles.join(",");
+    const fileNames = uploadedFiles.join(", ");
 
     return (
       <RawButton
@@ -100,11 +100,10 @@ const DragDropNotification: FC<DragDropNotificationProps> = observer(
             <Trans
               i18nKey="dragDrop.notification"
               count={uploadedFiles.length}
-              values={{ fileNames: fileNames.join(", ") }}
-              components={{ b: <TextSpan bold noFontSize />, i: <TextSpan primary noFontSize /> }}
-            >
-              <b>"{{ fileNames }}"</b> {{ count }} been added to <i>My data</i>
-            </Trans>
+              values={{ fileNames }}
+              components={[<TextSpan bold noFontSize />, <TextSpan primary noFontSize />]}
+              defaults={'<0>"{{fileNames}}"</0> {{count}} been added to <1>My data</1>'}
+            />
           </Text>
         </Box>
       </RawButton>

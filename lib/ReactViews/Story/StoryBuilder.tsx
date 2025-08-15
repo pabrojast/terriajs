@@ -401,10 +401,9 @@ class StoryBuilder extends Component<
                       i18nKey="story.removeStoryDialog"
                       i18n={i18n}
                       values={{ storyName }}
-                      components={{ strong: <TextSpan textLight large bold /> }}
-                    >
-                      Are you sure you wish to delete <strong>{{ storyName }}</strong>?
-                    </Trans>
+                      components={[<TextSpan textLight large bold />]}
+                      defaults={"Are you sure you wish to delete <0>{{storyName}}</0>?"}
+                    />
                   </Text>
                 ) : (
                   <Text textLight large>
