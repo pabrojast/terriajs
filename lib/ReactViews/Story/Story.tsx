@@ -3,8 +3,9 @@ import {
   RefObject,
   MouseEventHandler,
   useEffect,
-  useLayoutEffect,
-  useRef
+  useMemo,
+  useRef,
+  useCallback
 } from "react";
 import { sortable } from "react-anything-sortable";
 import { useTranslation } from "react-i18next";
@@ -152,22 +153,23 @@ const recaptureStory =
 const StoryMenu = (props: MenuProps) => {
   const { t } = useTranslation();
   const menuRef = useRef<HTMLDivElement | null>(null);
-  useLayoutEffect(() => {
+  useEffect(() => {
     // Adjust the position of the menu so it stays inside the scroll container.
+    const el = menuRef.current;
+    const parentEl = props.parentRef?.current;
+    if (!el || !parentEl || !props.menuOpen) return;
 
-    if (!menuRef.current) return;
-    if (!props.parentRef.current) return;
-
-    // Grow downwards, by default:
-    Object.assign(menuRef.current.style, { top: "0px", bottom: "unset" });
-
-    const selfRect = menuRef.current.getBoundingClientRect();
-    const parentRect = props.parentRef.current.getBoundingClientRect();
+    // Measure first (read), then write styles to avoid layout thrash
+    const selfRect = el.getBoundingClientRect();
+    const parentRect = parentEl.getBoundingClientRect();
     if (selfRect.bottom > parentRect.bottom) {
       // Looks like there's no room to the bottom; grow upwards.
-      Object.assign(menuRef.current.style, { top: "unset", bottom: "0px" });
+      Object.assign(el.style, { top: "unset", bottom: "0px" });
+    } else {
+      // Default: grow downwards
+      Object.assign(el.style, { top: "0px", bottom: "unset" });
     }
-  }, [props.parentRef]);
+  }, [props.parentRef, props.menuOpen]);
   return (
     <Box
       ref={menuRef}
@@ -235,18 +237,22 @@ const StoryMenu = (props: MenuProps) => {
 
 const Story = (props: Props) => {
   const story = props.story;
-  const bodyText = getTruncatedContent(story.text);
+  const bodyText = useMemo(() => getTruncatedContent(story.text), [story.text]);
   const theme = useTheme();
   const { t } = useTranslation();
   const storyRef = useRef<HTMLDivElement>(null);
-  const closeHandler = () => {
-    hideList(props);
-  };
+  const { menuOpen, closeMenu } = props;
+  const closeHandler = useCallback(() => {
+    // Only close if this item's menu is open
+    if (menuOpen) closeMenu();
+  }, [menuOpen, closeMenu]);
 
+  // Only register the global click listener while the menu is open
   useEffect(() => {
+    if (!menuOpen) return;
     window.addEventListener("click", closeHandler);
     return () => window.removeEventListener("click", closeHandler);
-  });
+  }, [menuOpen, closeHandler]);
 
   return (
     <>

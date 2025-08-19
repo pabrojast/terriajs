@@ -163,7 +163,7 @@ class StoryBuilder extends Component<
       if (oldStory.dimensions) {
         updatedStory.dimensions = oldStory.dimensions;
       }
-      
+
       this.props.viewState.terria.stories = [
         ...this.props.viewState.terria.stories.slice(0, storyIndex),
         updatedStory,
@@ -210,7 +210,7 @@ class StoryBuilder extends Component<
           )
         )
       };
-      
+
       // Preserve position and dimensions from the original story
       if (oldStory.position) {
         updatedStory.position = oldStory.position;
@@ -218,7 +218,7 @@ class StoryBuilder extends Component<
       if (oldStory.dimensions) {
         updatedStory.dimensions = oldStory.dimensions;
       }
-      
+
       this.props.viewState.terria.stories = [
         ...this.props.viewState.terria.stories.slice(0, storyIndex),
         updatedStory,
@@ -276,6 +276,13 @@ class StoryBuilder extends Component<
     _currentDraggingSortData: any,
     _currentDraggingIndex: any
   ) {
+    const current = this.props.viewState.terria.stories;
+    // Avoid unnecessary observable writes if order didn't change
+    if (
+      current.length === sortedArray.length &&
+      current.every((s, i) => s.id === sortedArray[i]?.id)
+    )
+      return;
     this.props.viewState.terria.stories = sortedArray;
   }
 
@@ -401,8 +408,12 @@ class StoryBuilder extends Component<
                       i18nKey="story.removeStoryDialog"
                       i18n={i18n}
                       values={{ storyName }}
-                      components={[<TextSpan textLight large bold />]}
-                      defaults={"Are you sure you wish to delete <0>{{storyName}}</0>?"}
+                      components={[
+                        <TextSpan key="storyName" textLight large bold />
+                      ]}
+                      defaults={
+                        "Are you sure you wish to delete <0>{{storyName}}</0>?"
+                      }
                     />
                   </Text>
                 ) : (
@@ -487,10 +498,10 @@ class StoryBuilder extends Component<
   hideStoryBuilder = () => {
     this.props.viewState.toggleStoryBuilder();
     this.props.viewState.terria.currentViewer.notifyRepaintRequired();
-    // Allow any animations to finish, then trigger a resize.
-    setTimeout(function () {
-      triggerResize();
-    }, this.props.animationDuration || 1);
+    // Allow any animations to finish, then trigger a resize in the next frame.
+    requestAnimationFrame(() => {
+      setTimeout(() => triggerResize(), this.props.animationDuration || 1);
+    });
     this.props.viewState.toggleFeaturePrompt("story", false, true);
   };
 
