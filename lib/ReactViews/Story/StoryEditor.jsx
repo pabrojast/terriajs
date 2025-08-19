@@ -7,6 +7,7 @@ import tinymce from "tinymce";
 import Text from "../../Styled/Text";
 import Box from "../../Styled/Box";
 import Button from "../../Styled/Button";
+import { withViewState } from "../Context";
 
 // Lazy load the Editor component as the tinyMCE library is large
 const Editor = lazy(() => import("../Generic/Editor.jsx"));
@@ -84,6 +85,7 @@ class StoryEditor extends Component {
     this.setState({
       title: event.target.value
     });
+    this._updateDirty(event.target.value, this.state.text);
   }
 
   saveStory() {
@@ -96,6 +98,8 @@ class StoryEditor extends Component {
     this.setState({
       isPopupEditorOpen: false
     });
+    // Saved — clear dirty flag
+    this.props.viewState.setStoryHasUnsavedChanges(false);
   }
 
   cancelEditing() {
@@ -104,6 +108,8 @@ class StoryEditor extends Component {
       title: this.props.story.title,
       text: this.props.story.text
     });
+    // Cancel — clear dirty flag
+    this.props.viewState.setStoryHasUnsavedChanges(false);
   }
 
   onKeyDown(event) {
@@ -136,6 +142,15 @@ class StoryEditor extends Component {
 
   handleChange(value) {
     this.setState({ text: value });
+    this._updateDirty(this.state.title, value);
+  }
+
+  _updateDirty(title, text) {
+    const initial = this.props.story || { title: "", text: "" };
+    const dirty =
+      (title || "") !== (initial.title || "") ||
+      (text || "") !== (initial.text || "");
+    this.props.viewState.setStoryHasUnsavedChanges(Boolean(dirty));
   }
 
   removeStory() {
@@ -237,8 +252,11 @@ StoryEditor.propTypes = {
   saveStory: PropTypes.func,
   exitEditingMode: PropTypes.func,
   t: PropTypes.func.isRequired,
-  terria: PropTypes.object
+  terria: PropTypes.object,
+  viewState: PropTypes.shape({
+    setStoryHasUnsavedChanges: PropTypes.func
+  })
 };
 
 StoryEditor.defaultProps = { story: { title: "", text: "", id: undefined } };
-export default withTranslation()(StoryEditor);
+export default withViewState(withTranslation()(StoryEditor));

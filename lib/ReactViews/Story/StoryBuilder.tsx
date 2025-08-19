@@ -173,9 +173,9 @@ class StoryBuilder extends Component<
       this.captureStory(story);
     }
 
-    this.setState({
-      editingMode: false
-    });
+    this.setState({ editingMode: false });
+    // Edits are now saved
+    this.props.viewState.setStoryHasUnsavedChanges(false);
   }
 
   @action
@@ -261,6 +261,8 @@ class StoryBuilder extends Component<
       editingMode: true,
       currentStory: story
     });
+    // Start editing; unsaved until saved or canceled
+    this.props.viewState.setStoryHasUnsavedChanges(false);
   }
 
   @action
@@ -493,6 +495,8 @@ class StoryBuilder extends Component<
       editingMode: true,
       currentStory: undefined
     });
+    // New story draft, currently no unsaved changes until user types
+    this.props.viewState.setStoryHasUnsavedChanges(false);
   };
 
   hideStoryBuilder = () => {
@@ -550,7 +554,11 @@ class StoryBuilder extends Component<
         {this.state.editingMode && (
           <StoryEditor
             removeStory={this.removeStory}
-            exitEditingMode={() => this.setState({ editingMode: false })}
+            exitEditingMode={() => {
+              this.setState({ editingMode: false });
+              // Cancel editing — no unsaved changes tracked
+              this.props.viewState.setStoryHasUnsavedChanges(false);
+            }}
             story={this.state.currentStory}
             saveStory={this.onSave}
             terria={this.props.viewState.terria}

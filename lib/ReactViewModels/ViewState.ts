@@ -107,6 +107,7 @@ export default class ViewState {
   @observable currentTrainerStepIndex: number = 0;
 
   @observable printWindow: Window | null = null;
+  @observable storyHasUnsavedChanges: boolean = false;
 
   /**
    * The currently-selected web service type on the My Data -> Add web data panel.
@@ -201,6 +202,11 @@ export default class ViewState {
     if (this.bottomDockHeight !== height) {
       this.bottomDockHeight = height;
     }
+  }
+
+  @action
+  setStoryHasUnsavedChanges(dirty: boolean): void {
+    this.storyHasUnsavedChanges = dirty;
   }
 
   errorProvider: any | null = null;
@@ -527,9 +533,9 @@ export default class ViewState {
     };
 
     this._storyBeforeUnloadSubscription = reaction(
-      () => this.terria.stories.length > 0,
-      (hasScenes) => {
-        if (hasScenes) {
+      () => this.storyHasUnsavedChanges,
+      (hasUnsaved) => {
+        if (hasUnsaved) {
           window.addEventListener("beforeunload", handleWindowClose);
         } else {
           window.removeEventListener("beforeunload", handleWindowClose);
