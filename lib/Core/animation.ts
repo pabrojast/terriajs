@@ -20,9 +20,10 @@
 const ANIMATION_TIMEOUT = 500;
 
 const transitionEnd = (element: Element | null) =>
-  new Promise<void>((resolve, reject) => {
+  new Promise<void>((resolve) => {
     if (!element) {
-      reject("Animation: Element is null");
+      // If no element, resolve immediately to avoid unhandled rejections
+      resolve();
     } else {
       const onEnd = () => {
         element.removeEventListener("transitionend", onEnd);
@@ -35,9 +36,10 @@ const transitionEnd = (element: Element | null) =>
 const animationTimeout = (
   _timeoutID: ReturnType<typeof setTimeout> | undefined
 ) =>
-  new Promise<void>((_, reject) => {
+  new Promise<void>((resolve) => {
     _timeoutID = setTimeout(() => {
-      reject("Animation timed out. Did you forget to animate the element?");
+      // Resolve on timeout to avoid unhandled rejections
+      resolve();
     }, ANIMATION_TIMEOUT);
   });
 
