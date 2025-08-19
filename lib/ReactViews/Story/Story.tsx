@@ -265,6 +265,18 @@ const Story = (props: Props) => {
           cursor: move;
           float: none !important;
           border: 1px solid #baebf8;
+          // Improve drag rendering performance
+          will-change: transform;
+          // Avoid text selection causing jitter during drag
+          user-select: none;
+          // Disable transitions when react-anything-sortable marks as moving
+          &.react-anything-sortable-moving {
+            transition: none !important;
+          }
+          // Ensure base item also has no transform transition that can cause bounce
+          &.react-anything-sortable-item {
+            transition: none !important;
+          }
         `}
         style={props.style}
         className={classNames(props.className)}
