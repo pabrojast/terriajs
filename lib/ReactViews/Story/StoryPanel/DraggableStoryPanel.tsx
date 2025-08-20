@@ -105,7 +105,7 @@ const DraggableStoryPanel = observer(
   }: DraggableStoryPanelProps) => {
     const viewState = useViewState();
     const theme = useTheme();
-    const { t } = useTranslation();
+    useTranslation();
 
     const [isCollapsed, setIsCollapsed] = useState(false);
     const [inView, setInView] = useState(false);
@@ -167,21 +167,33 @@ const DraggableStoryPanel = observer(
     // Apply saved position to draggable element
     const applySavedPosition = useCallback(() => {
       if (!panelRef.current) return;
-      if (!story?.position) {
-        // Clear transform so default layout applies
-        panelRef.current.style.transform = "";
+
+      // If we have a saved position, apply it via the draggable controls
+      if (story?.position) {
+        const { x, y } = story.position;
+        dragControls?.setPosition?.(x, y, true);
         return;
       }
 
-      const { x, y } = story.position;
-      dragControls?.setPosition?.(x, y, true);
+      // No saved position: place the panel near the right side by default,
+      // leaving a 400px gap (to avoid overlapping right-side UI).
+      try {
+        const RIGHT_GAP = 400;
+        const el = panelRef.current;
+        const rect = el.getBoundingClientRect();
+        const viewportWidth =
+          window.innerWidth || document.documentElement.clientWidth;
+        const x = Math.max(0, viewportWidth - RIGHT_GAP - rect.width);
+        const y = 0; // relative to wrapper's top (which is already offset by 70px)
+        dragControls?.setPosition?.(x, y, true);
+      } catch {
+        // Fallback: do nothing if measurement fails
+      }
     }, [dragControls, story?.position]);
 
     // Set up drag end handler to save position
     useEffect(() => {
       if (!panelRef.current) return;
-
-      const element = panelRef.current;
 
       const handleDragEnd = () => {
         saveStoryPosition();
@@ -342,7 +354,8 @@ const DraggableStoryPanel = observer(
           onClick={onClickContainer}
           css={`
             top: 70px;
-            right: 400px;
+            left: 0;
+            width: 100%;
             pointer-events: none;
             z-index: 99999;
             ${!viewState.storyShown && "display: none;"}
