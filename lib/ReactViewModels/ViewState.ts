@@ -208,6 +208,10 @@ export default class ViewState {
   setStoryHasUnsavedChanges(dirty: boolean): void {
     this.storyHasUnsavedChanges = dirty;
   }
+  @action
+  setStoryListScrollTop(value: number): void {
+    this.storyListScrollTop = value;
+  }
 
   errorProvider: any | null = null;
 
@@ -218,6 +222,8 @@ export default class ViewState {
   @observable storyShown: boolean | null = null;
 
   @observable currentStoryId: number = 0;
+  // Persist scroll position for StoryBuilder stories list so it doesn't jump to top when toggling views
+  @observable storyListScrollTop: number = 0;
   @observable featurePrompts: any[] = [];
 
   /**

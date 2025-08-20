@@ -74,6 +74,25 @@ class StoryBuilder extends Component<
 
   clearRecaptureSuccessTimeout?: () => void;
 
+  // Save list scroll position so returning to the list doesn't jump to the top
+  private onStoriesScroll = () => {
+    const el = this.storiesWrapperRef.current as HTMLElement | null;
+    if (!el) return;
+    this.props.viewState.setStoryListScrollTop(el.scrollTop || 0);
+  };
+
+  private restoreScrollPosition = () => {
+    const el = this.storiesWrapperRef.current as HTMLElement | null;
+    if (!el) return;
+    const y = this.props.viewState.storyListScrollTop || 0;
+    if (y > 0) {
+      // Use rAF to ensure layout is ready before restoring scroll
+      requestAnimationFrame(() => {
+        el.scrollTop = y;
+      });
+    }
+  };
+
   constructor(
     props: IProps & MeasureElementProps & WithTranslation & WithViewState
   ) {
@@ -290,6 +309,38 @@ class StoryBuilder extends Component<
 
   componentWillUnmount() {
     this.clearRecaptureSuccessTimeout?.();
+    // Persist final scroll position
+    this.onStoriesScroll();
+    // Detach any listeners
+    const el = this.storiesWrapperRef.current as HTMLElement | null;
+    if (el) el.removeEventListener("scroll", this.onStoriesScroll);
+  }
+
+  componentDidMount(): void {
+    // Attach scroll listener and restore scroll position when the list exists
+    const el = this.storiesWrapperRef.current as HTMLElement | null;
+    if (el) {
+      el.addEventListener("scroll", this.onStoriesScroll, { passive: true } as any);
+      this.restoreScrollPosition();
+    }
+  }
+
+  componentDidUpdate(prevProps: Readonly<IProps & MeasureElementProps & WithTranslation & WithViewState>, prevState: Readonly<IState>): void {
+    // If the list becomes available (e.g., exiting StoryEditor or first stories added), ensure listener and restore scroll
+    const hadList = Boolean(prevState.editingMode === false && (prevProps.viewState.terria.stories?.length || 0) > 0);
+    const hasList = Boolean(this.state.editingMode === false && (this.props.viewState.terria.stories?.length || 0) > 0);
+
+    const el = this.storiesWrapperRef.current as HTMLElement | null;
+    if (hasList && el) {
+      // Attach listener once
+      el.removeEventListener("scroll", this.onStoriesScroll);
+      el.addEventListener("scroll", this.onStoriesScroll, { passive: true } as any);
+
+      // Restore scroll when returning to list or after first render with list
+      if (!hadList || prevState.editingMode !== this.state.editingMode) {
+        this.restoreScrollPosition();
+      }
+    }
   }
 
   renderIntro() {

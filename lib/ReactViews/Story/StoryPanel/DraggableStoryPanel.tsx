@@ -198,7 +198,8 @@ const DraggableStoryPanel = observer(
       const element = panelRef.current;
       const { width, height } = story.dimensions;
       element.style.width = `${width}px`;
-      element.style.minHeight = `${height}px`;
+      element.style.height = `${height}px`;
+      element.style.minHeight = `${Math.max(200, height)}px`;
     }, [story?.dimensions]);
 
     // Observe size changes to persist dimensions
