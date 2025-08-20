@@ -1,7 +1,13 @@
 import classNames from "classnames";
 import { runInAction } from "mobx";
 import { observer } from "mobx-react";
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode
+} from "react";
 import { useTranslation } from "react-i18next";
 import { useSwipeable, type SwipeableProps } from "react-swipeable";
 import { useTheme } from "styled-components";
@@ -106,11 +112,16 @@ const DraggableStoryPanel = observer(
 
     const slideRef = useRef<HTMLDivElement>(null);
     const panelRef = useRef<HTMLDivElement | null>(null);
-    const [dragRef, dragControls] = useDraggable({ handleSelector: ".story-drag-handle" });
-    const setRefs = useCallback((el: HTMLDivElement | null) => {
-      dragRef(el as unknown as HTMLElement | null);
-      panelRef.current = el;
-    }, [dragRef]);
+    const [dragRef, dragControls] = useDraggable({
+      handleSelector: ".story-drag-handle"
+    });
+    const setRefs = useCallback(
+      (el: HTMLDivElement | null) => {
+        dragRef(el as unknown as HTMLElement | null);
+        panelRef.current = el;
+      },
+      [dragRef]
+    );
 
     const story = stories[currentStoryId];
 
@@ -123,9 +134,12 @@ const DraggableStoryPanel = observer(
       const transform = element.style.transform;
 
       // Parse transform translate3d values
-      let x = 0, y = 0;
+      let x = 0,
+        y = 0;
       if (transform) {
-        const match = transform.match(/translate3d\(([^,]+),\s*([^,]+),\s*[^)]+\)/);
+        const match = transform.match(
+          /translate3d\(([^,]+),\s*([^,]+),\s*[^)]+\)/
+        );
         if (match) {
           x = parseFloat(match[1]);
           y = parseFloat(match[2]);
@@ -177,12 +191,12 @@ const DraggableStoryPanel = observer(
       const handleMouseUp = () => handleDragEnd();
       const handleTouchEnd = () => handleDragEnd();
 
-      document.addEventListener('mouseup', handleMouseUp);
-      document.addEventListener('touchend', handleTouchEnd);
+      document.addEventListener("mouseup", handleMouseUp);
+      document.addEventListener("touchend", handleTouchEnd);
 
       return () => {
-        document.removeEventListener('mouseup', handleMouseUp);
-        document.removeEventListener('touchend', handleTouchEnd);
+        document.removeEventListener("mouseup", handleMouseUp);
+        document.removeEventListener("touchend", handleTouchEnd);
       };
     }, [saveStoryPosition]);
 
@@ -207,11 +221,21 @@ const DraggableStoryPanel = observer(
       if (!panelRef.current) return;
       const element = panelRef.current;
       if (typeof ResizeObserver === "undefined") return;
+
+      let resizeTimeout: NodeJS.Timeout | undefined;
       const ro = new ResizeObserver(() => {
-        saveStoryPosition();
+        // Debounce to avoid too many saves while resizing
+        if (resizeTimeout) clearTimeout(resizeTimeout);
+        resizeTimeout = setTimeout(() => {
+          saveStoryPosition();
+        }, 100);
       });
+
       ro.observe(element);
-      return () => ro.disconnect();
+      return () => {
+        ro.disconnect();
+        if (resizeTimeout) clearTimeout(resizeTimeout);
+      };
     }, [saveStoryPosition]);
 
     const slideIn = useCallback(() => {
@@ -232,20 +256,23 @@ const DraggableStoryPanel = observer(
       });
     }, [viewState]);
 
-    const navigateStory = useCallback((index: number) => {
-      let newIndex = index;
-      if (newIndex < 0) {
-        newIndex = stories.length - 1;
-      } else if (newIndex >= stories.length) {
-        newIndex = 0;
-      }
-      if (newIndex !== currentStoryId) {
-        onStoryChange(newIndex);
-        if (newIndex < stories.length) {
-          onActivateStory(stories[newIndex]);
+    const navigateStory = useCallback(
+      (index: number) => {
+        let newIndex = index;
+        if (newIndex < 0) {
+          newIndex = stories.length - 1;
+        } else if (newIndex >= stories.length) {
+          newIndex = 0;
         }
-      }
-    }, [stories, currentStoryId, onStoryChange, onActivateStory]);
+        if (newIndex !== currentStoryId) {
+          onStoryChange(newIndex);
+          if (newIndex < stories.length) {
+            onActivateStory(stories[newIndex]);
+          }
+        }
+      },
+      [stories, currentStoryId, onStoryChange, onActivateStory]
+    );
 
     const goToPrevStory = useCallback(() => {
       navigateStory(currentStoryId - 1);
@@ -263,9 +290,12 @@ const DraggableStoryPanel = observer(
       slideOut();
     }, [onClose, viewState.terria, slideOut]);
 
-    const onCenterScene = useCallback((story: Story) => {
-      onActivateStory(story);
-    }, [onActivateStory]);
+    const onCenterScene = useCallback(
+      (story: Story) => {
+        onActivateStory(story);
+      },
+      [onActivateStory]
+    );
 
     // Set up keyboard listeners
     useEffect(() => {
@@ -287,7 +317,13 @@ const DraggableStoryPanel = observer(
       return () => {
         window.removeEventListener("keydown", keydownListener, true);
       };
-    }, [exitStory, goToNextStory, goToPrevStory, currentStoryId, stories.length]);
+    }, [
+      exitStory,
+      goToNextStory,
+      goToPrevStory,
+      currentStoryId,
+      stories.length
+    ]);
 
     // Slide in on mount
     useEffect(() => {
@@ -297,10 +333,7 @@ const DraggableStoryPanel = observer(
     if (!story) return null;
 
     return (
-      <Swipeable
-        onSwipedLeft={goToNextStory}
-        onSwipedRight={goToPrevStory}
-      >
+      <Swipeable onSwipedLeft={goToNextStory} onSwipedRight={goToPrevStory}>
         <Box
           className={classNames(
             viewState.topElement === "StoryPanel" ? "top-element" : ""
@@ -325,8 +358,11 @@ const DraggableStoryPanel = observer(
             key={story.id}
             css={`
               position: relative;
-              max-width: 400px;
+              display: flex;
+              flex-direction: column;
+              max-width: 600px;
               min-width: 300px;
+              max-height: 80vh;
               border-radius: 6px;
               overflow: hidden;
               pointer-events: auto;
@@ -334,6 +370,34 @@ const DraggableStoryPanel = observer(
               cursor: move;
               resize: both;
               min-height: 200px;
+
+              /* Style the resize handle */
+              &::-webkit-resizer {
+                background: transparent;
+              }
+
+              /* Add a custom resize corner indicator */
+              &::after {
+                content: "";
+                position: absolute;
+                bottom: 0;
+                right: 0;
+                width: 15px;
+                height: 15px;
+                cursor: nwse-resize;
+                background: linear-gradient(
+                  135deg,
+                  transparent 50%,
+                  rgba(255, 255, 255, 0.5) 50%,
+                  rgba(255, 255, 255, 0.5) 60%,
+                  transparent 60%,
+                  transparent 70%,
+                  rgba(255, 255, 255, 0.5) 70%,
+                  rgba(255, 255, 255, 0.5) 80%,
+                  transparent 80%
+                );
+                pointer-events: none;
+              }
             `}
           >
             <Box
@@ -357,7 +421,9 @@ const DraggableStoryPanel = observer(
             <Box
               css={{
                 backgroundColor: "rgba(255, 255, 255, 0.95)",
-                backdropFilter: theme.blur
+                backdropFilter: theme.blur,
+                overflow: "auto",
+                flex: 1
               }}
             >
               <StoryBody isCollapsed={isCollapsed} story={story} />
