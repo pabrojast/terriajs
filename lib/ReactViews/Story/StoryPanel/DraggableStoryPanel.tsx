@@ -1,8 +1,13 @@
 import classNames from "classnames";
 import { runInAction } from "mobx";
 import { observer } from "mobx-react";
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { useTranslation } from "react-i18next";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode
+} from "react";
 import { useSwipeable, type SwipeableProps } from "react-swipeable";
 import { useTheme } from "styled-components";
 import {
@@ -99,18 +104,22 @@ const DraggableStoryPanel = observer(
   }: DraggableStoryPanelProps) => {
     const viewState = useViewState();
     const theme = useTheme();
-    const { t } = useTranslation();
 
     const [isCollapsed, setIsCollapsed] = useState(false);
     const [inView, setInView] = useState(false);
 
     const slideRef = useRef<HTMLDivElement>(null);
     const panelRef = useRef<HTMLDivElement | null>(null);
-    const [dragRef, dragControls] = useDraggable({ handleSelector: ".story-drag-handle" });
-    const setRefs = useCallback((el: HTMLDivElement | null) => {
-      dragRef(el as unknown as HTMLElement | null);
-      panelRef.current = el;
-    }, [dragRef]);
+    const [dragRef, dragControls] = useDraggable({
+      handleSelector: ".story-drag-handle"
+    });
+    const setRefs = useCallback(
+      (el: HTMLDivElement | null) => {
+        dragRef(el as unknown as HTMLElement | null);
+        panelRef.current = el;
+      },
+      [dragRef]
+    );
 
     const story = stories[currentStoryId];
 
@@ -120,22 +129,14 @@ const DraggableStoryPanel = observer(
 
       const element = panelRef.current;
       const rect = element.getBoundingClientRect();
-      const transform = element.style.transform;
-
-      // Parse transform translate3d values
-      let x = 0, y = 0;
-      if (transform) {
-        const match = transform.match(/translate3d\(([^,]+),\s*([^,]+),\s*[^)]+\)/);
-        if (match) {
-          x = parseFloat(match[1]);
-          y = parseFloat(match[2]);
-        }
-      }
+      // Use absolute left/top for position
+      const left = parseFloat(element.style.left || "0") || 0;
+      const top = parseFloat(element.style.top || "0") || 0;
 
       // Update story position in place
       const updatedStory = {
         ...story,
-        position: { x, y },
+        position: { x: left, y: top },
         dimensions: {
           width: rect.width,
           height: rect.height
@@ -155,7 +156,8 @@ const DraggableStoryPanel = observer(
       if (!panelRef.current) return;
       if (!story?.position) {
         // Clear transform so default layout applies
-        panelRef.current.style.transform = "";
+        panelRef.current.style.left = "";
+        panelRef.current.style.top = "";
         return;
       }
 
@@ -167,8 +169,6 @@ const DraggableStoryPanel = observer(
     useEffect(() => {
       if (!panelRef.current) return;
 
-      const element = panelRef.current;
-
       const handleDragEnd = () => {
         saveStoryPosition();
       };
@@ -177,12 +177,12 @@ const DraggableStoryPanel = observer(
       const handleMouseUp = () => handleDragEnd();
       const handleTouchEnd = () => handleDragEnd();
 
-      document.addEventListener('mouseup', handleMouseUp);
-      document.addEventListener('touchend', handleTouchEnd);
+      document.addEventListener("mouseup", handleMouseUp);
+      document.addEventListener("touchend", handleTouchEnd);
 
       return () => {
-        document.removeEventListener('mouseup', handleMouseUp);
-        document.removeEventListener('touchend', handleTouchEnd);
+        document.removeEventListener("mouseup", handleMouseUp);
+        document.removeEventListener("touchend", handleTouchEnd);
       };
     }, [saveStoryPosition]);
 
@@ -232,20 +232,23 @@ const DraggableStoryPanel = observer(
       });
     }, [viewState]);
 
-    const navigateStory = useCallback((index: number) => {
-      let newIndex = index;
-      if (newIndex < 0) {
-        newIndex = stories.length - 1;
-      } else if (newIndex >= stories.length) {
-        newIndex = 0;
-      }
-      if (newIndex !== currentStoryId) {
-        onStoryChange(newIndex);
-        if (newIndex < stories.length) {
-          onActivateStory(stories[newIndex]);
+    const navigateStory = useCallback(
+      (index: number) => {
+        let newIndex = index;
+        if (newIndex < 0) {
+          newIndex = stories.length - 1;
+        } else if (newIndex >= stories.length) {
+          newIndex = 0;
         }
-      }
-    }, [stories, currentStoryId, onStoryChange, onActivateStory]);
+        if (newIndex !== currentStoryId) {
+          onStoryChange(newIndex);
+          if (newIndex < stories.length) {
+            onActivateStory(stories[newIndex]);
+          }
+        }
+      },
+      [stories, currentStoryId, onStoryChange, onActivateStory]
+    );
 
     const goToPrevStory = useCallback(() => {
       navigateStory(currentStoryId - 1);
@@ -263,9 +266,12 @@ const DraggableStoryPanel = observer(
       slideOut();
     }, [onClose, viewState.terria, slideOut]);
 
-    const onCenterScene = useCallback((story: Story) => {
-      onActivateStory(story);
-    }, [onActivateStory]);
+    const onCenterScene = useCallback(
+      (story: Story) => {
+        onActivateStory(story);
+      },
+      [onActivateStory]
+    );
 
     // Set up keyboard listeners
     useEffect(() => {
@@ -287,7 +293,13 @@ const DraggableStoryPanel = observer(
       return () => {
         window.removeEventListener("keydown", keydownListener, true);
       };
-    }, [exitStory, goToNextStory, goToPrevStory, currentStoryId, stories.length]);
+    }, [
+      exitStory,
+      goToNextStory,
+      goToPrevStory,
+      currentStoryId,
+      stories.length
+    ]);
 
     // Slide in on mount
     useEffect(() => {
@@ -297,10 +309,7 @@ const DraggableStoryPanel = observer(
     if (!story) return null;
 
     return (
-      <Swipeable
-        onSwipedLeft={goToNextStory}
-        onSwipedRight={goToPrevStory}
-      >
+      <Swipeable onSwipedLeft={goToNextStory} onSwipedRight={goToPrevStory}>
         <Box
           className={classNames(
             viewState.topElement === "StoryPanel" ? "top-element" : ""

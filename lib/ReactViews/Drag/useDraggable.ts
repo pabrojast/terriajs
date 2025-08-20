@@ -2,9 +2,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 export const useDraggable = (options?: { handleSelector?: string }) => {
   const [node, setNode] = useState<HTMLElement | null>();
-  // Use refs to track current values without triggering rerenders
-  const dxRef = useRef(0);
-  const dyRef = useRef(0);
+  // Track absolute position (left/top in px) instead of transform for better resize compatibility
+  const leftRef = useRef(0);
+  const topRef = useRef(0);
   const handleSelectorRef = useRef(options?.handleSelector);
 
   // Update the ref if the handleSelector option changes
@@ -40,29 +40,30 @@ export const useDraggable = (options?: { handleSelector?: string }) => {
     if (!bounds) return;
 
     const { minX, maxX, minY, maxY } = bounds;
-    const currentDx = dxRef.current;
-    const currentDy = dyRef.current;
+    const offsetParentRect = (
+      node.offsetParent as HTMLElement | null
+    )?.getBoundingClientRect();
+    const parentLeft = offsetParentRect ? offsetParentRect.left : 0;
+    const parentTop = offsetParentRect ? offsetParentRect.top : 0;
 
-    // Calculate constrained position
-    // elementRect.left/top already include current transform (dx/dy)
-    // base position without transform
-    const baseLeft = elementRect.left - currentDx;
-    const baseTop = elementRect.top - currentDy;
+    const minAllowedLeft = minX - parentLeft;
+    const maxAllowedLeft = maxX - elementRect.width - parentLeft;
+    const minAllowedTop = minY - parentTop;
+    const maxAllowedTop = maxY - elementRect.height - parentTop;
 
-    const minAllowedDx = minX - baseLeft;
-    const maxAllowedDx = maxX - elementRect.width - baseLeft;
-    const minAllowedDy = minY - baseTop;
-    const maxAllowedDy = maxY - elementRect.height - baseTop;
+    const constrainedLeft = Math.min(
+      Math.max(leftRef.current, minAllowedLeft),
+      Math.max(minAllowedLeft, maxAllowedLeft)
+    );
+    const constrainedTop = Math.min(
+      Math.max(topRef.current, minAllowedTop),
+      Math.max(minAllowedTop, maxAllowedTop)
+    );
 
-    const constrainedDx = Math.min(Math.max(currentDx, minAllowedDx), maxAllowedDx);
-    const constrainedDy = Math.min(Math.max(currentDy, minAllowedDy), maxAllowedDy);
-
-    // Directly update the DOM for immediate visual effect
-    node.style.transform = `translate3d(${constrainedDx}px, ${constrainedDy}px, 0)`;
-
-    // Update refs to track current position
-    dxRef.current = constrainedDx;
-    dyRef.current = constrainedDy;
+    node.style.left = `${constrainedLeft}px`;
+    node.style.top = `${constrainedTop}px`;
+    leftRef.current = constrainedLeft;
+    topRef.current = constrainedTop;
   }, [node, calculateBounds]);
 
   // Function to check if the event target is the handle or within the handle
@@ -81,11 +82,17 @@ export const useDraggable = (options?: { handleSelector?: string }) => {
 
   // Shared function to update element position
   const updateElementPosition = useCallback(
-    (dx: number, dy: number) => {
+    (left: number, top: number) => {
       if (!node) return;
-      node.style.transform = `translate3d(${dx}px, ${dy}px, 0)`;
-      dxRef.current = dx;
-      dyRef.current = dy;
+      // Ensure absolute positioning so left/top apply
+      const computed = window.getComputedStyle(node);
+      if (computed.position === "static") {
+        node.style.position = "absolute";
+      }
+      node.style.left = `${left}px`;
+      node.style.top = `${top}px`;
+      leftRef.current = left;
+      topRef.current = top;
     },
     [node]
   );
@@ -93,30 +100,27 @@ export const useDraggable = (options?: { handleSelector?: string }) => {
   // Generic drag start handler
   const startDrag = useCallback(
     (clientX: number, clientY: number) => {
-      // Get element dimensions to ensure it stays within bounds
       const elementRect = node?.getBoundingClientRect();
       if (!elementRect) return;
 
-      // Calculate the offset of the pointer within the element
+      const offsetParentRect = (
+        node!.offsetParent as HTMLElement | null
+      )?.getBoundingClientRect();
+      const parentLeft = offsetParentRect ? offsetParentRect.left : 0;
+      const parentTop = offsetParentRect ? offsetParentRect.top : 0;
+
+      // Pointer offset inside the element
       const offsetX = clientX - elementRect.left;
       const offsetY = clientY - elementRect.top;
 
-      // Capture the current dx and dy at the start of the drag operation
-      // These values need to be captured here, not read in the move handler
-      const initialDx = dxRef.current;
-      const initialDy = dyRef.current;
-
-      const moveHandler = (clientX: number, clientY: number) => {
-        // Calculate the new position relative to the start position
-        const newDx = clientX - elementRect.left - offsetX + initialDx;
-        const newDy = clientY - elementRect.top - offsetY + initialDy;
-
-        // Allow free movement during dragging
-        updateElementPosition(newDx, newDy);
+      const moveHandler = (moveClientX: number, moveClientY: number) => {
+        const newLeft = moveClientX - parentLeft - offsetX;
+        const newTop = moveClientY - parentTop - offsetY;
+        updateElementPosition(newLeft, newTop);
       };
 
       const endHandler = () => {
-        // Apply constraints only at the end of the drag
+        // Clamp within viewport when drag ends
         constrainToBounds();
       };
 
@@ -179,10 +183,18 @@ export const useDraggable = (options?: { handleSelector?: string }) => {
     [isValidDragHandle, startDrag]
   );
 
-  // Check bounds when the component mounts
+  // Initialize position and check bounds when the component mounts
   useEffect(() => {
+    if (!node) return;
+    const computed = window.getComputedStyle(node);
+    if (computed.position === "static") {
+      node.style.position = "absolute";
+    }
+    // Initialize left/top if not already set
+    if (!node.style.left) node.style.left = `${leftRef.current}px`;
+    if (!node.style.top) node.style.top = `${topRef.current}px`;
     constrainToBounds();
-  }, [constrainToBounds]);
+  }, [node, constrainToBounds]);
 
   // Handle window resize
   useEffect(() => {
@@ -210,8 +222,8 @@ export const useDraggable = (options?: { handleSelector?: string }) => {
 
   // Public controls for external consumers
   const setPosition = useCallback(
-    (dx: number, dy: number, clampToBounds: boolean = false) => {
-      updateElementPosition(dx, dy);
+    (left: number, top: number, clampToBounds: boolean = false) => {
+      updateElementPosition(left, top);
       if (clampToBounds) constrainToBounds();
     },
     [updateElementPosition, constrainToBounds]
