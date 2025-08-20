@@ -320,21 +320,36 @@ class StoryBuilder extends Component<
     // Attach scroll listener and restore scroll position when the list exists
     const el = this.storiesWrapperRef.current as HTMLElement | null;
     if (el) {
-      el.addEventListener("scroll", this.onStoriesScroll, { passive: true } as any);
+      el.addEventListener("scroll", this.onStoriesScroll, {
+        passive: true
+      } as any);
       this.restoreScrollPosition();
     }
   }
 
-  componentDidUpdate(prevProps: Readonly<IProps & MeasureElementProps & WithTranslation & WithViewState>, prevState: Readonly<IState>): void {
+  componentDidUpdate(
+    prevProps: Readonly<
+      IProps & MeasureElementProps & WithTranslation & WithViewState
+    >,
+    prevState: Readonly<IState>
+  ): void {
     // If the list becomes available (e.g., exiting StoryEditor or first stories added), ensure listener and restore scroll
-    const hadList = Boolean(prevState.editingMode === false && (prevProps.viewState.terria.stories?.length || 0) > 0);
-    const hasList = Boolean(this.state.editingMode === false && (this.props.viewState.terria.stories?.length || 0) > 0);
+    const hadList = Boolean(
+      prevState.editingMode === false &&
+        (prevProps.viewState.terria.stories?.length || 0) > 0
+    );
+    const hasList = Boolean(
+      this.state.editingMode === false &&
+        (this.props.viewState.terria.stories?.length || 0) > 0
+    );
 
     const el = this.storiesWrapperRef.current as HTMLElement | null;
     if (hasList && el) {
       // Attach listener once
       el.removeEventListener("scroll", this.onStoriesScroll);
-      el.addEventListener("scroll", this.onStoriesScroll, { passive: true } as any);
+      el.addEventListener("scroll", this.onStoriesScroll, {
+        passive: true
+      } as any);
 
       // Restore scroll when returning to list or after first render with list
       if (!hadList || prevState.editingMode !== this.state.editingMode) {
@@ -631,6 +646,8 @@ const Panel = styled(Box)<PanelProps>`
   width: 320px;
   min-width: 320px;
   height: 100vh;
+  z-index: 99999;
+  position: relative;
   ${(props) =>
     props.isVisible &&
     `

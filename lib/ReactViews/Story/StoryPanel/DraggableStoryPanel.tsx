@@ -341,10 +341,10 @@ const DraggableStoryPanel = observer(
           position="absolute"
           onClick={onClickContainer}
           css={`
-            top: 20px;
-            right: 20px;
+            top: 70px;
+            right: 400px;
             pointer-events: none;
-            z-index: 9999;
+            z-index: 99999;
             ${!viewState.storyShown && "display: none;"}
           `}
         >
@@ -360,7 +360,8 @@ const DraggableStoryPanel = observer(
               position: relative;
               display: flex;
               flex-direction: column;
-              max-width: 600px;
+              width: 400px;
+              max-width: 800px;
               min-width: 300px;
               max-height: 80vh;
               border-radius: 6px;
@@ -370,6 +371,7 @@ const DraggableStoryPanel = observer(
               cursor: move;
               resize: both;
               min-height: 200px;
+              direction: ltr;
 
               /* Style the resize handle */
               &::-webkit-resizer {
