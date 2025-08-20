@@ -13,16 +13,15 @@ import { animateEnd } from "../../../Core/animation";
 import getPath from "../../../Core/getPath";
 import TerriaError from "../../../Core/TerriaError";
 import Terria from "../../../Models/Terria";
-import { StoryData } from "../../../Models/InitSource";
 import Box from "../../../Styled/Box";
 import { WithViewState, withViewState } from "../../Context";
-import { useDraggable } from "../../Drag/useDraggable";
 import { onStoryButtonClick } from "../../Map/MenuBar/StoryButton/StoryButton";
 import { Story } from "../Story";
 import Styles from "../story-panel.scss";
 import StoryBody from "./StoryBody";
 import FooterBar from "./StoryFooterBar";
 import TitleBar from "./TitleBar";
+import DraggableStoryPanel from "./DraggableStoryPanel";
 
 /**
  *
@@ -110,6 +109,14 @@ class StoryPanel extends Component<Props, State> {
   }
 
   componentDidMount() {
+    // Ensure workbench is hidden while story is shown, and restore later
+    const prevIsFull = this.props.viewState.isMapFullScreen;
+    if (!prevIsFull) {
+      this.props.viewState.setIsMapFullScreen(true);
+    }
+    // Store previous state on the instance for cleanup
+    (this as any)._prevIsMapFullScreen = prevIsFull;
+
     const stories = this.props.viewState.terria.stories || [];
     if (
       this.props.viewState.currentStoryId > stories.length - 1 ||
@@ -173,6 +180,10 @@ class StoryPanel extends Component<Props, State> {
     if (this.keydownListener) {
       window.removeEventListener("keydown", this.keydownListener, true);
     }
+    // Restore workbench visibility if we changed it on mount
+    if ((this as any)._prevIsMapFullScreen === false) {
+      this.props.viewState.setIsMapFullScreen(false);
+    }
   }
 
   navigateStory(index: number) {
@@ -222,9 +233,8 @@ class StoryPanel extends Component<Props, State> {
   render() {
     const stories = this.props.viewState.terria.stories || [];
 
-    // Use the new draggable component if stories have position data or should be draggable
+    // Use the new draggable component if stories exist
     if (stories.length > 0) {
-      const DraggableStoryPanel = require('./DraggableStoryPanel').default;
       return (
         <DraggableStoryPanel
           stories={stories}

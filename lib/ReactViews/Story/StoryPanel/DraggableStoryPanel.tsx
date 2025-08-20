@@ -342,6 +342,24 @@ const DraggableStoryPanel = observer(
       slideIn();
     }, [slideIn]);
 
+    // Hide workbench (enter fullscreen) while story is shown, then restore
+    useEffect(() => {
+      const prev = viewState.isMapFullScreen;
+      let changed = false;
+      if (!prev) {
+        // Only change if workbench is currently visible
+        viewState.setIsMapFullScreen(true);
+        changed = true;
+      }
+      return () => {
+        if (changed) {
+          viewState.setIsMapFullScreen(false);
+        }
+      };
+      // Run on mount/unmount only
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
     if (!story) return null;
 
     return (
