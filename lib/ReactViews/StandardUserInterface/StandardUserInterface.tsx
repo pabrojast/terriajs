@@ -100,20 +100,8 @@ const StandardUserInterfaceBase: FC<StandardUserInterfaceProps> = observer(
         props.terria.stories.length &&
         !props.viewState.storyShown
       ) {
-        props.terria.notificationState.addNotificationToQueue({
-          title: t("sui.notifications.title"),
-          message: t("sui.notifications.message"),
-          confirmText: t("sui.notifications.confirmText"),
-          denyText: t("sui.notifications.denyText"),
-          confirmAction: action(() => {
-            props.viewState.storyShown = true;
-          }),
-          denyAction: action(() => {
-            props.viewState.storyShown = false;
-          }),
-          type: "story",
-          width: 300
-        });
+        // Automatically show the story panel without prompting
+        props.viewState.storyShown = true;
       }
       /* eslint-disable-next-line react-hooks/exhaustive-deps */
     }, [props.terria.storyPromptShown]);
@@ -150,7 +138,12 @@ const StandardUserInterfaceBase: FC<StandardUserInterfaceProps> = observer(
           <SelectableDimensionWorkflow />
         </Medium>
         <div className={Styles.storyWrapper}>
-          {!props.viewState.disclaimerVisible && <WelcomeMessage />}
+          {!props.viewState.disclaimerVisible &&
+            !(
+              props.terria.configParameters.storyEnabled &&
+              props.terria.stories &&
+              props.terria.stories.length > 0
+            ) && <WelcomeMessage />}
           <div
             className={Styles.uiRoot}
             css={`
