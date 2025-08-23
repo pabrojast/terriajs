@@ -14,6 +14,7 @@ import MenuBar from "./MenuBar/MenuBar";
 import { ProgressBar } from "./ProgressBar";
 import { TerriaViewerWrapper } from "./TerriaViewerWrapper";
 import Toast from "./Toast";
+import { SentinelCreditOverlay } from "./BottomBar/Credits/SentinelCreditOverlay";
 import { useTheme } from "styled-components";
 
 interface IMapColumnProps {
@@ -81,6 +82,7 @@ export const MapColumn: FC<IMapColumnProps> = observer(
             fullHeight
           >
             <TerriaViewerWrapper />
+            <SentinelCreditOverlay terria={viewState.terria} />
           </Box>
           {!viewState.hideMapUi && (
             <>
