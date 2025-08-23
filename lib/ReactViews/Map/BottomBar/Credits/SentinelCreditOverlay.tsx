@@ -17,9 +17,9 @@ const SentinelCreditContainer = styled(Box).attrs(() => ({
   verticalCenter: true,
   gap: true
 }))`
-  bottom: 45px; /* More spacing from the bottom bar */
+  bottom: 38px; /* Reduced spacing from the bottom bar */
   left: 0;
-  right: 50%; /* Only take left half to align with credits side */
+  right: 25%; /* Give more space for the text - take 75% of width instead of 50% */
   background: ${(props) => props.theme.transparentDark};
   backdrop-filter: ${(props) => props.theme.blur};
   font-size: 0.7rem;
