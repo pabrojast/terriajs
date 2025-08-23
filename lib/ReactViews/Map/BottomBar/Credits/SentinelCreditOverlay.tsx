@@ -17,7 +17,7 @@ const SentinelCreditContainer = styled(Box).attrs(() => ({
   verticalCenter: true,
   gap: true
 }))`
-  bottom: 30px; /* Just above the bottom bar which is 30px high */
+  bottom: 45px; /* More spacing from the bottom bar */
   left: 0;
   right: 50%; /* Only take left half to align with credits side */
   background: ${(props) => props.theme.transparentDark};
@@ -26,14 +26,19 @@ const SentinelCreditContainer = styled(Box).attrs(() => ({
   color: ${(props) => props.theme.textLight};
   pointer-events: none; /* Allow clicks to pass through */
   z-index: 101; /* Higher than bottom bar to ensure visibility */
-  padding-left: 8px; /* Same padding as credits */
+  padding: 4px 8px; /* Vertical and horizontal padding */
+  white-space: nowrap; /* Force single line */
+  overflow: hidden; /* Hide overflow if text is too long */
+  text-overflow: ellipsis; /* Add ellipsis if text is truncated */
+  display: flex;
+  align-items: center;
 
   a {
     color: ${(props) => props.theme.textLight};
     text-decoration: underline;
     pointer-events: auto; /* Re-enable clicks for links */
-    display: flex;
-    align-items: center;
+    white-space: nowrap; /* Keep links on single line too */
+    display: inline; /* Use inline for links within the flex container */
   }
 `;
 
