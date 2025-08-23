@@ -12,23 +12,28 @@ interface ISentinelCreditOverlayProps {
 
 const SentinelCreditContainer = styled(Box).attrs(() => ({
   position: "absolute",
-  fullWidth: true,
-  paddedHorizontally: 2,
-  paddedVertically: 1
+  styledHeight: "30px",
+  styledMaxHeight: "30px",
+  verticalCenter: true,
+  gap: true
 }))`
-  bottom: 30px; /* Just above the bottom bar which is typically 30px high */
+  bottom: 30px; /* Just above the bottom bar which is 30px high */
   left: 0;
+  right: 50%; /* Only take left half to align with credits side */
   background: ${(props) => props.theme.transparentDark};
   backdrop-filter: ${(props) => props.theme.blur};
   font-size: 0.7rem;
   color: ${(props) => props.theme.textLight};
   pointer-events: none; /* Allow clicks to pass through */
-  z-index: 100;
+  z-index: 101; /* Higher than bottom bar to ensure visibility */
+  padding-left: 8px; /* Same padding as credits */
 
   a {
     color: ${(props) => props.theme.textLight};
     text-decoration: underline;
     pointer-events: auto; /* Re-enable clicks for links */
+    display: flex;
+    align-items: center;
   }
 `;
 

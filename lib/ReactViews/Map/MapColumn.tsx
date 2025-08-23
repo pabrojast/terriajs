@@ -82,7 +82,6 @@ export const MapColumn: FC<IMapColumnProps> = observer(
             fullHeight
           >
             <TerriaViewerWrapper />
-            <SentinelCreditOverlay terria={viewState.terria} />
           </Box>
           {!viewState.hideMapUi && (
             <>
@@ -120,6 +119,7 @@ export const MapColumn: FC<IMapColumnProps> = observer(
                   right: 0;
                 `}
               >
+                <SentinelCreditOverlay terria={viewState.terria} />
                 <BottomLeftBar />
                 <BottomDock
                   terria={viewState.terria}
