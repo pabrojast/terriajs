@@ -51,6 +51,7 @@ export default withViewState(
 
           width: 100%;
           min-height: ${logoHeight};
+          max-width: 100%;
 
           overflow: hidden;
 
@@ -67,6 +68,9 @@ export default withViewState(
           img {
             max-height: 100%;
             max-width: 100%;
+            height: auto;
+            width: auto;
+            object-fit: contain;
           }
 
           font-family: ${(p: any) => p.theme.fontPop};
@@ -83,6 +87,12 @@ export default withViewState(
             // Remove a "display: flex" on small screen if only showing one brandingHtmlElement
             a {
               ${brandingHtmlElements.length > 0 ? "display: unset;" : ""}
+            }
+
+            img {
+              max-width: 100%;
+              height: auto;
+              max-height: ${(p: any) => p.theme.logoSmallHeight};
             }
           }
         `}
