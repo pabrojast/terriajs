@@ -13,6 +13,7 @@ interface ISentinelCreditOverlayProps {
 
 interface AttributionOverlayContainerProps {
   $isMapFullScreen: boolean;
+  $useSmallScreenInterface: boolean;
 }
 
 const AttributionOverlayContainer = styled(Box).attrs(() => ({
@@ -23,9 +24,19 @@ const AttributionOverlayContainer = styled(Box).attrs(() => ({
   gap: true
 }))<AttributionOverlayContainerProps>`
   bottom: 38px; /* Reduced spacing from the bottom bar */
+  /* Use the same margin logic as the parent container in MapColumn.tsx */
+  margin-left: ${(props) =>
+    props.$useSmallScreenInterface
+      ? "0px"
+      : props.$isMapFullScreen
+      ? `${props.theme.workbenchMargin}px`
+      : `calc(${props.theme.workbenchWidth}px + 2 * ${props.theme.workbenchMargin}px)`};
+  margin-right: ${(props) =>
+    props.$useSmallScreenInterface
+      ? "8px" /* Small right margin on mobile for UI elements */
+      : `calc(34px + 2 * ${props.theme.workbenchMargin}px)`};
   left: 0;
-  /* Adjust right positioning based on whether sidebar is visible */
-  right: ${(props) => (props.$isMapFullScreen ? "25%" : "45%")};
+  right: 0;
   background: ${(props) => props.theme.transparentDark};
   backdrop-filter: ${(props) => props.theme.blur};
   font-size: 0.7rem;
@@ -39,20 +50,10 @@ const AttributionOverlayContainer = styled(Box).attrs(() => ({
   display: flex;
   align-items: center;
 
-  /* Responsive adjustments for better mobile experience */
-  @media (max-width: 768px) {
-    right: ${(props) =>
-      props.$isMapFullScreen ? "10%" : "15%"}; /* Use more width on mobile */
+  /* Mobile adjustments */
+  @media (max-width: ${(props) => props.theme.mobile}px) {
     font-size: 0.6rem; /* Slightly smaller text on mobile */
-  }
-
-  @media (max-width: 480px) {
-    right: ${(props) =>
-      props.$isMapFullScreen
-        ? "5%"
-        : "10%"}; /* Use almost full width on very small screens */
-    font-size: 0.55rem; /* Even smaller text on very small screens */
-    padding: 3px 6px; /* Reduce padding to save space */
+    padding: 3px 6px; /* Reduce padding to save space on mobile */
   }
 
   a {
@@ -116,6 +117,7 @@ export const SentinelCreditOverlay: FC<ISentinelCreditOverlayProps> = observer(
           return (
             <AttributionOverlayContainer
               $isMapFullScreen={viewState.isMapFullScreen}
+              $useSmallScreenInterface={viewState.useSmallScreenInterface}
             >
               {parseCustomHtmlToReact(attribution)}
             </AttributionOverlayContainer>
