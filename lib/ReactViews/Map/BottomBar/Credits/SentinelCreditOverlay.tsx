@@ -5,38 +5,21 @@ import MappableMixin from "../../../../ModelMixins/MappableMixin";
 import Terria from "../../../../Models/Terria";
 import Box from "../../../../Styled/Box";
 import parseCustomHtmlToReact from "../../../Custom/parseCustomHtmlToReact";
-import { useViewState } from "../../../Context";
 
 interface ISentinelCreditOverlayProps {
   terria: Terria;
 }
 
-interface AttributionOverlayContainerProps {
-  $isMapFullScreen: boolean;
-  $useSmallScreenInterface: boolean;
-}
-
-const AttributionOverlayContainer = styled(Box).attrs(() => ({
+const SentinelCreditContainer = styled(Box).attrs(() => ({
   position: "absolute",
   styledHeight: "30px",
   styledMaxHeight: "30px",
   verticalCenter: true,
   gap: true
-}))<AttributionOverlayContainerProps>`
+}))`
   bottom: 38px; /* Reduced spacing from the bottom bar */
-  /* Use the same margin logic as the parent container in MapColumn.tsx */
-  margin-left: ${(props) =>
-    props.$useSmallScreenInterface
-      ? "0px"
-      : props.$isMapFullScreen
-      ? `${props.theme.workbenchMargin}px`
-      : `calc(${props.theme.workbenchWidth}px + 2 * ${props.theme.workbenchMargin}px)`};
-  margin-right: ${(props) =>
-    props.$useSmallScreenInterface
-      ? "8px" /* Small right margin on mobile for UI elements */
-      : `calc(34px + 2 * ${props.theme.workbenchMargin}px)`};
   left: 0;
-  right: 0;
+  right: 25%; /* Give more space for the text - take 75% of width instead of 50% */
   background: ${(props) => props.theme.transparentDark};
   backdrop-filter: ${(props) => props.theme.blur};
   font-size: 0.7rem;
@@ -50,12 +33,6 @@ const AttributionOverlayContainer = styled(Box).attrs(() => ({
   display: flex;
   align-items: center;
 
-  /* Mobile adjustments */
-  @media (max-width: ${(props) => props.theme.mobile}px) {
-    font-size: 0.6rem; /* Slightly smaller text on mobile */
-    padding: 3px 6px; /* Reduce padding to save space on mobile */
-  }
-
   a {
     color: ${(props) => props.theme.textLight};
     text-decoration: underline;
@@ -67,14 +44,12 @@ const AttributionOverlayContainer = styled(Box).attrs(() => ({
 
 export const SentinelCreditOverlay: FC<ISentinelCreditOverlayProps> = observer(
   ({ terria }) => {
-    const viewState = useViewState();
-
-    // Check if the current basemap needs attribution overlay
+    // Check if the current basemap is Sentinel-2 cloudless
     const baseMap = terria.mainViewer.baseMap;
 
-    // Check if it's a mappable item and needs attribution overlay
+    // Check if it's a mappable item and has the Sentinel-2 cloudless identifier
     if (baseMap && MappableMixin.isMixedInto(baseMap)) {
-      // Check for Sentinel-2 cloudless basemap
+      // Multiple ways to identify the Sentinel-2 cloudless basemap
       const isSentinel2Cloudless =
         baseMap.uniqueId === "s2cloudless-2024" ||
         // Check if it's a WMS with the specific layer
@@ -95,38 +70,21 @@ export const SentinelCreditOverlay: FC<ISentinelCreditOverlayProps> = observer(
           (baseMap as any).layers?.includes &&
           (baseMap as any).layers.includes("s2cloudless"));
 
-      // Check for OpenStreetMap (EOX) WMTS basemap
-      const isOpenStreetMapEOX =
-        (baseMap as any).id === "osm-eox-wmts" ||
-        baseMap.uniqueId === "osm-eox-wmts" ||
-        // Check if it's a WMTS with the specific layer
-        ((baseMap as any).layer === "osm_3857" &&
-          (baseMap as any).url &&
-          (baseMap as any).url.includes("tiles.maps.eox.at")) ||
-        // Check by name (case insensitive)
-        ((baseMap as any).name &&
-          (baseMap as any).name.toLowerCase().includes("openstreetmap") &&
-          (baseMap as any).name.toLowerCase().includes("eox"));
-
-      // Show overlay if it's either Sentinel-2 cloudless or OpenStreetMap (EOX)
-      if (isSentinel2Cloudless || isOpenStreetMapEOX) {
+      if (isSentinel2Cloudless) {
         // Get the attribution from the basemap
         const attribution = baseMap.attribution;
 
         if (attribution) {
           return (
-            <AttributionOverlayContainer
-              $isMapFullScreen={viewState.isMapFullScreen}
-              $useSmallScreenInterface={viewState.useSmallScreenInterface}
-            >
+            <SentinelCreditContainer>
               {parseCustomHtmlToReact(attribution)}
-            </AttributionOverlayContainer>
+            </SentinelCreditContainer>
           );
         }
       }
     }
 
-    // Don't render anything if it doesn't need attribution overlay
+    // Don't render anything if it's not the Sentinel-2 cloudless basemap
     return null;
   }
 );
