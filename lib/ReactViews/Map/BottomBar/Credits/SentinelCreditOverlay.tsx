@@ -5,9 +5,14 @@ import MappableMixin from "../../../../ModelMixins/MappableMixin";
 import Terria from "../../../../Models/Terria";
 import Box from "../../../../Styled/Box";
 import parseCustomHtmlToReact from "../../../Custom/parseCustomHtmlToReact";
+import { useViewState } from "../../../Context";
 
 interface ISentinelCreditOverlayProps {
   terria: Terria;
+}
+
+interface AttributionOverlayContainerProps {
+  $isMapFullScreen: boolean;
 }
 
 const AttributionOverlayContainer = styled(Box).attrs(() => ({
@@ -16,10 +21,11 @@ const AttributionOverlayContainer = styled(Box).attrs(() => ({
   styledMaxHeight: "30px",
   verticalCenter: true,
   gap: true
-}))`
+}))<AttributionOverlayContainerProps>`
   bottom: 38px; /* Reduced spacing from the bottom bar */
   left: 0;
-  right: 25%; /* Give more space for the text - take 75% of width instead of 50% */
+  /* Adjust right positioning based on whether sidebar is visible */
+  right: ${(props) => (props.$isMapFullScreen ? "25%" : "45%")};
   background: ${(props) => props.theme.transparentDark};
   backdrop-filter: ${(props) => props.theme.blur};
   font-size: 0.7rem;
@@ -35,12 +41,16 @@ const AttributionOverlayContainer = styled(Box).attrs(() => ({
 
   /* Responsive adjustments for better mobile experience */
   @media (max-width: 768px) {
-    right: 10%; /* Use more width on mobile */
+    right: ${(props) =>
+      props.$isMapFullScreen ? "10%" : "15%"}; /* Use more width on mobile */
     font-size: 0.6rem; /* Slightly smaller text on mobile */
   }
 
   @media (max-width: 480px) {
-    right: 5%; /* Use almost full width on very small screens */
+    right: ${(props) =>
+      props.$isMapFullScreen
+        ? "5%"
+        : "10%"}; /* Use almost full width on very small screens */
     font-size: 0.55rem; /* Even smaller text on very small screens */
     padding: 3px 6px; /* Reduce padding to save space */
   }
@@ -56,6 +66,8 @@ const AttributionOverlayContainer = styled(Box).attrs(() => ({
 
 export const SentinelCreditOverlay: FC<ISentinelCreditOverlayProps> = observer(
   ({ terria }) => {
+    const viewState = useViewState();
+
     // Check if the current basemap needs attribution overlay
     const baseMap = terria.mainViewer.baseMap;
 
@@ -102,7 +114,9 @@ export const SentinelCreditOverlay: FC<ISentinelCreditOverlayProps> = observer(
 
         if (attribution) {
           return (
-            <AttributionOverlayContainer>
+            <AttributionOverlayContainer
+              $isMapFullScreen={viewState.isMapFullScreen}
+            >
               {parseCustomHtmlToReact(attribution)}
             </AttributionOverlayContainer>
           );
