@@ -10,7 +10,7 @@ interface ISentinelCreditOverlayProps {
   terria: Terria;
 }
 
-const SentinelCreditContainer = styled(Box).attrs(() => ({
+const AttributionOverlayContainer = styled(Box).attrs(() => ({
   position: "absolute",
   styledHeight: "30px",
   styledMaxHeight: "30px",
@@ -33,6 +33,18 @@ const SentinelCreditContainer = styled(Box).attrs(() => ({
   display: flex;
   align-items: center;
 
+  /* Responsive adjustments for better mobile experience */
+  @media (max-width: 768px) {
+    right: 10%; /* Use more width on mobile */
+    font-size: 0.6rem; /* Slightly smaller text on mobile */
+  }
+
+  @media (max-width: 480px) {
+    right: 5%; /* Use almost full width on very small screens */
+    font-size: 0.55rem; /* Even smaller text on very small screens */
+    padding: 3px 6px; /* Reduce padding to save space */
+  }
+
   a {
     color: ${(props) => props.theme.textLight};
     text-decoration: underline;
@@ -44,12 +56,12 @@ const SentinelCreditContainer = styled(Box).attrs(() => ({
 
 export const SentinelCreditOverlay: FC<ISentinelCreditOverlayProps> = observer(
   ({ terria }) => {
-    // Check if the current basemap is Sentinel-2 cloudless
+    // Check if the current basemap needs attribution overlay
     const baseMap = terria.mainViewer.baseMap;
 
-    // Check if it's a mappable item and has the Sentinel-2 cloudless identifier
+    // Check if it's a mappable item and needs attribution overlay
     if (baseMap && MappableMixin.isMixedInto(baseMap)) {
-      // Multiple ways to identify the Sentinel-2 cloudless basemap
+      // Check for Sentinel-2 cloudless basemap
       const isSentinel2Cloudless =
         baseMap.uniqueId === "s2cloudless-2024" ||
         // Check if it's a WMS with the specific layer
@@ -70,21 +82,35 @@ export const SentinelCreditOverlay: FC<ISentinelCreditOverlayProps> = observer(
           (baseMap as any).layers?.includes &&
           (baseMap as any).layers.includes("s2cloudless"));
 
-      if (isSentinel2Cloudless) {
+      // Check for OpenStreetMap (EOX) WMTS basemap
+      const isOpenStreetMapEOX =
+        (baseMap as any).id === "osm-eox-wmts" ||
+        baseMap.uniqueId === "osm-eox-wmts" ||
+        // Check if it's a WMTS with the specific layer
+        ((baseMap as any).layer === "osm_3857" &&
+          (baseMap as any).url &&
+          (baseMap as any).url.includes("tiles.maps.eox.at")) ||
+        // Check by name (case insensitive)
+        ((baseMap as any).name &&
+          (baseMap as any).name.toLowerCase().includes("openstreetmap") &&
+          (baseMap as any).name.toLowerCase().includes("eox"));
+
+      // Show overlay if it's either Sentinel-2 cloudless or OpenStreetMap (EOX)
+      if (isSentinel2Cloudless || isOpenStreetMapEOX) {
         // Get the attribution from the basemap
         const attribution = baseMap.attribution;
 
         if (attribution) {
           return (
-            <SentinelCreditContainer>
+            <AttributionOverlayContainer>
               {parseCustomHtmlToReact(attribution)}
-            </SentinelCreditContainer>
+            </AttributionOverlayContainer>
           );
         }
       }
     }
 
-    // Don't render anything if it's not the Sentinel-2 cloudless basemap
+    // Don't render anything if it doesn't need attribution overlay
     return null;
   }
 );
