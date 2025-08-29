@@ -90,7 +90,7 @@ const SettingPanel: FC = observer(() => {
     const osmBaseMap = terria.baseMapsModel.baseMapItems.find(
       (item) => item.item.uniqueId === "basemap-openstreetmap"
     );
-    if (osmBaseMap) {
+    if (osmBaseMap && osmBaseMap.item.uniqueId) {
       terria.mainViewer.setBaseMap(osmBaseMap.item);
       terria.setLocalProperty("basemap", osmBaseMap.item.uniqueId);
     }
