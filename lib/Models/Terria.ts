@@ -1231,6 +1231,21 @@ export default class Terria {
         baseMap = baseMapSearch;
       }
     }
+
+    // Check if the selected basemap is OpenStreetMap and user hasn't accepted disclaimer
+    if (baseMap?.item?.uniqueId === "basemap-openstreetmap") {
+      const hasAcceptedDisclaimer = this.getLocalProperty(
+        "unescoDisclaimerAccepted"
+      );
+      if (!hasAcceptedDisclaimer) {
+        // Don't set OpenStreetMap, fall back to first non-OSM basemap
+        baseMap =
+          baseMapItems.find(
+            (item) => item.item?.uniqueId !== "basemap-openstreetmap"
+          ) ?? baseMapItems[0];
+      }
+    }
+
     await this.mainViewer.setBaseMap(baseMap.item as MappableMixin.Instance);
   }
 

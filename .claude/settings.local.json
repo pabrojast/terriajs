@@ -4,7 +4,9 @@
       "Bash(grep:*)",
       "Bash(npm run build-for-node:*)",
       "Bash(npx eslint:*)",
-      "Bash(npx prettier:*)"
+      "Bash(npx prettier:*)",
+      "Bash(gulp lint:*)",
+      "Bash(npx gulp lint:*)"
     ],
     "deny": []
   }

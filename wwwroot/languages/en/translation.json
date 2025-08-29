@@ -2207,5 +2207,12 @@
     "buttonTitle": "See related maps",
     "panelHeading": "Related Maps",
     "panelText": "Clicking on a map below will open it in a separate window or tab."
+  },
+  "unescoDisclaimer": {
+    "title": "UNESCO Disclaimer",
+    "content": "The platform is strictly informative and does not commit UNESCO or the United Nations as a whole. The designations employed and the presentation of material on this map do not imply the expression of any opinion whatsoever on the part of the UNESCO or the Secretariat of the United Nations concerning the legal status of any country, territory, city or any area or of its authorities, or concerning the delimitation of its frontiers or boundaries.",
+    "linkText": "To access the UNESCO general disclaimer on maps, please visit: https://www.unesco.org/en/geospatial/disclaimer",
+    "accept": "Accept Terms and Conditions",
+    "cancel": "Cancel"
   }
 }

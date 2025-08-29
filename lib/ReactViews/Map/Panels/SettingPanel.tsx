@@ -28,6 +28,7 @@ import Text, { TextSpan } from "../../../Styled/Text";
 import { useViewState } from "../../Context";
 import { useRefForTerria } from "../../Hooks/useRefForTerria";
 import MenuPanel from "../../StandardUserInterface/customizable/MenuPanel";
+import { UnescoDisclaimerModal } from "../BottomBar/Credits/UnescoDisclaimerModal";
 import Styles from "./setting-panel.scss";
 
 const sides = {
@@ -45,6 +46,7 @@ const SettingPanel: FC = observer(() => {
     viewState
   );
   const [hoverBaseMap, setHoverBaseMap] = useState<string | null>(null);
+  const [showUnescoModal, setShowUnescoModal] = useState(false);
 
   const activeMapName = hoverBaseMap
     ? hoverBaseMap
@@ -59,6 +61,17 @@ const SettingPanel: FC = observer(() => {
     event.stopPropagation();
     if (!MappableMixin.isMixedInto(baseMap)) return;
 
+    // Check if this is OpenStreetMap and if user hasn't accepted disclaimer
+    if (baseMap.uniqueId === "basemap-openstreetmap") {
+      const hasAcceptedDisclaimer = terria.getLocalProperty(
+        "unescoDisclaimerAccepted"
+      );
+      if (!hasAcceptedDisclaimer) {
+        setShowUnescoModal(true);
+        return;
+      }
+    }
+
     terria.mainViewer.setBaseMap(baseMap);
 
     // We store the user's chosen basemap for future use, but it's up to the instance to decide
@@ -68,6 +81,18 @@ const SettingPanel: FC = observer(() => {
       if (baseMapId) {
         terria.setLocalProperty("basemap", baseMapId);
       }
+    }
+  };
+
+  const handleAcceptDisclaimer = () => {
+    terria.setLocalProperty("unescoDisclaimerAccepted", true);
+    // Find and select the OpenStreetMap basemap
+    const osmBaseMap = terria.baseMapsModel.baseMapItems.find(
+      (item) => item.item.uniqueId === "basemap-openstreetmap"
+    );
+    if (osmBaseMap) {
+      terria.mainViewer.setBaseMap(osmBaseMap.item);
+      terria.setLocalProperty("basemap", osmBaseMap.item.uniqueId);
     }
   };
 
@@ -367,6 +392,12 @@ const SettingPanel: FC = observer(() => {
           </>
         )}
       </Box>
+      {showUnescoModal && (
+        <UnescoDisclaimerModal
+          closeModal={() => setShowUnescoModal(false)}
+          acceptDisclaimer={handleAcceptDisclaimer}
+        />
+      )}
     </MenuPanel>
   );
 });
