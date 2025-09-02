@@ -17,7 +17,8 @@ const SentinelCreditContainer = styled(Box).attrs(() => ({
   verticalCenter: true,
   gap: true
 }))`
-  bottom: 38px; /* Reduced spacing from the bottom bar */
+  /* Position within the bottom bar area so it doesn't cover the timeline */
+  bottom: 6px;
   left: 0;
   right: 25%; /* Give more space for the text - take 75% of width instead of 50% */
   background: ${(props) => props.theme.transparentDark};
