@@ -14,7 +14,7 @@ import MenuBar from "./MenuBar/MenuBar";
 import { ProgressBar } from "./ProgressBar";
 import { TerriaViewerWrapper } from "./TerriaViewerWrapper";
 import Toast from "./Toast";
-import { SentinelCreditOverlay } from "./BottomBar/Credits/SentinelCreditOverlay";
+import { BasemapCreditOverlay } from "./BottomBar/Credits/SentinelCreditOverlay";
 import { useTheme } from "styled-components";
 
 interface IMapColumnProps {
@@ -119,7 +119,7 @@ export const MapColumn: FC<IMapColumnProps> = observer(
                   right: 0;
                 `}
               >
-                <SentinelCreditOverlay terria={viewState.terria} />
+                <BasemapCreditOverlay terria={viewState.terria} />
                 <BottomLeftBar />
                 <BottomDock
                   terria={viewState.terria}
