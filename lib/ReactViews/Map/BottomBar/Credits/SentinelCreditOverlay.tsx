@@ -18,7 +18,7 @@ const SentinelCreditContainer = styled(Box).attrs(() => ({
   gap: true
 }))<{ isTimelineActive: boolean }>`
   /* Adjust position based on timeline visibility */
-  bottom: ${(props) => (props.isTimelineActive ? "75px" : "36px")};
+  bottom: ${(props) => (props.isTimelineActive ? "85px" : "36px")};
   left: 0;
   right: 40%; /* Limit width so it doesn't span too far across the screen */
   background: ${(props) => props.theme.transparentDark};
