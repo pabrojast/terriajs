@@ -6,7 +6,8 @@
       "Bash(npx eslint:*)",
       "Bash(npx prettier:*)",
       "Bash(gulp lint:*)",
-      "Bash(npx gulp lint:*)"
+      "Bash(npx gulp lint:*)",
+      "Bash(npm run prettier-check:*)"
     ],
     "deny": []
   }

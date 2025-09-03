@@ -16,9 +16,9 @@ const SentinelCreditContainer = styled(Box).attrs(() => ({
   styledMaxHeight: "30px",
   verticalCenter: true,
   gap: true
-}))`
-  /* Sit just above the bottom bar, leaving a small gap */
-  bottom: 36px;
+}))<{ isTimelineActive: boolean }>`
+  /* Adjust position based on timeline visibility */
+  bottom: ${(props) => (props.isTimelineActive ? "75px" : "36px")};
   left: 0;
   right: 40%; /* Limit width so it doesn't span too far across the screen */
   background: ${(props) => props.theme.transparentDark};
@@ -45,6 +45,9 @@ const SentinelCreditContainer = styled(Box).attrs(() => ({
 
 export const SentinelCreditOverlay: FC<ISentinelCreditOverlayProps> = observer(
   ({ terria }) => {
+    // Check if the timeline is currently active
+    const isTimelineActive = terria.timelineStack.top !== undefined;
+
     // Check if the current basemap is Sentinel-2 cloudless
     const baseMap = terria.mainViewer.baseMap;
 
@@ -77,7 +80,7 @@ export const SentinelCreditOverlay: FC<ISentinelCreditOverlayProps> = observer(
 
         if (attribution) {
           return (
-            <SentinelCreditContainer>
+            <SentinelCreditContainer isTimelineActive={isTimelineActive}>
               {parseCustomHtmlToReact(attribution)}
             </SentinelCreditContainer>
           );
