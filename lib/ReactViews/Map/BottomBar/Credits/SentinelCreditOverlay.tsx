@@ -17,10 +17,10 @@ const SentinelCreditContainer = styled(Box).attrs(() => ({
   verticalCenter: true,
   gap: true
 }))`
-  /* Position within the bottom bar area so it doesn't cover the timeline */
-  bottom: 6px;
+  /* Sit just above the bottom bar, leaving a small gap */
+  bottom: 36px;
   left: 0;
-  right: 25%; /* Give more space for the text - take 75% of width instead of 50% */
+  right: 40%; /* Limit width so it doesn't span too far across the screen */
   background: ${(props) => props.theme.transparentDark};
   backdrop-filter: ${(props) => props.theme.blur};
   font-size: 0.7rem;

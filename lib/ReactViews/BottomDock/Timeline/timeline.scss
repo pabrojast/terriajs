@@ -18,8 +18,8 @@
   color: #fff;
   font-size: variables.$font-size-mid-small;
   position: absolute;
-  /* Lift the current-time banner a bit to avoid overlap with map credits */
-  bottom: 52px;
+  /* Position just above bottom bar; overlay now sits above bar too */
+  bottom: 40px;
   left: 0px;
   right: 0px;
   // background: variables.$dark;
