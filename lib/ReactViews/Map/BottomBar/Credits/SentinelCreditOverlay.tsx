@@ -103,7 +103,7 @@ export const BasemapCreditOverlay: FC<IBasemapCreditOverlayProps> = observer(
       // Handle ArcGIS World Imagery
       if (isArcGISWorldImagery) {
         const creditText =
-          "Powered by Esri, Sources: Esri, Maxar, Earthstar Geographics, and the GIS User Community";
+          "Powered by Esri. Sources: Esri, Maxar, Earthstar Geographics, and the GIS User Community";
         return (
           <BasemapCreditContainer isTimelineActive={isTimelineActive}>
             {creditText}
