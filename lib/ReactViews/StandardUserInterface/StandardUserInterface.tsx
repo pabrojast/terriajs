@@ -106,6 +106,14 @@ const StandardUserInterfaceBase: FC<StandardUserInterfaceProps> = observer(
       /* eslint-disable-next-line react-hooks/exhaustive-deps */
     }, [props.terria.storyPromptShown]);
 
+    // Hide welcome message when story starts
+    useEffect(() => {
+      if (props.viewState.storyShown && props.viewState.showWelcomeMessage) {
+        props.viewState.setShowWelcomeMessage(false);
+      }
+      /* eslint-disable-next-line react-hooks/exhaustive-deps */
+    }, [props.viewState.storyShown]);
+
     // Merge theme in order of highest priority: themeOverrides props -> theme config parameter -> default terriaTheme
     const mergedTheme = combine(
       props.themeOverrides,
