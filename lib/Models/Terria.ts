@@ -1295,6 +1295,13 @@ export default class Terria {
       );
     }
 
+    // Load initialization sources first - this ensures catalog references are loaded
+    await this.loadInitSources();
+
+    // After init sources are loaded, ensure any terria-references are also loaded
+    // This is needed before processing sharelinks that might reference items from remote catalogs
+    await this.ensureCatalogReferencesLoaded();
+
     try {
       await interpretHash(
         this,
@@ -1349,12 +1356,8 @@ export default class Terria {
       this.raiseErrorToUser(e);
     }
 
-    // Load initialization sources first - this ensures catalog references are loaded
+    // Load any new init sources that were added during hash interpretation (e.g., sharelinks)
     const result = await this.loadInitSources();
-
-    // After init sources are loaded, try to ensure any terria-references are also loaded
-    // This is specifically to handle the case where sharelinks contain items from remote catalogs
-    await this.ensureCatalogReferencesLoaded();
 
     return result;
   }
