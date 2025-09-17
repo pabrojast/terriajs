@@ -65,6 +65,8 @@ import WebProcessingServiceCatalogGroup from "./Ows/WebProcessingServiceCatalogG
 import SdmxJsonCatalogGroup from "./SdmxJson/SdmxJsonCatalogGroup";
 import SdmxJsonCatalogItem from "./SdmxJson/SdmxJsonCatalogItem";
 import CogCatalogItem from "./CatalogItems/CogCatalogItem";
+import StacCatalogGroup from "./Stac/StacCatalogGroup";
+import StacCatalogItem from "./Stac/StacCatalogItem";
 
 export default function registerCatalogMembers() {
   CatalogMemberFactory.register(CatalogGroup.type, CatalogGroup);
@@ -243,6 +245,8 @@ export default function registerCatalogMembers() {
   );
   CatalogMemberFactory.register(AssImpCatalogItem.type, AssImpCatalogItem);
   CatalogMemberFactory.register(CogCatalogItem.type, CogCatalogItem);
+  CatalogMemberFactory.register(StacCatalogGroup.type, StacCatalogGroup);
+  CatalogMemberFactory.register(StacCatalogItem.type, StacCatalogItem);
 
   UrlToCatalogMemberMapping.register(
     matchesExtension("csv"),
@@ -292,6 +296,18 @@ export default function registerCatalogMembers() {
   UrlToCatalogMemberMapping.register(
     matchesExtension("tif", "tiff", "geotiff"),
     CogCatalogItem.type
+  );
+
+  // STAC URL mappings
+  UrlToCatalogMemberMapping.register(
+    matchesUrl(/\/stac|stac\.dataspace\.copernicus\.eu/i),
+    StacCatalogGroup.type,
+    true
+  );
+  UrlToCatalogMemberMapping.register(
+    matchesUrl(/\/collections\/.*\/items\/.*$/i),
+    StacCatalogItem.type,
+    true
   );
 
   // These items work by trying to match a URL, then loading the data. If it fails, they move on.

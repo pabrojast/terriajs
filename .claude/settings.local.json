@@ -7,7 +7,20 @@
       "Bash(npx prettier:*)",
       "Bash(gulp lint:*)",
       "Bash(npx gulp lint:*)",
-      "Bash(npm run prettier-check:*)"
+      "Bash(npm run prettier-check:*)",
+      "WebFetch(domain:documentation.dataspace.copernicus.eu)",
+      "Bash(npx tsc:*)",
+      "Bash(npx typescript:*)",
+      "Bash(npm run lint)",
+      "Bash(npm run:*)",
+      "Bash(gulp build)",
+      "Bash(npx gulp:*)",
+      "Bash(./node_modules/.bin/tsc:*)",
+      "mcp__ide__getDiagnostics",
+      "Bash(yarn build)",
+      "Bash(yarn run:*)",
+      "Bash(yarn gulp:*)",
+      "Bash(yarn build:*)"
     ],
     "deny": []
   }

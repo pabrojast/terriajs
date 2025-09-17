@@ -1,0 +1,157 @@
+{
+  "catalog": [
+    {
+      "name": "Earth Observation Data",
+      "type": "group",
+      "members": [
+        {
+          "type": "stac-group",
+          "name": "Copernicus Data Space",
+          "id": "copernicus-stac",
+          "description": "Access to Copernicus Earth observation data through STAC API. Provides Sentinel-1, Sentinel-2, and other satellite imagery.",
+          "url": "https://stac.dataspace.copernicus.eu/v1/",
+          "groupByCollection": true,
+          "autoLoadItems": true,
+          "maxItems": 50,
+          "info": [
+            {
+              "name": "About Copernicus Data Space",
+              "content": "The Copernicus Data Space provides free, open access to Earth observation data from the Copernicus satellites. This includes high-resolution optical and radar imagery from Sentinel missions.\n\n**Data Access:** Registration required for full access. Free tier available with limitations.\n\n**Coverage:** Global coverage with regular revisit times.\n\n**Update Frequency:** New data available daily."
+            },
+            {
+              "name": "Usage Notes", 
+              "content": "- Authentication token required for full access\n- Use spatial and temporal filters to reduce data volume\n- Cloud cover filtering available for optical imagery\n- COG (Cloud Optimized GeoTIFF) format supported for efficient streaming"
+            }
+          ]
+        },
+        {
+          "type": "stac-group",
+          "name": "Sentinel-2 Clear Sky",
+          "id": "sentinel-2-clear",
+          "description": "Low cloud cover Sentinel-2 Level-2A imagery for visual analysis",
+          "url": "https://stac.dataspace.copernicus.eu/v1/",
+          "collections": ["sentinel-2-l2a"],
+          "searchFilters": [
+            {
+              "property": "eo:cloud_cover",
+              "operator": "lt",
+              "values": ["15"]
+            }
+          ],
+          "assetTypes": ["visual"],
+          "sortField": "-datetime",
+          "maxItems": 30,
+          "groupByCollection": false
+        },
+        {
+          "type": "stac-group", 
+          "name": "Sentinel-1 SAR",
+          "id": "sentinel-1-sar",
+          "description": "Sentinel-1 Synthetic Aperture Radar data for all-weather monitoring",
+          "url": "https://stac.dataspace.copernicus.eu/v1/",
+          "collections": ["sentinel-1-grd"],
+          "searchFilters": [
+            {
+              "property": "sat:orbit_state",
+              "operator": "eq",
+              "values": ["descending"]
+            }
+          ],
+          "maxItems": 25,
+          "groupByCollection": false
+        },
+        {
+          "type": "stac-group",
+          "name": "Recent Global Imagery",
+          "id": "recent-global",
+          "description": "Recent satellite imagery from the last 30 days with low cloud cover",
+          "url": "https://stac.dataspace.copernicus.eu/v1/",
+          "collections": ["sentinel-2-l2a"],
+          "searchFilters": [
+            {
+              "property": "eo:cloud_cover", 
+              "operator": "lt",
+              "values": ["25"]
+            }
+          ],
+          "temporalExtent": ["2023-11-01T00:00:00Z", "2023-12-01T00:00:00Z"],
+          "sortField": "-datetime",
+          "maxItems": 40
+        }
+      ]
+    },
+    {
+      "name": "Regional Examples",
+      "type": "group", 
+      "members": [
+        {
+          "type": "stac-group",
+          "name": "Europe - Agriculture",
+          "id": "europe-agriculture",
+          "description": "Agricultural monitoring over Europe using Sentinel-2 data",
+          "url": "https://stac.dataspace.copernicus.eu/v1/",
+          "collections": ["sentinel-2-l2a"],
+          "spatialExtent": [-10, 35, 30, 70],
+          "searchFilters": [
+            {
+              "property": "eo:cloud_cover",
+              "operator": "lt", 
+              "values": ["20"]
+            }
+          ],
+          "temporalExtent": ["2023-04-01T00:00:00Z", "2023-10-31T23:59:59Z"],
+          "maxItems": 100
+        },
+        {
+          "type": "stac-group",
+          "name": "Mediterranean - Coastal",
+          "id": "mediterranean-coastal",
+          "description": "Coastal monitoring in the Mediterranean region",
+          "url": "https://stac.dataspace.copernicus.eu/v1/",
+          "collections": ["sentinel-2-l2a"],
+          "spatialExtent": [-6, 30, 36, 46],
+          "searchFilters": [
+            {
+              "property": "eo:cloud_cover",
+              "operator": "lt",
+              "values": ["10"]
+            }
+          ],
+          "temporalExtent": ["2023-06-01T00:00:00Z", "2023-09-30T23:59:59Z"],
+          "assetTypes": ["visual", "data"],
+          "maxItems": 50
+        }
+      ]
+    },
+    {
+      "name": "Specific Examples",
+      "type": "group",
+      "members": [
+        {
+          "type": "stac-item",
+          "name": "Sample Sentinel-2 Scene",
+          "id": "sample-s2-scene",
+          "description": "Example Sentinel-2 Level-2A scene over Paris",
+          "url": "https://stac.dataspace.copernicus.eu/v1/",
+          "collectionId": "sentinel-2-l2a",
+          "stacItemId": "S2A_MSIL2A_20231201T103251_N0509_R108_T32UPU_20231201T134115",
+          "preferredAssetTypes": ["visual", "data"]
+        }
+      ]
+    }
+  ],
+  "workbench": [],
+  "viewerMode": "3d",
+  "initialCamera": {
+    "west": -10,
+    "south": 35, 
+    "east": 30,
+    "north": 70
+  },
+  "homeCamera": {
+    "west": -10,
+    "south": 35,
+    "east": 30, 
+    "north": 70
+  }
+}
