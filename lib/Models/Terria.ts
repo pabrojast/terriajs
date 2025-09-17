@@ -146,6 +146,17 @@ export interface ConfigParameters {
    */
   catalogIndexUrl?: string;
   /**
+   * If true, when restoring share state and a model ID isn't found (and no CatalogIndex is configured),
+   * Terria will attempt to resolve it by loading catalog references/groups breadth‑first until found.
+   * This avoids requiring a pre-generated catalog-index.json, at the cost of extra network requests.
+   */
+  autoLoadReferencesForShareLinks?: boolean;
+  /**
+   * Safety limit for the number of catalog nodes (groups/references) to load when
+   * autoLoadReferencesForShareLinks is enabled.
+   */
+  autoLoadMaxNodesForShareLinks?: number;
+  /**
    * **Deprecated** - please use regionMappingDefinitionsUrls array instead. If this is defined, it will override `regionMappingDefinitionsUrls`
    */
   regionMappingDefinitionsUrl?: string | undefined;
@@ -525,6 +536,8 @@ export default class Terria {
     supportEmail: "info@terria.io",
     defaultMaximumShownFeatureInfos: 100,
     catalogIndexUrl: undefined,
+    autoLoadReferencesForShareLinks: false,
+    autoLoadMaxNodesForShareLinks: 500,
     regionMappingDefinitionsUrl: undefined,
     regionMappingDefinitionsUrls: ["build/TerriaJS/data/regionMapping.json"],
     proj4ServiceBaseUrl: "proj4def/",
@@ -931,11 +944,85 @@ export default class Terria {
           (await indexModel.loadReference()).throwIfError();
           return new Result(indexModel.target);
         }
+      } else if (this.configParameters.autoLoadReferencesForShareLinks) {
+        // Attempt to resolve by loading catalog references/groups (no CatalogIndex)
+        const found = await this.findModelByIdByLoadingCatalog(id);
+        if (found) return new Result(found);
       }
     } catch (e) {
       return Result.error(e);
     }
     return new Result(undefined);
+  }
+
+  /**
+   * Attempt to locate a model by ID by progressively loading catalog references/groups.
+   * This is used as a fallback when restoring share links without a CatalogIndex.
+   */
+  private async findModelByIdByLoadingCatalog(
+    id: string
+  ): Promise<BaseModel | undefined> {
+    const visited = new Set<string>();
+    const queue: BaseModel[] = [];
+    const maxNodes = Math.max(
+      0,
+      this.configParameters.autoLoadMaxNodesForShareLinks ?? 500
+    );
+
+    // Root group
+    queue.push(this.catalog.group as BaseModel);
+    let nodesProcessed = 0;
+
+    while (queue.length > 0 && nodesProcessed < maxNodes) {
+      const node = queue.shift()!;
+      nodesProcessed++;
+
+      const uid = node.uniqueId ?? "";
+      if (uid && visited.has(uid)) continue;
+      if (uid) visited.add(uid);
+
+      // Direct hit
+      if (uid === id) return node;
+
+      // If it's a Reference, resolve it and continue with its target
+      if (ReferenceMixin.isMixedInto(node)) {
+        try {
+          (await node.loadReference()).raiseError(this);
+        } catch (_) {}
+        const target = node.target;
+        if (target) {
+          if (target.uniqueId === id) return target;
+          if (GroupMixin.isMixedInto(target)) {
+            try {
+              (await target.loadMembers()).raiseError(this);
+            } catch (_) {}
+            // Enqueue children for traversal
+            target.memberModels.forEach((m) => {
+              if (m.uniqueId === id) queue.unshift(m);
+              else if (
+                GroupMixin.isMixedInto(m) || ReferenceMixin.isMixedInto(m)
+              )
+                queue.push(m);
+            });
+          }
+        }
+        continue;
+      }
+
+      // If it's a Group, load members and traverse
+      if (GroupMixin.isMixedInto(node)) {
+        try {
+          (await node.loadMembers()).raiseError(this);
+        } catch (_) {}
+        node.memberModels.forEach((m) => {
+          if (m.uniqueId === id) queue.unshift(m);
+          else if (GroupMixin.isMixedInto(m) || ReferenceMixin.isMixedInto(m))
+            queue.push(m);
+        });
+      }
+    }
+
+    return undefined;
   }
 
   @action
