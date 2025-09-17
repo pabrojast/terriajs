@@ -1296,13 +1296,11 @@ export default class Terria {
     }
 
     try {
-      // Process non-sharelink hash properties first
       await interpretHash(
         this,
         hashProperties,
         this.userProperties,
-        new URI(newUrl).filename("").query("").hash(""),
-        false // Don't process sharelinks yet
+        new URI(newUrl).filename("").query("").hash("")
       );
 
       // /catalog/ and /story/ routes
@@ -1351,23 +1349,49 @@ export default class Terria {
       this.raiseErrorToUser(e);
     }
 
-    // Load initialization sources first (including catalog references)
-    const initSourcesResult = await this.loadInitSources();
+    // Load initialization sources first - this ensures catalog references are loaded
+    const result = await this.loadInitSources();
 
-    // Process sharelinks after catalog is loaded
-    try {
-      await interpretHash(
-        this,
-        hashProperties,
-        this.userProperties,
-        new URI(newUrl).filename("").query("").hash(""),
-        true // Process only sharelinks now
+    // After init sources are loaded, try to ensure any terria-references are also loaded
+    // This is specifically to handle the case where sharelinks contain items from remote catalogs
+    await this.ensureCatalogReferencesLoaded();
+
+    return result;
+  }
+
+  /**
+   * Ensures that any terria-reference catalog items are loaded.
+   * This is needed to handle sharelinks that reference items from remote catalogs.
+   */
+  private async ensureCatalogReferencesLoaded(): Promise<void> {
+    const terriaReferences = this.catalog.group.memberModels.filter(
+      (member: BaseModel) => member.type === "terria-reference"
+    );
+
+    if (terriaReferences.length > 0) {
+      // Load all terria-references to ensure their catalogs are available
+      await Promise.all(
+        terriaReferences.map(async (ref: BaseModel) => {
+          try {
+            if (
+              "loadMetadata" in ref &&
+              typeof ref.loadMetadata === "function"
+            ) {
+              await ref.loadMetadata();
+            }
+            if ("loadMembers" in ref && typeof ref.loadMembers === "function") {
+              await ref.loadMembers();
+            }
+          } catch (error) {
+            // Don't fail completely if one reference fails
+            console.warn(
+              `Failed to load terria-reference ${ref.uniqueId}:`,
+              error
+            );
+          }
+        })
       );
-    } catch (e) {
-      this.raiseErrorToUser(e);
     }
-
-    return initSourcesResult;
   }
 
   @action
@@ -2246,50 +2270,8 @@ async function interpretHash(
   terria: Terria,
   hashProperties: any,
   userProperties: Map<string, any>,
-  baseUri: URI,
-  processOnlySharelinks: boolean = false
+  baseUri: URI
 ) {
-  if (processOnlySharelinks) {
-    // Only process sharelinks (share and start parameters)
-
-    // a share link that hasn't been shortened: JSON embedded in URL (only works for small quantities of JSON)
-    if (isDefined(hashProperties.start)) {
-      try {
-        const startData = JSON.parse(hashProperties.start);
-        await interpretStartData(
-          terria,
-          startData,
-          'Start data from hash `"#start"` value',
-          TerriaErrorSeverity.Error,
-          false // Hide conversion warning message - as we assume that people using #start are embedding terria.
-        );
-      } catch (e) {
-        throw TerriaError.from(e, {
-          message: { key: "models.terria.parsingStartDataErrorMessage" },
-          importance: -1
-        });
-      }
-    }
-
-    // Resolve #share=xyz with the share data service.
-    if (
-      hashProperties.share !== undefined &&
-      terria.shareDataService !== undefined
-    ) {
-      const shareProps = await terria.shareDataService.resolveData(
-        hashProperties.share
-      );
-
-      await interpretStartData(
-        terria,
-        shareProps,
-        `Start data from sharelink \`"${hashProperties.share}"\``
-      );
-    }
-    return;
-  }
-
-  // Process everything except sharelinks (normal initialization flow)
   if (isDefined(hashProperties.clean)) {
     runInAction(() => {
       terria.initSources.splice(0, terria.initSources.length);
@@ -2320,6 +2302,41 @@ async function interpretHash(
 
   if (isDefined(hashProperties.hideWelcomeMessage)) {
     terria.configParameters.showWelcomeMessage = false;
+  }
+
+  // a share link that hasn't been shortened: JSON embedded in URL (only works for small quantities of JSON)
+  if (isDefined(hashProperties.start)) {
+    try {
+      const startData = JSON.parse(hashProperties.start);
+      await interpretStartData(
+        terria,
+        startData,
+        'Start data from hash `"#start"` value',
+        TerriaErrorSeverity.Error,
+        false // Hide conversion warning message - as we assume that people using #start are embedding terria.
+      );
+    } catch (e) {
+      throw TerriaError.from(e, {
+        message: { key: "models.terria.parsingStartDataErrorMessage" },
+        importance: -1
+      });
+    }
+  }
+
+  // Resolve #share=xyz with the share data service.
+  if (
+    hashProperties.share !== undefined &&
+    terria.shareDataService !== undefined
+  ) {
+    const shareProps = await terria.shareDataService.resolveData(
+      hashProperties.share
+    );
+
+    await interpretStartData(
+      terria,
+      shareProps,
+      `Start data from sharelink \`"${hashProperties.share}"\``
+    );
   }
 }
 
