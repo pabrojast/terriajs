@@ -7,8 +7,10 @@
       "Bash(npx prettier:*)",
       "Bash(gulp lint:*)",
       "Bash(npx gulp lint:*)",
-      "Bash(npm run prettier-check:*)"
+      "Bash(npm run prettier-check:*)",
+      "Bash(npm run prettier:*)"
     ],
-    "deny": []
+    "deny": [],
+    "additionalDirectories": ["C:\\Users\\Lenovo\\Proyectos\\TerriaMap"]
   }
 }

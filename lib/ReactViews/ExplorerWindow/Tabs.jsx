@@ -132,17 +132,19 @@ class Tabs extends Component {
       )[0] ||
       sameCategory[0] ||
       tabs[0];
-      
+
     const theme = this.context;
 
     return (
       <div className={Styles.tabs}>
-        <div style={{ 
-          display: "flex", 
-          background: "#fff", 
-          padding: "10px 24px", 
-          alignItems: "center"
-        }}>
+        <div
+          style={{
+            display: "flex",
+            background: "#fff",
+            padding: "10px 24px",
+            alignItems: "center"
+          }}
+        >
           <ul
             className={Styles.tabList}
             role="tablist"
@@ -174,8 +176,6 @@ class Tabs extends Component {
               </li>
             ))}
           </ul>
-          
-
         </div>
 
         <section

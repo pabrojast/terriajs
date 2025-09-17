@@ -138,12 +138,17 @@ export default class CogCatalogItem extends MappableMixin(
     if (this.terria.currentViewer.type === "Leaflet") {
       return i18next.t("models.commonModelErrors.3dTypeIn2dMode", this);
     }
-    
-    if (this._imageryProvider?.tilingScheme && 
-        isCustomTilingScheme(this._imageryProvider.tilingScheme)) {
-      return i18next.t("models.cogCatalogItem.experimentalReprojectionWarning", this);
+
+    if (
+      this._imageryProvider?.tilingScheme &&
+      isCustomTilingScheme(this._imageryProvider.tilingScheme)
+    ) {
+      return i18next.t(
+        "models.cogCatalogItem.experimentalReprojectionWarning",
+        this
+      );
     }
-    
+
     return undefined;
   }
 

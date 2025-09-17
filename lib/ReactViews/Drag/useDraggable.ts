@@ -54,8 +54,14 @@ export const useDraggable = (options?: { handleSelector?: string }) => {
     const minAllowedDy = minY - baseTop;
     const maxAllowedDy = maxY - elementRect.height - baseTop;
 
-    const constrainedDx = Math.min(Math.max(currentDx, minAllowedDx), maxAllowedDx);
-    const constrainedDy = Math.min(Math.max(currentDy, minAllowedDy), maxAllowedDy);
+    const constrainedDx = Math.min(
+      Math.max(currentDx, minAllowedDx),
+      maxAllowedDx
+    );
+    const constrainedDy = Math.min(
+      Math.max(currentDy, minAllowedDy),
+      maxAllowedDy
+    );
 
     // Directly update the DOM for immediate visual effect
     node.style.transform = `translate3d(${constrainedDx}px, ${constrainedDy}px, 0)`;

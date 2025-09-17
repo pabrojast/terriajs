@@ -12,7 +12,7 @@ import MappableTraits from "./MappableTraits";
 import UrlTraits from "./UrlTraits";
 import primitiveArrayTrait from "../Decorators/primitiveArrayTrait";
 
-export type ColorScaleNames = 
+export type ColorScaleNames =
   | "viridis"
   | "plasma"
   | "inferno"
@@ -61,14 +61,16 @@ export class SingleRenderOptionsTraits extends ModelTraits {
 
   @anyTrait({
     name: "Colors",
-    description: "Custom colors for interpolation. Can be an array of strings or an array of [number, string] tuples."
+    description:
+      "Custom colors for interpolation. Can be an array of strings or an array of [number, string] tuples."
   })
   colors?: string[] | [number, string][];
 
   @primitiveTrait({
     type: "boolean",
     name: "Use Real Value",
-    description: "Determines whether to use the true value range for custom color ranges."
+    description:
+      "Determines whether to use the true value range for custom color ranges."
   })
   useRealValue?: boolean;
 
@@ -77,7 +79,7 @@ export class SingleRenderOptionsTraits extends ModelTraits {
     name: "Type",
     description: "Rendering type, continuous or discrete."
   })
-  type?: 'continuous' | 'discrete';
+  type?: "continuous" | "discrete";
 
   @primitiveArrayTrait({
     name: "Domain",
@@ -88,7 +90,8 @@ export class SingleRenderOptionsTraits extends ModelTraits {
 
   @primitiveArrayTrait({
     name: "Display Range",
-    description: "Range of values to render; values outside the range will be transparent.",
+    description:
+      "Range of values to render; values outside the range will be transparent.",
     type: "number"
   })
   displayRange?: [number, number];
@@ -129,7 +132,7 @@ export class CogRenderOptionsTraits extends ModelTraits {
     description: "Individual rendering options for COGs."
   })
   single?: SingleRenderOptionsTraits;
-  
+
   @primitiveTrait({
     type: "number",
     name: "No Data Value",
@@ -150,7 +153,7 @@ export class CogRenderOptionsTraits extends ModelTraits {
     description: "Geotiff resample method. Defaults to `bilinear`."
   })
   resampleMethod?: "nearest" | "bilinear" = "nearest";
-  
+
   @primitiveTrait({
     type: "string",
     name: "Color",
