@@ -160,6 +160,13 @@ class AddData extends Component {
           message: `An error occurred trying to add data from URL: ${url}`
         });
         newItem.setTrait(CommonStrata.user, "url", url);
+        // Force proxy for STAC to avoid CORS/preflight issues commonly seen in public STAC APIs
+        if (
+          this.props.viewState.remoteDataType.value === "stac-group" ||
+          this.props.viewState.remoteDataType.value === "stac-item"
+        ) {
+          newItem.setTrait(CommonStrata.user, "forceProxy", true);
+        }
         promise = newItem.loadMetadata().then((result) => {
           if (result.error) {
             return Promise.reject(result.error);
