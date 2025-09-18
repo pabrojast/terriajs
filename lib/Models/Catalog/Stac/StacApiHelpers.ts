@@ -181,7 +181,8 @@ export class StacApiClient {
   private getHeaders(): Record<string, string> {
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
-      "Accept": "application/json"
+      // Prefer GeoJSON where supported, fallback to JSON
+      "Accept": "application/geo+json, application/json"
     };
 
     if (this.authToken) {
@@ -267,35 +268,33 @@ export class StacApiClient {
 }
 
 export function isVisualizableAsset(asset: StacAsset): boolean {
-  // Check if asset has roles that indicate it's visualizable
+  // Prefer explicit visual roles
   if (asset.roles) {
-    const visualRoles = ["visual", "overview", "data", "thumbnail"];
-    if (asset.roles.some(role => visualRoles.includes(role))) {
-      return true;
+    const visualRoles = ["visual", "overview"]; // do not treat generic 'data' as visual imagery
+    if (asset.roles.some((role) => visualRoles.includes(role))) {
+      // still require a visual media type if available
+      if (!asset.type) return true;
     }
   }
 
-  // Check media type
+  // Check media type (case-insensitive contains)
   if (asset.type) {
-    const visualTypes = [
-      "image/tiff",
-      "image/geotiff", 
-      "application/vnd.stac.geotiff",
-      "image/cog",
-      "image/png",
-      "image/jpeg",
-      "image/jp2"
-    ];
-    return visualTypes.includes(asset.type);
+    const t = asset.type.toLowerCase();
+    if (
+      t.includes("image/") ||
+      t.includes("geotiff") ||
+      t.includes("cog") ||
+      t.includes("jp2")
+    )
+      return true;
   }
 
-  // Default to false if we can't determine
   return false;
 }
 
 export function getPreferredAsset(
   assets: Record<string, StacAsset>,
-  preferredTypes: string[] = ["visual", "data", "overview"]
+  preferredTypes: string[] = ["visual", "overview", "thumbnail", "data"]
 ): { key: string; asset: StacAsset } | undefined {
   // First, try to find assets by preferred roles
   for (const preferredType of preferredTypes) {
