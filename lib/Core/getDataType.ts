@@ -29,6 +29,11 @@ const builtinRemoteDataTypes: RemoteDataType[] = [
     name: "core.dataType.auto"
   },
   {
+    value: "stac-group",
+    name: "core.dataType.stac-group",
+    description: "core.dataTypeDesc.stac-group"
+  },
+  {
     value: "wms-group",
     name: "core.dataType.wms-group"
   },

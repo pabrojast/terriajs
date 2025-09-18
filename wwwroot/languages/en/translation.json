@@ -2335,4 +2335,13 @@
     "summary": "{{overlap}}% spatial overlap, {{days}} days apart, {{commonAssets}} common assets",
     "qualityRecommendation": "The {{better}} item has better quality metrics"
   }
+  ,
+  "core": {
+    "dataType": {
+      "stac-group": "STAC API (Catalog)"
+    },
+    "dataTypeDesc": {
+      "stac-group": "Enter a STAC API root URL (e.g. https://stac.dataspace.copernicus.eu/v1/)."
+    }
+  }
 }

@@ -1219,4 +1219,13 @@
       "title": "Controles"
     }
   }
+  ,
+  "core": {
+    "dataType": {
+      "stac-group": "API STAC (Catálogo)"
+    },
+    "dataTypeDesc": {
+      "stac-group": "Introduce la URL raíz de una API STAC (p. ej. https://stac.dataspace.copernicus.eu/v1/)."
+    }
+  }
 }
