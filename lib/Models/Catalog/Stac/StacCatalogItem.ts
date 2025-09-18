@@ -85,9 +85,10 @@ export class StacItemStratum extends LoadableStratum(StacCatalogItemTraits) {
   }
 
   @computed get name(): string {
-    return this.stacItem.properties.title || 
-           this.catalogItem.name || 
-           this.stacItem.id;
+    // IMPORTANT: Do not reference catalogItem.name here, as this stratum
+    // contributes to the model's `name` trait. Referencing it would create
+    // a MobX computed cycle (error 32).
+    return this.stacItem.properties.title || this.stacItem.id;
   }
 
   @computed get description(): string | undefined {
@@ -106,16 +107,13 @@ export class StacItemStratum extends LoadableStratum(StacCatalogItemTraits) {
   }
 
   @computed get selectedAssetKey(): string | undefined {
-    if (this.catalogItem.selectedAssetKey) {
-      return this.catalogItem.selectedAssetKey;
-    }
-
-    // Auto-select the preferred asset
+    // Provide a default selection derived from the STAC item only.
+    // Do NOT read `catalogItem.selectedAssetKey` here to avoid a computed
+    // cycle, because this stratum also supplies the `selectedAssetKey` trait.
     const preferredAsset = getPreferredAsset(
       this.stacItem.assets,
       this.catalogItem.preferredAssetTypes?.slice()
     );
-
     return preferredAsset?.key;
   }
 
