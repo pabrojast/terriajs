@@ -108,20 +108,20 @@ const CatalogGroup = observer((props) => {
                   <Icon glyph={Icon.GLYPHS.closed} />
                 )}
               </span>
-              {/* This next button is for user added data, and perhaps should be called 'trashable' instead of 'removable' */}
-              {props.removable && (
-                <button
-                  type="button"
-                  className={Styles.trashGroup}
-                  title={t("dataCatalog.groupRemove")}
-                  onClick={props.removeUserAddedData}
-                >
-                  <Icon glyph={Icon.GLYPHS.trashcan} />
-                </button>
-              )}
             </Box>
           </Box>
         </CatalogGroupButton>
+        {/* Render trash button as a sibling to avoid nesting <button> inside <button> */}
+        {props.removable && (
+          <button
+            type="button"
+            className={Styles.trashGroup}
+            title={t("dataCatalog.groupRemove")}
+            onClick={props.removeUserAddedData}
+          >
+            <Icon glyph={Icon.GLYPHS.trashcan} />
+          </button>
+        )}
       </Text>
       {props.open && (
         <ul
