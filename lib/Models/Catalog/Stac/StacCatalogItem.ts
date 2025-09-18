@@ -128,16 +128,30 @@ export class StacItemStratum extends LoadableStratum(StacCatalogItemTraits) {
   }
 
   @computed get instruments(): string[] | undefined {
-    return this.stacItem.properties.instruments;
+    const v = (this.stacItem.properties as any).instruments;
+    if (Array.isArray(v)) return v;
+    if (typeof v === "string" && v.length > 0) return [v];
+    return undefined;
   }
 
   @computed get platform(): string[] | undefined {
-    return this.stacItem.properties.platform;
+    const v = (this.stacItem.properties as any).platform;
+    if (Array.isArray(v)) return v;
+    if (typeof v === "string" && v.length > 0) return [v];
+    return undefined;
   }
 
   @computed get groundSampleDistance(): number | undefined {
-    return this.stacItem.properties.gsd;
+    const g = (this.stacItem.properties as any).gsd;
+    if (typeof g === "number") return g;
+    if (typeof g === "string") {
+      const n = Number(g);
+      return isNaN(n) ? undefined : n;
+    }
+    return undefined;
   }
+
+  
 
   @computed get bbox(): number[] | undefined {
     return this.stacItem.bbox;

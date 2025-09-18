@@ -316,13 +316,21 @@ export class StacCatalogStratum extends LoadableStratum(StacCatalogGroupTraits) 
       stacItem.setTrait(CommonStrata.definition, "cloudCover", item.properties["eo:cloud_cover"]);
     }
     if (item.properties.instruments) {
-      stacItem.setTrait(CommonStrata.definition, "instruments", item.properties.instruments);
+      const inst: any = item.properties.instruments;
+      const instArr = Array.isArray(inst) ? inst : typeof inst === "string" ? [inst] : undefined;
+      if (instArr) stacItem.setTrait(CommonStrata.definition, "instruments", instArr);
     }
     if (item.properties.platform) {
-      stacItem.setTrait(CommonStrata.definition, "platform", item.properties.platform);
+      const plat: any = item.properties.platform;
+      const platArr = Array.isArray(plat) ? plat : typeof plat === "string" ? [plat] : undefined;
+      if (platArr) stacItem.setTrait(CommonStrata.definition, "platform", platArr);
     }
-    if (item.properties.gsd) {
-      stacItem.setTrait(CommonStrata.definition, "groundSampleDistance", item.properties.gsd);
+    if (item.properties.gsd !== undefined) {
+      const g: any = item.properties.gsd;
+      const num = typeof g === "number" ? g : typeof g === "string" ? Number(g) : undefined;
+      if (typeof num === "number" && !isNaN(num)) {
+        stacItem.setTrait(CommonStrata.definition, "groundSampleDistance", num);
+      }
     }
     if (item.bbox) {
       stacItem.setTrait(CommonStrata.definition, "bbox", item.bbox);
