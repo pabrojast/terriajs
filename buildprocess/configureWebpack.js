@@ -93,6 +93,23 @@ function configureWebpack({
     include: [path.dirname(require.resolve("tinymce/package.json"))]
   });
 
+  // Handle generic CSS imports (eg. from node_modules like react-datepicker)
+  // Exclude tinymce CSS which we load as raw text above
+  const tinymceDir = path.dirname(require.resolve("tinymce/package.json"));
+  if (MiniCssExtractPlugin) {
+    config.module.rules.push({
+      test: /\.(css)$/i,
+      exclude: [tinymceDir],
+      use: [MiniCssExtractPlugin.loader, require.resolve("css-loader")]
+    });
+  } else {
+    config.module.rules.push({
+      test: /\.(css)$/i,
+      exclude: [tinymceDir],
+      use: [require.resolve("style-loader"), require.resolve("css-loader")]
+    });
+  }
+
   // Remove Cesium debug mode checks in production. This might slightly improve performance.
   // TODO: It will be good to have it enabled in devMode though, to discover issues with code
   // however doing so currently breaks a few specs.
