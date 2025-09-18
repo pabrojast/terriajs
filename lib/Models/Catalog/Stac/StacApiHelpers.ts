@@ -268,25 +268,17 @@ export class StacApiClient {
 }
 
 export function isVisualizableAsset(asset: StacAsset): boolean {
-  // Prefer explicit visual roles
-  if (asset.roles) {
-    const visualRoles = ["visual", "overview"]; // do not treat generic 'data' as visual imagery
-    if (asset.roles.some((role) => visualRoles.includes(role))) {
-      // still require a visual media type if available
-      if (!asset.type) return true;
-    }
-  }
-
-  // Check media type (case-insensitive contains)
+  // We only consider COG/GeoTIFF as directly visualizable from asset URLs.
+  // Thumbnails (jpeg/png) are not used to create map imagery layers.
   if (asset.type) {
     const t = asset.type.toLowerCase();
-    if (
-      t.includes("image/") ||
-      t.includes("geotiff") ||
-      t.includes("cog") ||
-      t.includes("jp2")
-    )
-      return true;
+    if (t.includes("tiff") || t.includes("geotiff") || t.includes("cog")) return true;
+  }
+
+  // Sometimes media type is missing; infer from href
+  if (asset.href) {
+    const h = asset.href.toLowerCase();
+    if (h.endsWith(".tif") || h.endsWith(".tiff")) return true;
   }
 
   return false;
@@ -294,9 +286,9 @@ export function isVisualizableAsset(asset: StacAsset): boolean {
 
 export function getPreferredAsset(
   assets: Record<string, StacAsset>,
-  preferredTypes: string[] = ["visual", "overview", "thumbnail", "data"]
+  preferredTypes: string[] = ["visual", "overview", "data"]
 ): { key: string; asset: StacAsset } | undefined {
-  // First, try to find assets by preferred roles
+  // Prefer role-marked assets, but only if visualizable
   for (const preferredType of preferredTypes) {
     for (const [key, asset] of Object.entries(assets)) {
       if (asset.roles?.includes(preferredType) && isVisualizableAsset(asset)) {
@@ -305,13 +297,10 @@ export function getPreferredAsset(
     }
   }
 
-  // If no preferred roles found, return first visualizable asset
+  // Otherwise, first COG/GeoTIFF we find
   for (const [key, asset] of Object.entries(assets)) {
-    if (isVisualizableAsset(asset)) {
-      return { key, asset };
-    }
+    if (isVisualizableAsset(asset)) return { key, asset };
   }
-
   return undefined;
 }
 

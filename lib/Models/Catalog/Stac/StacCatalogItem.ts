@@ -236,23 +236,26 @@ export default class StacCatalogItem extends MappableMixin(
     const mediaType = selectedAsset.mediaType?.toLowerCase();
     
     let delegateType: "cog" | "url-template-imagery";
-    
-    if (
-      mediaType?.includes("tiff") || 
+    const lowerUrl = assetUrl.toLowerCase();
+    const isCogLike =
+      mediaType?.includes("tiff") ||
       mediaType?.includes("geotiff") ||
       mediaType?.includes("cog") ||
-      assetUrl.toLowerCase().includes(".tif")
-    ) {
+      lowerUrl.endsWith(".tif") ||
+      lowerUrl.endsWith(".tiff");
+
+    const looksLikeTileTemplate = /\{z\}|\{x\}|\{y\}/i.test(assetUrl);
+
+    if (isCogLike) {
       delegateType = "cog";
-    } else if (
-      mediaType?.includes("image/") ||
-      selectedAsset.roles?.includes("visual") ||
-      selectedAsset.roles?.includes("overview")
-    ) {
+    } else if (looksLikeTileTemplate && mediaType?.includes("image/")) {
       delegateType = "url-template-imagery";
     } else {
-      // Default to COG for unknown types
-      delegateType = "cog";
+      throw new TerriaError({
+        title: "No visualizable asset",
+        message:
+          "This STAC item does not contain a directly visualizable asset (COG/GeoTIFF or tile template). Try another asset or collection.",
+      });
     }
 
     // Create delegate item if needed
@@ -269,6 +272,50 @@ export default class StacCatalogItem extends MappableMixin(
     // Configure the delegate item
     if (this._delegateItem instanceof CogCatalogItem) {
       this._delegateItem.setTrait(CommonStrata.definition, "url", assetUrl);
+      // Map STAC raster metadata to COG render options (scale/offset/nodata)
+      const key = this.selectedAssetKey;
+      const rawItem = this.strata.get(StacItemStratum.stratumName) as StacItemStratum | undefined;
+      const raw = key ? (rawItem?.stacItem.assets as any)?.[key] : undefined;
+      const bandInfo = raw?.["raster:bands"]?.[0];
+      const nodata = bandInfo?.nodata;
+      const scale = bandInfo?.scale;
+      const offset = bandInfo?.offset;
+      const dataType: string | undefined = bandInfo?.data_type;
+      // Compute a reasonable domain from data type + scale/offset
+      const maxByType: Record<string, number> = {
+        uint8: 255,
+        int8: 127,
+        uint16: 65535,
+        int16: 32767,
+        uint32: 4294967295,
+        int32: 2147483647
+      };
+      let domain: [number, number] | undefined;
+      if (typeof scale === "number" || typeof offset === "number") {
+        const s = typeof scale === "number" ? scale : 1;
+        const o = typeof offset === "number" ? offset : 0;
+        const maxDN = (dataType && maxByType[dataType.toLowerCase()]) || undefined;
+        if (maxDN !== undefined) {
+          domain = [o + s * 0, o + s * maxDN];
+        }
+        // Apply expression to convert DN to real value if scale/offset available
+        const expr = `v*${s}${o !== 0 ? (o > 0 ? "+" + o : o) : ""}`;
+        this._delegateItem.setTrait(CommonStrata.definition, "renderOptions", {
+          single: {
+            expression: expr,
+            domain,
+            displayRange: domain,
+            applyDisplayRange: domain !== undefined,
+            useRealValue: true,
+            colorScale: "viridis"
+          },
+          nodata
+        } as any);
+      } else if (typeof nodata === "number") {
+        this._delegateItem.setTrait(CommonStrata.definition, "renderOptions", {
+          nodata
+        } as any);
+      }
     } else if (this._delegateItem instanceof UrlTemplateImageryCatalogItem) {
       this._delegateItem.setTrait(CommonStrata.definition, "url", assetUrl);
     }
