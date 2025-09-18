@@ -69,53 +69,134 @@ export class StacCatalogStratum extends LoadableStratum(StacCatalogGroupTraits) 
         collections = collectionsResponse.collections;
       }
 
-      // Load items for each collection if autoLoadItems is true
+      // Load items if requested
       if (catalogGroup.autoLoadItems) {
-        for (const collection of collections) {
+        if (collections.length > 0) {
+          for (const collection of collections) {
+            try {
+              const searchRequest: StacSearchRequest = {
+                collections: [collection.id],
+                limit: catalogGroup.maxItems
+              };
+
+              // Spatial filter
+              if (
+                catalogGroup.spatialExtent &&
+                catalogGroup.spatialExtent.length === 4
+              ) {
+                searchRequest.bbox = catalogGroup.spatialExtent as [
+                  number,
+                  number,
+                  number,
+                  number
+                ];
+              }
+              // Temporal filter
+              if (
+                catalogGroup.temporalExtent &&
+                catalogGroup.temporalExtent.length === 2
+              ) {
+                searchRequest.datetime = formatStacDatetime(
+                  catalogGroup.temporalExtent[0],
+                  catalogGroup.temporalExtent[1]
+                );
+              }
+              // Custom filters
+              if (
+                catalogGroup.searchFilters &&
+                catalogGroup.searchFilters.length > 0
+              ) {
+                const cql2Filter = buildCql2Filter(
+                  catalogGroup.searchFilters.map((f) => ({
+                    property: f.property || "",
+                    operator: f.operator || "eq",
+                    values: f.values?.slice() || []
+                  }))
+                );
+                if (cql2Filter) {
+                  searchRequest.filter = cql2Filter;
+                }
+              }
+              // Sorting
+              if (catalogGroup.sortField) {
+                const direction = catalogGroup.sortField.startsWith("-")
+                  ? "desc"
+                  : "asc";
+                const field = catalogGroup.sortField.replace(/^-/, "");
+                searchRequest.sortby = [{ field, direction }];
+              }
+
+              const searchResponse = await client.searchItems(searchRequest);
+              if (searchResponse.features.length > 0) {
+                itemsByCollection.set(collection.id, searchResponse.features);
+              }
+            } catch (error) {
+              console.warn(
+                `Failed to load items for collection ${collection.id}:`,
+                error
+              );
+            }
+          }
+        } else {
+          // No collections returned: fallback to a broad search across the catalog
           try {
             const searchRequest: StacSearchRequest = {
-              collections: [collection.id],
               limit: catalogGroup.maxItems
             };
-
-            // Add spatial filter if specified
-            if (catalogGroup.spatialExtent && catalogGroup.spatialExtent.length === 4) {
-              searchRequest.bbox = catalogGroup.spatialExtent as [number, number, number, number];
+            if (
+              catalogGroup.spatialExtent &&
+              catalogGroup.spatialExtent.length === 4
+            ) {
+              searchRequest.bbox = catalogGroup.spatialExtent as [
+                number,
+                number,
+                number,
+                number
+              ];
             }
-
-            // Add temporal filter if specified
-            if (catalogGroup.temporalExtent && catalogGroup.temporalExtent.length === 2) {
+            if (
+              catalogGroup.temporalExtent &&
+              catalogGroup.temporalExtent.length === 2
+            ) {
               searchRequest.datetime = formatStacDatetime(
                 catalogGroup.temporalExtent[0],
                 catalogGroup.temporalExtent[1]
               );
             }
-
-            // Add custom filters
-            if (catalogGroup.searchFilters && catalogGroup.searchFilters.length > 0) {
-              const cql2Filter = buildCql2Filter(catalogGroup.searchFilters.map(f => ({
-                property: f.property || "",
-                operator: f.operator || "eq",
-                values: f.values?.slice() || []
-              })));
-              if (cql2Filter) {
-                searchRequest.filter = cql2Filter;
-              }
+            if (
+              catalogGroup.searchFilters &&
+              catalogGroup.searchFilters.length > 0
+            ) {
+              const cql2Filter = buildCql2Filter(
+                catalogGroup.searchFilters.map((f) => ({
+                  property: f.property || "",
+                  operator: f.operator || "eq",
+                  values: f.values?.slice() || []
+                }))
+              );
+              if (cql2Filter) searchRequest.filter = cql2Filter;
             }
-
-            // Add sorting
             if (catalogGroup.sortField) {
-              const direction = catalogGroup.sortField.startsWith("-") ? "desc" : "asc";
+              const direction = catalogGroup.sortField.startsWith("-")
+                ? "desc"
+                : "asc";
               const field = catalogGroup.sortField.replace(/^-/, "");
               searchRequest.sortby = [{ field, direction }];
             }
-
             const searchResponse = await client.searchItems(searchRequest);
             if (searchResponse.features.length > 0) {
-              itemsByCollection.set(collection.id, searchResponse.features);
+              itemsByCollection.set("__all__", searchResponse.features);
+              // Present as a flat list if no collections exist
+              runInAction(() =>
+                catalogGroup.setTrait(
+                  CommonStrata.definition,
+                  "groupByCollection",
+                  false
+                )
+              );
             }
           } catch (error) {
-            console.warn(`Failed to load items for collection ${collection.id}:`, error);
+            console.warn("Failed to perform broad STAC search:", error);
           }
         }
       }
