@@ -12,6 +12,8 @@ import ExportData from "./ExportData";
 import Styles from "./mappable-preview.scss";
 import MetadataTable from "./MetadataTable";
 import WarningBox from "./WarningBox";
+import StacCatalogItem from "../../Models/Catalog/Stac/StacCatalogItem";
+import StacAssetSelector from "../DataCatalog/Stac/StacAssetSelector";
 
 /**
  * CatalogItem description.
@@ -127,6 +129,13 @@ class Description extends Component {
         )}
 
         <DataPreviewSections metadataItem={catalogItem} />
+
+        {catalogItem instanceof StacCatalogItem && (
+          <>
+            <h4 className={Styles.h4}>Assets</h4>
+            <StacAssetSelector item={catalogItem} />
+          </>
+        )}
 
         {catalogItem.dataCustodian && catalogItem.dataCustodian.length > 0 && (
           <div>

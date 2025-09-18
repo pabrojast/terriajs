@@ -232,10 +232,24 @@ export class StacApiClient {
   }
 
   async searchItems(searchRequest: StacSearchRequest): Promise<StacSearchResponse> {
-    return this.fetchJson<StacSearchResponse>(`${this.baseUrl}search`, {
-      method: "POST",
-      body: searchRequest as any
-    });
+    try {
+      return await this.fetchJson<StacSearchResponse>(`${this.baseUrl}search`, {
+        method: "POST",
+        body: searchRequest as any
+      });
+    } catch (error) {
+      // Fallback for servers that disallow POST /search: try GET /collections/{id}/items
+      if (searchRequest.collections && searchRequest.collections.length > 0) {
+        // Only fetch first collection to respect limit; multi-collection GET fallback is non-trivial
+        const coll = searchRequest.collections[0];
+        return await this.getCollectionItems(coll, {
+          limit: searchRequest.limit,
+          bbox: searchRequest.bbox as any,
+          datetime: searchRequest.datetime
+        });
+      }
+      throw error;
+    }
   }
 
   async getCollectionItems(
