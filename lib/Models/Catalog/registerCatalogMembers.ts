@@ -392,6 +392,14 @@ export default function registerCatalogMembers() {
     true
   );
 
+  // Try STAC as a generic catch-all before other generic fallbacks.
+  // Many STAC roots don't contain the word "stac" in the URL; requiresLoad will validate.
+  UrlToCatalogMemberMapping.register(
+    (_s) => true,
+    StacCatalogGroup.type,
+    true
+  );
+
   // These don't even try to match a URL, they're just total fallbacks. We really, really want something to work.
   UrlToCatalogMemberMapping.register(
     (_s) => true,
