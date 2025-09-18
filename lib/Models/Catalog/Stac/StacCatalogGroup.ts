@@ -304,6 +304,8 @@ export class StacCatalogStratum extends LoadableStratum(StacCatalogGroupTraits) 
     stacItem.setTrait(CommonStrata.definition, "description", item.properties.description);
     stacItem.setTrait(CommonStrata.definition, "stacItemId", item.id);
     stacItem.setTrait(CommonStrata.definition, "collectionId", item.collection);
+    // Ensure item knows the STAC API base URL so it can fetch metadata/items
+    stacItem.setTrait(CommonStrata.definition, "url", this.catalogGroup.url);
     stacItem.setTrait(CommonStrata.definition, "authToken", this.catalogGroup.authToken);
     
     // Set STAC-specific properties
