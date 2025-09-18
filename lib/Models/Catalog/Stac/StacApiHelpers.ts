@@ -193,13 +193,19 @@ export class StacApiClient {
 
   async fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
     try {
-      return await loadJson(url, {
-        ...options,
-        headers: {
-          ...this.getHeaders(),
-          ...options?.headers
+      const headers = { ...this.getHeaders(), ...(options?.headers as any) };
+      if (options?.method === "POST" || (options as any)?.body) {
+        let body: any = (options as any).body;
+        if (typeof body === "string") {
+          try {
+            body = JSON.parse(body);
+          } catch (_e) {
+            body = { body };
+          }
         }
-      });
+        return await loadJson<T>(url, headers, body);
+      }
+      return await loadJson<T>(url, headers);
     } catch (error) {
       throw new TerriaError({
         title: "Failed to fetch from STAC API",
@@ -227,7 +233,7 @@ export class StacApiClient {
   async searchItems(searchRequest: StacSearchRequest): Promise<StacSearchResponse> {
     return this.fetchJson<StacSearchResponse>(`${this.baseUrl}search`, {
       method: "POST",
-      body: JSON.stringify(searchRequest)
+      body: searchRequest as any
     });
   }
 

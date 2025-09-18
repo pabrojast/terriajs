@@ -24,6 +24,8 @@ import {
 } from "./StacApiHelpers";
 import { StacShareManager } from "./StacShareManager";
 import { StacPermalinkHandler } from "./StacPermalinkHandler";
+import StratumOrder from "../../Definition/StratumOrder";
+import proxyCatalogItemUrl from "../proxyCatalogItemUrl";
 
 export class StacCatalogStratum extends LoadableStratum(StacCatalogGroupTraits) {
   static stratumName = "stacCatalog";
@@ -38,7 +40,10 @@ export class StacCatalogStratum extends LoadableStratum(StacCatalogGroupTraits) 
       });
     }
 
-    const client = new StacApiClient(catalogGroup.url, catalogGroup.authToken);
+    const client = new StacApiClient(
+      proxyCatalogItemUrl(catalogGroup, catalogGroup.url!),
+      catalogGroup.authToken
+    );
     
     let collections: StacCollection[] = [];
     const itemsByCollection: Map<string, StacItem[]> = new Map();
@@ -391,3 +396,6 @@ export default class StacCatalogGroup extends GroupMixin(
     };
   }
 }
+
+// Register loadable stratum for STAC catalog groups
+StratumOrder.addLoadStratum(StacCatalogStratum.stratumName);

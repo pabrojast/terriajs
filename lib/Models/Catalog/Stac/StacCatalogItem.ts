@@ -20,6 +20,7 @@ import {
   getPreferredAsset,
   isVisualizableAsset
 } from "./StacApiHelpers";
+import proxyCatalogItemUrl from "../proxyCatalogItemUrl";
 
 export class StacItemStratum extends LoadableStratum(StacCatalogItemTraits) {
   static stratumName = "stacItem";
@@ -37,7 +38,10 @@ export class StacItemStratum extends LoadableStratum(StacCatalogItemTraits) {
     try {
       // If we have stacItemId and collectionId, fetch the specific item
       if (catalogItem.stacItemId && catalogItem.collectionId) {
-        const client = new StacApiClient(catalogItem.url, catalogItem.authToken);
+        const client = new StacApiClient(
+          proxyCatalogItemUrl(catalogItem, catalogItem.url!),
+          catalogItem.authToken
+        );
         stacItem = await client.getItem(catalogItem.collectionId, catalogItem.stacItemId);
       } else {
         // Try to load the URL directly as a STAC item
