@@ -13,6 +13,11 @@ import DataPreviewSections from "./DataPreviewSections";
 import DataPreviewUrl from "./DataPreviewUrl";
 import Styles from "./mappable-preview.scss";
 import WarningBox from "./WarningBox";
+import StacCatalogGroup from "../../Models/Catalog/Stac/StacCatalogGroup";
+import { StacSearchManager } from "../../Models/Catalog/Stac/StacSearchManager";
+import StacAdvancedSearch from "../DataCatalog/Stac/StacAdvancedSearch";
+import CommonStrata from "../../Models/Definition/CommonStrata";
+import { action } from "mobx";
 
 /**
  * A "preview" for CatalogGroup.
@@ -35,6 +40,13 @@ class GroupPreview extends Component {
     const metadataItem =
       this.props.previewed.nowViewingCatalogItem || this.props.previewed;
     const { t } = this.props;
+    const isStacGroup = this.props.previewed instanceof StacCatalogGroup;
+    const stacManager = isStacGroup
+      ? new StacSearchManager(
+          this.props.previewed.url || "",
+          this.props.previewed.authToken
+        )
+      : undefined;
     return (
       <div>
         <div
@@ -88,6 +100,74 @@ class GroupPreview extends Component {
         )}
         <div className={Styles.previewedInfo}>
           <div className={Styles.url}>
+            {isStacGroup && stacManager && (
+              <div>
+                <StacAdvancedSearch
+                  searchManager={stacManager}
+                  onSearch={action(() => {
+                    const p = stacManager.searchParams;
+                    const filters = stacManager.enabledFilters || [];
+                    // Spatial extent
+                    if (p.bbox && p.bbox.length === 4) {
+                      this.props.previewed.setTrait(
+                        CommonStrata.user,
+                        "spatialExtent",
+                        p.bbox
+                      );
+                    } else {
+                      this.props.previewed.setTrait(
+                        CommonStrata.user,
+                        "spatialExtent",
+                        undefined
+                      );
+                    }
+                    // Temporal extent from formatted datetime string
+                    if (p.datetime) {
+                      const parts = p.datetime.split("/");
+                      const start = parts[0] && parts[0] !== ".." ? parts[0] : undefined;
+                      const end = parts[1] && parts[1] !== ".." ? parts[1] : undefined;
+                      this.props.previewed.setTrait(
+                        CommonStrata.user,
+                        "temporalExtent",
+                        start || end ? [start, end] : undefined
+                      );
+                    } else {
+                      this.props.previewed.setTrait(
+                        CommonStrata.user,
+                        "temporalExtent",
+                        undefined
+                      );
+                    }
+                    // Collections
+                    if (p.collections && p.collections.length) {
+                      this.props.previewed.setTrait(
+                        CommonStrata.user,
+                        "collections",
+                        p.collections.slice()
+                      );
+                    } else {
+                      this.props.previewed.setTrait(
+                        CommonStrata.user,
+                        "collections",
+                        undefined
+                      );
+                    }
+                    // Search filters
+                    this.props.previewed.setTrait(
+                      CommonStrata.user,
+                      "searchFilters",
+                      filters.map((f) => ({
+                        property: f.property,
+                        operator: f.operator,
+                        values: f.values.slice()
+                      }))
+                    );
+                    // Trigger reload of members with new filters
+                    this.props.previewed.loadMembers();
+                  })}
+                />
+              </div>
+            )}
             {this.props.previewed.description &&
               this.props.previewed.description.length > 0 && (
                 <div>
