@@ -185,6 +185,22 @@ export default class StacCatalogItem extends MappableMixin(
 
   protected async forceLoadMetadata(): Promise<void> {
     if (!this.strata.get(StacItemStratum.stratumName)) {
+      // Derive base URL from parent STAC group if missing (e.g. when
+      // restoring from a share that only saved user stratum).
+      if (!this.url && this.knownContainerUniqueIds?.length > 0) {
+        const parentId = this.knownContainerUniqueIds[0];
+        const parent = this.terria.getModelById(
+          require("./StacCatalogGroup").default,
+          parentId
+        ) as any;
+        if (parent?.url) {
+          this.setTrait(CommonStrata.definition, "url", parent.url);
+          // Only inherit forceProxy if there is no auth token
+          if ((parent as any).forceProxy && !parent?.authToken) {
+            this.setTrait(CommonStrata.definition, "forceProxy", true);
+          }
+        }
+      }
       const stratum = await StacItemStratum.load(this);
       runInAction(() => {
         this.strata.set(StacItemStratum.stratumName, stratum);
@@ -270,15 +286,20 @@ export default class StacCatalogItem extends MappableMixin(
     // Configure the delegate item
     if (this._delegateItem instanceof CogCatalogItem) {
       this._delegateItem.setTrait(CommonStrata.definition, "url", assetUrl);
+      // Propagate proxy preference
+      if (this.forceProxy) {
+        (this._delegateItem as any).setTrait(CommonStrata.definition, "forceProxy", true);
+      }
       // Map STAC raster metadata to COG render options (scale/offset/nodata)
       const key = this.selectedAssetKey;
       const rawItem = this.strata.get(StacItemStratum.stratumName) as StacItemStratum | undefined;
       const raw = key ? (rawItem?.stacItem.assets as any)?.[key] : undefined;
       const bandInfo = raw?.["raster:bands"]?.[0];
-      const nodata = bandInfo?.nodata;
-      const scale = bandInfo?.scale;
-      const offset = bandInfo?.offset;
-      const dataType: string | undefined = bandInfo?.data_type;
+      // Fallback to asset-level raster fields if raster:bands not present
+      const nodata = bandInfo?.nodata ?? raw?.nodata;
+      const scale = bandInfo?.scale ?? raw?.["raster:scale"];
+      const offset = bandInfo?.offset ?? raw?.["raster:offset"];
+      const dataType: string | undefined = bandInfo?.data_type ?? raw?.data_type;
       // Compute a reasonable domain from data type + scale/offset
       const maxByType: Record<string, number> = {
         uint8: 255,
@@ -316,15 +337,19 @@ export default class StacCatalogItem extends MappableMixin(
       }
     } else if (this._delegateItem instanceof UrlTemplateImageryCatalogItem) {
       this._delegateItem.setTrait(CommonStrata.definition, "url", assetUrl);
+      if (this.forceProxy) {
+        (this._delegateItem as any).setTrait(CommonStrata.definition, "forceProxy", true);
+      }
     }
     this._delegateItem.setTrait(CommonStrata.definition, "name", `${this.name} - ${selectedAsset.title || selectedAsset.key}`);
     
     // Copy authentication if needed
     if (this.authToken) {
-      // For COG items, we might need to add auth headers - this depends on the imagery provider implementation
-      // For now, we'll pass the token in case the provider supports it
-      if ('authToken' in this._delegateItem) {
-        (this._delegateItem as any).setTrait(CommonStrata.definition, "authToken", this.authToken);
+      // Pass Authorization header to COG imagery provider via extraRequestOptions
+      if (this._delegateItem instanceof CogCatalogItem) {
+        (this._delegateItem as CogCatalogItem).extraRequestOptions = {
+          headers: { Authorization: `Bearer ${this.authToken}` }
+        } as any;
       }
     }
 

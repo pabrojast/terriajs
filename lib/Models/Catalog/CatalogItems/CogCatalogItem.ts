@@ -82,6 +82,16 @@ export default class CogCatalogItem extends MappableMixin(
 ) {
   static readonly type = "cog";
 
+  // Extra request options to be forwarded to TIFFImageryProvider (e.g., headers)
+  extraRequestOptions?: {
+    forceXHR?: boolean;
+    headers?: Record<string, any>;
+    credentials?: boolean;
+    maxRanges?: number;
+    allowFullFile?: boolean;
+    [key: string]: any;
+  };
+
   /**
    * Private imageryProvider instance. This is set once forceLoadMapItems is
    * called.
@@ -194,6 +204,7 @@ export default class CogCatalogItem extends MappableMixin(
 
     return runInAction(() =>
       TIFFImageryProvider.fromUrl(url, {
+        requestOptions: this.extraRequestOptions,
         credit: this.credit,
         tileSize: this.tileSize,
         maximumLevel: this.maximumLevel,
