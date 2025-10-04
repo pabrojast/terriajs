@@ -8,16 +8,25 @@ import GetFeatureInfoFormat from "terriajs-cesium/Source/Scene/GetFeatureInfoFor
 import WebMapTileServiceImageryProvider from "terriajs-cesium/Source/Scene/WebMapTileServiceImageryProvider";
 import URI from "urijs";
 import containsAny from "../../../Core/containsAny";
+import createDiscreteTimesFromIsoSegments from "../../../Core/createDiscreteTimes";
+import createTransformerAllowUndefined from "../../../Core/createTransformerAllowUndefined";
+import filterOutUndefined from "../../../Core/filterOutUndefined";
 import isDefined from "../../../Core/isDefined";
 import TerriaError from "../../../Core/TerriaError";
 import CatalogMemberMixin from "../../../ModelMixins/CatalogMemberMixin";
+import DiscretelyTimeVaryingMixin from "../../../ModelMixins/DiscretelyTimeVaryingMixin";
 import GetCapabilitiesMixin from "../../../ModelMixins/GetCapabilitiesMixin";
-import MappableMixin, { MapItem } from "../../../ModelMixins/MappableMixin";
+import MappableMixin, {
+  ImageryParts,
+  MapItem
+} from "../../../ModelMixins/MappableMixin";
 import UrlMixin from "../../../ModelMixins/UrlMixin";
 import { InfoSectionTraits } from "../../../Traits/TraitsClasses/CatalogMemberTraits";
 import LegendTraits from "../../../Traits/TraitsClasses/LegendTraits";
 import { RectangleTraits } from "../../../Traits/TraitsClasses/MappableTraits";
 import WebMapTileServiceCatalogItemTraits, {
+  WebMapTileServiceAvailableDimensionTraits,
+  WebMapTileServiceAvailableLayerDimensionsTraits,
   WebMapTileServiceAvailableLayerStylesTraits
 } from "../../../Traits/TraitsClasses/WebMapTileServiceCatalogItemTraits";
 import isReadOnlyArray from "../../../Core/isReadOnlyArray";
@@ -25,9 +34,10 @@ import CreateModel from "../../Definition/CreateModel";
 import createStratumInstance from "../../Definition/createStratumInstance";
 import LoadableStratum from "../../Definition/LoadableStratum";
 import { BaseModel } from "../../Definition/Model";
+import StratumFromTraits from "../../Definition/StratumFromTraits";
+import { SelectableDimensionEnum } from "../../SelectableDimensions/SelectableDimensions";
 import { ServiceProvider } from "./OwsInterfaces";
 import proxyCatalogItemUrl from "../proxyCatalogItemUrl";
-import StratumFromTraits from "../../Definition/StratumFromTraits";
 import { ModelConstructorParameters } from "../../Definition/Model";
 import WebMapTileServiceCapabilities, {
   CapabilitiesStyle,
@@ -41,6 +51,16 @@ interface UsableTileMatrixSets {
   identifiers: string[];
   tileWidth: number;
   tileHeight: number;
+}
+
+interface DimensionSummary {
+  name?: string;
+  values: string[];
+  units?: string;
+  unitSymbol?: string;
+  default?: string;
+  multipleValues?: boolean;
+  nearestValue?: boolean;
 }
 
 type FeatureInfoFormatType = "json" | "xml" | "html" | "text";
@@ -339,6 +359,86 @@ class GetCapabilitiesStratum extends LoadableStratum(
   }
 
   @computed
+  get layerDimensions(): Map<string, DimensionSummary[]> {
+    return buildLayerDimensionMap(this.capabilities?.json?.Contents?.Layer);
+  }
+
+  @computed
+  get currentLayerDimensions(): DimensionSummary[] | undefined {
+    const layerName = this.catalogItem.layer ?? this.layer;
+    if (!layerName) {
+      return;
+    }
+    return this.layerDimensions.get(layerName);
+  }
+
+  @computed
+  get availableDimensions(): StratumFromTraits<WebMapTileServiceAvailableLayerDimensionsTraits>[] {
+    const result: StratumFromTraits<WebMapTileServiceAvailableLayerDimensionsTraits>[] =
+      [];
+    this.layerDimensions.forEach((dimensions, layerName) => {
+      const usable = dimensions.filter(
+        (dimension) =>
+          dimension.name &&
+          dimension.name.toLowerCase() !== "time" &&
+          dimension.values.length > 0
+      );
+      if (usable.length === 0) {
+        return;
+      }
+
+      result.push(
+        createStratumInstance(WebMapTileServiceAvailableLayerDimensionsTraits, {
+          layerName,
+          dimensions: usable.map((dimension) =>
+            createStratumInstance(WebMapTileServiceAvailableDimensionTraits, {
+              name: dimension.name,
+              values: dimension.values,
+              units: dimension.units,
+              unitSymbol: dimension.unitSymbol,
+              multipleValues: dimension.multipleValues,
+              nearestValue: dimension.nearestValue,
+              default: dimension.default
+            })
+          )
+        })
+      );
+    });
+
+    return result;
+  }
+
+  @computed
+  get discreteTimes(): { time: string; tag: string | undefined }[] | undefined {
+    const timeDimension = this.currentLayerDimensions?.find(
+      (dimension) => dimension.name?.toLowerCase() === "time"
+    );
+    if (!timeDimension) {
+      return undefined;
+    }
+
+    const result: { time: string; tag: string | undefined }[] = [];
+    timeDimension.values.forEach((value) => {
+      const segments = value.split("/").map((segment) => segment.trim());
+      if (segments.length === 1) {
+        if (segments[0].length > 0 && segments[0].toLowerCase() !== "current") {
+          result.push({ time: segments[0], tag: undefined });
+        }
+      } else if (segments.length >= 2) {
+        createDiscreteTimesFromIsoSegments(
+          result,
+          segments[0],
+          segments[1],
+          segments[2],
+          this.catalogItem.maxRefreshIntervals
+        );
+      }
+    });
+
+    return result.length > 0 ? result : undefined;
+  }
+
+  @computed
   get usableTileMatrixSets() {
     const usableTileMatrixSets: { [key: string]: UsableTileMatrixSets } = {
       "urn:ogc:def:wkss:OGC:1.0:GoogleMapsCompatible": {
@@ -437,10 +537,12 @@ class GetCapabilitiesStratum extends LoadableStratum(
   }
 }
 
-class WebMapTileServiceCatalogItem extends MappableMixin(
-  GetCapabilitiesMixin(
-    UrlMixin(
-      CatalogMemberMixin(CreateModel(WebMapTileServiceCatalogItemTraits))
+class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
+  MappableMixin(
+    GetCapabilitiesMixin(
+      UrlMixin(
+        CatalogMemberMixin(CreateModel(WebMapTileServiceCatalogItemTraits))
+      )
     )
   )
 ) {
@@ -526,94 +628,122 @@ class WebMapTileServiceCatalogItem extends MappableMixin(
 
   @computed
   get imageryProvider() {
-    const stratum = this.capabilitiesStratum;
+    return this._createImageryProvider(this.currentDiscreteTimeTag);
+  }
 
-    if (
-      !isDefined(this.layer) ||
-      !isDefined(this.url) ||
-      !isDefined(stratum) ||
-      !isDefined(this.style)
-    ) {
-      return;
-    }
+  private _createImageryProvider = createTransformerAllowUndefined(
+    (
+      timeTag: string | undefined
+    ): WebMapTileServiceImageryProvider | undefined => {
+      const stratum = this.capabilitiesStratum;
+      if (
+        !isDefined(this.layer) ||
+        !isDefined(this.url) ||
+        !isDefined(stratum) ||
+        !isDefined(this.style)
+      ) {
+        return undefined;
+      }
 
-    const layer = stratum.capabilitiesLayer;
-    const layerIdentifier = layer?.Identifier;
-    if (!isDefined(layer) || !isDefined(layerIdentifier)) {
-      return;
-    }
+      const layer = stratum.capabilitiesLayer;
+      const layerIdentifier = layer?.Identifier;
+      if (!isDefined(layer) || !isDefined(layerIdentifier)) {
+        return undefined;
+      }
 
-    let format: string = "image/png";
-    const formats = layer.Format;
-    if (
-      formats &&
-      formats?.indexOf("image/png") === -1 &&
-      formats?.indexOf("image/jpeg") !== -1
-    ) {
-      format = "image/jpeg";
-    }
+      const formatCandidates = forceArray(layer.Format).map((item) =>
+        typeof item === "string" ? item : item?.toString?.() ?? ""
+      );
+      const format = formatCandidates.includes("image/png")
+        ? "image/png"
+        : formatCandidates.includes("image/jpeg")
+        ? "image/jpeg"
+        : "image/png";
 
-    // if layer has defined ResourceURL we should use it because some layers support only Restful encoding. See #2927
-    const resourceUrl: ResourceUrl | ResourceUrl[] | undefined =
-      layer.ResourceURL;
-    let baseUrl: string = new URI(this.url).search("").toString();
-    if (resourceUrl) {
-      if (Array.isArray(resourceUrl)) {
-        for (let i = 0; i < resourceUrl.length; i++) {
-          const url: ResourceUrl = resourceUrl[i];
+      const resourceUrl: ResourceUrl | ResourceUrl[] | undefined =
+        layer.ResourceURL;
+      let baseUrl: string = new URI(this.url).search("").toString();
+      if (resourceUrl) {
+        const candidates = Array.isArray(resourceUrl)
+          ? resourceUrl
+          : [resourceUrl];
+        for (const candidate of candidates) {
           if (
-            url.format.indexOf(format) !== -1 ||
-            url.format.indexOf("png") !== -1
+            candidate.format.indexOf(format) !== -1 ||
+            candidate.format.indexOf("png") !== -1
           ) {
-            baseUrl = url.template;
+            baseUrl = candidate.template;
+            break;
           }
         }
-      } else {
-        if (
-          format === resourceUrl.format ||
-          resourceUrl.format.indexOf("png") !== -1
-        ) {
-          baseUrl = resourceUrl.template;
-        }
       }
-    }
 
-    const tileMatrixSet = this.tileMatrixSet;
-    if (!isDefined(tileMatrixSet)) {
-      return;
-    }
+      const tileMatrixSet = this.tileMatrixSet;
+      if (!isDefined(tileMatrixSet)) {
+        return undefined;
+      }
 
-    const imageryProvider = new WebMapTileServiceImageryProvider({
-      url: proxyCatalogItemUrl(this, baseUrl),
-      layer: layerIdentifier,
-      style: this.style,
-      tileMatrixSetID: tileMatrixSet.id,
-      tileMatrixLabels: tileMatrixSet.labels,
-      minimumLevel: this.minimumLevel ?? tileMatrixSet.minLevel,
-      maximumLevel: this.maximumLevel ?? tileMatrixSet.maxLevel,
-      tileWidth: this.tileWidth ?? tileMatrixSet.tileWidth,
-      tileHeight:
-        this.tileHeight ?? this.minimumLevel ?? tileMatrixSet.tileHeight,
-      tilingScheme: new WebMercatorTilingScheme(),
-      format,
-      credit: this.attribution
-    });
+      const dimensions: Record<string, string> = { ...(this.dimensions ?? {}) };
+      const defaults = stratum.currentLayerDimensions ?? [];
+      defaults.forEach((dimension) => {
+        if (!dimension.name) {
+          return;
+        }
+        const name = dimension.name;
+        if (name.toLowerCase() === "time") {
+          if (!timeTag && dimension.default && !dimensions[name]) {
+            dimensions[name] = dimension.default;
+          }
+        } else if (dimension.default && !dimensions[name]) {
+          dimensions[name] = dimension.default;
+        }
+      });
 
-    imageryProvider.enablePickFeatures = this.allowFeaturePicking;
-    if (this.allowFeaturePicking) {
-      imageryProvider.pickFeatures = (x, y, level, longitude, latitude) =>
-        this.pickFeatures(
-          imageryProvider,
-          x,
-          y,
-          level,
-          longitude,
-          latitude,
-          timeTag
-        );
+      if (timeTag) {
+        dimensions.time = timeTag;
+      }
+
+      Object.keys(dimensions).forEach((key) => {
+        const value = dimensions[key];
+        if (value === undefined || value === null || value === "") {
+          delete dimensions[key];
+        }
+      });
+
+      const imageryProvider = new WebMapTileServiceImageryProvider({
+        url: proxyCatalogItemUrl(this, baseUrl),
+        layer: layerIdentifier,
+        style: this.style,
+        tileMatrixSetID: tileMatrixSet.id,
+        tileMatrixLabels: tileMatrixSet.labels,
+        minimumLevel: this.minimumLevel ?? tileMatrixSet.minLevel,
+        maximumLevel: this.maximumLevel ?? tileMatrixSet.maxLevel,
+        tileWidth: this.tileWidth ?? tileMatrixSet.tileWidth,
+        tileHeight:
+          this.tileHeight ?? this.minimumLevel ?? tileMatrixSet.tileHeight,
+        tilingScheme: new WebMercatorTilingScheme(),
+        format,
+        credit: this.attribution,
+        dimensions: Object.keys(dimensions).length > 0 ? dimensions : undefined
+      });
+
+      imageryProvider.enablePickFeatures = this.allowFeaturePicking;
+      if (this.allowFeaturePicking) {
+        imageryProvider.pickFeatures = (x, y, level, longitude, latitude) =>
+          this.pickFeatures(
+            imageryProvider,
+            x,
+            y,
+            level,
+            longitude,
+            latitude,
+            timeTag
+          );
+      }
+
+      return imageryProvider;
     }
-    return imageryProvider;
-  }
+  );
 
   @computed
   get tileMatrixSet():
@@ -840,19 +970,117 @@ class WebMapTileServiceCatalogItem extends MappableMixin(
 
   @computed
   get mapItems(): MapItem[] {
-    if (isDefined(this.imageryProvider)) {
-      return [
-        {
-          alpha: this.opacity,
-          show: this.show,
-          imageryProvider: this.imageryProvider,
-          clippingRectangle: this.clipToRectangle
-            ? this.cesiumRectangle
-            : undefined
-        }
-      ];
+    const items: MapItem[] = [];
+    const current = this._currentImageryParts;
+    if (current) {
+      items.push(current);
     }
-    return [];
+    const next = this._nextImageryParts;
+    if (next) {
+      items.push(next);
+    }
+    return items;
+  }
+
+  @computed
+  private get _currentImageryParts(): ImageryParts | undefined {
+    const imageryProvider = this.imageryProvider;
+    if (!imageryProvider) {
+      return undefined;
+    }
+
+    imageryProvider.enablePickFeatures = this.allowFeaturePicking;
+
+    return {
+      imageryProvider,
+      alpha: this.opacity,
+      show: this.show,
+      clippingRectangle: this.clipToRectangle ? this.cesiumRectangle : undefined
+    };
+  }
+
+  @computed
+  private get _nextImageryParts(): ImageryParts | undefined {
+    if (
+      !this.terria.timelineStack.contains(this) ||
+      this.isPaused ||
+      !this.nextDiscreteTimeTag
+    ) {
+      return undefined;
+    }
+
+    const imageryProvider = this._createImageryProvider(
+      this.nextDiscreteTimeTag
+    );
+    if (!imageryProvider) {
+      return undefined;
+    }
+
+    imageryProvider.enablePickFeatures = false;
+
+    return {
+      imageryProvider,
+      alpha: 0.0,
+      show: true,
+      clippingRectangle: this.clipToRectangle ? this.cesiumRectangle : undefined
+    };
+  }
+
+  @override
+  get selectableDimensions() {
+    if (this.disableDimensionSelectors) {
+      return super.selectableDimensions;
+    }
+
+    return filterOutUndefined([
+      ...super.selectableDimensions,
+      ...this.wmtsDimensionSelectableDimensions
+    ]);
+  }
+
+  @computed
+  private get wmtsDimensionSelectableDimensions(): SelectableDimensionEnum[] {
+    const dimensions = this.capabilitiesStratum?.currentLayerDimensions ?? [];
+    return dimensions
+      .filter(
+        (dimension) =>
+          dimension.name &&
+          dimension.name.toLowerCase() !== "time" &&
+          dimension.values.length > 1
+      )
+      .map((dimension) => {
+        const name = dimension.name!;
+        const selected =
+          this.dimensions?.[name] ?? dimension.default ?? dimension.values[0];
+        return {
+          id: `${this.uniqueId}-${name}`,
+          name,
+          options: dimension.values.map((value) => ({
+            id: value,
+            name: value
+          })),
+          selectedId: selected,
+          setDimensionValue: (
+            stratumId: string,
+            newValue: string | undefined
+          ) => {
+            const nextDimensions = { ...(this.dimensions ?? {}) };
+            if (!newValue) {
+              delete nextDimensions[name];
+            } else {
+              nextDimensions[name] = newValue;
+            }
+            this.setTrait(stratumId, "dimensions", nextDimensions);
+          },
+          allowUndefined: true,
+          undefinedLabel: "Default"
+        } as SelectableDimensionEnum;
+      });
+  }
+
+  @computed
+  get discreteTimes() {
+    return this.capabilitiesStratum?.discreteTimes;
   }
 
   protected get defaultGetCapabilitiesUrl(): string | undefined {
@@ -897,6 +1125,157 @@ export function getServiceContactInformation(contactInfo: ServiceProvider) {
     }
   }
   return text;
+}
+
+function buildLayerDimensionMap(layers: any): Map<string, DimensionSummary[]> {
+  const result = new Map<string, DimensionSummary[]>();
+  const layerArray = forceArray(layers);
+
+  const visit = (layer: any, inherited: DimensionSummary[]) => {
+    if (!layer) {
+      return;
+    }
+
+    const combined = getSingleLayerDimensionsFromCapabilities(layer, inherited);
+    const identifier = layer.Identifier || layer.Name || layer.Title;
+    if (identifier) {
+      result.set(identifier, combined);
+    }
+
+    forceArray(layer.Layer).forEach((child) => visit(child, combined));
+  };
+
+  layerArray.forEach((layer) => visit(layer, []));
+  return result;
+}
+
+function getSingleLayerDimensionsFromCapabilities(
+  layerInCapabilities: any,
+  inheritedDimensions: DimensionSummary[]
+): DimensionSummary[] {
+  const inherited = inheritedDimensions ?? [];
+  if (!layerInCapabilities || !layerInCapabilities.Dimension) {
+    return inherited;
+  }
+
+  const dimensions = forceArray(layerInCapabilities.Dimension);
+  const extents = forceArray(layerInCapabilities.Extent);
+
+  const filteredInherited = inherited.filter(
+    (inheritedDimension) =>
+      !dimensions.some((dimension) => {
+        const name = (
+          dimension?.Identifier ||
+          dimension?.name ||
+          ""
+        ).toString();
+        return (
+          name.length > 0 &&
+          inheritedDimension.name &&
+          name.toLowerCase() === inheritedDimension.name.toLowerCase()
+        );
+      })
+  );
+
+  const converted = dimensions.map((dimension) => {
+    const name = (dimension?.Identifier || dimension?.name || "").toString();
+    const extent = extents.find(
+      (candidate: any) =>
+        candidate?.name === dimension?.name ||
+        candidate?.Identifier === dimension?.Identifier
+    );
+    const values = parseDimensionValues(dimension, extent);
+    return {
+      name,
+      values,
+      units: dimension?.units,
+      unitSymbol: dimension?.unitSymbol,
+      default: dimension?.default || dimension?.Default || values[0],
+      multipleValues: dimension?.multipleValues,
+      nearestValue: dimension?.nearestValue
+    } as DimensionSummary;
+  });
+
+  return mergeDimensionSummaries(filteredInherited, converted);
+}
+
+function mergeDimensionSummaries(
+  inherited: DimensionSummary[],
+  own: DimensionSummary[]
+): DimensionSummary[] {
+  const filteredInherited = inherited.filter(
+    (dimension) =>
+      !own.some(
+        (candidate) =>
+          candidate.name &&
+          dimension.name &&
+          candidate.name.toLowerCase() === dimension.name.toLowerCase()
+      )
+  );
+  return filteredInherited.concat(own);
+}
+
+function parseDimensionValues(dimension: any, extent: any): string[] {
+  const candidates: any[] = [];
+  if (dimension?.Value !== undefined) {
+    candidates.push(dimension.Value);
+  }
+  if (dimension?.Values !== undefined) {
+    candidates.push(dimension.Values);
+  }
+  if (dimension?.text !== undefined) {
+    candidates.push(dimension.text);
+  }
+  if (extent !== undefined) {
+    if (typeof extent === "string") {
+      candidates.push(extent);
+    } else if (extent && typeof extent.text === "string") {
+      candidates.push(extent.text);
+    }
+  }
+  if (candidates.length === 0 && typeof dimension === "string") {
+    candidates.push(dimension);
+  }
+
+  const values: string[] = [];
+  candidates.forEach((candidate) => {
+    forceArray(candidate)
+      .map(extractDimensionText)
+      .forEach((text) => {
+        if (!text) {
+          return;
+        }
+        const entries = text.includes(",") ? text.split(",") : [text];
+        entries
+          .map((entry) => entry.trim())
+          .filter((entry) => entry.length > 0)
+          .forEach((entry) => values.push(entry));
+      });
+  });
+
+  return values.filter((value) => value.length > 0);
+}
+
+function extractDimensionText(item: any): string | undefined {
+  if (typeof item === "string") {
+    return item;
+  }
+  if (typeof item === "number") {
+    return item.toString();
+  }
+  if (!item) {
+    return undefined;
+  }
+  if (typeof item.text === "string") {
+    return item.text;
+  }
+  if (typeof item._text === "string") {
+    return item._text;
+  }
+  if (typeof item.Value === "string") {
+    return item.Value;
+  }
+  return undefined;
 }
 
 function forceArray<T>(value: T | T[] | undefined): T[] {
