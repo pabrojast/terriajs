@@ -2,6 +2,9 @@ import i18next from "i18next";
 import { computed, runInAction, makeObservable, override } from "mobx";
 import defined from "terriajs-cesium/Source/Core/defined";
 import WebMercatorTilingScheme from "terriajs-cesium/Source/Core/WebMercatorTilingScheme";
+import Resource from "terriajs-cesium/Source/Core/Resource";
+import ImageryLayerFeatureInfo from "terriajs-cesium/Source/Scene/ImageryLayerFeatureInfo";
+import GetFeatureInfoFormat from "terriajs-cesium/Source/Scene/GetFeatureInfoFormat";
 import WebMapTileServiceImageryProvider from "terriajs-cesium/Source/Scene/WebMapTileServiceImageryProvider";
 import URI from "urijs";
 import containsAny from "../../../Core/containsAny";
@@ -39,6 +42,8 @@ interface UsableTileMatrixSets {
   tileWidth: number;
   tileHeight: number;
 }
+
+type FeatureInfoFormatType = "json" | "xml" | "html" | "text";
 
 class GetCapabilitiesStratum extends LoadableStratum(
   WebMapTileServiceCatalogItemTraits
@@ -227,6 +232,25 @@ class GetCapabilitiesStratum extends LoadableStratum(
       i18next.t("preview.updateFrequency"),
       i18next.t("models.webMapTileServiceCatalogItem.getCapabilitiesUrl")
     ];
+  }
+
+  @computed
+  get featureInfoUrl(): string | undefined {
+    const operations = this.capabilities.json?.OperationsMetadata?.Operation;
+    const ops = forceArray(operations);
+    for (const operation of ops) {
+      if (operation?.name?.toLowerCase() !== "getfeatureinfo") {
+        continue;
+      }
+      const gets = forceArray(operation.DCP?.HTTP?.Get);
+      for (const candidate of gets) {
+        const href = candidate?.["xlink:href"];
+        if (typeof href === "string" && href.length > 0) {
+          return href;
+        }
+      }
+    }
+    return undefined;
   }
 
   @computed
@@ -437,6 +461,31 @@ class WebMapTileServiceCatalogItem extends MappableMixin(
 
   static readonly type = "wmts";
 
+  private get capabilitiesStratum(): GetCapabilitiesStratum | undefined {
+    return this.strata.get(GetCapabilitiesMixin.getCapabilitiesStratumName) as
+      | GetCapabilitiesStratum
+      | undefined;
+  }
+
+  private get featureInfoEndpoint(): string | undefined {
+    return (
+      this.getFeatureInfoUrl ??
+      this.capabilitiesStratum?.featureInfoUrl ??
+      this.url ??
+      this.getCapabilitiesUrl
+    );
+  }
+
+  private get featureInfoFormatOptions(): {
+    type: FeatureInfoFormatType;
+    format: string;
+  } {
+    const trait = this.getFeatureInfoFormat;
+    const type = normalizeFeatureInfoType(trait?.type);
+    const format = trait?.format ?? defaultInfoFormatForType(type);
+    return { type, format };
+  }
+
   constructor(...args: ModelConstructorParameters) {
     super(...args);
     makeObservable(this);
@@ -477,9 +526,7 @@ class WebMapTileServiceCatalogItem extends MappableMixin(
 
   @computed
   get imageryProvider() {
-    const stratum = this.strata.get(
-      GetCapabilitiesMixin.getCapabilitiesStratumName
-    ) as GetCapabilitiesStratum;
+    const stratum = this.capabilitiesStratum;
 
     if (
       !isDefined(this.layer) ||
@@ -550,9 +597,21 @@ class WebMapTileServiceCatalogItem extends MappableMixin(
       tilingScheme: new WebMercatorTilingScheme(),
       format,
       credit: this.attribution
-      // TODO: implement picking for WebMapTileServiceImageryProvider
-      //enablePickFeatures: this.allowFeaturePicking
     });
+
+    imageryProvider.enablePickFeatures = this.allowFeaturePicking;
+    if (this.allowFeaturePicking) {
+      imageryProvider.pickFeatures = (x, y, level, longitude, latitude) =>
+        this.pickFeatures(
+          imageryProvider,
+          x,
+          y,
+          level,
+          longitude,
+          latitude,
+          timeTag
+        );
+    }
     return imageryProvider;
   }
 
@@ -567,9 +626,10 @@ class WebMapTileServiceCatalogItem extends MappableMixin(
         tileHeight: number;
       }
     | undefined {
-    const stratum = this.strata.get(
-      GetCapabilitiesMixin.getCapabilitiesStratumName
-    ) as GetCapabilitiesStratum;
+    const stratum = this.capabilitiesStratum;
+    if (!stratum) {
+      return;
+    }
     if (!this.layer) {
       return;
     }
@@ -629,6 +689,149 @@ class WebMapTileServiceCatalogItem extends MappableMixin(
       tileWidth: tileWidth,
       tileHeight: tileHeight
     };
+  }
+
+  private pickFeatures(
+    imageryProvider: WebMapTileServiceImageryProvider,
+    x: number,
+    y: number,
+    level: number,
+    longitude: number,
+    latitude: number,
+    timeTag: string | undefined
+  ): Promise<ImageryLayerFeatureInfo[] | undefined> | undefined {
+    if (!this.allowFeaturePicking) {
+      return undefined;
+    }
+
+    const featureInfoUrl = this.featureInfoEndpoint;
+    if (!featureInfoUrl) {
+      return undefined;
+    }
+
+    const tileMatrixSet = this.tileMatrixSet;
+    if (!tileMatrixSet) {
+      return undefined;
+    }
+
+    const stratum = this.capabilitiesStratum;
+    const layerName = this.layer ?? stratum?.layer;
+    if (!layerName) {
+      return undefined;
+    }
+
+    const { type, format } = this.featureInfoFormatOptions;
+    const parser = new GetFeatureInfoFormat(type, format);
+
+    const tilingScheme = imageryProvider.tilingScheme;
+    const tileRectangle = tilingScheme.tileXYToRectangle(x, y, level);
+    const tileWidth = imageryProvider.tileWidth;
+    const tileHeight = imageryProvider.tileHeight;
+
+    const u =
+      (longitude - tileRectangle.west) /
+      (tileRectangle.east - tileRectangle.west);
+    const v =
+      (tileRectangle.north - latitude) /
+      (tileRectangle.north - tileRectangle.south);
+
+    const i = clamp(Math.floor(u * tileWidth), 0, tileWidth - 1);
+    const j = clamp(Math.floor(v * tileHeight), 0, tileHeight - 1);
+
+    const tileMatrix =
+      tileMatrixSet.labels && tileMatrixSet.labels[level]
+        ? tileMatrixSet.labels[level]
+        : level.toString();
+
+    const query: Record<string, string> = {
+      SERVICE: "WMTS",
+      VERSION: "1.0.0",
+      REQUEST: "GetFeatureInfo",
+      LAYER: layerName,
+      STYLE: this.style ?? "",
+      TILEMATRIXSET: tileMatrixSet.id,
+      TILEMATRIX: tileMatrix,
+      TILEROW: y.toString(),
+      TILECOL: x.toString(),
+      I: i.toString(),
+      J: j.toString(),
+      INFOFORMAT: format
+    };
+
+    const addDimensionParam = (key: string, value: string | undefined) => {
+      if (!value) {
+        return;
+      }
+      query[key] = value;
+      const lower = key.toLowerCase();
+      if (lower === "time" || lower === "dim_time") {
+        query.time = value;
+        query.TIME = value;
+        query.dim_time = value;
+      } else if (!lower.startsWith("dim_")) {
+        query[`dim_${key}`] = value;
+      }
+    };
+
+    if (timeTag) {
+      addDimensionParam("time", timeTag);
+    }
+
+    const dimensionParams = this.dimensions ?? {};
+    Object.entries(dimensionParams).forEach(([key, value]) => {
+      const stringValue =
+        value === undefined || value === null ? undefined : String(value);
+      addDimensionParam(key, stringValue);
+    });
+
+    const extraParams = this.getFeatureInfoParameters ?? {};
+    Object.entries(extraParams).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== "") {
+        query[key] = String(value);
+      }
+    });
+
+    const uri = new URI(featureInfoUrl);
+    Object.entries(query).forEach(([key, value]) => uri.addQuery(key, value));
+
+    const resource = new Resource({
+      url: proxyCatalogItemUrl(this, uri.toString())
+    });
+
+    let fetchPromise: Promise<any> | undefined;
+    switch (type) {
+      case "xml":
+        fetchPromise = resource.fetchXML();
+        break;
+      case "html":
+      case "text":
+        fetchPromise = resource.fetchText();
+        break;
+      default:
+        fetchPromise = resource.fetchJson();
+        break;
+    }
+
+    if (!fetchPromise) {
+      return undefined;
+    }
+
+    return fetchPromise
+      .then((data) => {
+        if (!isDefined(data)) {
+          return undefined;
+        }
+        try {
+          return parser.callback(data) as ImageryLayerFeatureInfo[];
+        } catch (error) {
+          console.warn("Failed to parse WMTS GetFeatureInfo response", error);
+          return undefined;
+        }
+      })
+      .catch((error) => {
+        console.warn("WMTS GetFeatureInfo request failed", error);
+        return undefined;
+      });
   }
 
   protected forceLoadMapItems(): Promise<void> {
@@ -694,6 +897,51 @@ export function getServiceContactInformation(contactInfo: ServiceProvider) {
     }
   }
   return text;
+}
+
+function forceArray<T>(value: T | T[] | undefined): T[] {
+  if (!isDefined(value)) {
+    return [];
+  }
+  return Array.isArray(value) ? value : [value];
+}
+
+function normalizeFeatureInfoType(
+  type: string | undefined
+): FeatureInfoFormatType {
+  switch (type) {
+    case "xml":
+      return "xml";
+    case "html":
+      return "html";
+    case "text":
+    case "csv":
+      return "text";
+    case "json":
+    default:
+      return "json";
+  }
+}
+
+function defaultInfoFormatForType(type: FeatureInfoFormatType): string {
+  switch (type) {
+    case "xml":
+      return "text/xml";
+    case "html":
+      return "text/html";
+    case "text":
+      return "text/plain";
+    case "json":
+    default:
+      return "application/json";
+  }
+}
+
+function clamp(value: number, min: number, max: number) {
+  if (Number.isNaN(value)) {
+    return min;
+  }
+  return Math.min(Math.max(value, min), max);
 }
 
 export default WebMapTileServiceCatalogItem;

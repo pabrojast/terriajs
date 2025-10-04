@@ -14,6 +14,7 @@ import LegendOwnerTraits from "./LegendOwnerTraits";
 import LegendTraits from "./LegendTraits";
 import MappableTraits from "./MappableTraits";
 import UrlTraits from "./UrlTraits";
+import { GetFeatureInfoFormat as WebMapServiceGetFeatureInfoFormat } from "./WebMapServiceCatalogItemTraits";
 
 export class WebMapTileServiceAvailableStyleTraits extends ModelTraits {
   @primitiveTrait({
@@ -124,4 +125,26 @@ export default class WebMapServiceCatalogItemTraits extends mixTraits(
       "Additional parameters to pass to the MapServer when requesting images."
   })
   parameters?: JsonObject;
+
+  @objectTrait({
+    type: WebMapServiceGetFeatureInfoFormat,
+    name: "GetFeatureInfo format",
+    description:
+      "Format parameter used for WMTS GetFeatureInfo requests. Defaults to JSON."
+  })
+  getFeatureInfoFormat?: WebMapServiceGetFeatureInfoFormat;
+
+  @primitiveTrait({
+    type: "string",
+    name: "GetFeatureInfo URL",
+    description: "Overrides the URL used for WMTS GetFeatureInfo requests."
+  })
+  getFeatureInfoUrl?: string;
+
+  @anyTrait({
+    name: "GetFeatureInfo parameters",
+    description:
+      "Additional query parameters appended to WMTS GetFeatureInfo requests."
+  })
+  getFeatureInfoParameters?: JsonObject;
 }
