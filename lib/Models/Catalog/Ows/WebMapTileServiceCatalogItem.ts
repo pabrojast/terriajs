@@ -969,7 +969,8 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
     projection: "EPSG:3857" | "EPSG:4326"
   ) {
     // Get the tile matrix set from capabilities
-    const tileMatrixSets = this.capabilities?.json?.TileMatrixSet;
+    const capabilities = this.capabilitiesStratum?.capabilities;
+    const tileMatrixSets = capabilities?.json?.TileMatrixSet;
     if (!tileMatrixSets) {
       // Fallback to standard tiling schemes
       return projection === "EPSG:4326"
