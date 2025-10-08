@@ -374,7 +374,12 @@ class GetCapabilitiesStratum extends LoadableStratum(
 
   @computed
   get layerDimensions(): Map<string, DimensionSummary[]> {
-    return buildLayerDimensionMap(this.capabilities?.json?.Contents?.Layer);
+    const layers = this.capabilities?.json?.Contents?.Layer;
+    console.log(
+      "[WMTS Debug] Raw layers from capabilities:",
+      JSON.stringify(layers, null, 2)
+    );
+    return buildLayerDimensionMap(layers);
   }
 
   @computed
@@ -1238,14 +1243,27 @@ export function getServiceContactInformation(contactInfo: ServiceProvider) {
 function buildLayerDimensionMap(layers: any): Map<string, DimensionSummary[]> {
   const result = new Map<string, DimensionSummary[]>();
   const layerArray = forceArray(layers);
+  console.log(
+    `[WMTS Debug] buildLayerDimensionMap: Processing ${layerArray.length} layers`
+  );
 
   const visit = (layer: any, inherited: DimensionSummary[]) => {
     if (!layer) {
       return;
     }
 
-    const combined = getSingleLayerDimensionsFromCapabilities(layer, inherited);
     const identifier = layer.Identifier || layer.Name || layer.Title;
+    console.log(`[WMTS Debug] Processing layer: ${identifier}`);
+    console.log(
+      `[WMTS Debug] Layer has Dimension property: ${!!layer.Dimension}`
+    );
+    console.log(`[WMTS Debug] Layer.Dimension:`, layer.Dimension);
+
+    const combined = getSingleLayerDimensionsFromCapabilities(layer, inherited);
+    console.log(
+      `[WMTS Debug] Layer ${identifier}: Found ${combined.length} dimensions`
+    );
+
     if (identifier) {
       result.set(identifier, combined);
     }
@@ -1254,6 +1272,9 @@ function buildLayerDimensionMap(layers: any): Map<string, DimensionSummary[]> {
   };
 
   layerArray.forEach((layer) => visit(layer, []));
+  console.log(
+    `[WMTS Debug] buildLayerDimensionMap: Result has ${result.size} entries`
+  );
   return result;
 }
 
@@ -1263,11 +1284,21 @@ function getSingleLayerDimensionsFromCapabilities(
 ): DimensionSummary[] {
   const inherited = inheritedDimensions ?? [];
   if (!layerInCapabilities || !layerInCapabilities.Dimension) {
+    console.log(
+      `[WMTS Debug] getSingleLayerDimensionsFromCapabilities: No dimensions found (layer: ${!!layerInCapabilities}, Dimension: ${!!layerInCapabilities?.Dimension})`
+    );
     return inherited;
   }
 
+  console.log(
+    `[WMTS Debug] getSingleLayerDimensionsFromCapabilities: Found Dimension property`
+  );
+
   const dimensions = forceArray(layerInCapabilities.Dimension);
   const extents = forceArray(layerInCapabilities.Extent);
+  console.log(
+    `[WMTS Debug] Dimensions array length: ${dimensions.length}, Extents array length: ${extents.length}`
+  );
 
   const filteredInherited = inherited.filter(
     (inheritedDimension) =>
