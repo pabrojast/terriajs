@@ -609,12 +609,9 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
   }
 
   private get featureInfoEndpoint(): string | undefined {
-    return (
-      this.getFeatureInfoUrl ??
-      this.capabilitiesStratum?.featureInfoUrl ??
-      this.url ??
-      this.getCapabilitiesUrl
-    );
+    // Only use explicit getFeatureInfoUrl or the one from capabilities
+    // Do not fallback to url or getCapabilitiesUrl as these are not valid GetFeatureInfo endpoints
+    return this.getFeatureInfoUrl ?? this.capabilitiesStratum?.featureInfoUrl;
   }
 
   private get featureInfoFormatOptions(): {
@@ -772,8 +769,12 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
         dimensions: Object.keys(dimensions).length > 0 ? dimensions : undefined
       }) as ExtendedWebMapTileServiceImageryProvider;
 
-      imageryProvider.enablePickFeatures = this.allowFeaturePicking;
-      if (this.allowFeaturePicking) {
+      // Only enable feature picking if we have a valid GetFeatureInfo endpoint
+      const hasValidFeatureInfoEndpoint = isDefined(this.featureInfoEndpoint);
+      imageryProvider.enablePickFeatures =
+        this.allowFeaturePicking && hasValidFeatureInfoEndpoint;
+
+      if (this.allowFeaturePicking && hasValidFeatureInfoEndpoint) {
         (imageryProvider as any).pickFeatures = (
           x: number,
           y: number,
@@ -1043,7 +1044,10 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
       return undefined;
     }
 
-    imageryProvider.enablePickFeatures = this.allowFeaturePicking;
+    // Only enable feature picking if we have a valid GetFeatureInfo endpoint
+    const hasValidFeatureInfoEndpoint = isDefined(this.featureInfoEndpoint);
+    imageryProvider.enablePickFeatures =
+      this.allowFeaturePicking && hasValidFeatureInfoEndpoint;
 
     return {
       imageryProvider,
