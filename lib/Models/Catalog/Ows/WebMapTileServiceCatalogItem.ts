@@ -721,10 +721,15 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
           ? resourceUrl
           : [resourceUrl];
         const matchingFormat = candidates.filter((candidate) => {
-          const candidateFormat =
-            typeof candidate.format === "string"
-              ? candidate.format
-              : candidate.format?.toString?.();
+          let candidateFormat: string | undefined;
+          if (typeof candidate.format === "string") {
+            candidateFormat = candidate.format;
+          } else if (
+            candidate.format !== undefined &&
+            candidate.format !== null
+          ) {
+            candidateFormat = String(candidate.format);
+          }
           if (!candidateFormat) {
             return false;
           }
