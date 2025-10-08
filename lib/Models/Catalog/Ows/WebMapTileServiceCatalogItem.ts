@@ -731,6 +731,9 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
 
       const dimensions: Record<string, string> = { ...(this.dimensions ?? {}) };
       const defaults = stratum.currentLayerDimensions ?? [];
+      const timeDimensionName = defaults.find(
+        (dimension) => dimension.name?.toLowerCase() === "time"
+      )?.name;
 
       defaults.forEach((dimension) => {
         if (!dimension.name) {
@@ -747,7 +750,13 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
       });
 
       if (timeTag) {
-        dimensions.time = timeTag;
+        Object.keys(dimensions).forEach((key) => {
+          if (key.toLowerCase() === "time") {
+            delete dimensions[key];
+          }
+        });
+        const timeKey = timeDimensionName ?? "time";
+        dimensions[timeKey] = timeTag;
       }
 
       Object.keys(dimensions).forEach((key) => {
@@ -768,9 +777,12 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
 
       // Log WMTS configuration for debugging tile load issues
       if (finalDimensions) {
+        const timeKey = Object.keys(finalDimensions).find(
+          (key) => key.toLowerCase() === "time"
+        );
         console.log(
           `[WMTS] Layer: ${layerIdentifier}, Time: ${
-            finalDimensions.time || "none"
+            (timeKey && finalDimensions[timeKey]) || "none"
           }, Dimensions:`,
           finalDimensions
         );
