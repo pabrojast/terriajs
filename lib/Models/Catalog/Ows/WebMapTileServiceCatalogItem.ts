@@ -487,10 +487,13 @@ class GetCapabilitiesStratum extends LoadableStratum(
         console.log(
           `[WMTS Debug] Detected EPSG:3857 for ${matrixSet.Identifier}`
         );
-      } else if (/EPSG.*4326/.test(matrixSet.SupportedCRS)) {
+      } else if (
+        /EPSG.*4326/.test(matrixSet.SupportedCRS) ||
+        /CRS84/.test(matrixSet.SupportedCRS)
+      ) {
         projection = "EPSG:4326";
         console.log(
-          `[WMTS Debug] Detected EPSG:4326 for ${matrixSet.Identifier}`
+          `[WMTS Debug] Detected EPSG:4326/CRS84 for ${matrixSet.Identifier}`
         );
       } else {
         console.log(
