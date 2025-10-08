@@ -855,6 +855,17 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
         }) as ExtendedImageryProvider;
       }
 
+      const usingUrlTemplate =
+        imageryProvider instanceof UrlTemplateImageryProvider;
+      console.log("[WMTS] Selected imagery provider", {
+        layer: layerIdentifier,
+        provider: usingUrlTemplate
+          ? "UrlTemplateImageryProvider"
+          : "WebMapTileServiceImageryProvider",
+        templateUrl: baseUrl,
+        labelByLevel: Array.from(tileMatrixSet.labelByLevel.entries())
+      });
+
       // Only enable feature picking if we have a valid GetFeatureInfo endpoint
       const hasValidFeatureInfoEndpoint = isDefined(this.featureInfoEndpoint);
       imageryProvider.enablePickFeatures =
@@ -888,6 +899,7 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
     | {
         id: string;
         labels: string[];
+        labelByLevel: Map<number, string>;
         maxLevel: number;
         minLevel: number;
         tileWidth: number;
@@ -949,6 +961,7 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
     }
 
     const tileMatrixSetLabels = selected.identifiers;
+    const labelByLevel = new Map<number, string>();
     if (
       !Array.isArray(tileMatrixSetLabels) ||
       tileMatrixSetLabels.length === 0
@@ -956,11 +969,14 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
       return;
     }
 
-    const levels = tileMatrixSetLabels.map((label) => {
-      const lastIndex = label.lastIndexOf(":");
-      const normalizedLabel =
-        lastIndex >= 0 ? label.substring(lastIndex + 1) : label;
-      return Math.abs(Number(normalizedLabel));
+    const levels = tileMatrixSetLabels.map((label, index) => {
+      const parsedLevel = parseTileMatrixLevel(label);
+      if (isDefined(parsedLevel)) {
+        labelByLevel.set(parsedLevel, label);
+        return parsedLevel;
+      }
+      labelByLevel.set(index, label);
+      return index;
     });
 
     const numericLevels = levels.filter((level) => Number.isFinite(level));
@@ -974,6 +990,7 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
     return {
       id: selectedId,
       labels: tileMatrixSetLabels,
+      labelByLevel,
       maxLevel: maxLevel,
       minLevel: minLevel,
       tileWidth: Number(selected.tileWidth) || 256,
@@ -1015,13 +1032,15 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
     tileMatrices.forEach((matrix: any, index: number) => {
       const width = Number(matrix.MatrixWidth);
       const height = Number(matrix.MatrixHeight);
+      const parsedLevel = parseTileMatrixLevel(matrix.Identifier);
+      const key = isDefined(parsedLevel) ? parsedLevel : index;
       if (
         Number.isFinite(width) &&
         Number.isFinite(height) &&
         width > 0 &&
         height > 0
       ) {
-        levelDimensions.set(index, { width, height });
+        levelDimensions.set(key, { width, height });
       }
     });
 
@@ -1048,10 +1067,10 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
     console.log(
       `[WMTS TilingScheme] TileMatrixSet: ${tileMatrixSetId}, Projection: ${projection}`
     );
-    console.log(
-      "[WMTS TilingScheme] Level dimensions:",
-      Array.from(levelDimensions.entries())
+    const levelDetails = Array.from(levelDimensions.entries()).map(
+      ([level, dims]) => `${level}:${dims.width}x${dims.height}`
     );
+    console.log("[WMTS TilingScheme] Level dimensions:", levelDetails);
 
     // Create custom tiling scheme that respects the actual tile matrix dimensions
     if (projection === "EPSG:4326") {
@@ -1066,6 +1085,7 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
     tileMatrixSet: {
       id: string;
       labels: string[];
+      labelByLevel: Map<number, string>;
       maxLevel: number;
       minLevel: number;
       tileWidth: number;
@@ -1091,8 +1111,17 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
     } = options;
 
     const tokens = new Set(templateTokens);
+    console.log("[WMTS] Template analysis", {
+      templateUrl,
+      tokens: Array.from(tokens),
+      hasBraces: templateUrl.includes("{")
+    });
     if (tokens.size === 0) {
       // No template tokens – nothing to substitute, so stick with WMTS provider.
+      console.log(
+        `[WMTS] Template has no placeholders; using WebMapTileServiceImageryProvider instead.`,
+        { templateUrl }
+      );
       return undefined;
     }
 
@@ -1145,12 +1174,11 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
 
     const tileMatrixLabels = tileMatrixSet.labels.slice();
     const tileMatrixForLevel = (level: number) => {
-      const label = tileMatrixLabels[level];
-      return (
-        label ??
-        tileMatrixLabels[tileMatrixLabels.length - 1] ??
-        level.toString()
-      );
+      const label =
+        tileMatrixSet.labelByLevel.get(level) ??
+        tileMatrixLabels[level] ??
+        tileMatrixLabels[tileMatrixLabels.length - 1];
+      return label ?? level.toString();
     };
 
     registerTag("TileMatrix", (_provider, _x, _y, level) =>
@@ -1232,6 +1260,14 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
       customTags: Object.keys(customTags).length > 0 ? customTags : undefined,
       enablePickFeatures: this.allowFeaturePicking
     }) as ExtendedImageryProvider;
+
+    console.log("[WMTS] Using UrlTemplateImageryProvider", {
+      template: url,
+      customTags: Object.keys(customTags),
+      minLevel: tileMatrixSet.minLevel,
+      maxLevel: tileMatrixSet.maxLevel,
+      labelByLevel: Array.from(tileMatrixSet.labelByLevel.entries())
+    });
 
     return provider;
   }
@@ -1742,6 +1778,26 @@ function extractTemplateTokens(template: string | undefined): string[] {
     return [];
   }
   return matches.map((match) => match.slice(1, -1));
+}
+
+function parseTileMatrixLevel(identifier: unknown): number | undefined {
+  if (!isDefined(identifier)) {
+    return;
+  }
+  const text =
+    typeof identifier === "string" ? identifier : identifier?.toString?.();
+  if (!isDefined(text)) {
+    return;
+  }
+  const trimmed = text.trim();
+  if (!trimmed) {
+    return;
+  }
+  const afterColon = trimmed.substring(trimmed.lastIndexOf(":") + 1);
+  const match = afterColon.match(/-?\d+(\.\d+)?/);
+  const candidate = match ? match[0] : afterColon;
+  const value = Number(candidate);
+  return Number.isFinite(value) ? value : undefined;
 }
 
 function templateMatchesTileMatrixSet(
