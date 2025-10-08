@@ -1181,9 +1181,15 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
       return label ?? level.toString();
     };
 
-    registerTag("TileMatrix", (_provider, _x, _y, level) =>
-      tileMatrixForLevel(level)
-    );
+    registerTag("TileMatrix", (_provider, x, y, level) => {
+      const label = tileMatrixForLevel(level);
+      if (x < 3 && y < 2) {
+        console.log(
+          `[WMTS] Tag TileMatrix -> ${label} (level=${level}, x=${x}, y=${y})`
+        );
+      }
+      return label;
+    });
     registerTag("tilematrix", (_provider, _x, _y, level) =>
       tileMatrixForLevel(level)
     );
@@ -1194,11 +1200,25 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
       tileMatrixForLevel(level)
     );
 
-    registerTag("TileRow", (_provider, _x, y) => y.toString());
+    registerTag("TileRow", (_provider, x, y, level) => {
+      if (x < 3 && y < 2) {
+        console.log(
+          `[WMTS] Tag TileRow   -> ${y} (level=${level}, x=${x}, y=${y})`
+        );
+      }
+      return y.toString();
+    });
     registerTag("TILEROW", (_provider, _x, y) => y.toString());
     registerTag("tilerow", (_provider, _x, y) => y.toString());
 
-    registerTag("TileCol", (_provider, x) => x.toString());
+    registerTag("TileCol", (_provider, x, y, level) => {
+      if (x < 3 && y < 2) {
+        console.log(
+          `[WMTS] Tag TileCol   -> ${x} (level=${level}, x=${x}, y=${y})`
+        );
+      }
+      return x.toString();
+    });
     registerTag("TILECOL", (_provider, x) => x.toString());
     registerTag("tilecol", (_provider, x) => x.toString());
 
@@ -1249,13 +1269,16 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
       return undefined;
     }
 
+    const minIndex = 0;
+    const maxIndex = Math.max(0, tileMatrixSet.labels.length - 1);
+
     const provider = new UrlTemplateImageryProvider({
       url: proxyCatalogItemUrl(this, url),
       tilingScheme,
       tileWidth: tileMatrixSet.tileWidth,
       tileHeight: tileMatrixSet.tileHeight,
-      minimumLevel: this.minimumLevel ?? tileMatrixSet.minLevel,
-      maximumLevel: this.maximumLevel ?? tileMatrixSet.maxLevel,
+      minimumLevel: this.minimumLevel ?? minIndex,
+      maximumLevel: this.maximumLevel ?? maxIndex,
       credit: this.attribution,
       customTags: Object.keys(customTags).length > 0 ? customTags : undefined,
       enablePickFeatures: this.allowFeaturePicking
@@ -1264,8 +1287,8 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
     console.log("[WMTS] Using UrlTemplateImageryProvider", {
       template: url,
       customTags: Object.keys(customTags),
-      minLevel: tileMatrixSet.minLevel,
-      maxLevel: tileMatrixSet.maxLevel,
+      minLevel: this.minimumLevel ?? minIndex,
+      maxLevel: this.maximumLevel ?? maxIndex,
       labelByLevel: Array.from(tileMatrixSet.labelByLevel.entries())
     });
 
