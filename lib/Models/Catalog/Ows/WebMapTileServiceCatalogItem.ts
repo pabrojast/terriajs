@@ -2,6 +2,7 @@ import i18next from "i18next";
 import { computed, runInAction, makeObservable, override } from "mobx";
 import defined from "terriajs-cesium/Source/Core/defined";
 import WebMercatorTilingScheme from "terriajs-cesium/Source/Core/WebMercatorTilingScheme";
+import GeographicTilingScheme from "terriajs-cesium/Source/Core/GeographicTilingScheme";
 import Resource from "terriajs-cesium/Source/Core/Resource";
 import ImageryLayerFeatureInfo from "terriajs-cesium/Source/Scene/ImageryLayerFeatureInfo";
 import GetFeatureInfoFormat from "terriajs-cesium/Source/Scene/GetFeatureInfoFormat";
@@ -63,6 +64,7 @@ interface UsableTileMatrixSets {
   identifiers: string[];
   tileWidth: number;
   tileHeight: number;
+  projection: "EPSG:3857" | "EPSG:4326";
 }
 
 interface DimensionSummary {
@@ -456,33 +458,41 @@ class GetCapabilitiesStratum extends LoadableStratum(
       "urn:ogc:def:wkss:OGC:1.0:GoogleMapsCompatible": {
         identifiers: ["0"],
         tileWidth: 256,
-        tileHeight: 256
+        tileHeight: 256,
+        projection: "EPSG:3857"
       }
     };
-
-    const standardTilingScheme = new WebMercatorTilingScheme();
 
     const matrixSets = this.capabilities.tileMatrixSets;
     if (matrixSets === undefined) {
       return;
     }
+
     for (let i = 0; i < matrixSets.length; i++) {
       const matrixSet = matrixSets[i];
-      if (
-        !matrixSet.SupportedCRS ||
-        (!/EPSG.*900913/.test(matrixSet.SupportedCRS) &&
-          !/EPSG.*3857/.test(matrixSet.SupportedCRS))
-      ) {
+      if (!matrixSet.SupportedCRS) {
         continue;
       }
-      // Usable tile matrix sets must have a single 256x256 tile at the root.
+
+      // Detect projection type
+      let projection: "EPSG:3857" | "EPSG:4326" | undefined;
+      if (
+        /EPSG.*900913/.test(matrixSet.SupportedCRS) ||
+        /EPSG.*3857/.test(matrixSet.SupportedCRS)
+      ) {
+        projection = "EPSG:3857";
+      } else if (/EPSG.*4326/.test(matrixSet.SupportedCRS)) {
+        projection = "EPSG:4326";
+      } else {
+        continue; // Unsupported projection
+      }
+
       const matrices = matrixSet.TileMatrix;
       if (!isDefined(matrices) || matrices.length < 1) {
         continue;
       }
 
       const levelZeroMatrix = matrices[0];
-
       if (!isDefined(levelZeroMatrix.TopLeftCorner)) {
         continue;
       }
@@ -490,14 +500,30 @@ class GetCapabilitiesStratum extends LoadableStratum(
       const levelZeroTopLeftCorner = levelZeroMatrix.TopLeftCorner.split(" ");
       const startX = parseFloat(levelZeroTopLeftCorner[0]);
       const startY = parseFloat(levelZeroTopLeftCorner[1]);
-      const rectangleInMeters = standardTilingScheme.rectangleToNativeRectangle(
-        standardTilingScheme.rectangle
-      );
-      if (
-        Math.abs(startX - rectangleInMeters.west) > 1 ||
-        Math.abs(startY - rectangleInMeters.north) > 1
-      ) {
-        continue;
+
+      // Validate coordinates based on projection
+      if (projection === "EPSG:3857") {
+        const tilingScheme = new WebMercatorTilingScheme();
+        const rectangleInMeters = tilingScheme.rectangleToNativeRectangle(
+          tilingScheme.rectangle
+        );
+        if (
+          Math.abs(startX - rectangleInMeters.west) > 1 ||
+          Math.abs(startY - rectangleInMeters.north) > 1
+        ) {
+          continue;
+        }
+      } else if (projection === "EPSG:4326") {
+        // For EPSG:4326, expect TopLeftCorner near -180, 90
+        const expectedX = -180;
+        const expectedY = 90;
+        const tolerance = 1; // 1 degree tolerance
+        if (
+          Math.abs(startX - expectedX) > tolerance ||
+          Math.abs(startY - expectedY) > tolerance
+        ) {
+          continue;
+        }
       }
 
       if (defined(matrixSet.TileMatrix) && matrixSet.TileMatrix.length > 0) {
@@ -508,7 +534,8 @@ class GetCapabilitiesStratum extends LoadableStratum(
         usableTileMatrixSets[matrixSet.Identifier] = {
           identifiers: ids,
           tileWidth: firstTile.TileWidth,
-          tileHeight: firstTile.TileHeight
+          tileHeight: firstTile.TileHeight,
+          projection: projection
         };
       }
     }
@@ -722,6 +749,12 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
         }
       });
 
+      // Select appropriate tiling scheme based on projection
+      const tilingScheme =
+        tileMatrixSet.projection === "EPSG:4326"
+          ? new GeographicTilingScheme()
+          : new WebMercatorTilingScheme();
+
       const imageryProvider = new WebMapTileServiceImageryProvider({
         url: proxyCatalogItemUrl(this, baseUrl),
         layer: layerIdentifier,
@@ -733,7 +766,7 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
         tileWidth: this.tileWidth ?? tileMatrixSet.tileWidth,
         tileHeight:
           this.tileHeight ?? this.minimumLevel ?? tileMatrixSet.tileHeight,
-        tilingScheme: new WebMercatorTilingScheme(),
+        tilingScheme: tilingScheme,
         format,
         credit: this.attribution,
         dimensions: Object.keys(dimensions).length > 0 ? dimensions : undefined
@@ -772,6 +805,7 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
         minLevel: number;
         tileWidth: number;
         tileHeight: number;
+        projection: "EPSG:3857" | "EPSG:4326";
       }
     | undefined {
     const stratum = this.capabilitiesStratum;
@@ -804,6 +838,7 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
     let minLevel: number = 0;
     let tileWidth: number = 256;
     let tileHeight: number = 256;
+    let projection: "EPSG:3857" | "EPSG:4326" = "EPSG:3857";
     let tileMatrixSetLabels: string[] = [];
     for (let i = 0; i < tileMatrixSetLinks.length; i++) {
       const tileMatrixSet = tileMatrixSetLinks[i].TileMatrixSet;
@@ -812,6 +847,7 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
         tileMatrixSetLabels = usableTileMatrixSets[tileMatrixSet].identifiers;
         tileWidth = Number(usableTileMatrixSets[tileMatrixSet].tileWidth);
         tileHeight = Number(usableTileMatrixSets[tileMatrixSet].tileHeight);
+        projection = usableTileMatrixSets[tileMatrixSet].projection;
         break;
       }
     }
@@ -835,7 +871,8 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
       maxLevel: maxLevel,
       minLevel: minLevel,
       tileWidth: tileWidth,
-      tileHeight: tileHeight
+      tileHeight: tileHeight,
+      projection: projection
     };
   }
 
