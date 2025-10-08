@@ -741,7 +741,13 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
 
       imageryProvider.enablePickFeatures = this.allowFeaturePicking;
       if (this.allowFeaturePicking) {
-        imageryProvider.pickFeatures = (x, y, level, longitude, latitude) =>
+        (imageryProvider as any).pickFeatures = (
+          x: number,
+          y: number,
+          level: number,
+          longitude: number,
+          latitude: number
+        ) =>
           this.pickFeatures(
             imageryProvider,
             x,
@@ -1293,7 +1299,10 @@ function forceArray<T>(value: T | T[] | readonly T[] | undefined): T[] {
   if (!isDefined(value)) {
     return [];
   }
-  return Array.isArray(value) ? Array.from(value) : [value];
+  if (Array.isArray(value)) {
+    return Array.from(value) as T[];
+  }
+  return [value as T];
 }
 
 function normalizeFeatureInfoType(
