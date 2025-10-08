@@ -1318,20 +1318,31 @@ function getSingleLayerDimensionsFromCapabilities(
 
   const converted = dimensions.map((dimension) => {
     const name = (dimension?.Identifier || dimension?.name || "").toString();
+    console.log(`[WMTS Debug] Processing dimension: ${name}`);
+    console.log(
+      `[WMTS Debug] Dimension object:`,
+      JSON.stringify(dimension, null, 2)
+    );
+
     const extent = extents.find(
       (candidate: any) =>
         candidate?.name === dimension?.name ||
         candidate?.Identifier === dimension?.Identifier
     );
     const values = parseDimensionValues(dimension, extent);
+    console.log(
+      `[WMTS Debug] Parsed ${values.length} values for dimension ${name}`
+    );
+
     return {
       name,
       values,
-      units: dimension?.units,
+      units: dimension?.units || dimension?.UOM, // WMTS uses UOM instead of units
       unitSymbol: dimension?.unitSymbol,
       default: dimension?.default || dimension?.Default || values[0],
       multipleValues: dimension?.multipleValues,
-      nearestValue: dimension?.nearestValue
+      nearestValue: dimension?.nearestValue,
+      current: dimension?.current || dimension?.Current // WMTS has Current field
     } as DimensionSummary;
   });
 
