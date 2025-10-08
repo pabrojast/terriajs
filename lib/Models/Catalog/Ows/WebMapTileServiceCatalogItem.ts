@@ -1303,12 +1303,17 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
  * Custom Geographic Tiling Scheme that uses actual tile matrix dimensions from WMTS capabilities
  * instead of assuming power-of-2 doubling at each level.
  */
-class CustomGeographicTilingScheme extends GeographicTilingScheme {
+class CustomGeographicTilingScheme {
   private levelDimensions: Map<number, { width: number; height: number }>;
+  public ellipsoid: Ellipsoid;
+  public rectangle: Rectangle;
+  public projection: GeographicProjection;
 
   constructor(levelDimensions: Map<number, { width: number; height: number }>) {
-    super();
     this.levelDimensions = levelDimensions;
+    this.ellipsoid = Ellipsoid.WGS84;
+    this.rectangle = Rectangle.MAX_VALUE;
+    this.projection = new GeographicProjection(this.ellipsoid);
   }
 
   getNumberOfXTilesAtLevel(level: number): number {
@@ -1316,8 +1321,8 @@ class CustomGeographicTilingScheme extends GeographicTilingScheme {
     if (dims) {
       return dims.width;
     }
-    // Fallback to parent implementation
-    return super.getNumberOfXTilesAtLevel(level);
+    // Fallback: assume standard doubling from level 0 (2 tiles)
+    return 2 << level;
   }
 
   getNumberOfYTilesAtLevel(level: number): number {
@@ -1325,8 +1330,90 @@ class CustomGeographicTilingScheme extends GeographicTilingScheme {
     if (dims) {
       return dims.height;
     }
-    // Fallback to parent implementation
-    return super.getNumberOfYTilesAtLevel(level);
+    // Fallback: assume standard doubling from level 0 (1 tile)
+    return 1 << level;
+  }
+
+  rectangleToNativeRectangle(rectangle: Rectangle): Rectangle {
+    return rectangle;
+  }
+
+  positionToTileXY(position: any, level: number, result?: any): any {
+    if (!defined(result)) {
+      result = { x: 0, y: 0 };
+    }
+
+    const longitude = position.longitude;
+    const latitude = position.latitude;
+
+    const numberOfXTiles = this.getNumberOfXTilesAtLevel(level);
+    const numberOfYTiles = this.getNumberOfYTilesAtLevel(level);
+
+    const rectangle = this.rectangle;
+
+    const xTileWidth = (rectangle.east - rectangle.west) / numberOfXTiles;
+    const yTileHeight = (rectangle.north - rectangle.south) / numberOfYTiles;
+
+    let xTileCoordinate = Math.floor((longitude - rectangle.west) / xTileWidth);
+    if (xTileCoordinate >= numberOfXTiles) {
+      xTileCoordinate = numberOfXTiles - 1;
+    }
+    if (xTileCoordinate < 0) {
+      xTileCoordinate = 0;
+    }
+
+    let yTileCoordinate = Math.floor(
+      (rectangle.north - latitude) / yTileHeight
+    );
+    if (yTileCoordinate >= numberOfYTiles) {
+      yTileCoordinate = numberOfYTiles - 1;
+    }
+    if (yTileCoordinate < 0) {
+      yTileCoordinate = 0;
+    }
+
+    result.x = xTileCoordinate;
+    result.y = yTileCoordinate;
+    return result;
+  }
+
+  tileXYToRectangle(
+    x: number,
+    y: number,
+    level: number,
+    result?: Rectangle
+  ): Rectangle {
+    const numberOfXTiles = this.getNumberOfXTilesAtLevel(level);
+    const numberOfYTiles = this.getNumberOfYTilesAtLevel(level);
+
+    const rectangle = this.rectangle;
+
+    const xTileWidth = (rectangle.east - rectangle.west) / numberOfXTiles;
+    const yTileHeight = (rectangle.north - rectangle.south) / numberOfYTiles;
+
+    const west = x * xTileWidth + rectangle.west;
+    const east = (x + 1) * xTileWidth + rectangle.west;
+    const north = rectangle.north - y * yTileHeight;
+    const south = rectangle.north - (y + 1) * yTileHeight;
+
+    if (!defined(result)) {
+      return new Rectangle(west, south, east, north);
+    }
+
+    result.west = west;
+    result.south = south;
+    result.east = east;
+    result.north = north;
+    return result;
+  }
+
+  tileXYToNativeRectangle(
+    x: number,
+    y: number,
+    level: number,
+    result?: any
+  ): any {
+    return this.tileXYToRectangle(x, y, level, result);
   }
 }
 
@@ -1334,12 +1421,19 @@ class CustomGeographicTilingScheme extends GeographicTilingScheme {
  * Custom Web Mercator Tiling Scheme that uses actual tile matrix dimensions from WMTS capabilities
  * instead of assuming power-of-2 doubling at each level.
  */
-class CustomWebMercatorTilingScheme extends WebMercatorTilingScheme {
+class CustomWebMercatorTilingScheme {
   private levelDimensions: Map<number, { width: number; height: number }>;
+  private baseScheme: WebMercatorTilingScheme;
+  public ellipsoid: Ellipsoid;
+  public rectangle: Rectangle;
+  public projection: any;
 
   constructor(levelDimensions: Map<number, { width: number; height: number }>) {
-    super();
     this.levelDimensions = levelDimensions;
+    this.baseScheme = new WebMercatorTilingScheme();
+    this.ellipsoid = this.baseScheme.ellipsoid;
+    this.rectangle = this.baseScheme.rectangle;
+    this.projection = this.baseScheme.projection;
   }
 
   getNumberOfXTilesAtLevel(level: number): number {
@@ -1347,8 +1441,7 @@ class CustomWebMercatorTilingScheme extends WebMercatorTilingScheme {
     if (dims) {
       return dims.width;
     }
-    // Fallback to parent implementation
-    return super.getNumberOfXTilesAtLevel(level);
+    return this.baseScheme.getNumberOfXTilesAtLevel(level);
   }
 
   getNumberOfYTilesAtLevel(level: number): number {
@@ -1356,8 +1449,33 @@ class CustomWebMercatorTilingScheme extends WebMercatorTilingScheme {
     if (dims) {
       return dims.height;
     }
-    // Fallback to parent implementation
-    return super.getNumberOfYTilesAtLevel(level);
+    return this.baseScheme.getNumberOfYTilesAtLevel(level);
+  }
+
+  rectangleToNativeRectangle(rectangle: Rectangle): any {
+    return this.baseScheme.rectangleToNativeRectangle(rectangle);
+  }
+
+  positionToTileXY(position: any, level: number, result?: any): any {
+    return this.baseScheme.positionToTileXY(position, level, result);
+  }
+
+  tileXYToRectangle(
+    x: number,
+    y: number,
+    level: number,
+    result?: Rectangle
+  ): Rectangle {
+    return this.baseScheme.tileXYToRectangle(x, y, level, result);
+  }
+
+  tileXYToNativeRectangle(
+    x: number,
+    y: number,
+    level: number,
+    result?: any
+  ): any {
+    return this.baseScheme.tileXYToNativeRectangle(x, y, level, result);
   }
 }
 
