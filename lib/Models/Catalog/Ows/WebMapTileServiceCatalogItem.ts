@@ -707,21 +707,6 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
         layer.ResourceURL;
       let baseUrl: string = new URI(this.url).search("").toString();
       let timeTokenNames: string[] = [];
-      if (resourceUrl) {
-        const candidates = Array.isArray(resourceUrl)
-          ? resourceUrl
-          : [resourceUrl];
-        for (const candidate of candidates) {
-          if (
-            candidate.format.indexOf(format) !== -1 ||
-            candidate.format.indexOf("png") !== -1
-          ) {
-            baseUrl = candidate.template;
-            timeTokenNames = extractTimeTokenNames(candidate.template);
-            break;
-          }
-        }
-      }
 
       const tileMatrixSet = this.tileMatrixSet;
       if (!isDefined(tileMatrixSet)) {
@@ -729,6 +714,32 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
           `[WMTS] No usable TileMatrixSet found for layer ${layerIdentifier}`
         );
         return undefined;
+      }
+
+      if (resourceUrl) {
+        const candidates = Array.isArray(resourceUrl)
+          ? resourceUrl
+          : [resourceUrl];
+        const matchingFormat = candidates.filter((candidate) => {
+          const candidateFormat =
+            typeof candidate.format === "string"
+              ? candidate.format
+              : candidate.format?.toString?.();
+          if (!candidateFormat) {
+            return false;
+          }
+          return (
+            candidateFormat.indexOf(format) !== -1 ||
+            candidateFormat.indexOf("png") !== -1
+          );
+        });
+        const preferredTemplate = matchingFormat.find((candidate) =>
+          templateMatchesTileMatrixSet(candidate.template, tileMatrixSet)
+        );
+        if (preferredTemplate?.template) {
+          baseUrl = preferredTemplate.template;
+          timeTokenNames = extractTimeTokenNames(preferredTemplate.template);
+        }
       }
 
       const dimensions: Record<string, string> = { ...(this.dimensions ?? {}) };
@@ -881,47 +892,66 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
       }
     }
 
-    let tileMatrixSetId: string =
-      "urn:ogc:def:wkss:OGC:1.0:GoogleMapsCompatible";
-    let maxLevel: number = 0;
-    let minLevel: number = 0;
-    let tileWidth: number = 256;
-    let tileHeight: number = 256;
-    let projection: "EPSG:3857" | "EPSG:4326" = "EPSG:3857";
-    let tileMatrixSetLabels: string[] = [];
+    let selectedId: string | undefined;
+    let selected: UsableTileMatrixSets | undefined;
+
     for (let i = 0; i < tileMatrixSetLinks.length; i++) {
-      const tileMatrixSet = tileMatrixSetLinks[i].TileMatrixSet;
-      if (usableTileMatrixSets && usableTileMatrixSets[tileMatrixSet]) {
-        tileMatrixSetId = tileMatrixSet;
-        tileMatrixSetLabels = usableTileMatrixSets[tileMatrixSet].identifiers;
-        tileWidth = Number(usableTileMatrixSets[tileMatrixSet].tileWidth);
-        tileHeight = Number(usableTileMatrixSets[tileMatrixSet].tileHeight);
-        projection = usableTileMatrixSets[tileMatrixSet].projection;
-        break;
+      const candidateId = tileMatrixSetLinks[i].TileMatrixSet;
+      const candidate = usableTileMatrixSets?.[candidateId];
+      if (!candidate) {
+        continue;
+      }
+
+      if (!selected) {
+        selectedId = candidateId;
+        selected = candidate;
+        continue;
+      }
+
+      if (
+        candidate.projection === "EPSG:3857" &&
+        selected.projection !== "EPSG:3857"
+      ) {
+        selectedId = candidateId;
+        selected = candidate;
       }
     }
 
-    if (Array.isArray(tileMatrixSetLabels)) {
-      const levels = tileMatrixSetLabels.map((label) => {
-        const lastIndex = label.lastIndexOf(":");
-        return Math.abs(Number(label.substring(lastIndex + 1)));
-      });
-      maxLevel = levels.reduce((currentMaximum, level) => {
-        return level > currentMaximum ? level : currentMaximum;
-      }, 0);
-      minLevel = levels.reduce((currentMaximum, level) => {
-        return level < currentMaximum ? level : currentMaximum;
-      }, 0);
+    if (!selected || !selectedId) {
+      return;
     }
 
+    const tileMatrixSetLabels = selected.identifiers;
+    if (
+      !Array.isArray(tileMatrixSetLabels) ||
+      tileMatrixSetLabels.length === 0
+    ) {
+      return;
+    }
+
+    const levels = tileMatrixSetLabels.map((label) => {
+      const lastIndex = label.lastIndexOf(":");
+      const normalizedLabel =
+        lastIndex >= 0 ? label.substring(lastIndex + 1) : label;
+      return Math.abs(Number(normalizedLabel));
+    });
+
+    const numericLevels = levels.filter((level) => Number.isFinite(level));
+    const maxLevel = numericLevels.reduce((currentMaximum, level) => {
+      return level > currentMaximum ? level : currentMaximum;
+    }, 0);
+    const minLevel = numericLevels.reduce((currentMinimum, level) => {
+      return level < currentMinimum ? level : currentMinimum;
+    }, numericLevels[0] ?? 0);
+
     return {
-      id: tileMatrixSetId,
+      id: selectedId,
       labels: tileMatrixSetLabels,
       maxLevel: maxLevel,
       minLevel: minLevel,
-      tileWidth: tileWidth,
-      tileHeight: tileHeight,
-      projection: projection
+      tileWidth: Number(selected.tileWidth) || 256,
+      tileHeight: Number(selected.tileHeight) || 256,
+      projection: selected.projection
     };
   }
 
@@ -1214,6 +1244,41 @@ function extractTimeTokenNames(template: string | undefined): string[] {
     return [];
   }
   return matches.map((match) => match.slice(1, -1));
+}
+
+function templateMatchesTileMatrixSet(
+  template: string | undefined,
+  tileMatrixSet: {
+    id: string;
+    projection: "EPSG:3857" | "EPSG:4326";
+  }
+): boolean {
+  if (!template) {
+    return false;
+  }
+  const lowerTemplate = template.toLowerCase();
+  const idLower = tileMatrixSet.id.toLowerCase();
+  if (idLower && lowerTemplate.includes(idLower)) {
+    return true;
+  }
+  if (lowerTemplate.includes("{tilematrixset}")) {
+    return true;
+  }
+
+  if (tileMatrixSet.projection === "EPSG:3857") {
+    return (
+      lowerTemplate.includes("epsg3857") ||
+      lowerTemplate.includes("3857") ||
+      lowerTemplate.includes("googlemaps") ||
+      lowerTemplate.includes("mercator")
+    );
+  }
+
+  return (
+    lowerTemplate.includes("epsg4326") ||
+    lowerTemplate.includes("crs84") ||
+    lowerTemplate.includes("4326")
+  );
 }
 
 export function getServiceContactInformation(contactInfo: ServiceProvider) {
