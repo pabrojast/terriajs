@@ -47,17 +47,17 @@ import WebMapTileServiceCapabilities, {
   WmtsLayer
 } from "./WebMapTileServiceCapabilities";
 
-interface ExtendedWebMapTileServiceImageryProvider
-  extends WebMapTileServiceImageryProvider {
-  enablePickFeatures?: boolean;
-  pickFeatures?: (
-    x: number,
-    y: number,
-    level: number,
-    longitude: number,
-    latitude: number
-  ) => Promise<ImageryLayerFeatureInfo[] | undefined> | undefined;
-}
+type ExtendedWebMapTileServiceImageryProvider =
+  WebMapTileServiceImageryProvider & {
+    enablePickFeatures?: boolean;
+    pickFeatures?: (
+      x: number,
+      y: number,
+      level: number,
+      longitude: number,
+      latitude: number
+    ) => Promise<ImageryLayerFeatureInfo[] | undefined> | undefined;
+  };
 
 interface UsableTileMatrixSets {
   identifiers: string[];
@@ -663,7 +663,7 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
         return undefined;
       }
 
-      const formatCandidates = forceArray(layer.Format).map((item) =>
+      const formatCandidates = forceArray(layer.Format).map((item: any) =>
         typeof item === "string" ? item : item?.toString?.() ?? ""
       );
       const format = formatCandidates.includes("image/png")
@@ -1293,7 +1293,7 @@ function forceArray<T>(value: T | T[] | readonly T[] | undefined): T[] {
   if (!isDefined(value)) {
     return [];
   }
-  return Array.isArray(value) ? [...value] : [value];
+  return Array.isArray(value) ? Array.from(value) : [value];
 }
 
 function normalizeFeatureInfoType(
