@@ -1396,14 +1396,14 @@ class CustomGeographicTilingScheme {
     const north = rectangle.north - y * yTileHeight;
     const south = rectangle.north - (y + 1) * yTileHeight;
 
-    if (!defined(result)) {
-      result = new Rectangle(west, south, east, north);
-    } else {
-      result.west = west;
-      result.south = south;
-      result.east = east;
-      result.north = north;
+    if (!result) {
+      return new Rectangle(west, south, east, north);
     }
+
+    result.west = west;
+    result.south = south;
+    result.east = east;
+    result.north = north;
     return result;
   }
 
