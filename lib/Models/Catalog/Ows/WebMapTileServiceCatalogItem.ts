@@ -9,6 +9,7 @@ import GeographicProjection from "terriajs-cesium/Source/Core/GeographicProjecti
 import Resource from "terriajs-cesium/Source/Core/Resource";
 import ImageryLayerFeatureInfo from "terriajs-cesium/Source/Scene/ImageryLayerFeatureInfo";
 import GetFeatureInfoFormat from "terriajs-cesium/Source/Scene/GetFeatureInfoFormat";
+import UrlTemplateImageryProvider from "terriajs-cesium/Source/Scene/UrlTemplateImageryProvider";
 import WebMapTileServiceImageryProvider from "terriajs-cesium/Source/Scene/WebMapTileServiceImageryProvider";
 import URI from "urijs";
 import containsAny from "../../../Core/containsAny";
@@ -51,17 +52,19 @@ import WebMapTileServiceCapabilities, {
   WmtsLayer
 } from "./WebMapTileServiceCapabilities";
 
-type ExtendedWebMapTileServiceImageryProvider =
-  WebMapTileServiceImageryProvider & {
-    enablePickFeatures?: boolean;
-    pickFeatures?: (
-      x: number,
-      y: number,
-      level: number,
-      longitude: number,
-      latitude: number
-    ) => Promise<ImageryLayerFeatureInfo[] | undefined> | undefined;
-  };
+type ExtendedImageryProvider = (
+  | WebMapTileServiceImageryProvider
+  | UrlTemplateImageryProvider
+) & {
+  enablePickFeatures?: boolean;
+  pickFeatures?: (
+    x: number,
+    y: number,
+    level: number,
+    longitude: number,
+    latitude: number
+  ) => Promise<ImageryLayerFeatureInfo[] | undefined> | undefined;
+};
 
 interface UsableTileMatrixSets {
   identifiers: string[];
@@ -678,9 +681,7 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
   }
 
   private _createImageryProvider = createTransformerAllowUndefined(
-    (
-      timeTag: string | undefined
-    ): ExtendedWebMapTileServiceImageryProvider | undefined => {
+    (timeTag: string | undefined): ExtendedImageryProvider | undefined => {
       const stratum = this.capabilitiesStratum;
       if (
         !isDefined(this.layer) ||
@@ -821,21 +822,42 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
         );
       }
 
-      const imageryProvider = new WebMapTileServiceImageryProvider({
-        url: proxyCatalogItemUrl(this, baseUrl),
-        layer: layerIdentifier,
-        style: this.style,
-        tileMatrixSetID: tileMatrixSet.id,
-        tileMatrixLabels: tileMatrixSet.labels,
-        minimumLevel: this.minimumLevel ?? tileMatrixSet.minLevel,
-        maximumLevel: this.maximumLevel ?? tileMatrixSet.maxLevel,
-        tileWidth: tileMatrixSet.tileWidth,
-        tileHeight: tileMatrixSet.tileHeight,
-        tilingScheme: tilingScheme,
-        format,
-        credit: this.attribution,
-        dimensions: finalDimensions
-      }) as ExtendedWebMapTileServiceImageryProvider;
+      let imageryProvider: ExtendedImageryProvider | undefined;
+
+      const shouldUseUrlTemplateImageryProvider =
+        baseUrl.indexOf("{") !== -1 &&
+        !this.isStandardQuadtreeTileMatrix(tileMatrixSet.id);
+
+      if (shouldUseUrlTemplateImageryProvider) {
+        imageryProvider = this.createUrlTemplateImageryProvider({
+          templateUrl: baseUrl,
+          tileMatrixSet,
+          tilingScheme,
+          format,
+          layerIdentifier,
+          templateTokens: timeTokenNames,
+          dimensions: finalDimensions,
+          timeTag
+        });
+      }
+
+      if (!imageryProvider) {
+        imageryProvider = new WebMapTileServiceImageryProvider({
+          url: proxyCatalogItemUrl(this, baseUrl),
+          layer: layerIdentifier,
+          style: this.style,
+          tileMatrixSetID: tileMatrixSet.id,
+          tileMatrixLabels: tileMatrixSet.labels,
+          minimumLevel: this.minimumLevel ?? tileMatrixSet.minLevel,
+          maximumLevel: this.maximumLevel ?? tileMatrixSet.maxLevel,
+          tileWidth: tileMatrixSet.tileWidth,
+          tileHeight: tileMatrixSet.tileHeight,
+          tilingScheme: tilingScheme,
+          format,
+          credit: this.attribution,
+          dimensions: finalDimensions
+        }) as ExtendedImageryProvider;
+      }
 
       // Only enable feature picking if we have a valid GetFeatureInfo endpoint
       const hasValidFeatureInfoEndpoint = isDefined(this.featureInfoEndpoint);
@@ -964,52 +986,111 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
     };
   }
 
-  private createTilingScheme(
-    tileMatrixSetId: string,
-    projection: "EPSG:3857" | "EPSG:4326"
-  ) {
-    // Get the tile matrix set from capabilities
+  private getTileMatrixSetDefinition(tileMatrixSetId: string) {
     const capabilities = this.capabilitiesStratum?.capabilities;
     const tileMatrixSets = capabilities?.json?.Contents?.TileMatrixSet;
     if (!tileMatrixSets) {
-      // Fallback to standard tiling schemes
-      return projection === "EPSG:4326"
-        ? new GeographicTilingScheme()
-        : new WebMercatorTilingScheme();
+      return;
     }
 
     const tileMatrixSetArray = Array.isArray(tileMatrixSets)
       ? tileMatrixSets
       : [tileMatrixSets];
-    const tileMatrixSet = tileMatrixSetArray.find(
+    return tileMatrixSetArray.find(
       (tms: any) => tms.Identifier === tileMatrixSetId
     );
+  }
 
-    if (!tileMatrixSet || !tileMatrixSet.TileMatrix) {
-      // Fallback to standard tiling schemes
-      return projection === "EPSG:4326"
-        ? new GeographicTilingScheme()
-        : new WebMercatorTilingScheme();
+  private getTileMatrixLevelDimensions(
+    tileMatrixSetId: string
+  ): Map<number, { width: number; height: number }> | undefined {
+    const tileMatrixSet = this.getTileMatrixSetDefinition(tileMatrixSetId);
+    const tileMatrixEntries = tileMatrixSet?.TileMatrix;
+    if (!tileMatrixEntries) {
+      return;
     }
 
-    // Extract tile matrix dimensions for each level
-    const tileMatrices = Array.isArray(tileMatrixSet.TileMatrix)
-      ? tileMatrixSet.TileMatrix
-      : [tileMatrixSet.TileMatrix];
+    const tileMatrices = Array.isArray(tileMatrixEntries)
+      ? tileMatrixEntries
+      : [tileMatrixEntries];
 
-    // Create a map of level -> {width, height}
     const levelDimensions = new Map<
       number,
       { width: number; height: number }
     >();
     tileMatrices.forEach((matrix: any) => {
-      const level = parseInt(matrix.Identifier, 10);
-      const width = parseInt(matrix.MatrixWidth, 10);
-      const height = parseInt(matrix.MatrixHeight, 10);
-      if (!isNaN(level) && !isNaN(width) && !isNaN(height)) {
+      const level = Number.parseInt(matrix.Identifier, 10);
+      const width = Number.parseInt(matrix.MatrixWidth, 10);
+      const height = Number.parseInt(matrix.MatrixHeight, 10);
+      if (
+        Number.isFinite(level) &&
+        Number.isFinite(width) &&
+        Number.isFinite(height) &&
+        width > 0 &&
+        height > 0
+      ) {
         levelDimensions.set(level, { width, height });
       }
     });
+
+    if (levelDimensions.size === 0) {
+      return;
+    }
+
+    return levelDimensions;
+  }
+
+  private isStandardQuadtreeTileMatrix(tileMatrixSetId: string): boolean {
+    const levelDimensions = this.getTileMatrixLevelDimensions(tileMatrixSetId);
+    if (!levelDimensions || levelDimensions.size <= 1) {
+      return true;
+    }
+
+    const sortedLevels = Array.from(levelDimensions.keys()).sort(
+      (a, b) => a - b
+    );
+
+    for (let i = 1; i < sortedLevels.length; i++) {
+      const previousLevel = sortedLevels[i - 1];
+      const currentLevel = sortedLevels[i];
+      if (currentLevel <= previousLevel) {
+        continue;
+      }
+
+      const previousDimensions = levelDimensions.get(previousLevel);
+      const currentDimensions = levelDimensions.get(currentLevel);
+      if (!previousDimensions || !currentDimensions) {
+        continue;
+      }
+
+      const levelDelta = currentLevel - previousLevel;
+      const widthRatio = currentDimensions.width / previousDimensions.width;
+      const heightRatio = currentDimensions.height / previousDimensions.height;
+
+      if (
+        !isPowerOfTwoInteger(widthRatio) ||
+        !isPowerOfTwoInteger(heightRatio) ||
+        widthRatio !== Math.pow(2, levelDelta) ||
+        heightRatio !== Math.pow(2, levelDelta)
+      ) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  private createTilingScheme(
+    tileMatrixSetId: string,
+    projection: "EPSG:3857" | "EPSG:4326"
+  ) {
+    const levelDimensions = this.getTileMatrixLevelDimensions(tileMatrixSetId);
+    if (!levelDimensions || levelDimensions.size === 0) {
+      // Fallback to standard tiling schemes
+      return projection === "EPSG:4326"
+        ? new GeographicTilingScheme()
+        : new WebMercatorTilingScheme();
+    }
 
     // Log the tile matrix dimensions for debugging
     console.log(
@@ -1028,8 +1109,214 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
     }
   }
 
+  private createUrlTemplateImageryProvider(options: {
+    templateUrl: string;
+    tileMatrixSet: {
+      id: string;
+      labels: string[];
+      maxLevel: number;
+      minLevel: number;
+      tileWidth: number;
+      tileHeight: number;
+      projection: "EPSG:3857" | "EPSG:4326";
+    };
+    tilingScheme: any;
+    format: string;
+    layerIdentifier: string;
+    templateTokens: string[];
+    dimensions: Record<string, string> | undefined;
+    timeTag: string | undefined;
+  }): ExtendedImageryProvider | undefined {
+    const {
+      templateUrl,
+      tileMatrixSet,
+      tilingScheme,
+      format,
+      layerIdentifier,
+      templateTokens,
+      dimensions,
+      timeTag
+    } = options;
+
+    const tokens = new Set(templateTokens);
+    if (tokens.size === 0) {
+      // No template tokens – nothing to substitute, so stick with WMTS provider.
+      return undefined;
+    }
+
+    let url = templateUrl;
+
+    const constantTokenValues: Record<string, string | undefined> = {
+      TileMatrixSet: tileMatrixSet.id,
+      TileMatrixSetID: tileMatrixSet.id,
+      TileMatrixSetId: tileMatrixSet.id,
+      Layer: layerIdentifier,
+      layer: layerIdentifier,
+      Style: this.style ?? undefined,
+      style: this.style ?? undefined,
+      Format: format,
+      format: format
+    };
+
+    Object.entries(constantTokenValues).forEach(([token, value]) => {
+      if (!value) {
+        return;
+      }
+      const tokenPattern = new RegExp(`{${token}}`, "g");
+      if (tokenPattern.test(url)) {
+        url = url.replace(tokenPattern, value);
+        tokens.delete(token);
+      }
+    });
+
+    const customTags: Record<
+      string,
+      (
+        imageryProvider: UrlTemplateImageryProvider,
+        x: number,
+        y: number,
+        level: number
+      ) => string
+    > = {};
+
+    const registerTag = (
+      token: string,
+      fn: (
+        imageryProvider: UrlTemplateImageryProvider,
+        x: number,
+        y: number,
+        level: number
+      ) => string
+    ) => {
+      if (tokens.has(token)) {
+        customTags[token] = fn;
+        tokens.delete(token);
+      }
+    };
+
+    const tileMatrixLabels = tileMatrixSet.labels.slice();
+    const tileMatrixForLevel = (level: number) => {
+      const label = tileMatrixLabels[level];
+      return (
+        label ??
+        tileMatrixLabels[tileMatrixLabels.length - 1] ??
+        level.toString()
+      );
+    };
+
+    registerTag("TileMatrix", (_provider, _x, _y, level) =>
+      tileMatrixForLevel(level)
+    );
+    registerTag("tilematrix", (_provider, _x, _y, level) =>
+      tileMatrixForLevel(level)
+    );
+    registerTag("TileMatrixId", (_provider, _x, _y, level) =>
+      tileMatrixForLevel(level)
+    );
+    registerTag("TileMatrixID", (_provider, _x, _y, level) =>
+      tileMatrixForLevel(level)
+    );
+
+    registerTag("TileRow", (_provider, _x, y) => y.toString());
+    registerTag("TILEROW", (_provider, _x, y) => y.toString());
+    registerTag("tilerow", (_provider, _x, y) => y.toString());
+
+    registerTag("TileCol", (_provider, x) => x.toString());
+    registerTag("TILECOL", (_provider, x) => x.toString());
+    registerTag("tilecol", (_provider, x) => x.toString());
+
+    // Provide dimension values (such as time) via custom tags.
+    tokens.forEach((token) => {
+      if (customTags[token]) {
+        return;
+      }
+      const dimensionValue = this.getDimensionValueForToken(
+        token,
+        dimensions,
+        timeTag
+      );
+      if (isDefined(dimensionValue)) {
+        customTags[token] = () => dimensionValue;
+        tokens.delete(token);
+      }
+    });
+
+    const knownUrlTemplateTokens = new Set([
+      "x",
+      "y",
+      "z",
+      "s",
+      "reverseX",
+      "reverseY",
+      "-x",
+      "-y",
+      "westDegrees",
+      "southDegrees",
+      "eastDegrees",
+      "northDegrees",
+      "west",
+      "south",
+      "east",
+      "north"
+    ]);
+
+    const unresolvedTokens = Array.from(tokens).filter(
+      (token) => !knownUrlTemplateTokens.has(token)
+    );
+    if (unresolvedTokens.length > 0) {
+      console.warn(
+        `[WMTS] Unable to substitute template tokens ${unresolvedTokens.join(
+          ", "
+        )}. Falling back to WebMapTileServiceImageryProvider.`
+      );
+      return undefined;
+    }
+
+    const provider = new UrlTemplateImageryProvider({
+      url: proxyCatalogItemUrl(this, url),
+      tilingScheme,
+      tileWidth: tileMatrixSet.tileWidth,
+      tileHeight: tileMatrixSet.tileHeight,
+      minimumLevel: this.minimumLevel ?? tileMatrixSet.minLevel,
+      maximumLevel: this.maximumLevel ?? tileMatrixSet.maxLevel,
+      credit: this.attribution,
+      customTags: Object.keys(customTags).length > 0 ? customTags : undefined,
+      enablePickFeatures: this.allowFeaturePicking
+    }) as ExtendedImageryProvider;
+
+    return provider;
+  }
+
+  private getDimensionValueForToken(
+    token: string,
+    dimensions: Record<string, string> | undefined,
+    fallbackTime: string | undefined
+  ): string | undefined {
+    const lowerToken = token.toLowerCase();
+    if (dimensions) {
+      for (const [key, value] of Object.entries(dimensions)) {
+        const lowerKey = key.toLowerCase();
+        if (lowerKey === lowerToken) {
+          return String(value);
+        }
+        if (
+          !lowerToken.startsWith("dim_") &&
+          lowerKey === `dim_${lowerToken}`
+        ) {
+          return String(value);
+        }
+      }
+    }
+
+    if (lowerToken === "time" && isDefined(fallbackTime)) {
+      return String(fallbackTime);
+    }
+
+    return undefined;
+  }
+
   private pickFeatures(
-    imageryProvider: ExtendedWebMapTileServiceImageryProvider,
+    imageryProvider: ExtendedImageryProvider,
     x: number,
     y: number,
     level: number,
@@ -1306,6 +1593,17 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
       return undefined;
     }
   }
+}
+
+function isPowerOfTwoInteger(value: number): boolean {
+  if (!Number.isFinite(value) || value <= 0) {
+    return false;
+  }
+  if (!Number.isInteger(value)) {
+    return false;
+  }
+  const integerValue = value;
+  return (integerValue & (integerValue - 1)) === 0;
 }
 
 /**
