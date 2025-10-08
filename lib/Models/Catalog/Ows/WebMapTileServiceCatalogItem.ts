@@ -384,23 +384,27 @@ class GetCapabilitiesStratum extends LoadableStratum(
 
   @computed
   get currentLayerDimensions(): DimensionSummary[] | undefined {
-    const layerName = this.catalogItem.layer ?? this.layer;
+    // Use the Identifier from capabilitiesLayer instead of the user-provided layer name
+    // because the layer name might be a Title, but layerDimensions map uses Identifier as key
+    const layerIdentifier = this.capabilitiesLayer?.Identifier;
     console.log(
-      `[WMTS Debug] currentLayerDimensions: Looking for layer "${layerName}"`
+      `[WMTS Debug] currentLayerDimensions: Looking for layer "${layerIdentifier}"`
     );
     console.log(
       `[WMTS Debug] Available layer keys in layerDimensions map:`,
       Array.from(this.layerDimensions.keys())
     );
-    if (!layerName) {
-      console.log(`[WMTS Debug] currentLayerDimensions: No layer name found`);
+    if (!layerIdentifier) {
+      console.log(
+        `[WMTS Debug] currentLayerDimensions: No layer identifier found`
+      );
       return;
     }
-    const result = this.layerDimensions.get(layerName);
+    const result = this.layerDimensions.get(layerIdentifier);
     console.log(
       `[WMTS Debug] currentLayerDimensions: Found ${
         result?.length ?? 0
-      } dimensions for layer "${layerName}"`
+      } dimensions for layer "${layerIdentifier}"`
     );
     return result;
   }
