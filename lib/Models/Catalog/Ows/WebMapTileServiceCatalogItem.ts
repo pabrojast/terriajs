@@ -375,10 +375,6 @@ class GetCapabilitiesStratum extends LoadableStratum(
   @computed
   get layerDimensions(): Map<string, DimensionSummary[]> {
     const layers = this.capabilities?.json?.Contents?.Layer;
-    console.log(
-      "[WMTS Debug] Raw layers from capabilities:",
-      JSON.stringify(layers, null, 2)
-    );
     return buildLayerDimensionMap(layers);
   }
 
@@ -387,26 +383,10 @@ class GetCapabilitiesStratum extends LoadableStratum(
     // Use the Identifier from capabilitiesLayer instead of the user-provided layer name
     // because the layer name might be a Title, but layerDimensions map uses Identifier as key
     const layerIdentifier = this.capabilitiesLayer?.Identifier;
-    console.log(
-      `[WMTS Debug] currentLayerDimensions: Looking for layer "${layerIdentifier}"`
-    );
-    console.log(
-      `[WMTS Debug] Available layer keys in layerDimensions map:`,
-      Array.from(this.layerDimensions.keys())
-    );
     if (!layerIdentifier) {
-      console.log(
-        `[WMTS Debug] currentLayerDimensions: No layer identifier found`
-      );
       return;
     }
-    const result = this.layerDimensions.get(layerIdentifier);
-    console.log(
-      `[WMTS Debug] currentLayerDimensions: Found ${
-        result?.length ?? 0
-      } dimensions for layer "${layerIdentifier}"`
-    );
-    return result;
+    return this.layerDimensions.get(layerIdentifier);
   }
 
   @computed
@@ -499,29 +479,17 @@ class GetCapabilitiesStratum extends LoadableStratum(
 
       // Detect projection type
       let projection: "EPSG:3857" | "EPSG:4326" | undefined;
-      console.log(
-        `[WMTS Debug] Checking TileMatrixSet ${matrixSet.Identifier} with CRS: ${matrixSet.SupportedCRS}`
-      );
       if (
         /EPSG.*900913/.test(matrixSet.SupportedCRS) ||
         /EPSG.*3857/.test(matrixSet.SupportedCRS)
       ) {
         projection = "EPSG:3857";
-        console.log(
-          `[WMTS Debug] Detected EPSG:3857 for ${matrixSet.Identifier}`
-        );
       } else if (
         /EPSG.*4326/.test(matrixSet.SupportedCRS) ||
         /CRS84/.test(matrixSet.SupportedCRS)
       ) {
         projection = "EPSG:4326";
-        console.log(
-          `[WMTS Debug] Detected EPSG:4326/CRS84 for ${matrixSet.Identifier}`
-        );
       } else {
-        console.log(
-          `[WMTS Debug] Unsupported projection for ${matrixSet.Identifier}, skipping`
-        );
         continue; // Unsupported projection
       }
 
@@ -557,21 +525,12 @@ class GetCapabilitiesStratum extends LoadableStratum(
         const expectedX = -180;
         const expectedY = 90;
         const tolerance = 10; // 10 degree tolerance for flexibility
-        console.log(
-          `[WMTS Debug] TileMatrixSet ${matrixSet.Identifier}: TopLeftCorner = (${startX}, ${startY})`
-        );
         if (
           Math.abs(startX - expectedX) > tolerance ||
           Math.abs(startY - expectedY) > tolerance
         ) {
-          console.log(
-            `[WMTS Debug] TileMatrixSet ${matrixSet.Identifier} rejected: TopLeftCorner out of bounds`
-          );
           continue;
         }
-        console.log(
-          `[WMTS Debug] TileMatrixSet ${matrixSet.Identifier} accepted for EPSG:4326`
-        );
       }
 
       if (defined(matrixSet.TileMatrix) && matrixSet.TileMatrix.length > 0) {
@@ -765,24 +724,13 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
       const tileMatrixSet = this.tileMatrixSet;
       if (!isDefined(tileMatrixSet)) {
         console.error(
-          `[WMTS Debug] No usable TileMatrixSet found for layer ${layerIdentifier}`
+          `[WMTS] No usable TileMatrixSet found for layer ${layerIdentifier}`
         );
         return undefined;
       }
 
-      console.log(`[WMTS Debug] Using TileMatrixSet:`, tileMatrixSet);
-      console.log(`[WMTS Debug] Base URL: ${baseUrl}`);
-      console.log(
-        `[WMTS Debug] Layer: ${layerIdentifier}, Style: ${this.style}`
-      );
-      console.log(`[WMTS Debug] TimeTag: ${timeTag}`);
-
       const dimensions: Record<string, string> = { ...(this.dimensions ?? {}) };
       const defaults = stratum.currentLayerDimensions ?? [];
-      console.log(
-        `[WMTS Debug] Available dimensions from capabilities:`,
-        defaults
-      );
 
       defaults.forEach((dimension) => {
         if (!dimension.name) {
@@ -809,21 +757,24 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
         }
       });
 
-      console.log(`[WMTS Debug] Final dimensions to be applied:`, dimensions);
-
       // Select appropriate tiling scheme based on projection
       const tilingScheme =
         tileMatrixSet.projection === "EPSG:4326"
           ? new GeographicTilingScheme()
           : new WebMercatorTilingScheme();
 
-      console.log(
-        `[WMTS Debug] Using tilingScheme: ${
-          tileMatrixSet.projection === "EPSG:4326"
-            ? "GeographicTilingScheme (EPSG:4326)"
-            : "WebMercatorTilingScheme (EPSG:3857)"
-        }`
-      );
+      const finalDimensions =
+        Object.keys(dimensions).length > 0 ? dimensions : undefined;
+
+      // Log WMTS configuration for debugging tile load issues
+      if (finalDimensions) {
+        console.log(
+          `[WMTS] Layer: ${layerIdentifier}, Time: ${
+            finalDimensions.time || "none"
+          }, Dimensions:`,
+          finalDimensions
+        );
+      }
 
       const imageryProvider = new WebMapTileServiceImageryProvider({
         url: proxyCatalogItemUrl(this, baseUrl),
@@ -839,7 +790,7 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
         tilingScheme: tilingScheme,
         format,
         credit: this.attribution,
-        dimensions: Object.keys(dimensions).length > 0 ? dimensions : undefined
+        dimensions: finalDimensions
       }) as ExtendedWebMapTileServiceImageryProvider;
 
       // Only enable feature picking if we have a valid GetFeatureInfo endpoint
@@ -1261,9 +1212,6 @@ export function getServiceContactInformation(contactInfo: ServiceProvider) {
 function buildLayerDimensionMap(layers: any): Map<string, DimensionSummary[]> {
   const result = new Map<string, DimensionSummary[]>();
   const layerArray = forceArray(layers);
-  console.log(
-    `[WMTS Debug] buildLayerDimensionMap: Processing ${layerArray.length} layers`
-  );
 
   const visit = (layer: any, inherited: DimensionSummary[]) => {
     if (!layer) {
@@ -1271,16 +1219,7 @@ function buildLayerDimensionMap(layers: any): Map<string, DimensionSummary[]> {
     }
 
     const identifier = layer.Identifier || layer.Name || layer.Title;
-    console.log(`[WMTS Debug] Processing layer: ${identifier}`);
-    console.log(
-      `[WMTS Debug] Layer has Dimension property: ${!!layer.Dimension}`
-    );
-    console.log(`[WMTS Debug] Layer.Dimension:`, layer.Dimension);
-
     const combined = getSingleLayerDimensionsFromCapabilities(layer, inherited);
-    console.log(
-      `[WMTS Debug] Layer ${identifier}: Found ${combined.length} dimensions`
-    );
 
     if (identifier) {
       result.set(identifier, combined);
@@ -1290,9 +1229,6 @@ function buildLayerDimensionMap(layers: any): Map<string, DimensionSummary[]> {
   };
 
   layerArray.forEach((layer) => visit(layer, []));
-  console.log(
-    `[WMTS Debug] buildLayerDimensionMap: Result has ${result.size} entries`
-  );
   return result;
 }
 
@@ -1302,21 +1238,11 @@ function getSingleLayerDimensionsFromCapabilities(
 ): DimensionSummary[] {
   const inherited = inheritedDimensions ?? [];
   if (!layerInCapabilities || !layerInCapabilities.Dimension) {
-    console.log(
-      `[WMTS Debug] getSingleLayerDimensionsFromCapabilities: No dimensions found (layer: ${!!layerInCapabilities}, Dimension: ${!!layerInCapabilities?.Dimension})`
-    );
     return inherited;
   }
 
-  console.log(
-    `[WMTS Debug] getSingleLayerDimensionsFromCapabilities: Found Dimension property`
-  );
-
   const dimensions = forceArray(layerInCapabilities.Dimension);
   const extents = forceArray(layerInCapabilities.Extent);
-  console.log(
-    `[WMTS Debug] Dimensions array length: ${dimensions.length}, Extents array length: ${extents.length}`
-  );
 
   const filteredInherited = inherited.filter(
     (inheritedDimension) =>
@@ -1336,11 +1262,6 @@ function getSingleLayerDimensionsFromCapabilities(
 
   const converted = dimensions.map((dimension) => {
     const name = (dimension?.Identifier || dimension?.name || "").toString();
-    console.log(`[WMTS Debug] Processing dimension: ${name}`);
-    console.log(
-      `[WMTS Debug] Dimension object:`,
-      JSON.stringify(dimension, null, 2)
-    );
 
     const extent = extents.find(
       (candidate: any) =>
@@ -1348,9 +1269,6 @@ function getSingleLayerDimensionsFromCapabilities(
         candidate?.Identifier === dimension?.Identifier
     );
     const values = parseDimensionValues(dimension, extent);
-    console.log(
-      `[WMTS Debug] Parsed ${values.length} values for dimension ${name}`
-    );
 
     return {
       name,
