@@ -476,14 +476,26 @@ class GetCapabilitiesStratum extends LoadableStratum(
 
       // Detect projection type
       let projection: "EPSG:3857" | "EPSG:4326" | undefined;
+      console.log(
+        `[WMTS Debug] Checking TileMatrixSet ${matrixSet.Identifier} with CRS: ${matrixSet.SupportedCRS}`
+      );
       if (
         /EPSG.*900913/.test(matrixSet.SupportedCRS) ||
         /EPSG.*3857/.test(matrixSet.SupportedCRS)
       ) {
         projection = "EPSG:3857";
+        console.log(
+          `[WMTS Debug] Detected EPSG:3857 for ${matrixSet.Identifier}`
+        );
       } else if (/EPSG.*4326/.test(matrixSet.SupportedCRS)) {
         projection = "EPSG:4326";
+        console.log(
+          `[WMTS Debug] Detected EPSG:4326 for ${matrixSet.Identifier}`
+        );
       } else {
+        console.log(
+          `[WMTS Debug] Unsupported projection for ${matrixSet.Identifier}, skipping`
+        );
         continue; // Unsupported projection
       }
 
@@ -515,15 +527,25 @@ class GetCapabilitiesStratum extends LoadableStratum(
         }
       } else if (projection === "EPSG:4326") {
         // For EPSG:4326, expect TopLeftCorner near -180, 90
+        // More relaxed validation as different services may use different origins
         const expectedX = -180;
         const expectedY = 90;
-        const tolerance = 1; // 1 degree tolerance
+        const tolerance = 10; // 10 degree tolerance for flexibility
+        console.log(
+          `[WMTS Debug] TileMatrixSet ${matrixSet.Identifier}: TopLeftCorner = (${startX}, ${startY})`
+        );
         if (
           Math.abs(startX - expectedX) > tolerance ||
           Math.abs(startY - expectedY) > tolerance
         ) {
+          console.log(
+            `[WMTS Debug] TileMatrixSet ${matrixSet.Identifier} rejected: TopLeftCorner out of bounds`
+          );
           continue;
         }
+        console.log(
+          `[WMTS Debug] TileMatrixSet ${matrixSet.Identifier} accepted for EPSG:4326`
+        );
       }
 
       if (defined(matrixSet.TileMatrix) && matrixSet.TileMatrix.length > 0) {
@@ -716,11 +738,26 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
 
       const tileMatrixSet = this.tileMatrixSet;
       if (!isDefined(tileMatrixSet)) {
+        console.error(
+          `[WMTS Debug] No usable TileMatrixSet found for layer ${layerIdentifier}`
+        );
         return undefined;
       }
 
+      console.log(`[WMTS Debug] Using TileMatrixSet:`, tileMatrixSet);
+      console.log(`[WMTS Debug] Base URL: ${baseUrl}`);
+      console.log(
+        `[WMTS Debug] Layer: ${layerIdentifier}, Style: ${this.style}`
+      );
+      console.log(`[WMTS Debug] TimeTag: ${timeTag}`);
+
       const dimensions: Record<string, string> = { ...(this.dimensions ?? {}) };
       const defaults = stratum.currentLayerDimensions ?? [];
+      console.log(
+        `[WMTS Debug] Available dimensions from capabilities:`,
+        defaults
+      );
+
       defaults.forEach((dimension) => {
         if (!dimension.name) {
           return;
@@ -746,11 +783,21 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
         }
       });
 
+      console.log(`[WMTS Debug] Final dimensions to be applied:`, dimensions);
+
       // Select appropriate tiling scheme based on projection
       const tilingScheme =
         tileMatrixSet.projection === "EPSG:4326"
           ? new GeographicTilingScheme()
           : new WebMercatorTilingScheme();
+
+      console.log(
+        `[WMTS Debug] Using tilingScheme: ${
+          tileMatrixSet.projection === "EPSG:4326"
+            ? "GeographicTilingScheme (EPSG:4326)"
+            : "WebMercatorTilingScheme (EPSG:3857)"
+        }`
+      );
 
       const imageryProvider = new WebMapTileServiceImageryProvider({
         url: proxyCatalogItemUrl(this, baseUrl),
