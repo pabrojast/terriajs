@@ -1011,6 +1011,15 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
       }
     });
 
+    // Log the tile matrix dimensions for debugging
+    console.log(
+      `[WMTS TilingScheme] TileMatrixSet: ${tileMatrixSetId}, Projection: ${projection}`
+    );
+    console.log(
+      "[WMTS TilingScheme] Level dimensions:",
+      Array.from(levelDimensions.entries())
+    );
+
     // Create custom tiling scheme that respects the actual tile matrix dimensions
     if (projection === "EPSG:4326") {
       return new CustomGeographicTilingScheme(levelDimensions);
@@ -1395,6 +1404,15 @@ class CustomGeographicTilingScheme {
     const east = (x + 1) * xTileWidth + rectangle.west;
     const north = rectangle.north - y * yTileHeight;
     const south = rectangle.north - (y + 1) * yTileHeight;
+
+    // Log first few tiles of level 2 for debugging
+    if (level === 2 && x < 3 && y < 2) {
+      console.log(
+        `[CustomTilingScheme] Tile (${x},${y},${level}): Grid=${numberOfXTiles}x${numberOfYTiles}, Bounds=[${west.toFixed(
+          2
+        )}, ${south.toFixed(2)}, ${east.toFixed(2)}, ${north.toFixed(2)}]`
+      );
+    }
 
     if (!result) {
       return new Rectangle(west, south, east, north);
