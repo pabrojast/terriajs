@@ -3,6 +3,9 @@ import { computed, runInAction, makeObservable, override } from "mobx";
 import defined from "terriajs-cesium/Source/Core/defined";
 import WebMercatorTilingScheme from "terriajs-cesium/Source/Core/WebMercatorTilingScheme";
 import GeographicTilingScheme from "terriajs-cesium/Source/Core/GeographicTilingScheme";
+import Rectangle from "terriajs-cesium/Source/Core/Rectangle";
+import Ellipsoid from "terriajs-cesium/Source/Core/Ellipsoid";
+import GeographicProjection from "terriajs-cesium/Source/Core/GeographicProjection";
 import Resource from "terriajs-cesium/Source/Core/Resource";
 import ImageryLayerFeatureInfo from "terriajs-cesium/Source/Scene/ImageryLayerFeatureInfo";
 import GetFeatureInfoFormat from "terriajs-cesium/Source/Scene/GetFeatureInfoFormat";
@@ -796,10 +799,11 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
       });
 
       // Select appropriate tiling scheme based on projection
-      const tilingScheme =
-        tileMatrixSet.projection === "EPSG:4326"
-          ? new GeographicTilingScheme()
-          : new WebMercatorTilingScheme();
+      // For GIBS and other services with non-standard tile matrix sets, we need to create a custom tiling scheme
+      const tilingScheme = this.createTilingScheme(
+        tileMatrixSet.id,
+        tileMatrixSet.projection
+      );
 
       const finalDimensions =
         Object.keys(dimensions).length > 0 ? dimensions : undefined;
@@ -958,6 +962,60 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
       tileHeight: Number(selected.tileHeight) || 256,
       projection: selected.projection
     };
+  }
+
+  private createTilingScheme(
+    tileMatrixSetId: string,
+    projection: "EPSG:3857" | "EPSG:4326"
+  ) {
+    // Get the tile matrix set from capabilities
+    const tileMatrixSets = this.capabilities?.json?.TileMatrixSet;
+    if (!tileMatrixSets) {
+      // Fallback to standard tiling schemes
+      return projection === "EPSG:4326"
+        ? new GeographicTilingScheme()
+        : new WebMercatorTilingScheme();
+    }
+
+    const tileMatrixSetArray = Array.isArray(tileMatrixSets)
+      ? tileMatrixSets
+      : [tileMatrixSets];
+    const tileMatrixSet = tileMatrixSetArray.find(
+      (tms: any) => tms.Identifier === tileMatrixSetId
+    );
+
+    if (!tileMatrixSet || !tileMatrixSet.TileMatrix) {
+      // Fallback to standard tiling schemes
+      return projection === "EPSG:4326"
+        ? new GeographicTilingScheme()
+        : new WebMercatorTilingScheme();
+    }
+
+    // Extract tile matrix dimensions for each level
+    const tileMatrices = Array.isArray(tileMatrixSet.TileMatrix)
+      ? tileMatrixSet.TileMatrix
+      : [tileMatrixSet.TileMatrix];
+
+    // Create a map of level -> {width, height}
+    const levelDimensions = new Map<
+      number,
+      { width: number; height: number }
+    >();
+    tileMatrices.forEach((matrix: any) => {
+      const level = parseInt(matrix.Identifier, 10);
+      const width = parseInt(matrix.MatrixWidth, 10);
+      const height = parseInt(matrix.MatrixHeight, 10);
+      if (!isNaN(level) && !isNaN(width) && !isNaN(height)) {
+        levelDimensions.set(level, { width, height });
+      }
+    });
+
+    // Create custom tiling scheme that respects the actual tile matrix dimensions
+    if (projection === "EPSG:4326") {
+      return new CustomGeographicTilingScheme(levelDimensions);
+    } else {
+      return new CustomWebMercatorTilingScheme(levelDimensions);
+    }
   }
 
   private pickFeatures(
@@ -1237,6 +1295,68 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
     } else {
       return undefined;
     }
+  }
+}
+
+/**
+ * Custom Geographic Tiling Scheme that uses actual tile matrix dimensions from WMTS capabilities
+ * instead of assuming power-of-2 doubling at each level.
+ */
+class CustomGeographicTilingScheme extends GeographicTilingScheme {
+  private levelDimensions: Map<number, { width: number; height: number }>;
+
+  constructor(levelDimensions: Map<number, { width: number; height: number }>) {
+    super();
+    this.levelDimensions = levelDimensions;
+  }
+
+  getNumberOfXTilesAtLevel(level: number): number {
+    const dims = this.levelDimensions.get(level);
+    if (dims) {
+      return dims.width;
+    }
+    // Fallback to parent implementation
+    return super.getNumberOfXTilesAtLevel(level);
+  }
+
+  getNumberOfYTilesAtLevel(level: number): number {
+    const dims = this.levelDimensions.get(level);
+    if (dims) {
+      return dims.height;
+    }
+    // Fallback to parent implementation
+    return super.getNumberOfYTilesAtLevel(level);
+  }
+}
+
+/**
+ * Custom Web Mercator Tiling Scheme that uses actual tile matrix dimensions from WMTS capabilities
+ * instead of assuming power-of-2 doubling at each level.
+ */
+class CustomWebMercatorTilingScheme extends WebMercatorTilingScheme {
+  private levelDimensions: Map<number, { width: number; height: number }>;
+
+  constructor(levelDimensions: Map<number, { width: number; height: number }>) {
+    super();
+    this.levelDimensions = levelDimensions;
+  }
+
+  getNumberOfXTilesAtLevel(level: number): number {
+    const dims = this.levelDimensions.get(level);
+    if (dims) {
+      return dims.width;
+    }
+    // Fallback to parent implementation
+    return super.getNumberOfXTilesAtLevel(level);
+  }
+
+  getNumberOfYTilesAtLevel(level: number): number {
+    const dims = this.levelDimensions.get(level);
+    if (dims) {
+      return dims.height;
+    }
+    // Fallback to parent implementation
+    return super.getNumberOfYTilesAtLevel(level);
   }
 }
 
