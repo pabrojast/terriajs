@@ -706,6 +706,7 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
       const resourceUrl: ResourceUrl | ResourceUrl[] | undefined =
         layer.ResourceURL;
       let baseUrl: string = new URI(this.url).search("").toString();
+      let timeTokenNames: string[] = [];
       if (resourceUrl) {
         const candidates = Array.isArray(resourceUrl)
           ? resourceUrl
@@ -716,6 +717,7 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
             candidate.format.indexOf("png") !== -1
           ) {
             baseUrl = candidate.template;
+            timeTokenNames = extractTimeTokenNames(candidate.template);
             break;
           }
         }
@@ -734,6 +736,16 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
       const timeDimensionName = defaults.find(
         (dimension) => dimension.name?.toLowerCase() === "time"
       )?.name;
+      const timeKeys = new Set<string>();
+      if (timeDimensionName) {
+        timeKeys.add(timeDimensionName);
+      }
+      timeTokenNames
+        .filter((token) => token.toLowerCase() === "time")
+        .forEach((token) => timeKeys.add(token));
+      if (!timeKeys.size) {
+        timeKeys.add("time");
+      }
 
       defaults.forEach((dimension) => {
         if (!dimension.name) {
@@ -755,8 +767,9 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
             delete dimensions[key];
           }
         });
-        const timeKey = timeDimensionName ?? "time";
-        dimensions[timeKey] = timeTag;
+        timeKeys.forEach((key) => {
+          dimensions[key] = timeTag;
+        });
       }
 
       Object.keys(dimensions).forEach((key) => {
@@ -797,8 +810,7 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
         minimumLevel: this.minimumLevel ?? tileMatrixSet.minLevel,
         maximumLevel: this.maximumLevel ?? tileMatrixSet.maxLevel,
         tileWidth: this.tileWidth ?? tileMatrixSet.tileWidth,
-        tileHeight:
-          this.tileHeight ?? this.minimumLevel ?? tileMatrixSet.tileHeight,
+        tileHeight: this.tileHeight ?? tileMatrixSet.tileHeight,
         tilingScheme: tilingScheme,
         format,
         credit: this.attribution,
@@ -1191,6 +1203,17 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
       return undefined;
     }
   }
+}
+
+function extractTimeTokenNames(template: string | undefined): string[] {
+  if (!template) {
+    return [];
+  }
+  const matches = template.match(/{([^}]+)}/g);
+  if (!matches) {
+    return [];
+  }
+  return matches.map((match) => match.slice(1, -1));
 }
 
 export function getServiceContactInformation(contactInfo: ServiceProvider) {
