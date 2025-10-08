@@ -47,6 +47,18 @@ import WebMapTileServiceCapabilities, {
   WmtsLayer
 } from "./WebMapTileServiceCapabilities";
 
+interface ExtendedWebMapTileServiceImageryProvider
+  extends WebMapTileServiceImageryProvider {
+  enablePickFeatures?: boolean;
+  pickFeatures?: (
+    x: number,
+    y: number,
+    level: number,
+    longitude: number,
+    latitude: number
+  ) => Promise<ImageryLayerFeatureInfo[] | undefined> | undefined;
+}
+
 interface UsableTileMatrixSets {
   identifiers: string[];
   tileWidth: number;
@@ -634,7 +646,7 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
   private _createImageryProvider = createTransformerAllowUndefined(
     (
       timeTag: string | undefined
-    ): WebMapTileServiceImageryProvider | undefined => {
+    ): ExtendedWebMapTileServiceImageryProvider | undefined => {
       const stratum = this.capabilitiesStratum;
       if (
         !isDefined(this.layer) ||
@@ -725,7 +737,7 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
         format,
         credit: this.attribution,
         dimensions: Object.keys(dimensions).length > 0 ? dimensions : undefined
-      });
+      }) as ExtendedWebMapTileServiceImageryProvider;
 
       imageryProvider.enablePickFeatures = this.allowFeaturePicking;
       if (this.allowFeaturePicking) {
@@ -822,7 +834,7 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
   }
 
   private pickFeatures(
-    imageryProvider: WebMapTileServiceImageryProvider,
+    imageryProvider: ExtendedWebMapTileServiceImageryProvider,
     x: number,
     y: number,
     level: number,
@@ -851,7 +863,6 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
     }
 
     const { type, format } = this.featureInfoFormatOptions;
-    const parser = new GetFeatureInfoFormat(type, format);
 
     const tilingScheme = imageryProvider.tilingScheme;
     const tileRectangle = tilingScheme.tileXYToRectangle(x, y, level);
@@ -952,7 +963,7 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
           return undefined;
         }
         try {
-          return parser.callback(data) as ImageryLayerFeatureInfo[];
+          return parseFeatureInfoResponse(data, type, format);
         } catch (error) {
           console.warn("Failed to parse WMTS GetFeatureInfo response", error);
           return undefined;
@@ -1278,11 +1289,11 @@ function extractDimensionText(item: any): string | undefined {
   return undefined;
 }
 
-function forceArray<T>(value: T | T[] | undefined): T[] {
+function forceArray<T>(value: T | T[] | readonly T[] | undefined): T[] {
   if (!isDefined(value)) {
     return [];
   }
-  return Array.isArray(value) ? value : [value];
+  return Array.isArray(value) ? [...value] : [value];
 }
 
 function normalizeFeatureInfoType(
@@ -1321,6 +1332,43 @@ function clamp(value: number, min: number, max: number) {
     return min;
   }
   return Math.min(Math.max(value, min), max);
+}
+
+function parseFeatureInfoResponse(
+  data: any,
+  type: FeatureInfoFormatType,
+  format: string
+): ImageryLayerFeatureInfo[] | undefined {
+  const parser = new GetFeatureInfoFormat(type, format);
+
+  // Use the parser's getFeatureInfoFromData method if available
+  if (typeof (parser as any).getFeatureInfoFromData === "function") {
+    return (parser as any).getFeatureInfoFromData(data);
+  }
+
+  // Fallback: try to parse based on type
+  if (type === "json" && data) {
+    // For JSON responses, wrap in ImageryLayerFeatureInfo if needed
+    const features = Array.isArray(data.features)
+      ? data.features
+      : Array.isArray(data)
+      ? data
+      : [data];
+    return features.map((feature: any) => {
+      const info = new ImageryLayerFeatureInfo();
+      info.data = feature;
+      info.properties = feature.properties || feature;
+      if (feature.geometry) {
+        info.position = feature.geometry;
+      }
+      return info;
+    });
+  }
+
+  // For other types, create a simple feature info object
+  const info = new ImageryLayerFeatureInfo();
+  info.data = data;
+  return [info];
 }
 
 export default WebMapTileServiceCatalogItem;
