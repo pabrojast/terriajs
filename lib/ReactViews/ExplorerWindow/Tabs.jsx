@@ -133,8 +133,6 @@ class Tabs extends Component {
       sameCategory[0] ||
       tabs[0];
 
-    const theme = this.context;
-
     return (
       <div className={Styles.tabs}>
         <div

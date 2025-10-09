@@ -1016,7 +1016,12 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
 
   private getTileMatrixLevelDimensions(
     tileMatrixSetId: string
-  ): Map<number, { width: number; height: number }> | undefined {
+  ):
+    | Map<
+        number,
+        { width: number; height: number; topLeftCorner?: [number, number] }
+      >
+    | undefined {
     const tileMatrixSet = this.getTileMatrixSetDefinition(tileMatrixSetId);
     const tileMatrixEntries = tileMatrixSet?.TileMatrix;
     if (!tileMatrixEntries) {
@@ -1027,20 +1032,40 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
 
     const levelDimensions = new Map<
       number,
-      { width: number; height: number }
+      { width: number; height: number; topLeftCorner?: [number, number] }
     >();
     tileMatrices.forEach((matrix: any, index: number) => {
       const width = Number(matrix.MatrixWidth);
       const height = Number(matrix.MatrixHeight);
       const parsedLevel = parseTileMatrixLevel(matrix.Identifier);
       const key = isDefined(parsedLevel) ? parsedLevel : index;
+
+      // Parse TopLeftCorner if available
+      let topLeftCorner: [number, number] | undefined;
+      if (matrix.TopLeftCorner) {
+        const coords = matrix.TopLeftCorner.split(" ");
+        if (coords.length >= 2) {
+          const x = parseFloat(coords[0]);
+          const y = parseFloat(coords[1]);
+          if (Number.isFinite(x) && Number.isFinite(y)) {
+            topLeftCorner = [x, y];
+            // Log to help debug coordinate order
+            if (key <= 2) {
+              console.log(
+                `[WMTS TileMatrix] Level ${key}: TopLeftCorner=[${x}, ${y}], Size=${width}x${height}`
+              );
+            }
+          }
+        }
+      }
+
       if (
         Number.isFinite(width) &&
         Number.isFinite(height) &&
         width > 0 &&
         height > 0
       ) {
-        levelDimensions.set(key, { width, height });
+        levelDimensions.set(key, { width, height, topLeftCorner });
       }
     });
 
@@ -1124,8 +1149,6 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
       );
       return undefined;
     }
-
-    let url = templateUrl;
 
     const customTags: Record<
       string,
@@ -1273,7 +1296,7 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
     const maxIndex = Math.max(0, tileMatrixSet.labels.length - 1);
 
     const provider = new UrlTemplateImageryProvider({
-      url: proxyCatalogItemUrl(this, url),
+      url: proxyCatalogItemUrl(this, templateUrl),
       tilingScheme,
       tileWidth: tileMatrixSet.tileWidth,
       tileHeight: tileMatrixSet.tileHeight,
@@ -1285,7 +1308,7 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
     }) as ExtendedImageryProvider;
 
     console.log("[WMTS] Using UrlTemplateImageryProvider", {
-      template: url,
+      template: templateUrl,
       customTags: Object.keys(customTags),
       minLevel: this.minimumLevel ?? minIndex,
       maxLevel: this.maximumLevel ?? maxIndex,
@@ -1608,15 +1631,53 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
  * instead of assuming power-of-2 doubling at each level.
  */
 class CustomGeographicTilingScheme {
-  private levelDimensions: Map<number, { width: number; height: number }>;
+  private levelDimensions: Map<
+    number,
+    { width: number; height: number; topLeftCorner?: [number, number] }
+  >;
+  private rectangleByLevel: Map<number, Rectangle>;
   public ellipsoid: Ellipsoid;
   public rectangle: Rectangle;
   public projection: GeographicProjection;
 
-  constructor(levelDimensions: Map<number, { width: number; height: number }>) {
+  constructor(
+    levelDimensions: Map<
+      number,
+      { width: number; height: number; topLeftCorner?: [number, number] }
+    >
+  ) {
     this.levelDimensions = levelDimensions;
     this.ellipsoid = Ellipsoid.WGS84;
-    this.rectangle = Rectangle.MAX_VALUE;
+    this.rectangleByLevel = new Map();
+
+    // Check if we have TopLeftCorner information for level 0
+    const level0 = levelDimensions.get(0);
+    if (level0?.topLeftCorner) {
+      const [topLeftLon, topLeftLat] = level0.topLeftCorner;
+      // Convert degrees to radians
+      const west = topLeftLon * (Math.PI / 180);
+      const north = topLeftLat * (Math.PI / 180);
+
+      // For EPSG:4326, assuming full world coverage from TopLeftCorner
+      // TopLeftCorner is typically -180, 90 for global EPSG:4326
+      const fullWidth = Math.PI * 2; // 360 degrees in radians
+      const fullHeight = Math.PI; // 180 degrees in radians
+
+      const east = west + fullWidth;
+      const south = north - fullHeight;
+
+      this.rectangle = new Rectangle(west, south, east, north);
+
+      console.log(
+        `[CustomTilingScheme] Created from TopLeftCorner: [${topLeftLon}, ${topLeftLat}] => Rectangle: [${west.toFixed(
+          2
+        )}, ${south.toFixed(2)}, ${east.toFixed(2)}, ${north.toFixed(2)}]`
+      );
+    } else {
+      // Fallback to standard geographic rectangle
+      this.rectangle = Rectangle.MAX_VALUE;
+    }
+
     this.projection = new GeographicProjection(this.ellipsoid);
   }
 
@@ -1654,7 +1715,6 @@ class CustomGeographicTilingScheme {
     const numberOfYTiles = this.getNumberOfYTilesAtLevel(level);
 
     const rectangle = this.rectangle;
-
     const xTileWidth = (rectangle.east - rectangle.west) / numberOfXTiles;
     const yTileHeight = (rectangle.north - rectangle.south) / numberOfYTiles;
 
@@ -1691,7 +1751,6 @@ class CustomGeographicTilingScheme {
     const numberOfYTiles = this.getNumberOfYTilesAtLevel(level);
 
     const rectangle = this.rectangle;
-
     const xTileWidth = (rectangle.east - rectangle.west) / numberOfXTiles;
     const yTileHeight = (rectangle.north - rectangle.south) / numberOfYTiles;
 
@@ -1735,13 +1794,21 @@ class CustomGeographicTilingScheme {
  * instead of assuming power-of-2 doubling at each level.
  */
 class CustomWebMercatorTilingScheme {
-  private levelDimensions: Map<number, { width: number; height: number }>;
+  private levelDimensions: Map<
+    number,
+    { width: number; height: number; topLeftCorner?: [number, number] }
+  >;
   private baseScheme: WebMercatorTilingScheme;
   public ellipsoid: Ellipsoid;
   public rectangle: Rectangle;
   public projection: any;
 
-  constructor(levelDimensions: Map<number, { width: number; height: number }>) {
+  constructor(
+    levelDimensions: Map<
+      number,
+      { width: number; height: number; topLeftCorner?: [number, number] }
+    >
+  ) {
     this.levelDimensions = levelDimensions;
     this.baseScheme = new WebMercatorTilingScheme();
     this.ellipsoid = this.baseScheme.ellipsoid;
