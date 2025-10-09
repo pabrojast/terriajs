@@ -6,6 +6,8 @@ import GeographicTilingScheme from "terriajs-cesium/Source/Core/GeographicTiling
 import Rectangle from "terriajs-cesium/Source/Core/Rectangle";
 import Ellipsoid from "terriajs-cesium/Source/Core/Ellipsoid";
 import GeographicProjection from "terriajs-cesium/Source/Core/GeographicProjection";
+import Cartographic from "terriajs-cesium/Source/Core/Cartographic";
+import Cartesian3 from "terriajs-cesium/Source/Core/Cartesian3";
 import Resource from "terriajs-cesium/Source/Core/Resource";
 import ImageryLayerFeatureInfo from "terriajs-cesium/Source/Scene/ImageryLayerFeatureInfo";
 import GetFeatureInfoFormat from "terriajs-cesium/Source/Scene/GetFeatureInfoFormat";
@@ -1761,14 +1763,63 @@ class CustomGeographicTilingScheme {
     const longitude = position.longitude;
     const latitude = position.latitude;
 
-    const numberOfXTiles = this.getNumberOfXTilesAtLevel(level);
-    const numberOfYTiles = this.getNumberOfYTilesAtLevel(level);
+    const levelDim = this.levelDimensions.get(level);
 
-    const rectangle = this.rectangle;
-    const xTileWidth = (rectangle.east - rectangle.west) / numberOfXTiles;
-    const yTileHeight = (rectangle.north - rectangle.south) / numberOfYTiles;
+    if (
+      !levelDim ||
+      !levelDim.scaleDenominator ||
+      !levelDim.tileWidth ||
+      !levelDim.tileHeight ||
+      !levelDim.topLeftCorner
+    ) {
+      // Fallback to uniform distribution
+      const numberOfXTiles = this.getNumberOfXTilesAtLevel(level);
+      const numberOfYTiles = this.getNumberOfYTilesAtLevel(level);
+      const rectangle = this.rectangle;
+      const xTileWidth = (rectangle.east - rectangle.west) / numberOfXTiles;
+      const yTileHeight = (rectangle.north - rectangle.south) / numberOfYTiles;
 
-    let xTileCoordinate = Math.floor((longitude - rectangle.west) / xTileWidth);
+      let xTileCoordinate = Math.floor(
+        (longitude - rectangle.west) / xTileWidth
+      );
+      if (xTileCoordinate >= numberOfXTiles) {
+        xTileCoordinate = numberOfXTiles - 1;
+      }
+      if (xTileCoordinate < 0) {
+        xTileCoordinate = 0;
+      }
+
+      let yTileCoordinate = Math.floor(
+        (rectangle.north - latitude) / yTileHeight
+      );
+      if (yTileCoordinate >= numberOfYTiles) {
+        yTileCoordinate = numberOfYTiles - 1;
+      }
+      if (yTileCoordinate < 0) {
+        yTileCoordinate = 0;
+      }
+
+      result.x = xTileCoordinate;
+      result.y = yTileCoordinate;
+      return result;
+    }
+
+    // Use ScaleDenominator to calculate actual tile size
+    const pixelSizeMeters = levelDim.scaleDenominator * 0.00028;
+    const tileWidthMeters = levelDim.tileWidth * pixelSizeMeters;
+    const tileHeightMeters = levelDim.tileHeight * pixelSizeMeters;
+    const tileWidthDegrees = tileWidthMeters / 111319.49;
+    const tileHeightDegrees = tileHeightMeters / 111319.49;
+
+    const topLeftLon = levelDim.topLeftCorner[0];
+    const topLeftLat = levelDim.topLeftCorner[1];
+
+    const numberOfXTiles = levelDim.width;
+    const numberOfYTiles = levelDim.height;
+
+    let xTileCoordinate = Math.floor(
+      (longitude - topLeftLon) / tileWidthDegrees
+    );
     if (xTileCoordinate >= numberOfXTiles) {
       xTileCoordinate = numberOfXTiles - 1;
     }
@@ -1777,7 +1828,7 @@ class CustomGeographicTilingScheme {
     }
 
     let yTileCoordinate = Math.floor(
-      (rectangle.north - latitude) / yTileHeight
+      (topLeftLat - latitude) / tileHeightDegrees
     );
     if (yTileCoordinate >= numberOfYTiles) {
       yTileCoordinate = numberOfYTiles - 1;
@@ -1797,24 +1848,74 @@ class CustomGeographicTilingScheme {
     level: number,
     result?: Rectangle
   ): Rectangle {
-    const numberOfXTiles = this.getNumberOfXTilesAtLevel(level);
-    const numberOfYTiles = this.getNumberOfYTilesAtLevel(level);
+    const levelDim = this.levelDimensions.get(level);
 
-    const rectangle = this.rectangle;
-    const xTileWidth = (rectangle.east - rectangle.west) / numberOfXTiles;
-    const yTileHeight = (rectangle.north - rectangle.south) / numberOfYTiles;
+    if (
+      !levelDim ||
+      !levelDim.scaleDenominator ||
+      !levelDim.tileWidth ||
+      !levelDim.tileHeight ||
+      !levelDim.topLeftCorner
+    ) {
+      // Fallback to uniform distribution if level info not available
+      const numberOfXTiles = this.getNumberOfXTilesAtLevel(level);
+      const numberOfYTiles = this.getNumberOfYTilesAtLevel(level);
+      const rectangle = this.rectangle;
+      const xTileWidth = (rectangle.east - rectangle.west) / numberOfXTiles;
+      const yTileHeight = (rectangle.north - rectangle.south) / numberOfYTiles;
 
-    const west = x * xTileWidth + rectangle.west;
-    const east = (x + 1) * xTileWidth + rectangle.west;
-    const north = rectangle.north - y * yTileHeight;
-    const south = rectangle.north - (y + 1) * yTileHeight;
+      const west = x * xTileWidth + rectangle.west;
+      const east = (x + 1) * xTileWidth + rectangle.west;
+      const north = rectangle.north - y * yTileHeight;
+      const south = rectangle.north - (y + 1) * yTileHeight;
+
+      if (!result) {
+        return new Rectangle(west, south, east, north);
+      }
+      result.west = west;
+      result.south = south;
+      result.east = east;
+      result.north = north;
+      return result;
+    }
+
+    // Use ScaleDenominator to calculate actual tile size in degrees
+    // OGC WMTS standard: PixelSize (meters) = ScaleDenominator × 0.00028
+    const pixelSizeMeters = levelDim.scaleDenominator * 0.00028;
+
+    // Convert tile dimensions from pixels to meters
+    const tileWidthMeters = levelDim.tileWidth * pixelSizeMeters;
+    const tileHeightMeters = levelDim.tileHeight * pixelSizeMeters;
+
+    // Convert meters to degrees (at equator: 1 degree ≈ 111319.49 meters)
+    // For longitude, this is constant regardless of latitude
+    const tileWidthDegrees = tileWidthMeters / 111319.49;
+    // For latitude, we use the same conversion (assuming small tiles where distortion is minimal)
+    const tileHeightDegrees = tileHeightMeters / 111319.49;
+
+    // Calculate bounds using TopLeftCorner and tile sizes
+    const topLeftLon = levelDim.topLeftCorner[0];
+    const topLeftLat = levelDim.topLeftCorner[1];
+
+    const west = topLeftLon + x * tileWidthDegrees;
+    const east = topLeftLon + (x + 1) * tileWidthDegrees;
+    const north = topLeftLat - y * tileHeightDegrees;
+    const south = topLeftLat - (y + 1) * tileHeightDegrees;
 
     // Log first few tiles of level 2 for debugging
     if (level === 2 && x < 3 && y < 2) {
       console.log(
-        `[CustomTilingScheme] Tile (${x},${y},${level}): Grid=${numberOfXTiles}x${numberOfYTiles}, Bounds=[${west.toFixed(
+        `[CustomTilingScheme] Tile (${x},${y},${level}): Scale=${levelDim.scaleDenominator.toFixed(
           2
-        )}, ${south.toFixed(2)}, ${east.toFixed(2)}, ${north.toFixed(2)}]`
+        )}, ` +
+          `PixelSize=${pixelSizeMeters.toFixed(
+            6
+          )}m, TileSize=${tileWidthDegrees.toFixed(
+            4
+          )}°x${tileHeightDegrees.toFixed(4)}°, ` +
+          `Bounds=[${west.toFixed(2)}, ${south.toFixed(2)}, ${east.toFixed(
+            2
+          )}, ${north.toFixed(2)}]`
       );
     }
 
@@ -1901,7 +2002,64 @@ class CustomWebMercatorTilingScheme {
   }
 
   positionToTileXY(position: any, level: number, result?: any): any {
-    return this.baseScheme.positionToTileXY(position, level, result);
+    const levelDim = this.levelDimensions.get(level);
+
+    if (
+      !levelDim ||
+      !levelDim.scaleDenominator ||
+      !levelDim.tileWidth ||
+      !levelDim.tileHeight ||
+      !levelDim.topLeftCorner
+    ) {
+      // Fallback to standard Web Mercator scheme
+      return this.baseScheme.positionToTileXY(position, level, result);
+    }
+
+    if (!defined(result)) {
+      result = { x: 0, y: 0 };
+    }
+
+    // Convert position to Web Mercator projection
+    const webMercatorPos = this.projection.project(position);
+
+    // Use ScaleDenominator to calculate actual tile size in meters
+    const pixelSizeMeters = levelDim.scaleDenominator * 0.00028;
+    const tileWidthMeters = levelDim.tileWidth * pixelSizeMeters;
+    const tileHeightMeters = levelDim.tileHeight * pixelSizeMeters;
+
+    // Convert TopLeftCorner from geographic to Web Mercator
+    const topLeftGeo = Cartographic.fromDegrees(
+      levelDim.topLeftCorner[0],
+      levelDim.topLeftCorner[1]
+    );
+    const topLeftWebMercator = this.projection.project(topLeftGeo);
+
+    const numberOfXTiles = levelDim.width;
+    const numberOfYTiles = levelDim.height;
+
+    let xTileCoordinate = Math.floor(
+      (webMercatorPos.x - topLeftWebMercator.x) / tileWidthMeters
+    );
+    if (xTileCoordinate >= numberOfXTiles) {
+      xTileCoordinate = numberOfXTiles - 1;
+    }
+    if (xTileCoordinate < 0) {
+      xTileCoordinate = 0;
+    }
+
+    let yTileCoordinate = Math.floor(
+      (topLeftWebMercator.y - webMercatorPos.y) / tileHeightMeters
+    );
+    if (yTileCoordinate >= numberOfYTiles) {
+      yTileCoordinate = numberOfYTiles - 1;
+    }
+    if (yTileCoordinate < 0) {
+      yTileCoordinate = 0;
+    }
+
+    result.x = xTileCoordinate;
+    result.y = yTileCoordinate;
+    return result;
   }
 
   tileXYToRectangle(
@@ -1910,7 +2068,59 @@ class CustomWebMercatorTilingScheme {
     level: number,
     result?: Rectangle
   ): Rectangle {
-    return this.baseScheme.tileXYToRectangle(x, y, level, result);
+    const levelDim = this.levelDimensions.get(level);
+
+    if (
+      !levelDim ||
+      !levelDim.scaleDenominator ||
+      !levelDim.tileWidth ||
+      !levelDim.tileHeight ||
+      !levelDim.topLeftCorner
+    ) {
+      // Fallback to standard Web Mercator scheme
+      return this.baseScheme.tileXYToRectangle(x, y, level, result);
+    }
+
+    // Use ScaleDenominator to calculate actual tile size in meters
+    const pixelSizeMeters = levelDim.scaleDenominator * 0.00028;
+    const tileWidthMeters = levelDim.tileWidth * pixelSizeMeters;
+    const tileHeightMeters = levelDim.tileHeight * pixelSizeMeters;
+
+    // Convert TopLeftCorner from geographic to Web Mercator
+    const topLeftGeo = Cartographic.fromDegrees(
+      levelDim.topLeftCorner[0],
+      levelDim.topLeftCorner[1]
+    );
+    const topLeftWebMercator = this.projection.project(topLeftGeo);
+
+    // Calculate bounds in Web Mercator meters
+    const westMeters = topLeftWebMercator.x + x * tileWidthMeters;
+    const eastMeters = topLeftWebMercator.x + (x + 1) * tileWidthMeters;
+    const northMeters = topLeftWebMercator.y - y * tileHeightMeters;
+    const southMeters = topLeftWebMercator.y - (y + 1) * tileHeightMeters;
+
+    // Convert back to geographic coordinates (radians)
+    const swCorner = this.projection.unproject(
+      new Cartesian3(westMeters, southMeters, 0)
+    );
+    const neCorner = this.projection.unproject(
+      new Cartesian3(eastMeters, northMeters, 0)
+    );
+
+    if (!result) {
+      return new Rectangle(
+        swCorner.longitude,
+        swCorner.latitude,
+        neCorner.longitude,
+        neCorner.latitude
+      );
+    }
+
+    result.west = swCorner.longitude;
+    result.south = swCorner.latitude;
+    result.east = neCorner.longitude;
+    result.north = neCorner.latitude;
+    return result;
   }
 
   tileXYToNativeRectangle(
