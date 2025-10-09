@@ -1807,14 +1807,14 @@ class CustomGeographicTilingScheme {
     // Calculate tile size in degrees from MatrixWidth/MatrixHeight
     const coverageWidthDegrees = 360.0;
     const coverageHeightDegrees = 180.0;
-    const tileWidthDegrees = coverageWidthDegrees / levelDim.matrixWidth;
-    const tileHeightDegrees = coverageHeightDegrees / levelDim.matrixHeight;
+    const tileWidthDegrees = coverageWidthDegrees / levelDim.width;
+    const tileHeightDegrees = coverageHeightDegrees / levelDim.height;
 
     const topLeftLon = levelDim.topLeftCorner[0];
     const topLeftLat = levelDim.topLeftCorner[1];
 
-    const numberOfXTiles = levelDim.matrixWidth;
-    const numberOfYTiles = levelDim.matrixHeight;
+    const numberOfXTiles = levelDim.width;
+    const numberOfYTiles = levelDim.height;
 
     let xTileCoordinate = Math.floor(
       (longitude - topLeftLon) / tileWidthDegrees
@@ -1884,8 +1884,8 @@ class CustomGeographicTilingScheme {
     const coverageHeightDegrees = 180.0;
 
     // Tile size = Coverage / Number of tiles at this level
-    const tileWidthDegrees = coverageWidthDegrees / levelDim.matrixWidth;
-    const tileHeightDegrees = coverageHeightDegrees / levelDim.matrixHeight;
+    const tileWidthDegrees = coverageWidthDegrees / levelDim.width;
+    const tileHeightDegrees = coverageHeightDegrees / levelDim.height;
 
     // Calculate bounds using TopLeftCorner and tile sizes
     const topLeftLon = levelDim.topLeftCorner[0];
@@ -1900,7 +1900,7 @@ class CustomGeographicTilingScheme {
     if (level === 2 && x < 3 && y < 2) {
       const pixelSizeMeters = levelDim.scaleDenominator * 0.00028;
       console.log(
-        `[CustomTilingScheme] Tile (${x},${y},${level}): Matrix=${levelDim.matrixWidth}x${levelDim.matrixHeight}, ` +
+        `[CustomTilingScheme] Tile (${x},${y},${level}): Matrix=${levelDim.width}x${levelDim.height}, ` +
           `Scale=${levelDim.scaleDenominator.toFixed(
             2
           )}, PixelSize=${pixelSizeMeters.toFixed(6)}m, ` +
