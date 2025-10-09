@@ -1244,7 +1244,7 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
 
     registerTag("TileMatrix", (_provider, x, y, level) => {
       const label = tileMatrixForLevel(level);
-      if (x < 3 && y < 2) {
+      if (level <= 2 && x < 3 && y < 2) {
         console.log(
           `[WMTS] Tag TileMatrix -> ${label} (level=${level}, x=${x}, y=${y})`
         );
@@ -1262,7 +1262,7 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
     );
 
     registerTag("TileRow", (_provider, x, y, level) => {
-      if (x < 3 && y < 2) {
+      if (level <= 2 && x < 3 && y < 2) {
         console.log(
           `[WMTS] Tag TileRow   -> ${y} (level=${level}, x=${x}, y=${y})`
         );
@@ -1273,7 +1273,7 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
     registerTag("tilerow", (_provider, _x, y) => y.toString());
 
     registerTag("TileCol", (_provider, x, y, level) => {
-      if (x < 3 && y < 2) {
+      if (level <= 2 && x < 3 && y < 2) {
         console.log(
           `[WMTS] Tag TileCol   -> ${x} (level=${level}, x=${x}, y=${y})`
         );
@@ -1330,8 +1330,31 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
       return undefined;
     }
 
-    const minIndex = 0;
-    const maxIndex = Math.max(0, tileMatrixSet.labels.length - 1);
+    const minIndex = tileMatrixSet.minLevel;
+    const maxIndex = tileMatrixSet.maxLevel;
+
+    console.log(
+      `[WMTS] Level range: min=${minIndex}, max=${maxIndex}, labelCount=${tileMatrixSet.labels.length}`
+    );
+
+    // Create wrapper for custom tags that logs the generated URLs
+    const loggingCustomTags: Record<
+      string,
+      (
+        imageryProvider: UrlTemplateImageryProvider,
+        x: number,
+        y: number,
+        level: number
+      ) => string
+    > = {};
+
+    Object.keys(customTags).forEach((key) => {
+      const originalTag = customTags[key];
+      loggingCustomTags[key] = (provider, x, y, level) => {
+        const value = originalTag(provider, x, y, level);
+        return value;
+      };
+    });
 
     const provider = new UrlTemplateImageryProvider({
       url: proxyCatalogItemUrl(this, templateUrl),
@@ -1341,7 +1364,10 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
       minimumLevel: this.minimumLevel ?? minIndex,
       maximumLevel: this.maximumLevel ?? maxIndex,
       credit: this.attribution,
-      customTags: Object.keys(customTags).length > 0 ? customTags : undefined,
+      customTags:
+        Object.keys(loggingCustomTags).length > 0
+          ? loggingCustomTags
+          : undefined,
       enablePickFeatures: this.allowFeaturePicking
     }) as ExtendedImageryProvider;
 
