@@ -1014,12 +1014,17 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
     );
   }
 
-  private getTileMatrixLevelDimensions(
-    tileMatrixSetId: string
-  ):
+  private getTileMatrixLevelDimensions(tileMatrixSetId: string):
     | Map<
         number,
-        { width: number; height: number; topLeftCorner?: [number, number] }
+        {
+          width: number;
+          height: number;
+          topLeftCorner?: [number, number];
+          scaleDenominator?: number;
+          tileWidth?: number;
+          tileHeight?: number;
+        }
       >
     | undefined {
     const tileMatrixSet = this.getTileMatrixSetDefinition(tileMatrixSetId);
@@ -1032,7 +1037,14 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
 
     const levelDimensions = new Map<
       number,
-      { width: number; height: number; topLeftCorner?: [number, number] }
+      {
+        width: number;
+        height: number;
+        topLeftCorner?: [number, number];
+        scaleDenominator?: number;
+        tileWidth?: number;
+        tileHeight?: number;
+      }
     >();
     tileMatrices.forEach((matrix: any, index: number) => {
       const width = Number(matrix.MatrixWidth);
@@ -1049,15 +1061,20 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
           const y = parseFloat(coords[1]);
           if (Number.isFinite(x) && Number.isFinite(y)) {
             topLeftCorner = [x, y];
-            // Log to help debug coordinate order
-            if (key <= 2) {
-              console.log(
-                `[WMTS TileMatrix] Level ${key}: TopLeftCorner=[${x}, ${y}], Size=${width}x${height}`
-              );
-            }
           }
         }
       }
+
+      // Parse ScaleDenominator if available
+      const scaleDenominator = matrix.ScaleDenominator
+        ? Number(matrix.ScaleDenominator)
+        : undefined;
+
+      // Parse TileWidth and TileHeight if available
+      const tileWidth = matrix.TileWidth ? Number(matrix.TileWidth) : undefined;
+      const tileHeight = matrix.TileHeight
+        ? Number(matrix.TileHeight)
+        : undefined;
 
       if (
         Number.isFinite(width) &&
@@ -1065,7 +1082,14 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
         width > 0 &&
         height > 0
       ) {
-        levelDimensions.set(key, { width, height, topLeftCorner });
+        levelDimensions.set(key, {
+          width,
+          height,
+          topLeftCorner,
+          scaleDenominator,
+          tileWidth,
+          tileHeight
+        });
       }
     });
 
@@ -1633,7 +1657,14 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
 class CustomGeographicTilingScheme {
   private levelDimensions: Map<
     number,
-    { width: number; height: number; topLeftCorner?: [number, number] }
+    {
+      width: number;
+      height: number;
+      topLeftCorner?: [number, number];
+      scaleDenominator?: number;
+      tileWidth?: number;
+      tileHeight?: number;
+    }
   >;
   private rectangleByLevel: Map<number, Rectangle>;
   public ellipsoid: Ellipsoid;
@@ -1643,7 +1674,14 @@ class CustomGeographicTilingScheme {
   constructor(
     levelDimensions: Map<
       number,
-      { width: number; height: number; topLeftCorner?: [number, number] }
+      {
+        width: number;
+        height: number;
+        topLeftCorner?: [number, number];
+        scaleDenominator?: number;
+        tileWidth?: number;
+        tileHeight?: number;
+      }
     >
   ) {
     this.levelDimensions = levelDimensions;
@@ -1796,7 +1834,14 @@ class CustomGeographicTilingScheme {
 class CustomWebMercatorTilingScheme {
   private levelDimensions: Map<
     number,
-    { width: number; height: number; topLeftCorner?: [number, number] }
+    {
+      width: number;
+      height: number;
+      topLeftCorner?: [number, number];
+      scaleDenominator?: number;
+      tileWidth?: number;
+      tileHeight?: number;
+    }
   >;
   private baseScheme: WebMercatorTilingScheme;
   public ellipsoid: Ellipsoid;
@@ -1806,7 +1851,14 @@ class CustomWebMercatorTilingScheme {
   constructor(
     levelDimensions: Map<
       number,
-      { width: number; height: number; topLeftCorner?: [number, number] }
+      {
+        width: number;
+        height: number;
+        topLeftCorner?: [number, number];
+        scaleDenominator?: number;
+        tileWidth?: number;
+        tileHeight?: number;
+      }
     >
   ) {
     this.levelDimensions = levelDimensions;
