@@ -1804,18 +1804,17 @@ class CustomGeographicTilingScheme {
       return result;
     }
 
-    // Use ScaleDenominator to calculate actual tile size
-    const pixelSizeMeters = levelDim.scaleDenominator * 0.00028;
-    const tileWidthMeters = levelDim.tileWidth * pixelSizeMeters;
-    const tileHeightMeters = levelDim.tileHeight * pixelSizeMeters;
-    const tileWidthDegrees = tileWidthMeters / 111319.49;
-    const tileHeightDegrees = tileHeightMeters / 111319.49;
+    // Calculate tile size in degrees from MatrixWidth/MatrixHeight
+    const coverageWidthDegrees = 360.0;
+    const coverageHeightDegrees = 180.0;
+    const tileWidthDegrees = coverageWidthDegrees / levelDim.matrixWidth;
+    const tileHeightDegrees = coverageHeightDegrees / levelDim.matrixHeight;
 
     const topLeftLon = levelDim.topLeftCorner[0];
     const topLeftLat = levelDim.topLeftCorner[1];
 
-    const numberOfXTiles = levelDim.width;
-    const numberOfYTiles = levelDim.height;
+    const numberOfXTiles = levelDim.matrixWidth;
+    const numberOfYTiles = levelDim.matrixHeight;
 
     let xTileCoordinate = Math.floor(
       (longitude - topLeftLon) / tileWidthDegrees
@@ -1879,19 +1878,14 @@ class CustomGeographicTilingScheme {
       return result;
     }
 
-    // Use ScaleDenominator to calculate actual tile size in degrees
-    // OGC WMTS standard: PixelSize (meters) = ScaleDenominator × 0.00028
-    const pixelSizeMeters = levelDim.scaleDenominator * 0.00028;
+    // Calculate tile size in degrees from MatrixWidth/MatrixHeight
+    // For EPSG:4326, the coverage is always -180 to 180 (360°) × -90 to 90 (180°)
+    const coverageWidthDegrees = 360.0;
+    const coverageHeightDegrees = 180.0;
 
-    // Convert tile dimensions from pixels to meters
-    const tileWidthMeters = levelDim.tileWidth * pixelSizeMeters;
-    const tileHeightMeters = levelDim.tileHeight * pixelSizeMeters;
-
-    // Convert meters to degrees (at equator: 1 degree ≈ 111319.49 meters)
-    // For longitude, this is constant regardless of latitude
-    const tileWidthDegrees = tileWidthMeters / 111319.49;
-    // For latitude, we use the same conversion (assuming small tiles where distortion is minimal)
-    const tileHeightDegrees = tileHeightMeters / 111319.49;
+    // Tile size = Coverage / Number of tiles at this level
+    const tileWidthDegrees = coverageWidthDegrees / levelDim.matrixWidth;
+    const tileHeightDegrees = coverageHeightDegrees / levelDim.matrixHeight;
 
     // Calculate bounds using TopLeftCorner and tile sizes
     const topLeftLon = levelDim.topLeftCorner[0];
@@ -1904,15 +1898,15 @@ class CustomGeographicTilingScheme {
 
     // Log first few tiles of level 2 for debugging
     if (level === 2 && x < 3 && y < 2) {
+      const pixelSizeMeters = levelDim.scaleDenominator * 0.00028;
       console.log(
-        `[CustomTilingScheme] Tile (${x},${y},${level}): Scale=${levelDim.scaleDenominator.toFixed(
-          2
-        )}, ` +
-          `PixelSize=${pixelSizeMeters.toFixed(
-            6
-          )}m, TileSize=${tileWidthDegrees.toFixed(
+        `[CustomTilingScheme] Tile (${x},${y},${level}): Matrix=${levelDim.matrixWidth}x${levelDim.matrixHeight}, ` +
+          `Scale=${levelDim.scaleDenominator.toFixed(
+            2
+          )}, PixelSize=${pixelSizeMeters.toFixed(6)}m, ` +
+          `TileSize=${tileWidthDegrees.toFixed(4)}°x${tileHeightDegrees.toFixed(
             4
-          )}°x${tileHeightDegrees.toFixed(4)}°, ` +
+          )}°, ` +
           `Bounds=[${west.toFixed(2)}, ${south.toFixed(2)}, ${east.toFixed(
             2
           )}, ${north.toFixed(2)}]`
