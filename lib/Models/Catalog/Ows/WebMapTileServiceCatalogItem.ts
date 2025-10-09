@@ -1117,9 +1117,21 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
       `[WMTS TilingScheme] TileMatrixSet: ${tileMatrixSetId}, Projection: ${projection}`
     );
     const levelDetails = Array.from(levelDimensions.entries()).map(
-      ([level, dims]) => `${level}:${dims.width}x${dims.height}`
+      ([level, dims]) => {
+        const scaleInfo = dims.scaleDenominator
+          ? `, Scale=${dims.scaleDenominator.toFixed(2)}`
+          : "";
+        const tileInfo =
+          dims.tileWidth && dims.tileHeight
+            ? `, TileSize=${dims.tileWidth}x${dims.tileHeight}`
+            : "";
+        const topLeftInfo = dims.topLeftCorner
+          ? `, TopLeft=[${dims.topLeftCorner[0]},${dims.topLeftCorner[1]}]`
+          : "";
+        return `${level}:${dims.width}x${dims.height}${scaleInfo}${tileInfo}${topLeftInfo}`;
+      }
     );
-    console.log("[WMTS TilingScheme] Level dimensions:", levelDetails);
+    console.log("[WMTS TilingScheme] Level details:", levelDetails);
 
     // Create custom tiling scheme that respects the actual tile matrix dimensions
     if (projection === "EPSG:4326") {
