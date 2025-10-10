@@ -52,7 +52,7 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
   }
 
   get name() {
-    return i18next.t("models.cogStyling.name");
+    return "Edit Style";
   }
 
   get icon() {
@@ -61,7 +61,7 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
 
   get footer() {
     return {
-      buttonText: i18next.t("models.cogStyling.reset"),
+      buttonText: "Reset to Defaults",
       onClick: action(() => {
         // Delete user stratum for renderOptions to reset to defaults
         this.item.renderOptions?.strata.delete(CommonStrata.user);
@@ -140,7 +140,7 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
     return {
       type: "group",
       id: "display-range",
-      name: "Display Range",
+      name: "Display Range (Transparency Filter)",
       selectableDimensions: filterOutUndefined([applyDim, minDim, maxDim]),
       isOpen: false
     };
@@ -401,7 +401,7 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
     return {
       type: "checkbox",
       id: "apply-display-range",
-      name: "Apply Display Range",
+      name: "Enable (values outside range will be transparent)",
       selectedId: applyDisplayRange ? "true" : "false",
       options: [{ id: "true" }],
       setDimensionValue: action(

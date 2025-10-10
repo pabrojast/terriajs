@@ -85,7 +85,7 @@ export class SingleRenderOptionsTraits extends ModelTraits {
   @primitiveArrayTrait({
     name: "Display Range",
     description:
-      "Range of values to render; values outside the range will be transparent.",
+      "Range of values to display; values outside this range will be transparent. Must enable 'Apply Display Range' for this to take effect.",
     type: "number"
   })
   displayRange?: [number, number];
@@ -93,7 +93,7 @@ export class SingleRenderOptionsTraits extends ModelTraits {
   @primitiveTrait({
     type: "boolean",
     name: "Apply Display Range",
-    description: "Sets whether to use the display range."
+    description: "Enable the display range filter. When enabled, values outside the Display Range will be transparent."
   })
   applyDisplayRange?: boolean;
 
