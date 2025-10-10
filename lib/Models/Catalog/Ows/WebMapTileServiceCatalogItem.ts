@@ -1775,32 +1775,17 @@ class CustomGeographicTilingScheme {
     this.rectangleByLevel = new Map();
     this.loggedTiles = new Set();
 
-    // Check if we have TopLeftCorner information for level 0
+    // For EPSG:4326, use standard geographic rectangle covering the entire globe
+    // This ensures consistent behavior regardless of TopLeftCorner specifics
+    // TopLeftCorner will be used in tile calculations, not for the overall scheme bounds
+    this.rectangle = Rectangle.fromDegrees(-180, -90, 180, 90);
+
     const level0 = levelDimensions.get(0);
     if (level0?.topLeftCorner) {
       const [topLeftLon, topLeftLat] = level0.topLeftCorner;
-      // Convert degrees to radians
-      const west = topLeftLon * (Math.PI / 180);
-      const north = topLeftLat * (Math.PI / 180);
-
-      // For EPSG:4326, assuming full world coverage from TopLeftCorner
-      // TopLeftCorner is typically -180, 90 for global EPSG:4326
-      const fullWidth = Math.PI * 2; // 360 degrees in radians
-      const fullHeight = Math.PI; // 180 degrees in radians
-
-      const east = west + fullWidth;
-      const south = north - fullHeight;
-
-      this.rectangle = new Rectangle(west, south, east, north);
-
       console.log(
-        `[CustomTilingScheme] Created from TopLeftCorner: [${topLeftLon}, ${topLeftLat}] => Rectangle: [${west.toFixed(
-          2
-        )}, ${south.toFixed(2)}, ${east.toFixed(2)}, ${north.toFixed(2)}]`
+        `[CustomTilingScheme] Using TopLeftCorner: [${topLeftLon}, ${topLeftLat}] for tile calculations`
       );
-    } else {
-      // Fallback to standard geographic rectangle
-      this.rectangle = Rectangle.MAX_VALUE;
     }
 
     this.projection = new GeographicProjection(this.ellipsoid);
@@ -1839,13 +1824,7 @@ class CustomGeographicTilingScheme {
 
     const levelDim = this.levelDimensions.get(level);
 
-    if (
-      !levelDim ||
-      !levelDim.scaleDenominator ||
-      !levelDim.tileWidth ||
-      !levelDim.tileHeight ||
-      !levelDim.topLeftCorner
-    ) {
+    if (!levelDim) {
       // Fallback to uniform distribution
       const numberOfXTiles = this.getNumberOfXTilesAtLevel(level);
       const numberOfYTiles = this.getNumberOfYTilesAtLevel(level);
@@ -1887,8 +1866,11 @@ class CustomGeographicTilingScheme {
     const tileWidthDegrees = coverageWidthDegrees / levelDim.width;
     const tileHeightDegrees = coverageHeightDegrees / levelDim.height;
 
-    const topLeftLon = levelDim.topLeftCorner[0];
-    const topLeftLat = levelDim.topLeftCorner[1];
+    // Use TopLeftCorner if available, otherwise assume standard EPSG:4326 origin
+    const topLeftLon = levelDim.topLeftCorner
+      ? levelDim.topLeftCorner[0]
+      : -180;
+    const topLeftLat = levelDim.topLeftCorner ? levelDim.topLeftCorner[1] : 90;
 
     const numberOfXTiles = levelDim.width;
     const numberOfYTiles = levelDim.height;
@@ -1926,14 +1908,8 @@ class CustomGeographicTilingScheme {
   ): Rectangle {
     const levelDim = this.levelDimensions.get(level);
 
-    if (
-      !levelDim ||
-      !levelDim.scaleDenominator ||
-      !levelDim.tileWidth ||
-      !levelDim.tileHeight ||
-      !levelDim.topLeftCorner
-    ) {
-      // Fallback to uniform distribution if level info not available
+    if (!levelDim) {
+      // No level dimensions available - use standard geographic distribution
       const numberOfXTiles = this.getNumberOfXTilesAtLevel(level);
       const numberOfYTiles = this.getNumberOfYTilesAtLevel(level);
       const rectangle = this.rectangle;
@@ -1964,9 +1940,11 @@ class CustomGeographicTilingScheme {
     const tileWidthDegrees = coverageWidthDegrees / levelDim.width;
     const tileHeightDegrees = coverageHeightDegrees / levelDim.height;
 
-    // Calculate bounds using TopLeftCorner and tile sizes (in degrees)
-    const topLeftLon = levelDim.topLeftCorner[0];
-    const topLeftLat = levelDim.topLeftCorner[1];
+    // Use TopLeftCorner if available, otherwise assume standard EPSG:4326 origin
+    const topLeftLon = levelDim.topLeftCorner
+      ? levelDim.topLeftCorner[0]
+      : -180;
+    const topLeftLat = levelDim.topLeftCorner ? levelDim.topLeftCorner[1] : 90;
 
     const westDeg = topLeftLon + x * tileWidthDegrees;
     const eastDeg = topLeftLon + (x + 1) * tileWidthDegrees;
@@ -1983,12 +1961,14 @@ class CustomGeographicTilingScheme {
     const tileKey = `${level}-${x}-${y}`;
     if (level === 2 && x < 3 && y < 2 && !this.loggedTiles.has(tileKey)) {
       this.loggedTiles.add(tileKey);
-      const pixelSizeMeters = levelDim.scaleDenominator * 0.00028;
+      const scaleInfo = levelDim.scaleDenominator
+        ? `, Scale=${levelDim.scaleDenominator.toFixed(2)}`
+        : "";
+      const pixelInfo = levelDim.scaleDenominator
+        ? `, PixelSize=${(levelDim.scaleDenominator * 0.00028).toFixed(6)}m`
+        : "";
       console.log(
-        `[CustomTilingScheme] Tile (${x},${y},${level}): Matrix=${levelDim.width}x${levelDim.height}, ` +
-          `Scale=${levelDim.scaleDenominator.toFixed(
-            2
-          )}, PixelSize=${pixelSizeMeters.toFixed(6)}m, ` +
+        `[CustomTilingScheme] Tile (${x},${y},${level}): Matrix=${levelDim.width}x${levelDim.height}${scaleInfo}${pixelInfo}, ` +
           `TileSize=${tileWidthDegrees.toFixed(4)}°x${tileHeightDegrees.toFixed(
             4
           )}°, ` +
