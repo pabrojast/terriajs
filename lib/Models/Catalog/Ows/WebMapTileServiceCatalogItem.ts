@@ -1881,6 +1881,8 @@ class CustomGeographicTilingScheme {
   public ellipsoid: Ellipsoid;
   public rectangle: Rectangle;
   public projection: GeographicProjection;
+  public numberOfLevelZeroTilesX: number;
+  public numberOfLevelZeroTilesY: number;
 
   constructor(
     levelDimensions: Map<
@@ -1906,10 +1908,14 @@ class CustomGeographicTilingScheme {
     this.rectangle = Rectangle.fromDegrees(-180, -90, 180, 90);
 
     const level0 = levelDimensions.get(0);
+    // Set the number of tiles at level 0
+    this.numberOfLevelZeroTilesX = level0?.width ?? 2;
+    this.numberOfLevelZeroTilesY = level0?.height ?? 1;
+
     if (level0?.topLeftCorner) {
       const [topLeftLon, topLeftLat] = level0.topLeftCorner;
       console.log(
-        `[CustomTilingScheme] Using TopLeftCorner: [${topLeftLon}, ${topLeftLat}] for tile calculations`
+        `[CustomTilingScheme] Using TopLeftCorner: [${topLeftLon}, ${topLeftLat}] for tile calculations, Level0Tiles=${this.numberOfLevelZeroTilesX}x${this.numberOfLevelZeroTilesY}`
       );
     }
 
@@ -2020,6 +2026,19 @@ class CustomGeographicTilingScheme {
       yTileCoordinate = 0;
     }
 
+    // Log a few position->tile conversions for debugging
+    if (level === 2 && Math.random() < 0.01) {
+      // Log 1% of requests
+      console.log(
+        `[positionToTileXY] Level ${level}, Pos=(${longitude.toFixed(
+          2
+        )}°, ${latitude.toFixed(
+          2
+        )}°) -> Tile=(${xTileCoordinate}, ${yTileCoordinate}), ` +
+          `TileHeight=${tileHeightDegrees.toFixed(2)}°, TopLat=${topLeftLat}`
+      );
+    }
+
     result.x = xTileCoordinate;
     result.y = yTileCoordinate;
     return result;
@@ -2099,7 +2118,10 @@ class CustomGeographicTilingScheme {
           )}°, ` +
           `Bounds=[${westDeg.toFixed(2)}, ${southDeg.toFixed(
             2
-          )}, ${eastDeg.toFixed(2)}, ${northDeg.toFixed(2)}] deg`
+          )}, ${eastDeg.toFixed(2)}, ${northDeg.toFixed(2)}] deg, ` +
+          `Radians=[${west.toFixed(4)}, ${south.toFixed(4)}, ${east.toFixed(
+            4
+          )}, ${north.toFixed(4)}]`
       );
     }
 
@@ -2144,6 +2166,8 @@ class CustomWebMercatorTilingScheme {
   public ellipsoid: Ellipsoid;
   public rectangle: Rectangle;
   public projection: any;
+  public numberOfLevelZeroTilesX: number;
+  public numberOfLevelZeroTilesY: number;
 
   constructor(
     levelDimensions: Map<
@@ -2163,6 +2187,11 @@ class CustomWebMercatorTilingScheme {
     this.ellipsoid = this.baseScheme.ellipsoid;
     this.rectangle = this.baseScheme.rectangle;
     this.projection = this.baseScheme.projection;
+
+    // Set the number of tiles at level 0
+    const level0 = levelDimensions.get(0);
+    this.numberOfLevelZeroTilesX = level0?.width ?? 1;
+    this.numberOfLevelZeroTilesY = level0?.height ?? 1;
   }
 
   getNumberOfXTilesAtLevel(level: number): number {
