@@ -2118,8 +2118,9 @@ class CustomGeographicTilingScheme {
     const south = southDeg * (Math.PI / 180);
 
     // Log first few tiles of level 2 for debugging (only once per tile)
+    // IMPORTANT: Log ALL y values including y=2 to verify third row
     const tileKey = `${level}-${x}-${y}`;
-    if (level === 2 && x < 3 && y < 2 && !this.loggedTiles.has(tileKey)) {
+    if (level === 2 && x < 5 && y <= 2 && !this.loggedTiles.has(tileKey)) {
       this.loggedTiles.add(tileKey);
       const scaleInfo = levelDim.scaleDenominator
         ? `, Scale=${levelDim.scaleDenominator.toFixed(2)}`
