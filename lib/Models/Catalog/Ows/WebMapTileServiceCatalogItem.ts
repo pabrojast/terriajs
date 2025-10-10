@@ -1150,7 +1150,10 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
 
     // Create custom tiling scheme that respects the actual tile matrix dimensions
     if (projection === "EPSG:4326") {
-      return new CustomGeographicTilingScheme(levelDimensions);
+      // Diagnostic: set invertY to true to test bottom-up row indexing.
+      // If this fixes the visual seam, the WMTS service expects bottom-up TileRow.
+      const invertY = true; // TODO: set false after test or make configurable
+      return new CustomGeographicTilingScheme(levelDimensions, invertY);
     } else {
       return new CustomWebMercatorTilingScheme(levelDimensions);
     }
@@ -1756,6 +1759,7 @@ class CustomGeographicTilingScheme {
   public ellipsoid: Ellipsoid;
   public rectangle: Rectangle;
   public projection: GeographicProjection;
+  private invertY: boolean;
 
   constructor(
     levelDimensions: Map<
@@ -1768,12 +1772,14 @@ class CustomGeographicTilingScheme {
         tileWidth?: number;
         tileHeight?: number;
       }
-    >
+    >,
+    invertY: boolean = false
   ) {
     this.levelDimensions = levelDimensions;
     this.ellipsoid = Ellipsoid.WGS84;
     this.rectangleByLevel = new Map();
     this.loggedTiles = new Set();
+    this.invertY = invertY;
 
     // Check if we have TopLeftCorner information for level 0
     const level0 = levelDimensions.get(0);
@@ -1913,8 +1919,13 @@ class CustomGeographicTilingScheme {
       yTileCoordinate = 0;
     }
 
+    // Apply optional inversion to test bottom-up vs top-down row indexing
+    const finalY = this.invertY
+      ? numberOfYTiles - 1 - yTileCoordinate
+      : yTileCoordinate;
+
     result.x = xTileCoordinate;
-    result.y = yTileCoordinate;
+    result.y = finalY;
     return result;
   }
 
@@ -1964,14 +1975,25 @@ class CustomGeographicTilingScheme {
     const tileWidthDegrees = coverageWidthDegrees / levelDim.width;
     const tileHeightDegrees = coverageHeightDegrees / levelDim.height;
 
+    // Also compute a "scale-based" diagnostic tile span using ScaleDenominator
+    // WMTS spec links ScaleDenominator to a pixel size of 0.28mm; for EPSG:4326
+    // we approximate degrees per pixel via meters-per-degree at the equator.
+    const METERS_PER_DEGREE = 111319.49079327358; // equatorial approximation
+    const pixelSizeMeters = levelDim.scaleDenominator * 0.00028;
+    const degreesPerPixel = pixelSizeMeters / METERS_PER_DEGREE;
+    const tileWidthDegScale = (levelDim.tileWidth ?? 256) * degreesPerPixel;
+    const tileHeightDegScale = (levelDim.tileHeight ?? 256) * degreesPerPixel;
+
     // Calculate bounds using TopLeftCorner and tile sizes (in degrees)
     const topLeftLon = levelDim.topLeftCorner[0];
     const topLeftLat = levelDim.topLeftCorner[1];
 
+    // Optional inversion for diagnostics
+    const yIndex = this.invertY ? levelDim.height - 1 - y : y;
     const westDeg = topLeftLon + x * tileWidthDegrees;
     const eastDeg = topLeftLon + (x + 1) * tileWidthDegrees;
-    const northDeg = topLeftLat - y * tileHeightDegrees;
-    const southDeg = topLeftLat - (y + 1) * tileHeightDegrees;
+    const northDeg = topLeftLat - yIndex * tileHeightDegrees;
+    const southDeg = topLeftLat - (yIndex + 1) * tileHeightDegrees;
 
     // Convert from degrees to radians for Cesium Rectangle
     const west = westDeg * (Math.PI / 180);
@@ -1983,7 +2005,6 @@ class CustomGeographicTilingScheme {
     const tileKey = `${level}-${x}-${y}`;
     if (level === 2 && x < 3 && y < 2 && !this.loggedTiles.has(tileKey)) {
       this.loggedTiles.add(tileKey);
-      const pixelSizeMeters = levelDim.scaleDenominator * 0.00028;
       console.log(
         `[CustomTilingScheme] Tile (${x},${y},${level}): Matrix=${levelDim.width}x${levelDim.height}, ` +
           `Scale=${levelDim.scaleDenominator.toFixed(
@@ -1995,6 +2016,14 @@ class CustomGeographicTilingScheme {
           `Bounds=[${westDeg.toFixed(2)}, ${southDeg.toFixed(
             2
           )}, ${eastDeg.toFixed(2)}, ${northDeg.toFixed(2)}] deg`
+      );
+      console.log(
+        `[CustomTilingScheme][Diag] SpanFromCoverage=${tileWidthDegrees.toFixed(
+          4
+        )}°x${tileHeightDegrees.toFixed(4)}°, ` +
+          `SpanFromScale=${tileWidthDegScale.toFixed(
+            4
+          )}°x${tileHeightDegScale.toFixed(4)}°`
       );
     }
 
