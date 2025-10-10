@@ -840,14 +840,27 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
       });
 
       if (!imageryProvider) {
+        const minIndex = 0;
+        const maxIndex = Math.max(0, tileMatrixSet.labels.length - 1);
+        const minLevel = clamp(
+          this.minimumLevel ?? tileMatrixSet.minLevel ?? minIndex,
+          minIndex,
+          maxIndex
+        );
+        const maxLevel = clamp(
+          this.maximumLevel ?? tileMatrixSet.maxLevel ?? maxIndex,
+          minIndex,
+          maxIndex
+        );
+
         imageryProvider = new WebMapTileServiceImageryProvider({
           url: proxyCatalogItemUrl(this, baseUrl),
           layer: layerIdentifier,
           style: this.style,
           tileMatrixSetID: tileMatrixSet.id,
           tileMatrixLabels: tileMatrixSet.labels,
-          minimumLevel: this.minimumLevel ?? tileMatrixSet.minLevel,
-          maximumLevel: this.maximumLevel ?? tileMatrixSet.maxLevel,
+          minimumLevel: minLevel,
+          maximumLevel: maxLevel,
           tileWidth: tileMatrixSet.tileWidth,
           tileHeight: tileMatrixSet.tileHeight,
           tilingScheme: tilingScheme,
@@ -1179,6 +1192,35 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
       tokens: Array.from(tokens),
       hasBraces: templateUrl.includes("{")
     });
+
+    // If the template contains WMTS placeholders, prefer using the native
+    // WebMapTileServiceImageryProvider instead of UrlTemplateImageryProvider.
+    // Cesium's WMTS provider understands these tokens and handles level/row/col
+    // mapping consistently with the tiling scheme, which avoids subtle
+    // off-by-one or scaling issues when using custom tags.
+    const wmtsPlaceholderTokens = new Set([
+      "TileMatrixSet",
+      "tilematrixset",
+      "TileMatrix",
+      "tilematrix",
+      "TileMatrixId",
+      "TileMatrixID",
+      "TileRow",
+      "TILEROW",
+      "tilerow",
+      "TileCol",
+      "TILECOL",
+      "tilecol"
+    ]);
+    const containsWmtsPlaceholders = Array.from(tokens).some((t) =>
+      wmtsPlaceholderTokens.has(t)
+    );
+    if (containsWmtsPlaceholders) {
+      console.log(
+        "[WMTS] Template contains WMTS placeholders; using WebMapTileServiceImageryProvider"
+      );
+      return undefined;
+    }
     if (tokens.size === 0) {
       // No template tokens – nothing to substitute, so stick with WMTS provider.
       console.log(
@@ -2234,6 +2276,10 @@ function templateMatchesTileMatrixSet(
     lowerTemplate.includes("crs84") ||
     lowerTemplate.includes("4326")
   );
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max);
 }
 
 export function getServiceContactInformation(contactInfo: ServiceProvider) {
