@@ -411,6 +411,32 @@
           }
         }
       }
+    },
+    "cogCatalogItem": {
+      "experimentalReprojectionWarning": "Este COG no está en una proyección nativa (EPSG:4326 o EPSG:3857). La reproyección es experimental y puede que no funcione como se espera. Si tiene control de los datos fuente, le recomendamos reproyectarlos a EPSG:4326 o EPSG:3857 usando GDAL o herramientas similares."
+    },
+    "cog": {
+      "editStyle": "Editar estilo"
+    },
+    "cogStyling": {
+      "name": "Estilo COG",
+      "reset": "Restablecer al estilo predeterminado",
+      "colorScheme": "Esquema de Color",
+      "colorScale": "Escala de Color",
+      "renderType": "Tipo de Renderizado",
+      "continuous": "Continuo",
+      "discrete": "Discreto",
+      "domain": "Dominio de Valores",
+      "minimumValue": "Valor Mínimo",
+      "maximumValue": "Valor Máximo",
+      "displayRange": "Rango de Visualización",
+      "applyDisplayRange": "Aplicar Rango de Visualización",
+      "displayRangeMin": "Rango de Visualización Mín",
+      "displayRangeMax": "Rango de Visualización Máx",
+      "advanced": "Avanzado",
+      "band": "Banda",
+      "clampLow": "Ajustar Valores Bajos",
+      "clampHigh": "Ajustar Valores Altos"
     }
   },
   "analytics": {

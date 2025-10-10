@@ -1,11 +1,13 @@
 import i18next from "i18next";
 import {
+  action,
   computed,
   makeObservable,
   observable,
   onBecomeObserved,
   onBecomeUnobserved,
   override,
+  reaction,
   runInAction
 } from "mobx";
 import GeographicTilingScheme from "terriajs-cesium/Source/Core/GeographicTilingScheme";
@@ -23,6 +25,10 @@ import StratumFromTraits from "../../Definition/StratumFromTraits";
 import StratumOrder from "../../Definition/StratumOrder";
 import Terria from "../../Terria";
 import proxyCatalogItemUrl from "../proxyCatalogItemUrl";
+import Icon from "../../../Styled/Icon";
+import { ViewingControl } from "../../ViewingControls";
+import SelectableDimensionWorkflow from "../../Workflows/SelectableDimensionWorkflow";
+import CogStylingWorkflow from "../../Workflows/CogStylingWorkflow";
 
 /**
  * Loadable stratum for overriding CogCatalogItem traits
@@ -131,6 +137,45 @@ export default class CogCatalogItem extends MappableMixin(
         this.loadMapItems(true);
       }
     });
+
+    // Watch for changes in renderOptions and reload imagery provider
+    reaction(
+      () => ({
+        colorScale: this.renderOptions?.single?.colorScale,
+        colors: this.renderOptions?.single?.colors,
+        type: this.renderOptions?.single?.type,
+        domain: this.renderOptions?.single?.domain,
+        displayRange: this.renderOptions?.single?.displayRange,
+        applyDisplayRange: this.renderOptions?.single?.applyDisplayRange,
+        clampLow: this.renderOptions?.single?.clampLow,
+        clampHigh: this.renderOptions?.single?.clampHigh,
+        band: this.renderOptions?.single?.band
+      }),
+      () => {
+        // Only reload if we have an active imagery provider
+        if (this._imageryProvider && !this.isLoadingMapItems) {
+          this.loadMapItems(true);
+        }
+      }
+    );
+  }
+
+  @override
+  get viewingControls(): ViewingControl[] {
+    return [
+      ...super.viewingControls,
+      {
+        id: CogStylingWorkflow.type,
+        name: i18next.t("models.cog.editStyle"),
+        onClick: action((viewState) =>
+          SelectableDimensionWorkflow.runWorkflow(
+            viewState,
+            new CogStylingWorkflow(this)
+          )
+        ),
+        icon: { glyph: Icon.GLYPHS.layers }
+      }
+    ];
   }
 
   @override

@@ -2075,6 +2075,29 @@
     },
     "cogCatalogItem": {
       "experimentalReprojectionWarning": "This COG is not in a native projection (EPSG:4326 or EPSG:3857). Reprojecting is experimental and may not work as expected. If you have control of the source data we recommend reprojecting to EPSG:4326 or EPSG:3857 using GDAL or similar."
+    },
+    "cog": {
+      "editStyle": "Edit style"
+    },
+    "cogStyling": {
+      "name": "Style COG",
+      "reset": "Reset to default style",
+      "colorScheme": "Color Scheme",
+      "colorScale": "Color Scale",
+      "renderType": "Render Type",
+      "continuous": "Continuous",
+      "discrete": "Discrete",
+      "domain": "Value Domain",
+      "minimumValue": "Minimum Value",
+      "maximumValue": "Maximum Value",
+      "displayRange": "Display Range",
+      "applyDisplayRange": "Apply Display Range",
+      "displayRangeMin": "Display Range Min",
+      "displayRangeMax": "Display Range Max",
+      "advanced": "Advanced",
+      "band": "Band",
+      "clampLow": "Clamp Low Values",
+      "clampHigh": "Clamp High Values"
     }
   },
   "searchProvider": {
