@@ -33,6 +33,8 @@ export class CogLegendStratum extends LoadableStratum(CogCatalogItemTraits) {
     const colorScale = renderOptions.colorScale ?? "rainbow";
     const domain = renderOptions.domain;
     const type = renderOptions.type ?? "continuous";
+    const numberOfBins = renderOptions.numberOfBins;
+    const reverseColorScale = renderOptions.reverseColorScale ?? false;
 
     // Only show legend if we have a domain (either set by user or calculated)
     if (!domain || domain.length !== 2) return undefined;
@@ -43,9 +45,14 @@ export class CogLegendStratum extends LoadableStratum(CogCatalogItemTraits) {
     const scaleColors = COG_COLOR_SCALES[colorScale as keyof typeof COG_COLOR_SCALES];
     if (!scaleColors) return undefined;
 
-    const colors = scaleColors.colors;
+    let colors = scaleColors.colors;
+    
+    // Reverse colors if requested
+    if (reverseColorScale) {
+      colors = [...colors].reverse();
+    }
 
-    const items = this._getLegendItems(colors, minValue, maxValue, type);
+    const items = this._getLegendItems(colors, minValue, maxValue, type, numberOfBins);
     if (!items) return undefined;
 
     return [
@@ -60,11 +67,15 @@ export class CogLegendStratum extends LoadableStratum(CogCatalogItemTraits) {
     colors: string[],
     minValue: number,
     maxValue: number,
-    type: "continuous" | "discrete"
+    type: "continuous" | "discrete",
+    numberOfBins?: number
   ): StratumFromTraits<LegendItemTraits>[] | undefined {
     if (type === "discrete") {
       // For discrete legends, show a fixed number of bins
-      const numBins = Math.min(colors.length, 8);
+      // Use user-specified numberOfBins or default to 8
+      const defaultBins = 8;
+      const userBins = numberOfBins && numberOfBins > 0 ? numberOfBins : defaultBins;
+      const numBins = Math.min(colors.length, userBins);
       const binSize = (maxValue - minValue) / numBins;
 
       return Array.from({ length: numBins }, (_, i) => {
@@ -78,8 +89,10 @@ export class CogLegendStratum extends LoadableStratum(CogCatalogItemTraits) {
         });
       }).reverse();
     } else {
-      // For continuous legends, show a gradient with 7 samples
-      const numSamples = 7;
+      // For continuous legends, show a gradient with samples
+      // Use user-specified numberOfBins or default to 7
+      const defaultSamples = 7;
+      const numSamples = numberOfBins && numberOfBins > 0 ? numberOfBins : defaultSamples;
       return Array.from({ length: numSamples }, (_, i) => {
         const value =
           maxValue - ((maxValue - minValue) * i) / (numSamples - 1);

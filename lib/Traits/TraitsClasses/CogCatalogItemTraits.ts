@@ -117,6 +117,27 @@ export class SingleRenderOptionsTraits extends ModelTraits {
     description: "Mathematical expression to evaluate in the chart."
   })
   expression?: string;
+
+  @primitiveTrait({
+    type: "number",
+    name: "Number of Legend Bins",
+    description: "Number of bins/steps to show in the legend. Default is 7 for continuous and 8 for discrete."
+  })
+  numberOfBins?: number;
+
+  @primitiveTrait({
+    type: "boolean",
+    name: "Reverse Color Scale",
+    description: "Whether to reverse the color scale (flip the colors)."
+  })
+  reverseColorScale?: boolean;
+
+  @primitiveTrait({
+    type: "string",
+    name: "No Data Color",
+    description: "CSS color to use for no-data/null values. If not specified, no-data values will be transparent."
+  })
+  noDataColor?: string;
 }
 
 export class CogRenderOptionsTraits extends ModelTraits {

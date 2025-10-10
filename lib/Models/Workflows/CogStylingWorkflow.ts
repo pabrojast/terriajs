@@ -8,6 +8,7 @@ import CommonStrata from "../Definition/CommonStrata";
 import {
   SelectableDimensionButton,
   SelectableDimensionCheckbox,
+  SelectableDimensionColor,
   SelectableDimensionEnum,
   SelectableDimensionNumeric
 } from "../SelectableDimensions/SelectableDimensions";
@@ -78,6 +79,7 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
     return filterOutUndefined([
       this.colorSchemeGroup,
       this.domainGroup,
+      this.additionalColorsGroup,
       this.displayRangeGroup,
       this.advancedGroup
     ]);
@@ -88,14 +90,21 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
   private get colorSchemeGroup(): SelectableDimensionWorkflowGroup | undefined {
     const colorScaleDim = this.colorScaleSelectableDim;
     const typeDim = this.renderTypeSelectableDim;
+    const numberOfBinsDim = this.numberOfBinsSelectableDim;
+    const reverseColorScaleDim = this.reverseColorScaleSelectableDim;
 
-    if (!colorScaleDim && !typeDim) return undefined;
+    if (!colorScaleDim && !typeDim && !numberOfBinsDim && !reverseColorScaleDim) return undefined;
 
     return {
       type: "group",
       id: "color-scheme",
       name: i18next.t("models.cogStyling.colorScheme"),
-      selectableDimensions: filterOutUndefined([colorScaleDim, typeDim]),
+      selectableDimensions: filterOutUndefined([
+        colorScaleDim, 
+        reverseColorScaleDim,
+        typeDim, 
+        numberOfBinsDim
+      ]),
       isOpen: true
     };
   }
@@ -211,6 +220,103 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
           stratumId,
           "type",
           value as "continuous" | "discrete"
+        );
+      })
+    };
+  }
+
+  /** Number of bins for legend */
+  @computed
+  private get numberOfBinsSelectableDim(): SelectableDimensionNumeric | undefined {
+    const numberOfBins = this.item.renderOptions?.single?.numberOfBins;
+    const type = this.item.renderOptions?.single?.type ?? "continuous";
+    const defaultValue = type === "discrete" ? 8 : 7;
+
+    return {
+      type: "numeric",
+      id: "number-of-bins",
+      name: i18next.t("models.cogStyling.numberOfBins"),
+      value: numberOfBins ?? defaultValue,
+      min: 2,
+      max: 20,
+      allowUndefined: true,
+      setDimensionValue: action((stratumId: string, value: number | undefined) => {
+        if (!this.item.renderOptions.single) {
+          this.item.renderOptions.setTrait(stratumId, "single", undefined);
+        }
+        this.item.renderOptions.single!.setTrait(
+          stratumId,
+          "numberOfBins",
+          value !== undefined ? Math.max(2, Math.min(20, Math.floor(value))) : undefined
+        );
+      })
+    };
+  }
+
+  /** Reverse color scale checkbox */
+  @computed
+  private get reverseColorScaleSelectableDim():
+    | SelectableDimensionCheckbox
+    | undefined {
+    const reverseColorScale =
+      this.item.renderOptions?.single?.reverseColorScale ?? false;
+
+    return {
+      type: "checkbox",
+      id: "reverse-color-scale",
+      name: i18next.t("models.cogStyling.reverseColorScale"),
+      selectedId: reverseColorScale ? "true" : "false",
+      options: [{ id: "true" }],
+      setDimensionValue: action(
+        (stratumId: string, value: "true" | "false" | undefined) => {
+          if (!this.item.renderOptions.single) {
+            this.item.renderOptions.setTrait(stratumId, "single", undefined);
+          }
+          this.item.renderOptions.single!.setTrait(
+            stratumId,
+            "reverseColorScale",
+            value === "true"
+          );
+        }
+      )
+    };
+  }
+
+  /** Additional Colors Group */
+  @computed
+  private get additionalColorsGroup(): SelectableDimensionWorkflowGroup | undefined {
+    const noDataColorDim = this.noDataColorSelectableDim;
+
+    if (!noDataColorDim) return undefined;
+
+    return {
+      type: "group",
+      id: "additional-colors",
+      name: i18next.t("models.cogStyling.additionalColors"),
+      selectableDimensions: filterOutUndefined([noDataColorDim]),
+      isOpen: false
+    };
+  }
+
+  /** No data color selector */
+  @computed
+  private get noDataColorSelectableDim(): SelectableDimensionColor | undefined {
+    const noDataColor = this.item.renderOptions?.single?.noDataColor;
+
+    return {
+      type: "color",
+      id: "no-data-color",
+      name: i18next.t("models.cogStyling.noDataColor"),
+      value: noDataColor,
+      allowUndefined: true,
+      setDimensionValue: action((stratumId: string, value: string | undefined) => {
+        if (!this.item.renderOptions.single) {
+          this.item.renderOptions.setTrait(stratumId, "single", undefined);
+        }
+        this.item.renderOptions.single!.setTrait(
+          stratumId,
+          "noDataColor",
+          value
         );
       })
     };
