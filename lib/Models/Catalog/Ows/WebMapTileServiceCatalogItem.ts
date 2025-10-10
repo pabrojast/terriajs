@@ -2278,10 +2278,6 @@ function templateMatchesTileMatrixSet(
   );
 }
 
-function clamp(value: number, min: number, max: number) {
-  return Math.min(Math.max(value, min), max);
-}
-
 export function getServiceContactInformation(contactInfo: ServiceProvider) {
   let text = "";
   if (contactInfo.ProviderName && contactInfo.ProviderName.length > 0) {
