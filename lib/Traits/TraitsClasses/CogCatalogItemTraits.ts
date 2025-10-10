@@ -13,7 +13,6 @@ import UrlTraits from "./UrlTraits";
 import primitiveArrayTrait from "../Decorators/primitiveArrayTrait";
 
 export type ColorScaleNames =
-  | "turbo"
   | "rainbow"
   | "jet"
   | "hsv"

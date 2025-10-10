@@ -18,7 +18,6 @@ import { ColorScaleNames } from "../../Traits/TraitsClasses/CogCatalogItemTraits
 
 /** Available color scales for COG rendering */
 const COLOR_SCALES: ColorScaleNames[] = [
-  "turbo",
   "rainbow",
   "jet",
   "hsv",
@@ -164,7 +163,7 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
   @computed
   private get colorScaleSelectableDim(): SelectableDimensionEnum | undefined {
     const colorScale =
-      this.item.renderOptions?.single?.colorScale ?? "turbo";
+      this.item.renderOptions?.single?.colorScale ?? "rainbow";
 
     return {
       type: "select",

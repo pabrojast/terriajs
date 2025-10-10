@@ -8,24 +8,6 @@ export const COG_COLOR_SCALES: Record<
   ColorScaleNames,
   { colors: string[]; positions?: number[] }
 > = {
-  turbo: {
-    colors: [
-      "#30123b",
-      "#4145ab",
-      "#4675ed",
-      "#39a2fc",
-      "#1bcfd4",
-      "#24eca6",
-      "#61fc6c",
-      "#a4fc3b",
-      "#d1e834",
-      "#f1bf38",
-      "#fb8022",
-      "#e8450e",
-      "#c00303",
-      "#7a0403"
-    ]
-  },
   rainbow: {
     colors: [
       "#96005A",
