@@ -812,18 +812,6 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
         Object.keys(dimensions).length > 0 ? dimensions : undefined;
 
       // Log WMTS configuration for debugging tile load issues
-      if (finalDimensions) {
-        const timeKey = Object.keys(finalDimensions).find(
-          (key) => key.toLowerCase() === "time"
-        );
-        console.log(
-          `[WMTS] Layer: ${layerIdentifier}, Time: ${
-            (timeKey && finalDimensions[timeKey]) || "none"
-          }, Dimensions:`,
-          finalDimensions
-        );
-      }
-
       if (!templateTokens.length && baseUrl.indexOf("{") !== -1) {
         templateTokens = extractTemplateTokens(baseUrl);
       }
@@ -878,38 +866,10 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
           credit: this.attribution,
           dimensions: finalDimensions
         }) as ExtendedImageryProvider;
-
-        console.log(
-          "[WMTS] Using tilingScheme:",
-          tilingScheme?.constructor?.name ?? "default"
-        );
-
-        // Verify that the provider is using our custom tiling scheme
-        const providerScheme = imageryProvider.tilingScheme;
-        console.log("[WMTS] Provider tilingScheme info:", {
-          schemeType: providerScheme.constructor.name,
-          level0Tiles: `${providerScheme.getNumberOfXTilesAtLevel(
-            0
-          )}x${providerScheme.getNumberOfYTilesAtLevel(0)}`,
-          level1Tiles: `${providerScheme.getNumberOfXTilesAtLevel(
-            1
-          )}x${providerScheme.getNumberOfYTilesAtLevel(1)}`,
-          level2Tiles: `${providerScheme.getNumberOfXTilesAtLevel(
-            2
-          )}x${providerScheme.getNumberOfYTilesAtLevel(2)}`
-        });
       }
 
       const usingUrlTemplate =
         imageryProvider instanceof UrlTemplateImageryProvider;
-      console.log("[WMTS] Selected imagery provider", {
-        layer: layerIdentifier,
-        provider: usingUrlTemplate
-          ? "UrlTemplateImageryProvider"
-          : "WebMapTileServiceImageryProvider",
-        templateUrl: baseUrl,
-        labelByLevel: Array.from(tileMatrixSet.labelByLevel.entries())
-      });
 
       // Only enable feature picking if we have a valid GetFeatureInfo endpoint
       const hasValidFeatureInfoEndpoint = isDefined(this.featureInfoEndpoint);
@@ -1206,17 +1166,6 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
     // If 2 or more levels don't match standard progression, it's non-standard
     const isNonStandard = nonStandardCount >= 2;
 
-    if (isNonStandard) {
-      console.log(
-        `[WMTS] Non-standard tile progression detected for ${tileMatrixSet.id}`
-      );
-      const actualProgression = Array.from(levelDimensions.entries())
-        .slice(0, 4)
-        .map(([level, dims]) => `${level}:${dims.width}x${dims.height}`)
-        .join(", ");
-      console.log(`[WMTS] Actual progression: ${actualProgression}`);
-    }
-
     return isNonStandard;
   }
 
@@ -1231,27 +1180,6 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
         ? new GeographicTilingScheme()
         : new WebMercatorTilingScheme();
     }
-
-    // Log the tile matrix dimensions for debugging
-    console.log(
-      `[WMTS TilingScheme] TileMatrixSet: ${tileMatrixSetId}, Projection: ${projection}`
-    );
-    const levelDetails = Array.from(levelDimensions.entries()).map(
-      ([level, dims]) => {
-        const scaleInfo = dims.scaleDenominator
-          ? `, Scale=${dims.scaleDenominator.toFixed(2)}`
-          : "";
-        const tileInfo =
-          dims.tileWidth && dims.tileHeight
-            ? `, TileSize=${dims.tileWidth}x${dims.tileHeight}`
-            : "";
-        const topLeftInfo = dims.topLeftCorner
-          ? `, TopLeft=[${dims.topLeftCorner[0]},${dims.topLeftCorner[1]}]`
-          : "";
-        return `${level}:${dims.width}x${dims.height}${scaleInfo}${tileInfo}${topLeftInfo}`;
-      }
-    );
-    console.log("[WMTS TilingScheme] Level details:", levelDetails);
 
     // Create custom tiling scheme that respects the actual tile matrix dimensions
     if (projection === "EPSG:4326") {
@@ -1292,11 +1220,6 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
     } = options;
 
     const tokens = new Set(templateTokens);
-    console.log("[WMTS] Template analysis", {
-      templateUrl,
-      tokens: Array.from(tokens),
-      hasBraces: templateUrl.includes("{")
-    });
 
     // Check if the TileMatrixSet has a non-standard tile progression
     // (e.g., GIBS uses 2x1, 3x2, 5x3, 10x5 instead of standard 2x1, 4x2, 8x4, 16x8)
@@ -1328,23 +1251,10 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
     if (containsWmtsPlaceholders) {
       // For WMTS placeholders, ALWAYS use WebMapTileServiceImageryProvider
       // It respects TileMatrixLabels and custom tiling schemes better than UrlTemplateImageryProvider
-      if (hasNonStandardProgression) {
-        console.log(
-          "[WMTS] Non-standard progression detected; using WebMapTileServiceImageryProvider with CustomGeographicTilingScheme"
-        );
-      } else {
-        console.log(
-          "[WMTS] Standard progression; using WebMapTileServiceImageryProvider"
-        );
-      }
       return undefined;
     }
     if (tokens.size === 0) {
-      // No template tokens – nothing to substitute, so stick with WMTS provider.
-      console.log(
-        `[WMTS] Template has no placeholders; using WebMapTileServiceImageryProvider instead.`,
-        { templateUrl }
-      );
+      // No template tokens - nothing to substitute, so stick with WMTS provider.
       return undefined;
     }
 
@@ -1407,11 +1317,6 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
 
     registerTag("TileMatrix", (_provider, x, y, level) => {
       const label = tileMatrixForLevel(level);
-      if (level <= 2 && x < 3 && y < 2) {
-        console.log(
-          `[WMTS] Tag TileMatrix -> ${label} (level=${level}, x=${x}, y=${y})`
-        );
-      }
       return label;
     });
     registerTag("tilematrix", (_provider, _x, _y, level) =>
@@ -1425,22 +1330,12 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
     );
 
     registerTag("TileRow", (_provider, x, y, level) => {
-      if (level <= 2 && x < 3 && y < 2) {
-        console.log(
-          `[WMTS] Tag TileRow   -> ${y} (level=${level}, x=${x}, y=${y})`
-        );
-      }
       return y.toString();
     });
     registerTag("TILEROW", (_provider, _x, y) => y.toString());
     registerTag("tilerow", (_provider, _x, y) => y.toString());
 
     registerTag("TileCol", (_provider, x, y, level) => {
-      if (level <= 2 && x < 3 && y < 2) {
-        console.log(
-          `[WMTS] Tag TileCol   -> ${x} (level=${level}, x=${x}, y=${y})`
-        );
-      }
       return x.toString();
     });
     registerTag("TILECOL", (_provider, x) => x.toString());
@@ -1496,56 +1391,12 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
     const minIndex = tileMatrixSet.minLevel;
     const maxIndex = tileMatrixSet.maxLevel;
 
-    console.log(
-      `[WMTS] Level range: min=${minIndex}, max=${maxIndex}, labelCount=${tileMatrixSet.labels.length}`
-    );
-
-    // Create wrapper for custom tags that logs the generated URLs
-    const loggingCustomTags: Record<
-      string,
-      (
-        imageryProvider: UrlTemplateImageryProvider,
-        x: number,
-        y: number,
-        level: number
-      ) => string
-    > = {};
-
-    // Track which tiles we've logged to avoid spam
-    const loggedUrls = new Set<string>();
-
-    Object.keys(customTags).forEach((key) => {
-      const originalTag = customTags[key];
-      loggingCustomTags[key] = (provider, x, y, level) => {
-        const value = originalTag(provider, x, y, level);
-
-        // Log the first few tile URLs at each level for debugging
-        const tileKey = `${level}-${x}-${y}`;
-        if (level <= 2 && x < 2 && y < 2 && !loggedUrls.has(tileKey)) {
-          // Build the full URL for this tile
-          let url = templateUrl;
-          Object.keys(customTags).forEach((tagKey) => {
-            const tagValue = customTags[tagKey](provider, x, y, level);
-            url = url.replace(`{${tagKey}}`, tagValue);
-          });
-          loggedUrls.add(tileKey);
-          console.log(`[WMTS URL] Level ${level}, Tile (${x},${y}): ${url}`);
-        }
-
-        return value;
-      };
-    });
-
     // Get actual tile pixel dimensions from the TileMatrixSet
     // GIBS uses 512x512, but this.tileMatrixSet might have cached values from first tile
     const levelDimensions = this.getTileMatrixLevelDimensions(tileMatrixSet.id);
     const level0Dims = levelDimensions?.get(0);
     const actualTileWidth = level0Dims?.tileWidth ?? tileMatrixSet.tileWidth;
     const actualTileHeight = level0Dims?.tileHeight ?? tileMatrixSet.tileHeight;
-
-    console.log(
-      `[WMTS] Tile pixel dimensions: ${actualTileWidth}x${actualTileHeight}`
-    );
 
     const provider = new UrlTemplateImageryProvider({
       url: proxyCatalogItemUrl(this, templateUrl),
@@ -1555,20 +1406,9 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
       minimumLevel: this.minimumLevel ?? minIndex,
       maximumLevel: this.maximumLevel ?? maxIndex,
       credit: this.attribution,
-      customTags:
-        Object.keys(loggingCustomTags).length > 0
-          ? loggingCustomTags
-          : undefined,
+      customTags: Object.keys(customTags).length > 0 ? customTags : undefined,
       enablePickFeatures: this.allowFeaturePicking
     }) as ExtendedImageryProvider;
-
-    console.log("[WMTS] Using UrlTemplateImageryProvider", {
-      template: templateUrl,
-      customTags: Object.keys(customTags),
-      minLevel: this.minimumLevel ?? minIndex,
-      maxLevel: this.maximumLevel ?? maxIndex,
-      labelByLevel: Array.from(tileMatrixSet.labelByLevel.entries())
-    });
 
     return provider;
   }
@@ -1897,8 +1737,6 @@ class CustomGeographicTilingScheme {
       tileHeight?: number;
     }
   >;
-  private rectangleByLevel: Map<number, Rectangle>;
-  private loggedTiles: Set<string>; // Track logged tiles to avoid duplicates
   public ellipsoid: Ellipsoid;
   public rectangle: Rectangle;
   public projection: GeographicProjection;
@@ -1920,8 +1758,6 @@ class CustomGeographicTilingScheme {
   ) {
     this.levelDimensions = levelDimensions;
     this.ellipsoid = Ellipsoid.WGS84;
-    this.rectangleByLevel = new Map();
-    this.loggedTiles = new Set();
 
     const level0 = levelDimensions.get(0);
 
@@ -1930,16 +1766,6 @@ class CustomGeographicTilingScheme {
 
     // For EPSG:4326, use standard geographic rectangle covering the entire globe
     this.rectangle = Rectangle.fromDegrees(-180, -90, 180, 90);
-
-    if (level0?.topLeftCorner) {
-      const [topLeftLon, topLeftLat] = level0.topLeftCorner;
-      console.log(
-        `[CustomTilingScheme] Using TopLeftCorner: [${topLeftLon}, ${topLeftLat}] for tile calculations`
-      );
-      console.log(
-        `[CustomTilingScheme] Level 0 tiles reported as ${this.numberOfLevelZeroTilesX}x${this.numberOfLevelZeroTilesY}`
-      );
-    }
 
     this.projection = new GeographicProjection(this.ellipsoid);
   }
@@ -2127,17 +1953,6 @@ class CustomGeographicTilingScheme {
       yTileCoordinate = 0;
     }
 
-    if (level === 2 && Math.random() < 0.01) {
-      const radToDeg = 180 / Math.PI;
-      console.log(
-        `[positionToTileXY] Level ${level}, Pos=(${(
-          longitudeRad * radToDeg
-        ).toFixed(2)}deg, ${(latitudeRad * radToDeg).toFixed(
-          2
-        )}deg) -> Tile=(${xTileCoordinate}, ${yTileCoordinate})`
-      );
-    }
-
     result.x = xTileCoordinate;
     result.y = yTileCoordinate;
     return result;
@@ -2189,41 +2004,6 @@ class CustomGeographicTilingScheme {
     const east = topLeftLonRadians + (x + 1) * tileWidthRadians;
     const north = topLeftLatRadians - y * tileHeightRadians;
     const south = topLeftLatRadians - (y + 1) * tileHeightRadians;
-
-    const tileKey = `${level}-${x}-${y}`;
-    if (level === 2 && x < 5 && y <= 2 && !this.loggedTiles.has(tileKey)) {
-      this.loggedTiles.add(tileKey);
-
-      const pixelSizeMeters =
-        radiansPerPixel !== undefined
-          ? radiansPerPixel * this.ellipsoid.maximumRadius
-          : undefined;
-      const scaleInfo = levelDim.scaleDenominator
-        ? `, Scale=${levelDim.scaleDenominator.toFixed(2)}`
-        : "";
-      const pixelInfo =
-        pixelSizeMeters !== undefined
-          ? `, PixelSize=${pixelSizeMeters.toFixed(2)}m`
-          : "";
-      const degWest = (west * 180) / Math.PI;
-      const degEast = (east * 180) / Math.PI;
-      const degNorth = (north * 180) / Math.PI;
-      const degSouth = (south * 180) / Math.PI;
-      console.log(
-        `[CustomTilingScheme] Tile (${x},${y},${level}): Matrix=${levelDim.width}x${levelDim.height}${scaleInfo}${pixelInfo}, ` +
-          `TileSize=${tileWidthDegrees.toFixed(
-            4
-          )}deg x ${tileHeightDegrees.toFixed(4)}deg, ` +
-          `Bounds=[${degWest.toFixed(2)}, ${degSouth.toFixed(
-            2
-          )}, ${degEast.toFixed(2)}, ${degNorth.toFixed(2)}] deg, ` +
-          `Radians=[${west.toFixed(4)}, ${south.toFixed(4)}, ${east.toFixed(
-            4
-          )}, ${north.toFixed(
-            4
-          )}], TopLeft=[${topLeftLonDegrees}, ${topLeftLatDegrees}]`
-      );
-    }
 
     if (!result) {
       return new Rectangle(west, south, east, north);
