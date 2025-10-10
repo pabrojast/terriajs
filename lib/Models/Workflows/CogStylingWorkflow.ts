@@ -98,7 +98,7 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
     return {
       type: "group",
       id: "color-scheme",
-      name: i18next.t("models.cogStyling.colorScheme"),
+      name: "Color Scheme",
       selectableDimensions: filterOutUndefined([
         colorScaleDim, 
         reverseColorScaleDim,
@@ -120,7 +120,7 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
     return {
       type: "group",
       id: "domain",
-      name: i18next.t("models.cogStyling.domain"),
+      name: "Value Range",
       selectableDimensions: filterOutUndefined([minDim, maxDim]),
       isOpen: true
     };
@@ -140,7 +140,7 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
     return {
       type: "group",
       id: "display-range",
-      name: i18next.t("models.cogStyling.displayRange"),
+      name: "Display Range",
       selectableDimensions: filterOutUndefined([applyDim, minDim, maxDim]),
       isOpen: false
     };
@@ -158,7 +158,7 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
     return {
       type: "group",
       id: "advanced",
-      name: i18next.t("models.cogStyling.advanced"),
+      name: "Advanced",
       selectableDimensions: filterOutUndefined([
         bandDim,
         clampLowDim,
@@ -171,27 +171,27 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
   /** Color Scale selector */
   @computed
   private get colorScaleSelectableDim(): SelectableDimensionEnum | undefined {
-    const colorScale =
-      this.item.renderOptions?.single?.colorScale ?? "rainbow";
+    const colorScale = this.item.renderOptions?.single?.colorScale;
 
     return {
       type: "select",
       id: "color-scale",
-      name: i18next.t("models.cogStyling.colorScale"),
+      name: "Color Scale",
       selectedId: colorScale,
-      allowUndefined: false,
+      allowUndefined: true,
+      undefinedLabel: "None (use default)",
       options: COLOR_SCALES.map((scale) => ({
         id: scale,
         name: scale.charAt(0).toUpperCase() + scale.slice(1)
       })),
-      setDimensionValue: action((stratumId: string, value: string) => {
+      setDimensionValue: action((stratumId: string, value: string | undefined) => {
         if (!this.item.renderOptions.single) {
           this.item.renderOptions.setTrait(stratumId, "single", undefined);
         }
         this.item.renderOptions.single!.setTrait(
           stratumId,
           "colorScale",
-          value as ColorScaleNames
+          value as ColorScaleNames | undefined
         );
       })
     };
@@ -205,12 +205,12 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
     return {
       type: "select",
       id: "render-type",
-      name: i18next.t("models.cogStyling.renderType"),
+      name: "Render Type",
       selectedId: type,
       allowUndefined: false,
       options: [
-        { id: "continuous", name: i18next.t("models.cogStyling.continuous") },
-        { id: "discrete", name: i18next.t("models.cogStyling.discrete") }
+        { id: "continuous", name: "Continuous" },
+        { id: "discrete", name: "Discrete" }
       ],
       setDimensionValue: action((stratumId: string, value: string) => {
         if (!this.item.renderOptions.single) {
@@ -235,10 +235,10 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
     return {
       type: "numeric",
       id: "number-of-bins",
-      name: i18next.t("models.cogStyling.numberOfBins"),
+      name: "Legend Steps",
       value: numberOfBins ?? defaultValue,
       min: 2,
-      max: 20,
+      max: 30,
       allowUndefined: true,
       setDimensionValue: action((stratumId: string, value: number | undefined) => {
         if (!this.item.renderOptions.single) {
@@ -247,7 +247,7 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
         this.item.renderOptions.single!.setTrait(
           stratumId,
           "numberOfBins",
-          value !== undefined ? Math.max(2, Math.min(20, Math.floor(value))) : undefined
+          value !== undefined ? Math.max(2, Math.min(30, Math.floor(value))) : undefined
         );
       })
     };
@@ -264,7 +264,7 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
     return {
       type: "checkbox",
       id: "reverse-color-scale",
-      name: i18next.t("models.cogStyling.reverseColorScale"),
+      name: "Reverse Colors",
       selectedId: reverseColorScale ? "true" : "false",
       options: [{ id: "true" }],
       setDimensionValue: action(
@@ -292,7 +292,7 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
     return {
       type: "group",
       id: "additional-colors",
-      name: i18next.t("models.cogStyling.additionalColors"),
+      name: "Additional Colors",
       selectableDimensions: filterOutUndefined([noDataColorDim]),
       isOpen: false
     };
@@ -306,7 +306,7 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
     return {
       type: "color",
       id: "no-data-color",
-      name: i18next.t("models.cogStyling.noDataColor"),
+      name: "No Data Color",
       value: noDataColor,
       allowUndefined: true,
       setDimensionValue: action((stratumId: string, value: string | undefined) => {
@@ -333,7 +333,7 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
     return {
       type: "numeric",
       id: "domain-min",
-      name: i18next.t("models.cogStyling.minimumValue"),
+      name: "Minimum Value",
       value: value,
       allowUndefined: true,
       setDimensionValue: action((stratumId: string, value: number | undefined) => {
@@ -367,7 +367,7 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
     return {
       type: "numeric",
       id: "domain-max",
-      name: i18next.t("models.cogStyling.maximumValue"),
+      name: "Maximum Value",
       value: value,
       allowUndefined: true,
       setDimensionValue: action((stratumId: string, value: number | undefined) => {
@@ -401,7 +401,7 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
     return {
       type: "checkbox",
       id: "apply-display-range",
-      name: i18next.t("models.cogStyling.applyDisplayRange"),
+      name: "Apply Display Range",
       selectedId: applyDisplayRange ? "true" : "false",
       options: [{ id: "true" }],
       setDimensionValue: action(
@@ -430,7 +430,7 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
     return {
       type: "numeric",
       id: "display-range-min",
-      name: i18next.t("models.cogStyling.displayRangeMin"),
+      name: "Minimum",
       value: value,
       setDimensionValue: action((stratumId: string, value: number) => {
         const currentRange = this.item.renderOptions?.single?.displayRange;
@@ -456,7 +456,7 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
     return {
       type: "numeric",
       id: "display-range-max",
-      name: i18next.t("models.cogStyling.displayRangeMax"),
+      name: "Maximum",
       value: value,
       setDimensionValue: action((stratumId: string, value: number) => {
         const currentRange = this.item.renderOptions?.single?.displayRange;
@@ -479,7 +479,7 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
     return {
       type: "numeric",
       id: "band",
-      name: i18next.t("models.cogStyling.band"),
+      name: "Band",
       value: band,
       min: 1,
       setDimensionValue: action((stratumId: string, value: number) => {
@@ -505,7 +505,7 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
     return {
       type: "checkbox",
       id: "clamp-low",
-      name: i18next.t("models.cogStyling.clampLow"),
+      name: "Clamp Low Values",
       selectedId: clampLow ? "true" : "false",
       options: [{ id: "true" }],
       setDimensionValue: action(
@@ -533,7 +533,7 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
     return {
       type: "checkbox",
       id: "clamp-high",
-      name: i18next.t("models.cogStyling.clampHigh"),
+      name: "Clamp High Values",
       selectedId: clampHigh ? "true" : "false",
       options: [{ id: "true" }],
       setDimensionValue: action(

@@ -109,10 +109,33 @@ export class CogLegendStratum extends LoadableStratum(CogCatalogItemTraits) {
   }
 
   private _formatValue(value: number): string {
-    // Format numbers nicely
-    if (Math.abs(value) >= 1000 || Math.abs(value) < 0.01) {
+    // Format numbers nicely for user display
+    const absValue = Math.abs(value);
+    
+    // For very small numbers (but not zero)
+    if (absValue > 0 && absValue < 0.01) {
       return value.toExponential(2);
     }
-    return value.toFixed(2);
+    
+    // For large numbers, use thousands separator
+    if (absValue >= 10000) {
+      return value.toLocaleString('en-US', { 
+        maximumFractionDigits: 0 
+      });
+    }
+    
+    // For numbers between 1000 and 10000, show with thousands separator and decimals if needed
+    if (absValue >= 1000) {
+      return value.toLocaleString('en-US', { 
+        maximumFractionDigits: 1,
+        minimumFractionDigits: 0
+      });
+    }
+    
+    // For regular numbers, show up to 2 decimal places
+    return value.toLocaleString('en-US', { 
+      maximumFractionDigits: 2,
+      minimumFractionDigits: 0
+    });
   }
 }

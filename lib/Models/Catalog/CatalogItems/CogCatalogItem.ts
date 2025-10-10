@@ -152,7 +152,10 @@ export default class CogCatalogItem extends MappableMixin(
         applyDisplayRange: this.renderOptions?.single?.applyDisplayRange,
         clampLow: this.renderOptions?.single?.clampLow,
         clampHigh: this.renderOptions?.single?.clampHigh,
-        band: this.renderOptions?.single?.band
+        band: this.renderOptions?.single?.band,
+        reverseColorScale: this.renderOptions?.single?.reverseColorScale,
+        numberOfBins: this.renderOptions?.single?.numberOfBins,
+        noDataColor: this.renderOptions?.single?.noDataColor
       }),
       () => {
         // Only reload if we have an active imagery provider
