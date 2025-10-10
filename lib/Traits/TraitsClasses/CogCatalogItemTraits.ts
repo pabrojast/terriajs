@@ -17,6 +17,7 @@ export type ColorScaleNames =
   | "plasma"
   | "inferno"
   | "magma"
+  | "turbo"
   | "rainbow"
   | "jet"
   | "hsv"
