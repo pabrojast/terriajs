@@ -1115,6 +1115,81 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
     return levelDimensions;
   }
 
+  /**
+   * Checks if a TileMatrixSet has a non-standard tile progression.
+   * Standard EPSG:4326 follows: level 0 = 2x1, level 1 = 4x2, level 2 = 8x4, etc.
+   * GIBS and other services may use non-standard progressions like: 2x1, 3x2, 5x3, 10x5
+   */
+  private hasNonStandardTileProgression(tileMatrixSet: {
+    id: string;
+    labels: string[];
+    labelByLevel: Map<number, string>;
+    maxLevel: number;
+    minLevel: number;
+    tileWidth: number;
+    tileHeight: number;
+    projection: "EPSG:3857" | "EPSG:4326";
+  }): boolean {
+    const levelDimensions = this.getTileMatrixLevelDimensions(tileMatrixSet.id);
+    if (!levelDimensions || levelDimensions.size === 0) {
+      return false;
+    }
+
+    // Check first few levels for standard progression
+    // Standard EPSG:4326 GeographicTilingScheme:
+    // Level 0: 2x1, Level 1: 4x2, Level 2: 8x4, Level 3: 16x8
+    const standardProgressionEPSG4326 = [
+      { level: 0, width: 2, height: 1 },
+      { level: 1, width: 4, height: 2 },
+      { level: 2, width: 8, height: 4 },
+      { level: 3, width: 16, height: 8 }
+    ];
+
+    // Standard Web Mercator:
+    // Level 0: 1x1, Level 1: 2x2, Level 2: 4x4, Level 3: 8x8
+    const standardProgressionWebMercator = [
+      { level: 0, width: 1, height: 1 },
+      { level: 1, width: 2, height: 2 },
+      { level: 2, width: 4, height: 4 },
+      { level: 3, width: 8, height: 8 }
+    ];
+
+    const standardProgression =
+      tileMatrixSet.projection === "EPSG:4326"
+        ? standardProgressionEPSG4326
+        : standardProgressionWebMercator;
+
+    // Check at least 2 levels to determine if progression is non-standard
+    let nonStandardCount = 0;
+    for (const standard of standardProgression.slice(0, 3)) {
+      const actual = levelDimensions.get(standard.level);
+      if (actual) {
+        if (
+          actual.width !== standard.width ||
+          actual.height !== standard.height
+        ) {
+          nonStandardCount++;
+        }
+      }
+    }
+
+    // If 2 or more levels don't match standard progression, it's non-standard
+    const isNonStandard = nonStandardCount >= 2;
+
+    if (isNonStandard) {
+      console.log(
+        `[WMTS] Non-standard tile progression detected for ${tileMatrixSet.id}`
+      );
+      const actualProgression = Array.from(levelDimensions.entries())
+        .slice(0, 4)
+        .map(([level, dims]) => `${level}:${dims.width}x${dims.height}`)
+        .join(", ");
+      console.log(`[WMTS] Actual progression: ${actualProgression}`);
+    }
+
+    return isNonStandard;
+  }
+
   private createTilingScheme(
     tileMatrixSetId: string,
     projection: "EPSG:3857" | "EPSG:4326"
@@ -1193,11 +1268,15 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
       hasBraces: templateUrl.includes("{")
     });
 
-    // If the template contains WMTS placeholders, prefer using the native
-    // WebMapTileServiceImageryProvider instead of UrlTemplateImageryProvider.
-    // Cesium's WMTS provider understands these tokens and handles level/row/col
-    // mapping consistently with the tiling scheme, which avoids subtle
-    // off-by-one or scaling issues when using custom tags.
+    // Check if the TileMatrixSet has a non-standard tile progression
+    // (e.g., GIBS uses 2x1, 3x2, 5x3, 10x5 instead of standard 2x1, 4x2, 8x4, 16x8)
+    const hasNonStandardProgression =
+      this.hasNonStandardTileProgression(tileMatrixSet);
+
+    // If the template contains WMTS placeholders, we would normally prefer using
+    // the native WebMapTileServiceImageryProvider. However, for non-standard
+    // tile matrix sets (like GIBS), we must use UrlTemplateImageryProvider
+    // to ensure correct tile positioning.
     const wmtsPlaceholderTokens = new Set([
       "TileMatrixSet",
       "tilematrixset",
@@ -1215,11 +1294,19 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
     const containsWmtsPlaceholders = Array.from(tokens).some((t) =>
       wmtsPlaceholderTokens.has(t)
     );
-    if (containsWmtsPlaceholders) {
+
+    if (containsWmtsPlaceholders && !hasNonStandardProgression) {
       console.log(
-        "[WMTS] Template contains WMTS placeholders; using WebMapTileServiceImageryProvider"
+        "[WMTS] Template contains WMTS placeholders and standard progression; using WebMapTileServiceImageryProvider"
       );
       return undefined;
+    }
+
+    if (containsWmtsPlaceholders && hasNonStandardProgression) {
+      console.log(
+        "[WMTS] Template contains WMTS placeholders but NON-STANDARD progression detected; forcing UrlTemplateImageryProvider for correct tile positioning"
+      );
+      // Continue to use UrlTemplateImageryProvider with custom tags
     }
     if (tokens.size === 0) {
       // No template tokens – nothing to substitute, so stick with WMTS provider.
