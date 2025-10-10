@@ -878,6 +878,21 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
           credit: this.attribution,
           dimensions: finalDimensions
         }) as ExtendedImageryProvider;
+
+        // Verify that the provider is using our custom tiling scheme
+        const providerScheme = imageryProvider.tilingScheme;
+        console.log("[WMTS] Provider tilingScheme info:", {
+          schemeType: providerScheme.constructor.name,
+          level0Tiles: `${providerScheme.getNumberOfXTilesAtLevel(
+            0
+          )}x${providerScheme.getNumberOfYTilesAtLevel(0)}`,
+          level1Tiles: `${providerScheme.getNumberOfXTilesAtLevel(
+            1
+          )}x${providerScheme.getNumberOfYTilesAtLevel(1)}`,
+          level2Tiles: `${providerScheme.getNumberOfXTilesAtLevel(
+            2
+          )}x${providerScheme.getNumberOfYTilesAtLevel(2)}`
+        });
       }
 
       const usingUrlTemplate =
