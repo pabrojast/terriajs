@@ -863,6 +863,11 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
         const actualTileHeight =
           level0Dims?.tileHeight ?? tileMatrixSet.tileHeight;
 
+        // EXPERIMENTAL: For non-standard tile progressions, try WITHOUT custom tilingScheme
+        // Let WebMapTileServiceImageryProvider use its default logic with tileMatrixLabels
+        const useCustomScheme =
+          tilingScheme instanceof CustomGeographicTilingScheme;
+
         imageryProvider = new WebMapTileServiceImageryProvider({
           url: proxyCatalogItemUrl(this, baseUrl),
           layer: layerIdentifier,
@@ -873,11 +878,16 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
           maximumLevel: maxLevel,
           tileWidth: actualTileWidth,
           tileHeight: actualTileHeight,
-          tilingScheme: tilingScheme,
+          tilingScheme: useCustomScheme ? undefined : tilingScheme, // Try without custom scheme
           format,
           credit: this.attribution,
           dimensions: finalDimensions
         }) as ExtendedImageryProvider;
+
+        console.log(
+          "[WMTS] Using tilingScheme:",
+          useCustomScheme ? "none (letting Cesium use default)" : "standard"
+        );
 
         // Verify that the provider is using our custom tiling scheme
         const providerScheme = imageryProvider.tilingScheme;
@@ -1918,20 +1928,27 @@ class CustomGeographicTilingScheme {
     this.rectangleByLevel = new Map();
     this.loggedTiles = new Set();
 
-    // For EPSG:4326, use standard geographic rectangle covering the entire globe
-    // This ensures consistent behavior regardless of TopLeftCorner specifics
-    // TopLeftCorner will be used in tile calculations, not for the overall scheme bounds
-    this.rectangle = Rectangle.fromDegrees(-180, -90, 180, 90);
-
     const level0 = levelDimensions.get(0);
-    // Set the number of tiles at level 0
-    this.numberOfLevelZeroTilesX = level0?.width ?? 2;
-    this.numberOfLevelZeroTilesY = level0?.height ?? 1;
+
+    // CRITICAL HACK: Cesium's WebMapTileServiceImageryProvider has hardcoded assumptions
+    // about numberOfLevelZeroTiles. For GeographicTilingScheme, it expects 1x1.
+    // If we report 2x1 (GIBS level 0), Cesium miscalculates tile positions.
+    // Solution: Report 1x1 to Cesium (lie about level 0), but use correct values in
+    // getNumberOfXTilesAtLevel/getNumberOfYTilesAtLevel which is what actually matters
+    // for determining which tiles to load.
+    this.numberOfLevelZeroTilesX = 1;
+    this.numberOfLevelZeroTilesY = 1;
+
+    // For EPSG:4326, use standard geographic rectangle covering the entire globe
+    this.rectangle = Rectangle.fromDegrees(-180, -90, 180, 90);
 
     if (level0?.topLeftCorner) {
       const [topLeftLon, topLeftLat] = level0.topLeftCorner;
       console.log(
-        `[CustomTilingScheme] Using TopLeftCorner: [${topLeftLon}, ${topLeftLat}] for tile calculations, Level0Tiles=${this.numberOfLevelZeroTilesX}x${this.numberOfLevelZeroTilesY}`
+        `[CustomTilingScheme] Using TopLeftCorner: [${topLeftLon}, ${topLeftLat}] for tile calculations`
+      );
+      console.log(
+        `[CustomTilingScheme] HACK: Reporting numberOfLevelZeroTiles as 1x1 to Cesium (actual level 0 is ${level0.width}x${level0.height})`
       );
     }
 
