@@ -1305,18 +1305,19 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
       wmtsPlaceholderTokens.has(t)
     );
 
-    if (containsWmtsPlaceholders && !hasNonStandardProgression) {
-      console.log(
-        "[WMTS] Template contains WMTS placeholders and standard progression; using WebMapTileServiceImageryProvider"
-      );
+    if (containsWmtsPlaceholders) {
+      // For WMTS placeholders, ALWAYS use WebMapTileServiceImageryProvider
+      // It respects TileMatrixLabels and custom tiling schemes better than UrlTemplateImageryProvider
+      if (hasNonStandardProgression) {
+        console.log(
+          "[WMTS] Non-standard progression detected; using WebMapTileServiceImageryProvider with CustomGeographicTilingScheme"
+        );
+      } else {
+        console.log(
+          "[WMTS] Standard progression; using WebMapTileServiceImageryProvider"
+        );
+      }
       return undefined;
-    }
-
-    if (containsWmtsPlaceholders && hasNonStandardProgression) {
-      console.log(
-        "[WMTS] Template contains WMTS placeholders but NON-STANDARD progression detected; forcing UrlTemplateImageryProvider for correct tile positioning"
-      );
-      // Continue to use UrlTemplateImageryProvider with custom tags
     }
     if (tokens.size === 0) {
       // No template tokens – nothing to substitute, so stick with WMTS provider.
