@@ -135,8 +135,7 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
     const minDim = this.displayRangeMinSelectableDim;
     const maxDim = this.displayRangeMaxSelectableDim;
 
-    if (!applyDim && !minDim && !maxDim) return undefined;
-
+    // Always show this group - it's an important feature
     return {
       type: "group",
       id: "display-range",
@@ -392,9 +391,7 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
 
   /** Apply display range checkbox */
   @computed
-  private get applyDisplayRangeSelectableDim():
-    | SelectableDimensionCheckbox
-    | undefined {
+  private get applyDisplayRangeSelectableDim(): SelectableDimensionCheckbox {
     const applyDisplayRange =
       this.item.renderOptions?.single?.applyDisplayRange ?? false;
 
@@ -421,25 +418,31 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
 
   /** Display range minimum value */
   @computed
-  private get displayRangeMinSelectableDim():
-    | SelectableDimensionNumeric
-    | undefined {
+  private get displayRangeMinSelectableDim(): SelectableDimensionNumeric {
     const displayRange = this.item.renderOptions?.single?.displayRange;
-    const value = displayRange?.[0];
+    const domain = this.item.renderOptions?.single?.domain;
+    const value = displayRange?.[0] ?? domain?.[0];
 
     return {
       type: "numeric",
       id: "display-range-min",
       name: "Minimum",
       value: value,
-      setDimensionValue: action((stratumId: string, value: number) => {
+      allowUndefined: true,
+      setDimensionValue: action((stratumId: string, value: number | undefined) => {
+        if (value === undefined) {
+          if (this.item.renderOptions.single) {
+            this.item.renderOptions.single.setTrait(stratumId, "displayRange", undefined);
+          }
+          return;
+        }
         const currentRange = this.item.renderOptions?.single?.displayRange;
         if (!this.item.renderOptions.single) {
           this.item.renderOptions.setTrait(stratumId, "single", undefined);
         }
         this.item.renderOptions.single!.setTrait(stratumId, "displayRange", [
           value,
-          currentRange?.[1] ?? value + 1
+          currentRange?.[1] ?? value + 100
         ]);
       })
     };
@@ -447,24 +450,30 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
 
   /** Display range maximum value */
   @computed
-  private get displayRangeMaxSelectableDim():
-    | SelectableDimensionNumeric
-    | undefined {
+  private get displayRangeMaxSelectableDim(): SelectableDimensionNumeric {
     const displayRange = this.item.renderOptions?.single?.displayRange;
-    const value = displayRange?.[1];
+    const domain = this.item.renderOptions?.single?.domain;
+    const value = displayRange?.[1] ?? domain?.[1];
 
     return {
       type: "numeric",
       id: "display-range-max",
       name: "Maximum",
       value: value,
-      setDimensionValue: action((stratumId: string, value: number) => {
+      allowUndefined: true,
+      setDimensionValue: action((stratumId: string, value: number | undefined) => {
+        if (value === undefined) {
+          if (this.item.renderOptions.single) {
+            this.item.renderOptions.single.setTrait(stratumId, "displayRange", undefined);
+          }
+          return;
+        }
         const currentRange = this.item.renderOptions?.single?.displayRange;
         if (!this.item.renderOptions.single) {
           this.item.renderOptions.setTrait(stratumId, "single", undefined);
         }
         this.item.renderOptions.single!.setTrait(stratumId, "displayRange", [
-          currentRange?.[0] ?? value - 1,
+          currentRange?.[0] ?? value - 100,
           value
         ]);
       })
