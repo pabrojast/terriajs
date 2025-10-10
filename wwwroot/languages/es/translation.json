@@ -416,7 +416,8 @@
       "experimentalReprojectionWarning": "Este COG no está en una proyección nativa (EPSG:4326 o EPSG:3857). La reproyección es experimental y puede que no funcione como se espera. Si tiene control de los datos fuente, le recomendamos reproyectarlos a EPSG:4326 o EPSG:3857 usando GDAL o herramientas similares."
     },
     "cog": {
-      "editStyle": "Editar estilo"
+      "editStyle": "Editar estilo",
+      "legendTitle": "Valores"
     },
     "cogStyling": {
       "name": "Estilo COG",
@@ -426,9 +427,9 @@
       "renderType": "Tipo de Renderizado",
       "continuous": "Continuo",
       "discrete": "Discreto",
-      "domain": "Dominio de Valores",
-      "minimumValue": "Valor Mínimo",
-      "maximumValue": "Valor Máximo",
+      "domain": "Dominio de Valores (auto-calculado si no se establece)",
+      "minimumValue": "Valor Mín (opcional, auto-calculado)",
+      "maximumValue": "Valor Máx (opcional, auto-calculado)",
       "displayRange": "Rango de Visualización",
       "applyDisplayRange": "Aplicar Rango de Visualización",
       "displayRangeMin": "Rango de Visualización Mín",

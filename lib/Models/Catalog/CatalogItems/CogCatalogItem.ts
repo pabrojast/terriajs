@@ -29,6 +29,7 @@ import Icon from "../../../Styled/Icon";
 import { ViewingControl } from "../../ViewingControls";
 import { runWorkflow } from "../../Workflows/SelectableDimensionWorkflow";
 import CogStylingWorkflow from "../../Workflows/CogStylingWorkflow";
+import { CogLegendStratum } from "./CogLegendStratum";
 
 /**
  * Loadable stratum for overriding CogCatalogItem traits
@@ -75,6 +76,7 @@ class CogLoadableStratum extends LoadableStratum(CogCatalogItemTraits) {
 }
 
 StratumOrder.addLoadStratum(CogLoadableStratum.stratumName);
+StratumOrder.addLoadStratum(CogLegendStratum.stratumName);
 
 /**
  * Creates a Cloud Optimised Geotiff catalog item.
@@ -117,6 +119,7 @@ export default class CogCatalogItem extends MappableMixin(
       CogLoadableStratum.stratumName,
       new CogLoadableStratum(this)
     );
+    this.strata.set(CogLegendStratum.stratumName, new CogLegendStratum(this));
 
     // Destroy the imageryProvider when `mapItems` is no longer consumed. This
     // is so that the webworkers and other resources created by the

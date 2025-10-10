@@ -34,9 +34,9 @@ const COLOR_SCALES: ColorScaleNames[] = [
   "bone",
   "copper",
   "greys",
-  "yignbu",
+  "ylgnbu",
   "greens",
-  "yiorrd",
+  "ylorrd",
   "bluered",
   "rdbu",
   "picnic",
@@ -234,14 +234,22 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
       id: "domain-min",
       name: i18next.t("models.cogStyling.minimumValue"),
       value: value,
-      setDimensionValue: action((stratumId: string, value: number) => {
+      allowUndefined: true,
+      setDimensionValue: action((stratumId: string, value: number | undefined) => {
+        if (value === undefined) {
+          // Clear the domain if undefined
+          if (this.item.renderOptions.single) {
+            this.item.renderOptions.single.setTrait(stratumId, "domain", undefined);
+          }
+          return;
+        }
         const currentDomain = this.item.renderOptions?.single?.domain;
         if (!this.item.renderOptions.single) {
           this.item.renderOptions.setTrait(stratumId, "single", undefined);
         }
         this.item.renderOptions.single!.setTrait(stratumId, "domain", [
           value,
-          currentDomain?.[1] ?? value + 1
+          currentDomain?.[1] ?? value + 100
         ]);
       })
     };
@@ -260,13 +268,21 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
       id: "domain-max",
       name: i18next.t("models.cogStyling.maximumValue"),
       value: value,
-      setDimensionValue: action((stratumId: string, value: number) => {
+      allowUndefined: true,
+      setDimensionValue: action((stratumId: string, value: number | undefined) => {
+        if (value === undefined) {
+          // Clear the domain if undefined
+          if (this.item.renderOptions.single) {
+            this.item.renderOptions.single.setTrait(stratumId, "domain", undefined);
+          }
+          return;
+        }
         const currentDomain = this.item.renderOptions?.single?.domain;
         if (!this.item.renderOptions.single) {
           this.item.renderOptions.setTrait(stratumId, "single", undefined);
         }
         this.item.renderOptions.single!.setTrait(stratumId, "domain", [
-          currentDomain?.[0] ?? value - 1,
+          currentDomain?.[0] ?? value - 100,
           value
         ]);
       })

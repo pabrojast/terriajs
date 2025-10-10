@@ -11,7 +11,8 @@
       "Bash(npm run prettier:*)",
       "Bash(gulp:*)",
       "Bash(python3:*)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(find:*)"
     ],
     "deny": [],
     "additionalDirectories": [
