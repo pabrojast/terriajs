@@ -18,10 +18,7 @@ import { ColorScaleNames } from "../../Traits/TraitsClasses/CogCatalogItemTraits
 
 /** Available color scales for COG rendering */
 const COLOR_SCALES: ColorScaleNames[] = [
-  "viridis",
-  "plasma",
-  "inferno",
-  "magma",
+  "turbo",
   "rainbow",
   "jet",
   "hsv",
@@ -43,8 +40,7 @@ const COLOR_SCALES: ColorScaleNames[] = [
   "portland",
   "blackbody",
   "earth",
-  "electric",
-  "matter"
+  "electric"
 ];
 
 /** SelectableDimensionWorkflow for styling COG (Cloud Optimized GeoTIFF) catalog items */
@@ -168,7 +164,7 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
   @computed
   private get colorScaleSelectableDim(): SelectableDimensionEnum | undefined {
     const colorScale =
-      this.item.renderOptions?.single?.colorScale ?? "viridis";
+      this.item.renderOptions?.single?.colorScale ?? "turbo";
 
     return {
       type: "select",
