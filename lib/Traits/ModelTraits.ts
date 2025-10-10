@@ -1,5 +1,5 @@
 import { JsonObject } from "../Core/Json";
-import { Equals, Or } from "../Core/TypeConditionals";
+import { Equals, Extends, Or } from "../Core/TypeConditionals";
 import ModelReference from "./ModelReference";
 import Trait from "./Trait";
 
@@ -20,9 +20,9 @@ class ModelTraits {
 export type IsValidSimpleTraitType<T> = Or<
   Equals<T, ModelReference>,
   Equals<T, JsonObject>,
-  Equals<T, string>,
-  Equals<T, number>,
-  Equals<T, boolean>,
+  Extends<T, string>,
+  Extends<T, number>,
+  Extends<T, boolean>,
   Equals<T, null>
 >;
 

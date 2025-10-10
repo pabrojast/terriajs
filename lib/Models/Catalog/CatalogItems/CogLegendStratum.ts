@@ -9,6 +9,7 @@ import LegendTraits, {
 } from "../../../Traits/TraitsClasses/LegendTraits";
 import CogCatalogItem from "./CogCatalogItem";
 import { COG_COLOR_SCALES } from "./CogColorScales";
+import { ColorScaleNames } from "../../../Traits/TraitsClasses/CogCatalogItemTraits";
 
 /**
  * LoadableStratum for generating COG legends based on color scale and domain
@@ -45,7 +46,8 @@ export class CogLegendStratum extends LoadableStratum(LegendTraits) {
     const [minValue, maxValue] = domain;
 
     // Get colors for the selected scale
-    const scaleColors = COG_COLOR_SCALES[colorScale];
+    if (typeof colorScale !== "string") return undefined;
+    const scaleColors = COG_COLOR_SCALES[colorScale as ColorScaleNames];
     if (!scaleColors) return undefined;
 
     const colors = scaleColors.colors;
