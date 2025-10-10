@@ -10,9 +10,12 @@
       "Bash(npm run prettier-check:*)",
       "Bash(npm run prettier:*)",
       "Bash(gulp:*)",
-      "Bash(python3:*)"
+      "Bash(python3:*)",
+      "Bash(npx tsc:*)"
     ],
     "deny": [],
-    "additionalDirectories": ["C:\\Users\\Lenovo\\Proyectos\\TerriaMap"]
+    "additionalDirectories": [
+      "C:\\Users\\Lenovo\\Proyectos\\TerriaMap"
+    ]
   }
 }

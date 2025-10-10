@@ -27,7 +27,7 @@ import Terria from "../../Terria";
 import proxyCatalogItemUrl from "../proxyCatalogItemUrl";
 import Icon from "../../../Styled/Icon";
 import { ViewingControl } from "../../ViewingControls";
-import SelectableDimensionWorkflow from "../../Workflows/SelectableDimensionWorkflow";
+import { runWorkflow } from "../../Workflows/SelectableDimensionWorkflow";
 import CogStylingWorkflow from "../../Workflows/CogStylingWorkflow";
 
 /**
@@ -168,10 +168,7 @@ export default class CogCatalogItem extends MappableMixin(
         id: CogStylingWorkflow.type,
         name: i18next.t("models.cog.editStyle"),
         onClick: action((viewState) =>
-          SelectableDimensionWorkflow.runWorkflow(
-            viewState,
-            new CogStylingWorkflow(this)
-          )
+          runWorkflow(viewState, new CogStylingWorkflow(this))
         ),
         icon: { glyph: Icon.GLYPHS.layers }
       }

@@ -8,8 +8,8 @@ import CommonStrata from "../Definition/CommonStrata";
 import {
   SelectableDimensionButton,
   SelectableDimensionCheckbox,
-  SelectableDimensionNumeric,
-  SelectableDimensionSelect
+  SelectableDimensionEnum,
+  SelectableDimensionNumeric
 } from "../SelectableDimensions/SelectableDimensions";
 import SelectableDimensionWorkflow, {
   SelectableDimensionWorkflowGroup
@@ -166,7 +166,7 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
 
   /** Color Scale selector */
   @computed
-  private get colorScaleSelectableDim(): SelectableDimensionSelect | undefined {
+  private get colorScaleSelectableDim(): SelectableDimensionEnum | undefined {
     const colorScale =
       this.item.renderOptions?.single?.colorScale ?? "viridis";
 
@@ -181,7 +181,9 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
         name: scale.charAt(0).toUpperCase() + scale.slice(1)
       })),
       setDimensionValue: action((stratumId: string, value: string) => {
-        this.item.renderOptions.setTrait(stratumId, "single", {});
+        if (!this.item.renderOptions.single) {
+          this.item.renderOptions.setTrait(stratumId, "single", undefined);
+        }
         this.item.renderOptions.single!.setTrait(
           stratumId,
           "colorScale",
@@ -193,9 +195,7 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
 
   /** Render Type selector (continuous/discrete) */
   @computed
-  private get renderTypeSelectableDim():
-    | SelectableDimensionSelect
-    | undefined {
+  private get renderTypeSelectableDim(): SelectableDimensionEnum | undefined {
     const type = this.item.renderOptions?.single?.type ?? "continuous";
 
     return {
@@ -209,7 +209,9 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
         { id: "discrete", name: i18next.t("models.cogStyling.discrete") }
       ],
       setDimensionValue: action((stratumId: string, value: string) => {
-        this.item.renderOptions.setTrait(stratumId, "single", {});
+        if (!this.item.renderOptions.single) {
+          this.item.renderOptions.setTrait(stratumId, "single", undefined);
+        }
         this.item.renderOptions.single!.setTrait(
           stratumId,
           "type",
@@ -234,7 +236,9 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
       value: value,
       setDimensionValue: action((stratumId: string, value: number) => {
         const currentDomain = this.item.renderOptions?.single?.domain;
-        this.item.renderOptions.setTrait(stratumId, "single", {});
+        if (!this.item.renderOptions.single) {
+          this.item.renderOptions.setTrait(stratumId, "single", undefined);
+        }
         this.item.renderOptions.single!.setTrait(stratumId, "domain", [
           value,
           currentDomain?.[1] ?? value + 1
@@ -258,7 +262,9 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
       value: value,
       setDimensionValue: action((stratumId: string, value: number) => {
         const currentDomain = this.item.renderOptions?.single?.domain;
-        this.item.renderOptions.setTrait(stratumId, "single", {});
+        if (!this.item.renderOptions.single) {
+          this.item.renderOptions.setTrait(stratumId, "single", undefined);
+        }
         this.item.renderOptions.single!.setTrait(stratumId, "domain", [
           currentDomain?.[0] ?? value - 1,
           value
@@ -281,14 +287,18 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
       name: i18next.t("models.cogStyling.applyDisplayRange"),
       selectedId: applyDisplayRange ? "true" : "false",
       options: [{ id: "true" }],
-      setDimensionValue: action((stratumId: string, value: string) => {
-        this.item.renderOptions.setTrait(stratumId, "single", {});
-        this.item.renderOptions.single!.setTrait(
-          stratumId,
-          "applyDisplayRange",
-          value === "true"
-        );
-      })
+      setDimensionValue: action(
+        (stratumId: string, value: "true" | "false" | undefined) => {
+          if (!this.item.renderOptions.single) {
+            this.item.renderOptions.setTrait(stratumId, "single", undefined);
+          }
+          this.item.renderOptions.single!.setTrait(
+            stratumId,
+            "applyDisplayRange",
+            value === "true"
+          );
+        }
+      )
     };
   }
 
@@ -307,7 +317,9 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
       value: value,
       setDimensionValue: action((stratumId: string, value: number) => {
         const currentRange = this.item.renderOptions?.single?.displayRange;
-        this.item.renderOptions.setTrait(stratumId, "single", {});
+        if (!this.item.renderOptions.single) {
+          this.item.renderOptions.setTrait(stratumId, "single", undefined);
+        }
         this.item.renderOptions.single!.setTrait(stratumId, "displayRange", [
           value,
           currentRange?.[1] ?? value + 1
@@ -331,7 +343,9 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
       value: value,
       setDimensionValue: action((stratumId: string, value: number) => {
         const currentRange = this.item.renderOptions?.single?.displayRange;
-        this.item.renderOptions.setTrait(stratumId, "single", {});
+        if (!this.item.renderOptions.single) {
+          this.item.renderOptions.setTrait(stratumId, "single", undefined);
+        }
         this.item.renderOptions.single!.setTrait(stratumId, "displayRange", [
           currentRange?.[0] ?? value - 1,
           value
@@ -352,7 +366,9 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
       value: band,
       min: 1,
       setDimensionValue: action((stratumId: string, value: number) => {
-        this.item.renderOptions.setTrait(stratumId, "single", {});
+        if (!this.item.renderOptions.single) {
+          this.item.renderOptions.setTrait(stratumId, "single", undefined);
+        }
         this.item.renderOptions.single!.setTrait(
           stratumId,
           "band",
@@ -375,14 +391,18 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
       name: i18next.t("models.cogStyling.clampLow"),
       selectedId: clampLow ? "true" : "false",
       options: [{ id: "true" }],
-      setDimensionValue: action((stratumId: string, value: string) => {
-        this.item.renderOptions.setTrait(stratumId, "single", {});
-        this.item.renderOptions.single!.setTrait(
-          stratumId,
-          "clampLow",
-          value === "true"
-        );
-      })
+      setDimensionValue: action(
+        (stratumId: string, value: "true" | "false" | undefined) => {
+          if (!this.item.renderOptions.single) {
+            this.item.renderOptions.setTrait(stratumId, "single", undefined);
+          }
+          this.item.renderOptions.single!.setTrait(
+            stratumId,
+            "clampLow",
+            value === "true"
+          );
+        }
+      )
     };
   }
 
@@ -399,14 +419,18 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
       name: i18next.t("models.cogStyling.clampHigh"),
       selectedId: clampHigh ? "true" : "false",
       options: [{ id: "true" }],
-      setDimensionValue: action((stratumId: string, value: string) => {
-        this.item.renderOptions.setTrait(stratumId, "single", {});
-        this.item.renderOptions.single!.setTrait(
-          stratumId,
-          "clampHigh",
-          value === "true"
-        );
-      })
+      setDimensionValue: action(
+        (stratumId: string, value: "true" | "false" | undefined) => {
+          if (!this.item.renderOptions.single) {
+            this.item.renderOptions.setTrait(stratumId, "single", undefined);
+          }
+          this.item.renderOptions.single!.setTrait(
+            stratumId,
+            "clampHigh",
+            value === "true"
+          );
+        }
+      )
     };
   }
 }
