@@ -17,6 +17,7 @@ export type ColorScaleNames =
   | "plasma"
   | "inferno"
   | "magma"
+  | "turbo"
   | "rainbow"
   | "jet"
   | "hsv"
@@ -39,7 +40,6 @@ export type ColorScaleNames =
   | "blackbody"
   | "earth"
   | "electric"
-  | "alpha"
   | "matter";
 /**
  * Definition of traits for the `single` rendering options.

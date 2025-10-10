@@ -45,7 +45,7 @@ export class CogLegendStratum extends LoadableStratum(LegendTraits) {
     const [minValue, maxValue] = domain;
 
     // Get colors for the selected scale
-    const scaleColors = COG_COLOR_SCALES[colorScale];
+    const scaleColors = COG_COLOR_SCALES[colorScale as keyof typeof COG_COLOR_SCALES];
     if (!scaleColors) return undefined;
 
     const colors = scaleColors.colors;
