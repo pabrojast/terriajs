@@ -853,6 +853,16 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
           maxIndex
         );
 
+        // Get actual tile pixel dimensions from the TileMatrixSet
+        const levelDimensions = this.getTileMatrixLevelDimensions(
+          tileMatrixSet.id
+        );
+        const level0Dims = levelDimensions?.get(0);
+        const actualTileWidth =
+          level0Dims?.tileWidth ?? tileMatrixSet.tileWidth;
+        const actualTileHeight =
+          level0Dims?.tileHeight ?? tileMatrixSet.tileHeight;
+
         imageryProvider = new WebMapTileServiceImageryProvider({
           url: proxyCatalogItemUrl(this, baseUrl),
           layer: layerIdentifier,
@@ -861,8 +871,8 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
           tileMatrixLabels: tileMatrixSet.labels,
           minimumLevel: minLevel,
           maximumLevel: maxLevel,
-          tileWidth: tileMatrixSet.tileWidth,
-          tileHeight: tileMatrixSet.tileHeight,
+          tileWidth: actualTileWidth,
+          tileHeight: actualTileHeight,
           tilingScheme: tilingScheme,
           format,
           credit: this.attribution,
@@ -1480,19 +1490,47 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
       ) => string
     > = {};
 
+    // Track which tiles we've logged to avoid spam
+    const loggedUrls = new Set<string>();
+
     Object.keys(customTags).forEach((key) => {
       const originalTag = customTags[key];
       loggingCustomTags[key] = (provider, x, y, level) => {
         const value = originalTag(provider, x, y, level);
+
+        // Log the first few tile URLs at each level for debugging
+        const tileKey = `${level}-${x}-${y}`;
+        if (level <= 2 && x < 2 && y < 2 && !loggedUrls.has(tileKey)) {
+          // Build the full URL for this tile
+          let url = templateUrl;
+          Object.keys(customTags).forEach((tagKey) => {
+            const tagValue = customTags[tagKey](provider, x, y, level);
+            url = url.replace(`{${tagKey}}`, tagValue);
+          });
+          loggedUrls.add(tileKey);
+          console.log(`[WMTS URL] Level ${level}, Tile (${x},${y}): ${url}`);
+        }
+
         return value;
       };
     });
 
+    // Get actual tile pixel dimensions from the TileMatrixSet
+    // GIBS uses 512x512, but this.tileMatrixSet might have cached values from first tile
+    const levelDimensions = this.getTileMatrixLevelDimensions(tileMatrixSet.id);
+    const level0Dims = levelDimensions?.get(0);
+    const actualTileWidth = level0Dims?.tileWidth ?? tileMatrixSet.tileWidth;
+    const actualTileHeight = level0Dims?.tileHeight ?? tileMatrixSet.tileHeight;
+
+    console.log(
+      `[WMTS] Tile pixel dimensions: ${actualTileWidth}x${actualTileHeight}`
+    );
+
     const provider = new UrlTemplateImageryProvider({
       url: proxyCatalogItemUrl(this, templateUrl),
       tilingScheme,
-      tileWidth: tileMatrixSet.tileWidth,
-      tileHeight: tileMatrixSet.tileHeight,
+      tileWidth: actualTileWidth,
+      tileHeight: actualTileHeight,
       minimumLevel: this.minimumLevel ?? minIndex,
       maximumLevel: this.maximumLevel ?? maxIndex,
       credit: this.attribution,
