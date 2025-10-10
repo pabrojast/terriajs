@@ -1242,6 +1242,9 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
       return label ?? level.toString();
     };
 
+    registerTag("TileMatrixSet", () => tileMatrixSet.id);
+    registerTag("tilematrixset", () => tileMatrixSet.id);
+
     registerTag("TileMatrix", (_provider, x, y, level) => {
       const label = tileMatrixForLevel(level);
       if (level <= 2 && x < 3 && y < 2) {
