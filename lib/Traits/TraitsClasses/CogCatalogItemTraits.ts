@@ -13,10 +13,6 @@ import UrlTraits from "./UrlTraits";
 import primitiveArrayTrait from "../Decorators/primitiveArrayTrait";
 
 export type ColorScaleNames =
-  | "viridis"
-  | "plasma"
-  | "inferno"
-  | "magma"
   | "turbo"
   | "rainbow"
   | "jet"
@@ -39,8 +35,7 @@ export type ColorScaleNames =
   | "portland"
   | "blackbody"
   | "earth"
-  | "electric"
-  | "matter";
+  | "electric";
 /**
  * Definition of traits for the `single` rendering options.
  */

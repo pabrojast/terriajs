@@ -35,7 +35,7 @@ export class CogLegendStratum extends LoadableStratum(LegendTraits) {
     const renderOptions = this.catalogItem.renderOptions?.single;
     if (!renderOptions) return undefined;
 
-    const colorScale = renderOptions.colorScale ?? "viridis";
+    const colorScale = renderOptions.colorScale ?? "turbo";
     const domain = renderOptions.domain;
     const type = renderOptions.type ?? "continuous";
 

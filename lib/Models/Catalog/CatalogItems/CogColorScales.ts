@@ -8,57 +8,6 @@ export const COG_COLOR_SCALES: Record<
   ColorScaleNames,
   { colors: string[]; positions?: number[] }
 > = {
-  viridis: {
-    colors: [
-      "#440154",
-      "#482777",
-      "#3f4a8a",
-      "#31678e",
-      "#26838f",
-      "#1f9d8a",
-      "#6cce5a",
-      "#b6de2b",
-      "#fee825"
-    ]
-  },
-  plasma: {
-    colors: [
-      "#0d0887",
-      "#5302a3",
-      "#8b0aa5",
-      "#b93289",
-      "#db5c68",
-      "#f48849",
-      "#febd2a",
-      "#f0f921"
-    ]
-  },
-  inferno: {
-    colors: [
-      "#000004",
-      "#1b0c41",
-      "#4a0c6b",
-      "#781c6d",
-      "#a52c60",
-      "#cf4446",
-      "#ed6925",
-      "#fb9b06",
-      "#f7d13d",
-      "#fcffa4"
-    ]
-  },
-  magma: {
-    colors: [
-      "#000004",
-      "#1c1044",
-      "#4f127b",
-      "#812581",
-      "#b5367a",
-      "#e55964",
-      "#fb9e3a",
-      "#fcfdbf"
-    ]
-  },
   turbo: {
     colors: [
       "#30123b",
@@ -229,20 +178,6 @@ export const COG_COLOR_SCALES: Record<
       "#a05a00",
       "#e6c800",
       "#fffadc"
-    ]
-  },
-  matter: {
-    colors: [
-      "#fedd5d",
-      "#f9c140",
-      "#f5a229",
-      "#ed7e21",
-      "#e05821",
-      "#c43428",
-      "#a21a39",
-      "#780c47",
-      "#4f064e",
-      "#260347"
     ]
   }
 };
