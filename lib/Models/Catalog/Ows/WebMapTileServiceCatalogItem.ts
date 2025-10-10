@@ -863,11 +863,6 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
         const actualTileHeight =
           level0Dims?.tileHeight ?? tileMatrixSet.tileHeight;
 
-        // EXPERIMENTAL: For non-standard tile progressions, try WITHOUT custom tilingScheme
-        // Let WebMapTileServiceImageryProvider use its default logic with tileMatrixLabels
-        const useCustomScheme =
-          tilingScheme instanceof CustomGeographicTilingScheme;
-
         imageryProvider = new WebMapTileServiceImageryProvider({
           url: proxyCatalogItemUrl(this, baseUrl),
           layer: layerIdentifier,
@@ -878,7 +873,7 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
           maximumLevel: maxLevel,
           tileWidth: actualTileWidth,
           tileHeight: actualTileHeight,
-          tilingScheme: useCustomScheme ? undefined : tilingScheme, // Try without custom scheme
+          tilingScheme,
           format,
           credit: this.attribution,
           dimensions: finalDimensions
@@ -886,7 +881,7 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
 
         console.log(
           "[WMTS] Using tilingScheme:",
-          useCustomScheme ? "none (letting Cesium use default)" : "standard"
+          tilingScheme?.constructor?.name ?? "default"
         );
 
         // Verify that the provider is using our custom tiling scheme
@@ -1930,14 +1925,8 @@ class CustomGeographicTilingScheme {
 
     const level0 = levelDimensions.get(0);
 
-    // CRITICAL HACK: Cesium's WebMapTileServiceImageryProvider has hardcoded assumptions
-    // about numberOfLevelZeroTiles. For GeographicTilingScheme, it expects 1x1.
-    // If we report 2x1 (GIBS level 0), Cesium miscalculates tile positions.
-    // Solution: Report 1x1 to Cesium (lie about level 0), but use correct values in
-    // getNumberOfXTilesAtLevel/getNumberOfYTilesAtLevel which is what actually matters
-    // for determining which tiles to load.
-    this.numberOfLevelZeroTilesX = 1;
-    this.numberOfLevelZeroTilesY = 1;
+    this.numberOfLevelZeroTilesX = level0?.width ?? 2;
+    this.numberOfLevelZeroTilesY = level0?.height ?? 1;
 
     // For EPSG:4326, use standard geographic rectangle covering the entire globe
     this.rectangle = Rectangle.fromDegrees(-180, -90, 180, 90);
@@ -1948,11 +1937,75 @@ class CustomGeographicTilingScheme {
         `[CustomTilingScheme] Using TopLeftCorner: [${topLeftLon}, ${topLeftLat}] for tile calculations`
       );
       console.log(
-        `[CustomTilingScheme] HACK: Reporting numberOfLevelZeroTiles as 1x1 to Cesium (actual level 0 is ${level0.width}x${level0.height})`
+        `[CustomTilingScheme] Level 0 tiles reported as ${this.numberOfLevelZeroTilesX}x${this.numberOfLevelZeroTilesY}`
       );
     }
 
     this.projection = new GeographicProjection(this.ellipsoid);
+  }
+
+  private computeTileMetrics(levelDim: {
+    width: number;
+    height: number;
+    topLeftCorner?: [number, number];
+    scaleDenominator?: number;
+    tileWidth?: number;
+    tileHeight?: number;
+  }): {
+    radiansPerPixel?: number;
+    tileWidthRadians: number;
+    tileHeightRadians: number;
+    tileWidthDegrees: number;
+    tileHeightDegrees: number;
+    topLeftLonRadians: number;
+    topLeftLatRadians: number;
+    topLeftLonDegrees: number;
+    topLeftLatDegrees: number;
+  } {
+    const metersPerPixel =
+      levelDim.scaleDenominator && levelDim.scaleDenominator > 0
+        ? levelDim.scaleDenominator * 0.00028
+        : undefined;
+    const radiansPerPixel =
+      metersPerPixel !== undefined
+        ? metersPerPixel / this.ellipsoid.maximumRadius
+        : undefined;
+
+    const tileWidthRadians =
+      radiansPerPixel !== undefined && levelDim.tileWidth
+        ? Math.abs(radiansPerPixel * levelDim.tileWidth)
+        : (this.rectangle.east - this.rectangle.west) / levelDim.width;
+
+    const tileHeightRadians =
+      radiansPerPixel !== undefined && levelDim.tileHeight
+        ? Math.abs(radiansPerPixel * levelDim.tileHeight)
+        : (this.rectangle.north - this.rectangle.south) / levelDim.height;
+
+    const topLeftLonDegrees = levelDim.topLeftCorner
+      ? levelDim.topLeftCorner[0]
+      : -180;
+    const topLeftLatDegrees = levelDim.topLeftCorner
+      ? levelDim.topLeftCorner[1]
+      : 90;
+
+    const toRadians = (degrees: number) => (degrees * Math.PI) / 180;
+
+    const topLeftLonRadians = toRadians(topLeftLonDegrees);
+    const topLeftLatRadians = toRadians(topLeftLatDegrees);
+
+    const toDegrees = (radians: number) => (radians * 180) / Math.PI;
+
+    return {
+      radiansPerPixel,
+      tileWidthRadians,
+      tileHeightRadians,
+      tileWidthDegrees: toDegrees(tileWidthRadians),
+      tileHeightDegrees: toDegrees(tileHeightRadians),
+      topLeftLonRadians,
+      topLeftLatRadians,
+      topLeftLonDegrees,
+      topLeftLatDegrees
+    };
   }
 
   getNumberOfXTilesAtLevel(level: number): number {
@@ -1982,28 +2035,30 @@ class CustomGeographicTilingScheme {
       result = { x: 0, y: 0 };
     }
 
-    // Convert radians to degrees - position comes in radians from Cesium
-    const longitude = position.longitude * (180 / Math.PI);
-    const latitude = position.latitude * (180 / Math.PI);
+    const longitudeRad = position.longitude;
+    const latitudeRad = position.latitude;
 
     const levelDim = this.levelDimensions.get(level);
 
     if (!levelDim) {
-      // Fallback to uniform distribution
+      // Fallback to uniform distribution using the full geographic rectangle
       const numberOfXTiles = this.getNumberOfXTilesAtLevel(level);
       const numberOfYTiles = this.getNumberOfYTilesAtLevel(level);
       const rectangle = this.rectangle;
 
-      // Convert rectangle bounds from radians to degrees
       const rectWestDeg = rectangle.west * (180 / Math.PI);
       const rectEastDeg = rectangle.east * (180 / Math.PI);
       const rectNorthDeg = rectangle.north * (180 / Math.PI);
       const rectSouthDeg = rectangle.south * (180 / Math.PI);
+      const longitudeDeg = longitudeRad * (180 / Math.PI);
+      const latitudeDeg = latitudeRad * (180 / Math.PI);
 
       const xTileWidth = (rectEastDeg - rectWestDeg) / numberOfXTiles;
       const yTileHeight = (rectNorthDeg - rectSouthDeg) / numberOfYTiles;
 
-      let xTileCoordinate = Math.floor((longitude - rectWestDeg) / xTileWidth);
+      let xTileCoordinate = Math.floor(
+        (longitudeDeg - rectWestDeg) / xTileWidth
+      );
       if (xTileCoordinate >= numberOfXTiles) {
         xTileCoordinate = numberOfXTiles - 1;
       }
@@ -2011,7 +2066,9 @@ class CustomGeographicTilingScheme {
         xTileCoordinate = 0;
       }
 
-      let yTileCoordinate = Math.floor((rectNorthDeg - latitude) / yTileHeight);
+      let yTileCoordinate = Math.floor(
+        (rectNorthDeg - latitudeDeg) / yTileHeight
+      );
       if (yTileCoordinate >= numberOfYTiles) {
         yTileCoordinate = numberOfYTiles - 1;
       }
@@ -2024,51 +2081,60 @@ class CustomGeographicTilingScheme {
       return result;
     }
 
-    // Calculate tile size in degrees from MatrixWidth/MatrixHeight
-    const coverageWidthDegrees = 360.0;
-    const coverageHeightDegrees = 180.0;
-    const tileWidthDegrees = coverageWidthDegrees / levelDim.width;
-    const tileHeightDegrees = coverageHeightDegrees / levelDim.height;
+    const {
+      tileWidthRadians,
+      tileHeightRadians,
+      topLeftLonRadians,
+      topLeftLatRadians
+    } = this.computeTileMetrics(levelDim);
 
-    // Use TopLeftCorner if available, otherwise assume standard EPSG:4326 origin
-    const topLeftLon = levelDim.topLeftCorner
-      ? levelDim.topLeftCorner[0]
-      : -180;
-    const topLeftLat = levelDim.topLeftCorner ? levelDim.topLeftCorner[1] : 90;
+    const totalWidthRadians = tileWidthRadians * levelDim.width;
+    const totalHeightRadians = tileHeightRadians * levelDim.height;
 
-    const numberOfXTiles = levelDim.width;
-    const numberOfYTiles = levelDim.height;
+    let deltaLon = longitudeRad - topLeftLonRadians;
+    if (totalWidthRadians > 0) {
+      deltaLon =
+        ((deltaLon % totalWidthRadians) + totalWidthRadians) %
+        totalWidthRadians;
+    }
 
-    let xTileCoordinate = Math.floor(
-      (longitude - topLeftLon) / tileWidthDegrees
-    );
-    if (xTileCoordinate >= numberOfXTiles) {
-      xTileCoordinate = numberOfXTiles - 1;
+    let deltaLat = topLeftLatRadians - latitudeRad;
+    if (totalHeightRadians > 0) {
+      deltaLat =
+        ((deltaLat % totalHeightRadians) + totalHeightRadians) %
+        totalHeightRadians;
+    }
+
+    let xTileCoordinate = Math.floor(deltaLon / tileWidthRadians);
+    if (!Number.isFinite(xTileCoordinate)) {
+      xTileCoordinate = 0;
+    }
+    if (xTileCoordinate >= levelDim.width) {
+      xTileCoordinate = levelDim.width - 1;
     }
     if (xTileCoordinate < 0) {
       xTileCoordinate = 0;
     }
 
-    let yTileCoordinate = Math.floor(
-      (topLeftLat - latitude) / tileHeightDegrees
-    );
-    if (yTileCoordinate >= numberOfYTiles) {
-      yTileCoordinate = numberOfYTiles - 1;
+    let yTileCoordinate = Math.floor(deltaLat / tileHeightRadians);
+    if (!Number.isFinite(yTileCoordinate)) {
+      yTileCoordinate = 0;
+    }
+    if (yTileCoordinate >= levelDim.height) {
+      yTileCoordinate = levelDim.height - 1;
     }
     if (yTileCoordinate < 0) {
       yTileCoordinate = 0;
     }
 
-    // Log a few position->tile conversions for debugging
     if (level === 2 && Math.random() < 0.01) {
-      // Log 1% of requests
+      const radToDeg = 180 / Math.PI;
       console.log(
-        `[positionToTileXY] Level ${level}, Pos=(${longitude.toFixed(
+        `[positionToTileXY] Level ${level}, Pos=(${(
+          longitudeRad * radToDeg
+        ).toFixed(2)}deg, ${(latitudeRad * radToDeg).toFixed(
           2
-        )}°, ${latitude.toFixed(
-          2
-        )}°) -> Tile=(${xTileCoordinate}, ${yTileCoordinate}), ` +
-          `TileHeight=${tileHeightDegrees.toFixed(2)}°, TopLat=${topLeftLat}`
+        )}deg) -> Tile=(${xTileCoordinate}, ${yTileCoordinate})`
       );
     }
 
@@ -2086,15 +2152,14 @@ class CustomGeographicTilingScheme {
     const levelDim = this.levelDimensions.get(level);
 
     if (!levelDim) {
-      // No level dimensions available - use standard geographic distribution
       const numberOfXTiles = this.getNumberOfXTilesAtLevel(level);
       const numberOfYTiles = this.getNumberOfYTilesAtLevel(level);
       const rectangle = this.rectangle;
       const xTileWidth = (rectangle.east - rectangle.west) / numberOfXTiles;
       const yTileHeight = (rectangle.north - rectangle.south) / numberOfYTiles;
 
-      const west = x * xTileWidth + rectangle.west;
-      const east = (x + 1) * xTileWidth + rectangle.west;
+      const west = rectangle.west + x * xTileWidth;
+      const east = rectangle.west + (x + 1) * xTileWidth;
       const north = rectangle.north - y * yTileHeight;
       const south = rectangle.north - (y + 1) * yTileHeight;
 
@@ -2108,54 +2173,55 @@ class CustomGeographicTilingScheme {
       return result;
     }
 
-    // Calculate tile size in degrees from MatrixWidth/MatrixHeight
-    // For EPSG:4326, the coverage is always -180 to 180 (360°) × -90 to 90 (180°)
-    const coverageWidthDegrees = 360.0;
-    const coverageHeightDegrees = 180.0;
+    const {
+      tileWidthRadians,
+      tileHeightRadians,
+      tileWidthDegrees,
+      tileHeightDegrees,
+      topLeftLonRadians,
+      topLeftLatRadians,
+      topLeftLonDegrees,
+      topLeftLatDegrees,
+      radiansPerPixel
+    } = this.computeTileMetrics(levelDim);
 
-    // Tile size = Coverage / Number of tiles at this level
-    const tileWidthDegrees = coverageWidthDegrees / levelDim.width;
-    const tileHeightDegrees = coverageHeightDegrees / levelDim.height;
+    const west = topLeftLonRadians + x * tileWidthRadians;
+    const east = topLeftLonRadians + (x + 1) * tileWidthRadians;
+    const north = topLeftLatRadians - y * tileHeightRadians;
+    const south = topLeftLatRadians - (y + 1) * tileHeightRadians;
 
-    // Use TopLeftCorner if available, otherwise assume standard EPSG:4326 origin
-    const topLeftLon = levelDim.topLeftCorner
-      ? levelDim.topLeftCorner[0]
-      : -180;
-    const topLeftLat = levelDim.topLeftCorner ? levelDim.topLeftCorner[1] : 90;
-
-    const westDeg = topLeftLon + x * tileWidthDegrees;
-    const eastDeg = topLeftLon + (x + 1) * tileWidthDegrees;
-    const northDeg = topLeftLat - y * tileHeightDegrees;
-    const southDeg = topLeftLat - (y + 1) * tileHeightDegrees;
-
-    // Convert from degrees to radians for Cesium Rectangle
-    const west = westDeg * (Math.PI / 180);
-    const east = eastDeg * (Math.PI / 180);
-    const north = northDeg * (Math.PI / 180);
-    const south = southDeg * (Math.PI / 180);
-
-    // Log first few tiles of level 2 for debugging (only once per tile)
-    // IMPORTANT: Log ALL y values including y=2 to verify third row
     const tileKey = `${level}-${x}-${y}`;
     if (level === 2 && x < 5 && y <= 2 && !this.loggedTiles.has(tileKey)) {
       this.loggedTiles.add(tileKey);
+
+      const pixelSizeMeters =
+        radiansPerPixel !== undefined
+          ? radiansPerPixel * this.ellipsoid.maximumRadius
+          : undefined;
       const scaleInfo = levelDim.scaleDenominator
         ? `, Scale=${levelDim.scaleDenominator.toFixed(2)}`
         : "";
-      const pixelInfo = levelDim.scaleDenominator
-        ? `, PixelSize=${(levelDim.scaleDenominator * 0.00028).toFixed(6)}m`
-        : "";
+      const pixelInfo =
+        pixelSizeMeters !== undefined
+          ? `, PixelSize=${pixelSizeMeters.toFixed(2)}m`
+          : "";
+      const degWest = (west * 180) / Math.PI;
+      const degEast = (east * 180) / Math.PI;
+      const degNorth = (north * 180) / Math.PI;
+      const degSouth = (south * 180) / Math.PI;
       console.log(
         `[CustomTilingScheme] Tile (${x},${y},${level}): Matrix=${levelDim.width}x${levelDim.height}${scaleInfo}${pixelInfo}, ` +
-          `TileSize=${tileWidthDegrees.toFixed(4)}°x${tileHeightDegrees.toFixed(
+          `TileSize=${tileWidthDegrees.toFixed(
             4
-          )}°, ` +
-          `Bounds=[${westDeg.toFixed(2)}, ${southDeg.toFixed(
+          )}deg x ${tileHeightDegrees.toFixed(4)}deg, ` +
+          `Bounds=[${degWest.toFixed(2)}, ${degSouth.toFixed(
             2
-          )}, ${eastDeg.toFixed(2)}, ${northDeg.toFixed(2)}] deg, ` +
+          )}, ${degEast.toFixed(2)}, ${degNorth.toFixed(2)}] deg, ` +
           `Radians=[${west.toFixed(4)}, ${south.toFixed(4)}, ${east.toFixed(
             4
-          )}, ${north.toFixed(4)}]`
+          )}, ${north.toFixed(
+            4
+          )}], TopLeft=[${topLeftLonDegrees}, ${topLeftLatDegrees}]`
       );
     }
 
