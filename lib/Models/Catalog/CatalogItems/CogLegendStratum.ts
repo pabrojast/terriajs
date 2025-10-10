@@ -1,4 +1,3 @@
-import i18next from "i18next";
 import { computed, makeObservable } from "mobx";
 import createStratumInstance from "../../Definition/createStratumInstance";
 import LoadableStratum from "../../Definition/LoadableStratum";
@@ -7,13 +6,14 @@ import StratumFromTraits from "../../Definition/StratumFromTraits";
 import LegendTraits, {
   LegendItemTraits
 } from "../../../Traits/TraitsClasses/LegendTraits";
+import CogCatalogItemTraits from "../../../Traits/TraitsClasses/CogCatalogItemTraits";
 import CogCatalogItem from "./CogCatalogItem";
 import { COG_COLOR_SCALES } from "./CogColorScales";
 
 /**
  * LoadableStratum for generating COG legends based on color scale and domain
  */
-export class CogLegendStratum extends LoadableStratum(LegendTraits) {
+export class CogLegendStratum extends LoadableStratum(CogCatalogItemTraits) {
   static stratumName = "cog-legend";
 
   constructor(readonly catalogItem: CogCatalogItem) {
@@ -26,12 +26,7 @@ export class CogLegendStratum extends LoadableStratum(LegendTraits) {
   }
 
   @computed
-  get title(): string | undefined {
-    return i18next.t("models.cog.legendTitle");
-  }
-
-  @computed
-  get items(): StratumFromTraits<LegendItemTraits>[] | undefined {
+  get legends(): StratumFromTraits<LegendTraits>[] | undefined {
     const renderOptions = this.catalogItem.renderOptions?.single;
     if (!renderOptions) return undefined;
 
@@ -50,6 +45,23 @@ export class CogLegendStratum extends LoadableStratum(LegendTraits) {
 
     const colors = scaleColors.colors;
 
+    const items = this._getLegendItems(colors, minValue, maxValue, type);
+    if (!items) return undefined;
+
+    return [
+      createStratumInstance(LegendTraits, {
+        title: "Color Scale",
+        items
+      })
+    ];
+  }
+
+  private _getLegendItems(
+    colors: string[],
+    minValue: number,
+    maxValue: number,
+    type: "continuous" | "discrete"
+  ): StratumFromTraits<LegendItemTraits>[] | undefined {
     if (type === "discrete") {
       // For discrete legends, show a fixed number of bins
       const numBins = Math.min(colors.length, 8);
