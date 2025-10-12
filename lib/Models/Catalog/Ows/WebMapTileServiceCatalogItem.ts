@@ -722,6 +722,9 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
         return undefined;
       }
 
+      // First, collect dimensions to determine if we need them
+      const dimensions: Record<string, string> = { ...(this.dimensions ?? {}) };
+
       if (resourceUrl) {
         const candidates = Array.isArray(resourceUrl)
           ? resourceUrl
@@ -752,8 +755,6 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
           templateTokens = extractTemplateTokens(preferredTemplate.template);
         }
       }
-
-      const dimensions: Record<string, string> = { ...(this.dimensions ?? {}) };
       const defaults = stratum.currentLayerDimensions ?? [];
       const timeDimensionName = defaults.find(
         (dimension) => dimension.name?.toLowerCase() === "time"
@@ -810,6 +811,29 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
 
       const finalDimensions =
         Object.keys(dimensions).length > 0 ? dimensions : undefined;
+
+      // Check if REST template supports the dimensions we need to pass.
+      // Cesium's WebMapTileServiceImageryProvider only applies dimensions via query parameters
+      // when using KVP mode. For REST mode, dimensions must be in the template as placeholders.
+      // If dimensions exist but template doesn't support them, fallback to KVP mode.
+      if (finalDimensions && templateTokens.length > 0) {
+        const lowerTokens = templateTokens.map((t) => t.toLowerCase());
+        const dimensionKeys = Object.keys(finalDimensions);
+        const unsupportedDimensions = dimensionKeys.filter(
+          (key) => !lowerTokens.includes(key.toLowerCase())
+        );
+
+        if (unsupportedDimensions.length > 0) {
+          console.log(
+            `[WMTS] REST template does not support dimensions: ${unsupportedDimensions.join(
+              ", "
+            )}. Falling back to KVP mode to support dimensional data.`
+          );
+          // Reset to KVP mode by using the base URL without template
+          baseUrl = new URI(this.url).search("").toString();
+          templateTokens = [];
+        }
+      }
 
       // Log WMTS configuration for debugging tile load issues
       if (!templateTokens.length && baseUrl.indexOf("{") !== -1) {
