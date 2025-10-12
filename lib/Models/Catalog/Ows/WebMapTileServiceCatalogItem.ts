@@ -974,23 +974,21 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
       return;
     }
 
-    const levels = tileMatrixSetLabels.map((label, index) => {
+    // Build labelByLevel map for semantic lookups
+    // This maps parsed level numbers (or indices) to labels
+    tileMatrixSetLabels.forEach((label, index) => {
       const parsedLevel = parseTileMatrixLevel(label);
       if (isDefined(parsedLevel)) {
         labelByLevel.set(parsedLevel, label);
-        return parsedLevel;
       }
+      // Always also set the index mapping as primary
       labelByLevel.set(index, label);
-      return index;
     });
 
-    const numericLevels = levels.filter((level) => Number.isFinite(level));
-    const maxLevel = numericLevels.reduce((currentMaximum, level) => {
-      return level > currentMaximum ? level : currentMaximum;
-    }, 0);
-    const minLevel = numericLevels.reduce((currentMinimum, level) => {
-      return level < currentMinimum ? level : currentMinimum;
-    }, numericLevels[0] ?? 0);
+    // Use array indices for min/max level, not parsed identifiers
+    // Cesium/Leaflet use 0-based array indices regardless of TileMatrix identifiers
+    const minLevel = 0;
+    const maxLevel = tileMatrixSetLabels.length - 1;
 
     return {
       id: selectedId,
@@ -1054,8 +1052,10 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
     tileMatrices.forEach((matrix: any, index: number) => {
       const width = Number(matrix.MatrixWidth);
       const height = Number(matrix.MatrixHeight);
-      const parsedLevel = parseTileMatrixLevel(matrix.Identifier);
-      const key = isDefined(parsedLevel) ? parsedLevel : index;
+      // Use array index as the key, not the TileMatrix Identifier
+      // This is because Cesium/Leaflet use 0-based level indices, regardless of
+      // what the actual TileMatrix identifiers are (e.g., WorldCRS84Quad uses 6-10)
+      const key = index;
 
       // Parse TopLeftCorner if available
       let topLeftCorner: [number, number] | undefined;

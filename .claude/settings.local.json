@@ -10,7 +10,9 @@
       "Bash(npm run prettier-check:*)",
       "Bash(npm run prettier:*)",
       "Bash(gulp:*)",
-      "Bash(python3:*)"
+      "Bash(python3:*)",
+      "WebFetch(domain:data.dev-wins.com)",
+      "Bash(curl -s \"https://data.dev-wins.com/xcube/wmts/1.0.0/WMTSCapabilities.xml\")"
     ],
     "deny": [],
     "additionalDirectories": ["C:\\Users\\Lenovo\\Proyectos\\TerriaMap"]
