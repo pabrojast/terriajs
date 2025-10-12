@@ -73,11 +73,22 @@ interface OperationsMetadata {
   readonly Operation?: Operation | Operation[];
 }
 
+interface OperationEndpoint extends OnlineResource {
+  readonly Constraint?: OwsConstraint | ReadonlyArray<OwsConstraint>;
+}
+
+interface OwsConstraint {
+  readonly name?: string;
+  readonly AllowedValues?: {
+    readonly Value?: string | ReadonlyArray<string>;
+  };
+}
+
 interface Operation {
   name?: string;
   DCP?: {
     HTTP?: {
-      Get?: OnlineResource | ReadonlyArray<OnlineResource>;
+      Get?: OperationEndpoint | ReadonlyArray<OperationEndpoint>;
     };
   };
 }
