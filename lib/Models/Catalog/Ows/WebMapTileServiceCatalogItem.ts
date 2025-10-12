@@ -1696,7 +1696,7 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
   private buildFeatureInfoTemplateTokens(params: {
     layerName: string;
     style: string;
-    tileMatrixSet?: ReturnType<WebMapTileServiceCatalogItem["tileMatrixSet"]>;
+    tileMatrixSet?: NonNullable<WebMapTileServiceCatalogItem["tileMatrixSet"]>;
     tileMatrix: string;
     tileRow: number;
     tileCol: number;
