@@ -272,8 +272,8 @@ search provider values.
 WMTS catalog items can override the default `GetFeatureInfo` call by defining a `featureInfoRequest`
 object. This is useful when a service does not expose features directly but provides a separate
 endpoint (for example an `xcube` time-series API) that should be queried when the map is clicked.
-Templates support double-curly tokens such as `{{longitude}}`, `{{latitude}}`, `{{layer}}`,
-`{{time}}`, and pixel/tile indices.
+Templates support double-curly tokens such as `{{longitude}}`, `{{latitude}}`, `{{layer}}`
+(the WMTS Identifier), `{{layerTitle}}`, `{{time}}`, and pixel/tile indices.
 
 ```json5
 {

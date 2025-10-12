@@ -1521,10 +1521,15 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
     }
 
     const stratum = this.capabilitiesStratum;
-    const layerName = this.layer ?? stratum?.layer;
-    if (!layerName) {
+    const capabilitiesLayer = stratum?.capabilitiesLayer;
+    const layerIdentifier =
+      capabilitiesLayer?.Identifier ?? this.layer ?? stratum?.layer;
+    if (!layerIdentifier) {
       return undefined;
     }
+
+    const layerTitle =
+      this.layer ?? capabilitiesLayer?.Title ?? layerIdentifier;
 
     const tileMatrixSet = this.tileMatrixSet;
     const { type: defaultType, format } = this.featureInfoFormatOptions;
@@ -1568,7 +1573,8 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
     });
 
     const tokens = this.buildFeatureInfoTemplateTokens({
-      layerName,
+      layerIdentifier,
+      layerTitle,
       style: this.style ?? "",
       tileMatrixSet,
       tileMatrix,
@@ -1609,7 +1615,7 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
       SERVICE: "WMTS",
       VERSION: "1.0.0",
       REQUEST: "GetFeatureInfo",
-      LAYER: layerName,
+      LAYER: layerIdentifier,
       STYLE: this.style ?? "",
       TILEMATRIXSET: tileMatrixSet.id,
       TILEMATRIX: tileMatrix,
@@ -1694,7 +1700,8 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
   }
 
   private buildFeatureInfoTemplateTokens(params: {
-    layerName: string;
+    layerIdentifier: string;
+    layerTitle: string;
     style: string;
     tileMatrixSet?: NonNullable<WebMapTileServiceCatalogItem["tileMatrixSet"]>;
     tileMatrix: string;
@@ -1713,7 +1720,8 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
     extraParams: Record<string, string>;
   }): TemplateTokens {
     const {
-      layerName,
+      layerIdentifier,
+      layerTitle,
       style,
       tileMatrixSet,
       tileMatrix,
@@ -1736,10 +1744,14 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
     const latitudeDegrees = CesiumMath.toDegrees(latitude);
 
     const tokens: TemplateTokens = {
-      layer: layerName,
-      layerId: layerName,
-      layerName,
-      layerPath: layerName.replace(/\./g, "/"),
+      layer: layerIdentifier,
+      layerId: layerIdentifier,
+      layerName: layerIdentifier,
+      layerIdentifier,
+      layerPath: layerIdentifier.replace(/\./g, "/"),
+      layerTitle,
+      layerTitlePath: layerTitle.replace(/\s+/g, "/"),
+      layerTitleSlug: slugify(layerTitle),
       style,
       tileMatrix,
       tileRow: tileRow.toString(),
@@ -2881,6 +2893,14 @@ function mapFeatureInfoTypeToResourceResponseType(
 }
 
 const templateTokenRegex = /\{\{\s*([^}]+?)\s*\}\}/g;
+
+function slugify(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
 
 function applyTemplate(
   template: string | undefined,
