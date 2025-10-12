@@ -277,6 +277,41 @@ class GetCapabilitiesStratum extends LoadableStratum(
   }
 
   @computed
+  get kvpTileUrl(): string | undefined {
+    const operations = this.capabilities.json?.OperationsMetadata?.Operation;
+    const ops = forceArray(operations);
+    for (const operation of ops) {
+      if (operation?.name?.toLowerCase() !== "gettile") {
+        continue;
+      }
+      const gets = forceArray(operation.DCP?.HTTP?.Get);
+      for (const candidate of gets) {
+        // Look for KVP encoding
+        const constraint = candidate?.Constraint;
+        if (constraint) {
+          const constraints = Array.isArray(constraint)
+            ? constraint
+            : [constraint];
+          const kvpConstraint = constraints.find(
+            (c: any) =>
+              c?.name?.toLowerCase() === "getencoding" &&
+              forceArray(c?.AllowedValues?.Value).some(
+                (v: any) => String(v).toLowerCase() === "kvp"
+              )
+          );
+          if (kvpConstraint) {
+            const href = candidate?.["xlink:href"];
+            if (typeof href === "string" && href.length > 0) {
+              return href;
+            }
+          }
+        }
+      }
+    }
+    return undefined;
+  }
+
+  @computed
   get featureInfoUrl(): string | undefined {
     const operations = this.capabilities.json?.OperationsMetadata?.Operation;
     const ops = forceArray(operations);
@@ -829,8 +864,9 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
               ", "
             )}. Falling back to KVP mode to support dimensional data.`
           );
-          // Reset to KVP mode by using the base URL without template
-          baseUrl = new URI(this.url).search("").toString();
+          // Reset to KVP mode by using the KVP endpoint from capabilities
+          baseUrl =
+            stratum.kvpTileUrl ?? new URI(this.url).search("").toString();
           templateTokens = [];
         }
       }
