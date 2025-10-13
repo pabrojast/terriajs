@@ -34,6 +34,7 @@ import LegendTraits from "../../../Traits/TraitsClasses/LegendTraits";
 import { RectangleTraits } from "../../../Traits/TraitsClasses/MappableTraits";
 import WebMapTileServiceCatalogItemTraits, {
   FeatureInfoRequestTraits,
+  FeatureInfoRequestTimeSeriesTraits,
   WebMapTileServiceAvailableDimensionTraits,
   WebMapTileServiceAvailableLayerDimensionsTraits,
   WebMapTileServiceAvailableLayerStylesTraits
@@ -1902,6 +1903,21 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
           if (!features) {
             return undefined;
           }
+          if (request.timeSeries) {
+            features.forEach((feature) => {
+              try {
+                applyTimeSeriesConfigurationToFeature(
+                  feature,
+                  request.timeSeries
+                );
+              } catch (timeSeriesError) {
+                console.warn(
+                  "Failed to build WMTS custom time-series chart",
+                  timeSeriesError
+                );
+              }
+            });
+          }
           if (type === "json") {
             features.forEach((feature) => {
               if (
@@ -2914,6 +2930,245 @@ function applyTemplate(
     const replacement = tokens[key];
     return replacement !== undefined ? replacement : match;
   });
+}
+
+function applyTimeSeriesConfigurationToFeature(
+  feature: ImageryLayerFeatureInfo,
+  config?: FeatureInfoRequestTimeSeriesTraits
+) {
+  if (!config || !config.timeProperty) {
+    return;
+  }
+
+  const properties = ensureFeaturePropertiesObject(feature);
+  if (!properties) {
+    return;
+  }
+
+  const timeValues = toArray(
+    resolvePropertyPath(properties, config.timeProperty)
+  );
+  if (timeValues.length === 0) {
+    return;
+  }
+
+  const valueConfigs = config.values ?? [];
+  if (valueConfigs.length === 0) {
+    return;
+  }
+
+  const valueSeries = valueConfigs
+    .map((valueConfig) => {
+      if (!valueConfig?.property) {
+        return undefined;
+      }
+      const seriesValues = toArray(
+        resolvePropertyPath(properties, valueConfig.property)
+      );
+      if (seriesValues.length === 0) {
+        return undefined;
+      }
+      return {
+        config: valueConfig,
+        values: seriesValues
+      };
+    })
+    .filter(isDefined);
+
+  if (valueSeries.length === 0) {
+    return;
+  }
+
+  const xColumnName =
+    config.timeColumnName ?? getLeafPropertyName(config.timeProperty) ?? "time";
+
+  const yColumnNames = valueSeries.map(
+    (series) =>
+      series.config.columnName ??
+      getLeafPropertyName(series.config.property) ??
+      "value"
+  );
+
+  const rowCount = Math.max(
+    timeValues.length,
+    ...valueSeries.map((series) => series.values.length)
+  );
+  if (rowCount === 0) {
+    return;
+  }
+
+  const headerRow = [xColumnName, ...yColumnNames]
+    .map(escapeCsvValue)
+    .join(",");
+
+  const rows: string[] = [];
+  for (let i = 0; i < rowCount; i++) {
+    const rowValues = [
+      escapeCsvValue(timeValues[i]),
+      ...valueSeries.map((series) => escapeCsvValue(series.values[i]))
+    ];
+    rows.push(rowValues.join(","));
+  }
+
+  const csvData = [headerRow, ...rows].join("\n");
+
+  const chartIdSource = config.idProperty
+    ? resolvePropertyPath(properties, config.idProperty)
+    : undefined;
+  const chartId = (
+    chartIdSource ??
+    feature.id ??
+    `${xColumnName}-${yColumnNames.join("-")}`
+  )
+    .toString()
+    .replace(/\s+/g, "_");
+
+  const units = valueSeries.map((series) => series.config.units ?? "");
+
+  const title =
+    config.title ??
+    valueSeries
+      .map(
+        (series) =>
+          series.config.columnName ??
+          getLeafPropertyName(series.config.property) ??
+          "value"
+      )
+      .join(", ");
+
+  const chartTag = buildChartTag({
+    id: chartId,
+    title,
+    xColumnName,
+    yColumnNames,
+    csv: csvData,
+    units
+  });
+
+  const terriaContext =
+    typeof properties.terria === "object" && properties.terria !== null
+      ? properties.terria
+      : (properties.terria = {});
+
+  terriaContext.timeSeries = {
+    title,
+    xName: xColumnName,
+    yName: yColumnNames[0],
+    units,
+    id: chartId,
+    data: csvData,
+    chart: chartTag
+  };
+
+  properties._chartCsv = csvData;
+  properties._chartHtml = chartTag;
+}
+
+function ensureFeaturePropertiesObject(
+  feature: ImageryLayerFeatureInfo
+): Record<string, any> | undefined {
+  if (
+    feature.properties &&
+    typeof feature.properties === "object" &&
+    feature.properties !== null
+  ) {
+    return feature.properties as Record<string, any>;
+  }
+  if (
+    feature.data &&
+    typeof feature.data === "object" &&
+    feature.data !== null
+  ) {
+    feature.properties = feature.data as Record<string, any>;
+    return feature.properties as Record<string, any>;
+  }
+  return undefined;
+}
+
+function resolvePropertyPath(source: Record<string, any>, path?: string): any {
+  if (!source || !path) {
+    return undefined;
+  }
+  return path
+    .split(".")
+    .map((segment) => segment.trim())
+    .filter((segment) => segment.length > 0)
+    .reduce<any>((current, segment) => {
+      if (current === undefined || current === null) {
+        return undefined;
+      }
+      return current[segment];
+    }, source);
+}
+
+function toArray(value: any): any[] {
+  if (Array.isArray(value)) {
+    return value;
+  }
+  if (value === null || value === undefined) {
+    return [];
+  }
+  return [value];
+}
+
+function getLeafPropertyName(path?: string): string | undefined {
+  if (!path) {
+    return undefined;
+  }
+  const segments = path
+    .split(".")
+    .map((segment) => segment.trim())
+    .filter((segment) => segment.length > 0);
+  return segments.length ? segments[segments.length - 1] : undefined;
+}
+
+function escapeCsvValue(value: any): string {
+  if (value === undefined || value === null) {
+    return "";
+  }
+  const text =
+    typeof value === "number" || typeof value === "bigint"
+      ? value.toString()
+      : String(value);
+  if (/[",\n\r]/.test(text)) {
+    return `"${text.replace(/"/g, '""')}"`;
+  }
+  return text;
+}
+
+function escapeHtmlAttribute(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+function buildChartTag(params: {
+  id: string;
+  title?: string;
+  xColumnName: string;
+  yColumnNames: string[];
+  csv: string;
+  units: string[];
+}): string {
+  const attributes: string[] = [
+    `identifier="${escapeHtmlAttribute(params.id)}"`,
+    `x-column="${escapeHtmlAttribute(params.xColumnName)}"`,
+    `y-columns="${escapeHtmlAttribute(params.yColumnNames.join(","))}"`
+  ];
+
+  if (params.title) {
+    attributes.push(`title="${escapeHtmlAttribute(params.title)}"`);
+  }
+
+  if (params.units.some((unit) => unit && unit.length > 0)) {
+    attributes.push(
+      `column-units="${escapeHtmlAttribute(params.units.join(","))}"`
+    );
+  }
+
+  return `<chart ${attributes.join(" ")}>${params.csv}</chart>`;
 }
 
 function methodRequiresBody(method: string): boolean {

@@ -141,6 +141,74 @@ export class WebMapTileServiceAvailableLayerDimensionsTraits extends ModelTraits
   dimensions?: WebMapTileServiceAvailableDimensionTraits[];
 }
 
+export class FeatureInfoRequestTimeSeriesValueTraits extends ModelTraits {
+  @primitiveTrait({
+    type: "string",
+    name: "Property path",
+    description:
+      "Property to use for the y-axis values. Nested properties can be addressed with dot notation (for example `data.values`)."
+  })
+  property?: string;
+
+  @primitiveTrait({
+    type: "string",
+    name: "Column name",
+    description:
+      "Optional column name used when building the chart. Defaults to the final segment of `property` if omitted."
+  })
+  columnName?: string;
+
+  @primitiveTrait({
+    type: "string",
+    name: "Units",
+    description: "Optional units string for the column."
+  })
+  units?: string;
+}
+
+export class FeatureInfoRequestTimeSeriesTraits extends ModelTraits {
+  @primitiveTrait({
+    type: "string",
+    name: "Time property",
+    description:
+      "Property to use for the x-axis values. Nested properties can be addressed with dot notation (for example `data.time`)."
+  })
+  timeProperty?: string;
+
+  @primitiveTrait({
+    type: "string",
+    name: "Time column name",
+    description:
+      "Optional column name for the time values. Defaults to the final segment of `timeProperty` if omitted."
+  })
+  timeColumnName?: string;
+
+  @primitiveTrait({
+    type: "string",
+    name: "Series title",
+    description:
+      "Optional chart title. Defaults to a comma separated list of y-axis column names."
+  })
+  title?: string;
+
+  @primitiveTrait({
+    type: "string",
+    name: "ID property",
+    description:
+      "Optional property used to derive a unique identifier for the chart. Defaults to the feature ID."
+  })
+  idProperty?: string;
+
+  @objectArrayTrait({
+    type: FeatureInfoRequestTimeSeriesValueTraits,
+    name: "Value properties",
+    description:
+      "Properties to use for the y-axis values. Each entry creates a column in the generated chart.",
+    idProperty: "property"
+  })
+  values?: FeatureInfoRequestTimeSeriesValueTraits[];
+}
+
 export class FeatureInfoRequestTraits extends ModelTraits {
   @primitiveTrait({
     type: "string",
@@ -187,6 +255,14 @@ export class FeatureInfoRequestTraits extends ModelTraits {
       "Optional override for the expected response type (json, text, html, xml). Defaults to the GetFeatureInfo format."
   })
   responseType?: "json" | "text" | "html" | "xml";
+
+  @objectTrait({
+    type: FeatureInfoRequestTimeSeriesTraits,
+    name: "Time series",
+    description:
+      "Optional configuration to convert JSON responses into an inline time-series chart that can be accessed from `featureInfoTemplate` via `{{terria.timeSeries.chart}}`."
+  })
+  timeSeries?: FeatureInfoRequestTimeSeriesTraits;
 }
 
 @traitClass({

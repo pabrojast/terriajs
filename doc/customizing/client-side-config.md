@@ -287,10 +287,26 @@ Templates support double-curly tokens such as `{{longitude}}`, `{{latitude}}`, `
     body: '{ "type": "Point", "coordinates": [{{longitude}}, {{latitude}}] }',
     headers: {
       "Content-Type": "application/json"
+    },
+    timeSeries: {
+      timeProperty: "time",
+      timeColumnName: "date",
+      values: [
+        {
+          property: "mean",
+          columnName: "turbidity_mean",
+          units: "NTU"
+        }
+      ],
+      title: "Mean turbidity"
     }
+  },
+  featureInfoTemplate: {
+    template: "{{terria.timeSeries.chart}}"
   }
 }
 ```
 
 By default the request expects JSON and will automatically build a feature info table from the JSON
-properties returned by the service.
+properties returned by the service. When the response includes time/value arrays, the `timeSeries`
+configuration turns the JSON into an inline `<chart>` that you can show with `{{terria.timeSeries.chart}}`.
