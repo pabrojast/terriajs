@@ -1,5 +1,5 @@
 import i18next from "i18next";
-import { computed, runInAction, makeObservable, override } from "mobx";
+import { computed, runInAction, makeObservable, override, toJS } from "mobx";
 import defined from "terriajs-cesium/Source/Core/defined";
 import WebMercatorTilingScheme from "terriajs-cesium/Source/Core/WebMercatorTilingScheme";
 import GeographicTilingScheme from "terriajs-cesium/Source/Core/GeographicTilingScheme";
@@ -1594,7 +1594,9 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
       extraParams: extraParamStrings
     });
 
-    const customRequest = this.featureInfoRequest;
+    const customRequest = this.featureInfoRequest
+      ? (toJS(this.featureInfoRequest) as FeatureInfoRequestTraits)
+      : undefined;
     if (customRequest) {
       const customType = isDefined(customRequest.responseType)
         ? normalizeFeatureInfoType(customRequest.responseType)
@@ -3015,13 +3017,19 @@ function applyTimeSeriesConfigurationToFeature(
   const chartIdSource = config.idProperty
     ? resolvePropertyPath(properties, config.idProperty)
     : undefined;
-  const chartId = (
-    chartIdSource ??
-    feature.id ??
-    `${xColumnName}-${yColumnNames.join("-")}`
-  )
-    .toString()
-    .replace(/\s+/g, "_");
+  const fallbackId =
+    properties.id ??
+    properties.ID ??
+    properties.identifier ??
+    properties.Identifier ??
+    feature.name ??
+    `${xColumnName}-${yColumnNames.join("-")}`;
+  const rawChartId =
+    chartIdSource ?? fallbackId ?? `${xColumnName}-${yColumnNames.join("-")}`;
+  const chartIdString = Array.isArray(rawChartId)
+    ? rawChartId.map((value) => String(value)).join("_")
+    : String(rawChartId);
+  const chartId = chartIdString.replace(/\s+/g, "_");
 
   const units = valueSeries.map((series) => series.config.units ?? "");
 
