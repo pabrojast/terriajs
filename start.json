@@ -1,0 +1,99 @@
+{
+  "version": "8.0.0",
+  "initSources": [
+    {
+      "stratum": "user",
+      "models": {
+        "__User-Added_Data__": {
+          "isOpen": true,
+          "members": [
+            "/https://data.dev-wins.com/xcube/wmts/1.0.0/WMTSCapabilities.xml"
+          ],
+          "knownContainerUniqueIds": ["/"],
+          "type": "group"
+        },
+        "/https://data.dev-wins.com/xcube/wmts/1.0.0/WMTSCapabilities.xml": {
+          "isOpen": true,
+          "url": "https://data.dev-wins.com/xcube/wmts/1.0.0/WMTSCapabilities.xml",
+          "knownContainerUniqueIds": ["__User-Added_Data__"],
+          "type": "wmts-group"
+        },
+        "/https://data.dev-wins.com/xcube/wmts/1.0.0/WMTSCapabilities.xml/ukraine_lwq300_pyramid/Mean concentration of total suspended matter": {
+          "currentTime": "2025-04-22T06:20:48.356309648Z",
+          "startTime": "2024-09-01T04:00:00.000000000Z",
+          "stopTime": "2025-09-21T03:00:00.000000000Z",
+          "multiplier": 426415.3846153846,
+          "isPaused": true,
+          "knownContainerUniqueIds": [
+            "/https://data.dev-wins.com/xcube/wmts/1.0.0/WMTSCapabilities.xml"
+          ],
+          "type": "wmts",
+          "featureInfoRequest": {
+            "url": "https://data.dev-wins.com/xcube/timeseries/{{layerPath}}",
+            "method": "POST",
+            "body": "{ \\ type\\: \\Point\\, \\coordinates\\: [{{longitude}}, {{latitude}}] }",
+            "headers": { "Content-Type": "application/json" },
+            "timeSeries": {
+              "timeProperty": "time",
+              "timeColumnName": "date",
+              "values": [
+                {
+                  "property": "mean",
+                  "columnName": "turbidity_mean",
+                  "units": "NTU"
+                }
+              ],
+              "title": "Mean turbidity",
+              "idProperty": "coordinates"
+            }
+          },
+          "featureInfoTemplate": {
+            "name": "Turbidez media",
+            "template": "{{terria.timeSeries.chart}}"
+          }
+        },
+        "/": { "type": "group" }
+      },
+      "workbench": [
+        "/https://data.dev-wins.com/xcube/wmts/1.0.0/WMTSCapabilities.xml/ukraine_lwq300_pyramid/Mean concentration of total suspended matter"
+      ],
+      "timeline": [
+        "/https://data.dev-wins.com/xcube/wmts/1.0.0/WMTSCapabilities.xml/ukraine_lwq300_pyramid/Mean concentration of total suspended matter"
+      ],
+      "initialCamera": {
+        "west": 16.382003893215142,
+        "south": 43.09237902139736,
+        "east": 46.11799619374084,
+        "north": 51.7399136241964,
+        "position": {
+          "x": 4654765.537818854,
+          "y": 2824581.0673987903,
+          "z": 6068728.6615012055
+        },
+        "direction": {
+          "x": -0.5687861594893433,
+          "y": -0.34514791441995696,
+          "z": -0.746562269301709
+        },
+        "up": {
+          "x": -0.6382449462104938,
+          "y": -0.3872965408852514,
+          "z": 0.6653155477328655
+        }
+      },
+      "homeCamera": { "west": 98, "south": -75, "east": 50, "north": 0 },
+      "viewerMode": "3dSmooth",
+      "showSplitter": false,
+      "splitPosition": 0.4999,
+      "settings": {
+        "baseMaximumScreenSpaceError": 1,
+        "useNativeResolution": false,
+        "alwaysShowTimeline": false,
+        "baseMapId": "basemap-natural-earth-II",
+        "terrainSplitDirection": 0,
+        "depthTestAgainstTerrainEnabled": false
+      },
+      "stories": []
+    }
+  ]
+}

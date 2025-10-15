@@ -282,7 +282,7 @@ Templates support double-curly tokens such as `{{longitude}}`, `{{latitude}}`, `
   url: "https://data.dev-wins.com/xcube/wmts/1.0.0/WMTSCapabilities.xml",
   layer: "ukraine_lwq100_pyramid.turbidity_mean",
   featureInfoRequest: {
-    url: "https://data.dev-wins.com/xcube/timeseries/{{layerPath}}",
+    url: "https://data.dev-wins.com/xcube/timeseries/{{layerPathEncoded}}",
     method: "POST",
     body: '{ "type": "Point", "coordinates": [{{longitude}}, {{latitude}}] }',
     headers: {

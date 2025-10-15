@@ -1745,15 +1745,21 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
 
     const longitudeDegrees = CesiumMath.toDegrees(longitude);
     const latitudeDegrees = CesiumMath.toDegrees(latitude);
+    const layerPathRaw = layerIdentifier.replace(/\./g, "/");
+    const layerPathEncoded = encodeTemplatePath(layerPathRaw);
+    const layerTitlePath = layerTitle.replace(/\s+/g, "/");
+    const layerTitlePathEncoded = encodeTemplatePath(layerTitlePath);
 
     const tokens: TemplateTokens = {
       layer: layerIdentifier,
       layerId: layerIdentifier,
       layerName: layerIdentifier,
       layerIdentifier,
-      layerPath: layerIdentifier.replace(/\./g, "/"),
+      layerPath: layerPathRaw,
+      layerPathEncoded,
       layerTitle,
-      layerTitlePath: layerTitle.replace(/\s+/g, "/"),
+      layerTitlePath,
+      layerTitlePathEncoded,
       layerTitleSlug: slugify(layerTitle),
       style,
       tileMatrix,
@@ -2918,6 +2924,13 @@ function slugify(value: string): string {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
+}
+
+function encodeTemplatePath(path: string): string {
+  return path
+    .split("/")
+    .map((segment) => encodeURIComponent(segment))
+    .join("/");
 }
 
 function applyTemplate(
