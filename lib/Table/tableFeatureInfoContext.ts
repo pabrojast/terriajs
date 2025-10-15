@@ -144,19 +144,79 @@ export const jsonFeatureInfoContext: (
   catalogItem: CatalogMemberMixin.Instance
 ) => (feature: TerriaFeature) => TimeSeriesFeatureInfoContext =
   (catalogItem) => (feature) => {
-    // Check if feature has JSON data (either in properties or data)
-    const jsonData = feature.properties || feature.data;
-
-    if (!jsonData || typeof jsonData !== "object") {
-      return {};
-    }
-
     try {
-      const featureId = feature.id.replace(/"/g, "");
+      // Get the raw JSON data from the feature
+      // ImageryLayerFeatureInfo stores the raw server response in .data property
+      let jsonData = feature.data;
+
+      console.log(
+        "jsonFeatureInfoContext: feature.data type:",
+        typeof jsonData
+      );
+      console.log(
+        "jsonFeatureInfoContext: feature.data constructor:",
+        jsonData?.constructor?.name
+      );
+
+      // If data is a string (CSV), skip JSON processing
+      if (typeof jsonData === "string") {
+        console.log("jsonFeatureInfoContext: data is string, skipping");
+        return {};
+      }
+
+      // If data is not an object, try properties (but properties might have Cesium wrappers)
+      if (!jsonData || typeof jsonData !== "object") {
+        console.log(
+          "jsonFeatureInfoContext: data is not object, trying properties"
+        );
+        // Try to get valueOf() or the raw value if it's wrapped
+        const props = feature.properties;
+        if (props && typeof props === "object") {
+          // Check if it's a Cesium property wrapper
+          if (typeof (props as any).getValue === "function") {
+            console.log(
+              "jsonFeatureInfoContext: unwrapping Cesium property with getValue()"
+            );
+            jsonData = (props as any).getValue();
+          } else {
+            jsonData = props;
+          }
+        }
+      }
+
+      // If still no valid data, return empty
+      if (!jsonData || typeof jsonData !== "object") {
+        console.log("jsonFeatureInfoContext: still no valid data, giving up");
+        return {};
+      }
+
+      console.log("jsonFeatureInfoContext: attempting to stringify data");
+
+      const featureId = feature.id?.replace?.(/"/g, "") || "feature";
       const title = getName(catalogItem);
 
       // Convert JSON object to JSON string for the template
-      const jsonString = JSON.stringify(jsonData);
+      // Use a safe stringify that handles circular references
+      let jsonString: string;
+      try {
+        jsonString = JSON.stringify(jsonData);
+      } catch (stringifyError) {
+        // If circular reference, try to extract just the essential data
+        console.warn(
+          "Circular reference detected in JSON data, trying to extract arrays",
+          stringifyError
+        );
+
+        // Try to extract result or data arrays if they exist
+        const extracted =
+          (jsonData as any).result || (jsonData as any).data || jsonData;
+        try {
+          jsonString = JSON.stringify(extracted);
+        } catch (e) {
+          console.warn("Failed to stringify extracted data, giving up", e);
+          return {};
+        }
+      }
 
       return {
         terria: {
