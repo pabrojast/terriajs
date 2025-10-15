@@ -3,6 +3,10 @@ import markdownToHtml, { MarkdownOptions } from "../../Core/markdownToHtml";
 import parseCustomHtmlToReact, {
   ParseCustomHtmlToReactContext
 } from "./parseCustomHtmlToReact";
+import registerCustomComponentTypes from "./registerCustomComponentTypes";
+
+// Register custom component types on module load
+registerCustomComponentTypes();
 
 /**
  * Converts a string from markdown format (of which html is a subset) into a ReactElement.
