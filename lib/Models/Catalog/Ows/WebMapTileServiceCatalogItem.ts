@@ -2066,10 +2066,17 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
   get featureInfoContext(): (
     feature: TerriaFeature
   ) => TimeSeriesFeatureInfoContext {
-    const responseType = this.featureInfoRequest?.responseType;
+    // Determine the response type: use explicit responseType if set, otherwise use default
+    const customRequest = this.featureInfoRequest;
+    const responseType = customRequest?.responseType;
+    const { type: defaultType } = this.featureInfoFormatOptions;
 
-    // Only provide JSON context if the response type is explicitly set to JSON
-    if (responseType && normalizeFeatureInfoType(responseType) === "json") {
+    const effectiveType = isDefined(responseType)
+      ? normalizeFeatureInfoType(responseType)
+      : defaultType;
+
+    // Provide JSON context if the effective response type is JSON
+    if (effectiveType === "json") {
       return jsonFeatureInfoContext(this);
     }
 
