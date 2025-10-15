@@ -5,7 +5,7 @@
       "type": "group",
       "members": [
         {
-          "name": "Ukraine Water Quality with Timeseries Chart",
+          "name": "Ukraine Water Quality - Mean TSM (with timeseries chart)",
           "type": "wmts",
           "url": "https://data.dev-wins.com/xcube/wmts/1.0.0/WMTSCapabilities.xml",
           "layer": "ukraine_lwq300_pyramid/tsm_mean",
@@ -19,16 +19,16 @@
             "responseType": "json"
           },
           "featureInfoTemplate": {
-            "name": "{{layerTitle}} Timeseries",
-            "template": "<h3>Time Series Data</h3><p>Location: {{terria.coords.latitude}}, {{terria.coords.longitude}}</p><json-chart title='{{layerTitle}} - Time Series' src='https://data.dev-wins.com/xcube/timeseries/ukraine_lwq300_pyramid/tsm_mean' x-column='time' y-columns='mean'></json-chart>"
+            "name": "{{layerTitle}} - Series Temporal",
+            "template": "<h3>{{terria.timeSeries.title}}</h3><p><strong>Ubicación:</strong> {{terria.coords.latitude}}°N, {{terria.coords.longitude}}°E</p><p>Haz clic en 'Expand' para ver la serie temporal completa en el panel de gráficos.</p>{{terria.timeSeries.chart}}"
           }
         },
         {
-          "name": "Example with Inline JSON Data",
+          "name": "Example with Custom json-chart",
           "type": "csv",
           "url": "test/csv/lat_lon_name_value.csv",
           "featureInfoTemplate": {
-            "template": "<h3>Example JSON Chart</h3><json-chart title='Sample Timeseries' x-column='time' y-columns='mean'>{\"result\": [{\"time\": \"2024-01-01T00:00:00Z\", \"mean\": 1.5}, {\"time\": \"2024-01-02T00:00:00Z\", \"mean\": 2.3}, {\"time\": \"2024-01-03T00:00:00Z\", \"mean\": 1.8}, {\"time\": \"2024-01-04T00:00:00Z\", \"mean\": 3.1}, {\"time\": \"2024-01-05T00:00:00Z\", \"mean\": 2.7}]}</json-chart>"
+            "template": "<h3>Example JSON Chart (Inline Data)</h3><p>This demonstrates the json-chart component with inline JSON data.</p><json-chart title='Sample Timeseries' x-column='time' y-columns='mean'>{\"result\": [{\"time\": \"2024-01-01T00:00:00Z\", \"mean\": 1.5}, {\"time\": \"2024-01-02T00:00:00Z\", \"mean\": 2.3}, {\"time\": \"2024-01-03T00:00:00Z\", \"mean\": 1.8}, {\"time\": \"2024-01-04T00:00:00Z\", \"mean\": 3.1}, {\"time\": \"2024-01-05T00:00:00Z\", \"mean\": 2.7}]}</json-chart>"
           }
         }
       ]

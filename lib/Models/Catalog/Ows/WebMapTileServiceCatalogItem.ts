@@ -55,6 +55,11 @@ import WebMapTileServiceCapabilities, {
   WmtsCapabilitiesLegend,
   WmtsLayer
 } from "./WebMapTileServiceCapabilities";
+import TerriaFeature from "../../Feature/Feature";
+import {
+  TimeSeriesFeatureInfoContext,
+  jsonFeatureInfoContext
+} from "../../../Table/tableFeatureInfoContext";
 
 type ExtendedImageryProvider = (
   | WebMapTileServiceImageryProvider
@@ -2048,6 +2053,27 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
   @computed
   get discreteTimes() {
     return this.capabilitiesStratum?.discreteTimes;
+  }
+
+  /**
+   * Provides feature info context for JSON responses from featureInfoRequest.
+   * This makes JSON data from POST requests available in featureInfoTemplate templates.
+   *
+   * For example, when a WMTS layer uses a custom featureInfoRequest with POST method,
+   * the JSON response data becomes available as {{terria.timeSeries.data}} in the template.
+   */
+  @computed
+  get featureInfoContext(): (
+    feature: TerriaFeature
+  ) => TimeSeriesFeatureInfoContext {
+    const responseType = this.featureInfoRequest?.responseType;
+
+    // Only provide JSON context if the response type is explicitly set to JSON
+    if (responseType && normalizeFeatureInfoType(responseType) === "json") {
+      return jsonFeatureInfoContext(this);
+    }
+
+    return () => ({});
   }
 
   protected get defaultGetCapabilitiesUrl(): string | undefined {

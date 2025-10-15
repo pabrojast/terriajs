@@ -87,11 +87,11 @@ Nueva función helper para convertir objetos JavaScript a strings JSON en templa
 }
 ```
 
-## Configuración para WMTS con POST Requests
+## ✅ Configuración para WMTS con POST Requests (¡AHORA FUNCIONA!)
 
-Para tu caso específico con la API de xcube que requiere POST requests, aquí está la configuración recomendada:
+Para tu caso específico con la API de xcube que requiere POST requests, ahora puedes usar gráficos directamente con `featureInfoRequest`:
 
-### Opción 1: Usando featureInfoRequest (Recomendado para visualización de datos)
+### Solución Implementada: Usando featureInfoContext automático
 
 ```json
 {
@@ -108,62 +108,60 @@ Para tu caso específico con la API de xcube que requiere POST requests, aquí e
     "responseType": "json"
   },
   "featureInfoTemplate": {
-    "name": "{{layerTitle}} - Timeseries",
-    "template": "<h3>Series Temporal - {{layerTitle}}</h3><p><strong>Ubicación:</strong> Lat: {{terria.coords.latitude}}, Lon: {{terria.coords.longitude}}</p><div>Los datos se muestran a continuación. Nota: actualmente los datos JSON de POST requests se muestran en formato tabla. Para gráficos, ver Opción 2.</div>"
+    "name": "{{layerTitle}} - Series Temporal",
+    "template": "<h3>{{terria.timeSeries.title}}</h3><p><strong>Ubicación:</strong> {{terria.coords.latitude}}°N, {{terria.coords.longitude}}°E</p><p>Haz clic en 'Expand' para ver la serie temporal completa.</p>{{terria.timeSeries.chart}}"
   }
 }
 ```
 
-### Opción 2: Crear un endpoint GET wrapper (Para gráficos interactivos)
+**¿Cómo funciona?**
 
-Si puedes crear un endpoint GET que envuelva tu API POST, podrías usarlo así:
+1. Cuando `featureInfoRequest` tiene `responseType: "json"`, el sistema automáticamente expone los datos JSON en el contexto de Mustache
+2. Los datos están disponibles en `{{terria.timeSeries.data}}` como JSON string
+3. El componente pre-renderizado `{{terria.timeSeries.chart}}` incluye automáticamente el `<json-chart>` con los datos
+
+### Opciones de Personalización
+
+Si quieres personalizar el gráfico, puedes usar el componente `<json-chart>` directamente:
 
 ```json
 {
-  "type": "wmts",
-  "url": "https://data.dev-wins.com/xcube/wmts/1.0.0/WMTSCapabilities.xml",
-  "layer": "ukraine_lwq300_pyramid/tsm_mean",
   "featureInfoTemplate": {
-    "name": "{{layerTitle}} - Timeseries",
-    "template": "<h3>Series Temporal</h3><json-chart title='{{layerTitle}}' src='https://tu-api-wrapper.com/timeseries?lat={{terria.coords.latitude}}&lon={{terria.coords.longitude}}&layer={{layerPath}}' x-column='time' y-columns='mean'></json-chart>"
+    "template": "<h3>Series Temporal Personalizada</h3><json-chart title='{{layerTitle}}' identifier='{{terria.timeSeries.id}}' x-column='time' y-columns='mean,median,max' column-titles='Tiempo,Media,Mediana,Máximo'>{{terria.timeSeries.data}}</json-chart>"
   }
 }
 ```
 
-## Próximos Pasos / Limitaciones Actuales
+## ✨ Características Implementadas
 
-### Limitación: POST Requests en json-chart
+### ✅ Soporte completo para POST Requests con JSON
 
-Actualmente, el componente `json-chart` hereda de `CsvChartCustomComponent`, que usa `CsvCatalogItem` para cargar datos. Este item solo soporta peticiones GET a través del atributo `url`.
+La implementación ahora incluye soporte completo para peticiones POST con respuestas JSON:
 
-### Soluciones Posibles:
+1. **`jsonFeatureInfoContext`**: Función helper que expone datos JSON del POST request en el contexto de Mustache
+2. **`featureInfoContext` en WebMapTileServiceCatalogItem**: Cuando `responseType: "json"`, los datos están disponibles automáticamente
+3. **`JsonChartCustomComponent`**: Componente que renderiza gráficos desde datos JSON
+4. **Variables de template automáticas**:
+   - `{{terria.timeSeries.data}}` - Datos JSON como string
+   - `{{terria.timeSeries.chart}}` - Elemento `<json-chart>` pre-renderizado
+   - `{{terria.timeSeries.title}}` - Título del gráfico
+   - `{{terria.timeSeries.id}}` - ID único del feature
 
-1. **Crear un API Gateway/Proxy** que convierta tus POST requests a GET requests
+### Posibles Mejoras Futuras
 
-   - Ventaja: Funciona inmediatamente con la implementación actual
-   - Desventaja: Requiere infraestructura adicional
+1. **Soporte directo para POST en `<json-chart src="...">`**
 
-2. **Extender JsonChartCustomComponent para soportar POST** (trabajo futuro)
+   - Actualmente `json-chart` con atributo `src` solo soporta GET
+   - Para POST usa `{{terria.timeSeries.chart}}` o datos inline con `{{terria.timeSeries.data}}`
+   - Mejora futura: Agregar atributos `method`, `body-template`, `headers` al componente
 
-   - Añadir atributos: `method`, `body-template`, `headers`
-   - Modificar la lógica de carga para hacer peticiones POST
-   - Ejemplo de uso futuro:
-     ```html
-     <json-chart
-       title="Time Series"
-       src="https://api.com/timeseries"
-       method="POST"
-       body-template='{"type": "Point", "coordinates": [{{terria.coords.longitude}}, {{terria.coords.latitude}}]}'
-       headers='{"Content-Type": "application/json"}'
-       x-column="time"
-       y-columns="mean"
-     ></json-chart>
-     ```
+2. **Detección automática de columnas**
 
-3. **Usar featureInfoContext** (trabajo futuro)
-   - Implementar una función `featureInfoContext` en WebMapTileServiceCatalogItem
-   - Proporcionar los datos JSON directamente al contexto del template
-   - Pasar los datos al componente json-chart como inline data
+   - Detectar automáticamente columnas de tiempo y valores numéricos del JSON
+   - Actualmente requiere especificar `x-column` y `y-columns`
+
+3. **Múltiples series en un gráfico**
+   - Soporte mejorado para múltiples columnas Y con colores personalizados
 
 ## Atributos Soportados
 
@@ -184,13 +182,32 @@ El componente `<json-chart>` soporta todos los atributos de `<chart>`:
 
 ## Testing
 
-Puedes probar la implementación usando el archivo de ejemplo:
+Puedes probar la implementación de las siguientes formas:
+
+### Opción 1: Ver ejemplo de JSON chart con datos inline
 
 ```bash
 npm start
-# Luego abre en el navegador:
-# http://localhost:3001/#start=test/init/wmts-timeseries-example.json
+# Abre: http://localhost:3001/#start=test/init/charts.json
 ```
+
+Luego selecciona "JSON Chart with inline data" del catálogo.
+
+### Opción 2: Probar el ejemplo de WMTS con timeseries
+
+Carga el ejemplo WMTS desde la URL (el archivo está en `wwwroot/test/init/wmts-timeseries-example.json`):
+
+```
+http://localhost:3001/#clean&start={"initSources":[{"catalog":[{"type":"init","initUrl":"test/init/wmts-timeseries-example.json"}]}]}
+```
+
+### Opción 3: Agregar manualmente tu servicio WMTS
+
+1. Abre http://localhost:3001/
+2. Click en "Add data"
+3. En "My Data", pega la URL: `https://data.dev-wins.com/xcube/wmts/1.0.0/WMTSCapabilities.xml`
+4. Selecciona la capa que te interese
+5. Click en el mapa para ver la información del feature
 
 ## Estructura de Archivos Modificados
 

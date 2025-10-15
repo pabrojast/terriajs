@@ -119,3 +119,60 @@ export const csvFeatureInfoContext: (
 
     return {};
   };
+
+/**
+ * Add TimeSeriesFeatureInfoContext to features with JSON data.
+ * This makes JSON data from POST requests available in featureInfoTemplate.
+ *
+ * Handles JSON in these formats:
+ * - { "result": [{...}, {...}] }
+ * - { "data": [{...}, {...}] }
+ * - [{ ...}, {...}]
+ *
+ * Exposes the data so it can be used in templates like:
+ * ```
+ * <json-chart
+ *   title="{{terria.timeSeries.title}}"
+ *   id="{{terria.timeSeries.id}}"
+ *   x-column="time"
+ *   y-columns="mean">
+ *   {{terria.timeSeries.data}}
+ * </json-chart>
+ * ```
+ */
+export const jsonFeatureInfoContext: (
+  catalogItem: CatalogMemberMixin.Instance
+) => (feature: TerriaFeature) => TimeSeriesFeatureInfoContext =
+  (catalogItem) => (feature) => {
+    // Check if feature has JSON data (either in properties or data)
+    const jsonData = feature.properties || feature.data;
+
+    if (!jsonData || typeof jsonData !== "object") {
+      return {};
+    }
+
+    try {
+      const featureId = feature.id.replace(/"/g, "");
+      const title = getName(catalogItem);
+
+      // Convert JSON object to JSON string for the template
+      const jsonString = JSON.stringify(jsonData);
+
+      return {
+        terria: {
+          timeSeries: {
+            title,
+            id: featureId,
+            data: jsonString,
+            // Provide a pre-formatted chart element
+            chart: `<json-chart ${'identifier="' + featureId + '" '} ${
+              title ? `title="${title}"` : ""
+            } x-column="time" y-columns="mean">${jsonString}</json-chart>`
+          }
+        }
+      };
+    } catch (e) {
+      console.warn("Failed to process JSON feature info context", e);
+      return {};
+    }
+  };
