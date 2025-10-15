@@ -1595,7 +1595,7 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
     });
 
     const customRequest = this.featureInfoRequest
-      ? (toJS(this.featureInfoRequest) as FeatureInfoRequestTraits)
+      ? (toJS(this.featureInfoRequest) as unknown as FeatureInfoRequestTraits)
       : undefined;
     if (customRequest) {
       const customType = isDefined(customRequest.responseType)
