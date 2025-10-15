@@ -7,6 +7,7 @@ import CollapsibleCustomComponent from "./CollapsibleCustomComponent";
 import CsvChartCustomComponent from "./CsvChartCustomComponent";
 import CustomComponent from "./CustomComponent";
 import FeedbackLinkCustomComponent from "./FeedbackLinkCustomComponent";
+import JsonChartCustomComponent from "./JsonChartCustomComponent";
 import SOSChartCustomComponent from "./SOSChartCustomComponent";
 import TerriaTooltipCustomComponent from "./TerriaTooltip";
 
@@ -19,6 +20,7 @@ import TerriaTooltipCustomComponent from "./TerriaTooltip";
  */
 export default function registerCustomComponentTypes(terria?: Terria) {
   CustomComponent.register(new CsvChartCustomComponent());
+  CustomComponent.register(new JsonChartCustomComponent());
   CustomComponent.register(new SOSChartCustomComponent());
   CustomComponent.register(new ApiTableChartCustomComponent());
   CustomComponent.register(new CollapsibleCustomComponent());

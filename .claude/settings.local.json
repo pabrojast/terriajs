@@ -12,7 +12,9 @@
       "Bash(gulp:*)",
       "Bash(python3:*)",
       "WebFetch(domain:data.dev-wins.com)",
-      "Bash(curl -s \"https://data.dev-wins.com/xcube/wmts/1.0.0/WMTSCapabilities.xml\")"
+      "Bash(curl -s \"https://data.dev-wins.com/xcube/wmts/1.0.0/WMTSCapabilities.xml\")",
+      "Bash(curl -X POST \"https://data.dev-wins.com/xcube/timeseries/ukraine_lwq300_pyramid/tsm_mean\" -H \"Content-Type: application/json\" -d \"{ \"\"type\"\": \"\"Point\"\", \"\"coordinates\"\": [30.5, 47.5] }\")",
+      "Bash(npx tsc:*)"
     ],
     "deny": [],
     "additionalDirectories": ["C:\\Users\\Lenovo\\Proyectos\\TerriaMap"]
