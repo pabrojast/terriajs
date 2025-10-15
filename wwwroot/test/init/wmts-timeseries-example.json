@@ -19,8 +19,8 @@
             "responseType": "json"
           },
           "featureInfoTemplate": {
-            "name": "{{layerTitle}} - Series Temporal",
-            "template": "<h3>{{terria.timeSeries.title}}</h3><p><strong>Ubicación:</strong> {{terria.coords.latitude}}°N, {{terria.coords.longitude}}°E</p><p>Haz clic en 'Expand' para ver la serie temporal completa en el panel de gráficos.</p>{{terria.timeSeries.chart}}"
+            "name": "{{layerTitle}} - Timeseries",
+            "template": "<h3>{{terria.timeSeries.title}}</h3><p><strong>Location:</strong> {{terria.coords.latitude}}°N, {{terria.coords.longitude}}°E</p><p>Click 'Expand' to view the full timeseries in the chart panel.</p>{{terria.timeSeries.chart}}"
           }
         },
         {

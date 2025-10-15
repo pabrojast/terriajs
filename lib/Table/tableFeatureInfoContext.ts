@@ -5,6 +5,7 @@ import TerriaFeature from "../Models/Feature/Feature";
 import { isTerriaFeatureData } from "../Models/Feature/FeatureData";
 
 export interface TimeSeriesFeatureInfoContext extends JsonObject {
+  layerTitle?: string;
   terria?: { timeSeries?: TimeSeriesContext };
 }
 
@@ -149,34 +150,18 @@ export const jsonFeatureInfoContext: (
       // ImageryLayerFeatureInfo stores the raw server response in .data property
       let jsonData = feature.data;
 
-      console.log(
-        "jsonFeatureInfoContext: feature.data type:",
-        typeof jsonData
-      );
-      console.log(
-        "jsonFeatureInfoContext: feature.data constructor:",
-        jsonData?.constructor?.name
-      );
-
       // If data is a string (CSV), skip JSON processing
       if (typeof jsonData === "string") {
-        console.log("jsonFeatureInfoContext: data is string, skipping");
         return {};
       }
 
       // If data is not an object, try properties (but properties might have Cesium wrappers)
       if (!jsonData || typeof jsonData !== "object") {
-        console.log(
-          "jsonFeatureInfoContext: data is not object, trying properties"
-        );
         // Try to get valueOf() or the raw value if it's wrapped
         const props = feature.properties;
         if (props && typeof props === "object") {
           // Check if it's a Cesium property wrapper
           if (typeof (props as any).getValue === "function") {
-            console.log(
-              "jsonFeatureInfoContext: unwrapping Cesium property with getValue()"
-            );
             jsonData = (props as any).getValue();
           } else {
             jsonData = props;
@@ -186,14 +171,14 @@ export const jsonFeatureInfoContext: (
 
       // If still no valid data, return empty
       if (!jsonData || typeof jsonData !== "object") {
-        console.log("jsonFeatureInfoContext: still no valid data, giving up");
         return {};
       }
 
-      console.log("jsonFeatureInfoContext: attempting to stringify data");
-
       const featureId = feature.id?.replace?.(/"/g, "") || "feature";
       const title = getName(catalogItem);
+
+      // Get layerTitle from the catalog item name (for WMTS items)
+      const layerTitle = getName(catalogItem);
 
       // Convert JSON object to JSON string for the template
       // Use a safe stringify that handles circular references
@@ -219,6 +204,7 @@ export const jsonFeatureInfoContext: (
       }
 
       return {
+        layerTitle, // Make layerTitle available directly in template as {{layerTitle}}
         terria: {
           timeSeries: {
             title,
