@@ -8,18 +8,17 @@ const StoryContainer = styled(Box).attrs((props: { isCollapsed: boolean }) => ({
   paddedVertically: props.isCollapsed ? 0 : 2,
   scroll: true
 }))<{ isCollapsed: boolean }>`
-  background-color: ${(props) => props.theme.transparentDark}
-  backdrop-filter: ${(props) => props.theme.blur}
+  background-color: ${(props) => props.theme.transparentDark};
+  backdrop-filter: ${(props) => props.theme.blur};
   padding-top: 0;
-  padding: ${(props) => (props.isCollapsed ? 0 : 15)}px; 
-  max-height: ${(props) => (props.isCollapsed ? 0 : "100px")};
-  @media (min-height: 700px) {
-    max-height: ${(props) => (props.isCollapsed ? 0 : "200px")};
-  }
-
-  overflow-y: auto;
-
-  transition: max-height 0.2s, padding 0.2s;
+  padding: ${(props) => (props.isCollapsed ? 0 : 15)}px;
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: ${(props) => (props.isCollapsed ? 0 : "100%")};
+  overflow-y: ${(props) => (props.isCollapsed ? "hidden" : "auto")};
+  opacity: ${(props) => (props.isCollapsed ? 0 : 1)};
+  pointer-events: ${(props) => (props.isCollapsed ? "none" : "auto")};
+  transition: max-height 0.2s ease, padding 0.2s ease, opacity 0.2s ease;
 
   img {
     max-width: 100%;
