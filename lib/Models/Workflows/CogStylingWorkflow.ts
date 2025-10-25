@@ -437,7 +437,7 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
     if (!colors || colors.length === 0) return [];
 
     if (typeof colors[0] === "string") {
-      const stringColors = colors as string[];
+      const stringColors = colors as unknown as readonly string[];
       if (stringColors.length === 1) {
         return [{ position: 0, color: stringColors[0] }];
       }
@@ -448,7 +448,7 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
       }));
     }
 
-    return (colors as [number, string][])
+    return (colors as unknown as readonly [number, string][])
       .map(([position, color]) => ({
         position: clamp01(position ?? 0),
         color
