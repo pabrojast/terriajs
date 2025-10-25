@@ -23,12 +23,6 @@ import LegendTraits, {
 import createStratumInstance from "../Definition/createStratumInstance";
 import StratumFromTraits from "../Definition/StratumFromTraits";
 import Model from "../Definition/Model";
-import LegendTraits, {
-  LegendItemTraits
-} from "../../Traits/TraitsClasses/LegendTraits";
-import createStratumInstance from "../Definition/createStratumInstance";
-import StratumFromTraits from "../Definition/StratumFromTraits";
-import Model from "../Definition/Model";
 
 /** Available color scales for COG rendering */
 const COLOR_SCALES: ColorScaleNames[] = [
