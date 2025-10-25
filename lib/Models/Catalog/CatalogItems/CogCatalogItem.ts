@@ -341,8 +341,10 @@ export default class CogCatalogItem extends MappableMixin(
       })
     );
 
+    const domainTuple = toMutableDisplayRange(singleOptions?.domain);
     const displayRangeTuple = toMutableDisplayRange(
-      singleOptions?.displayRange
+      singleOptions?.displayRange,
+      domainTuple
     );
 
     this.applyRasterPostProcessing(imageryProvider, {
@@ -352,6 +354,7 @@ export default class CogCatalogItem extends MappableMixin(
         singleOptions?.applyDisplayRange && displayRangeTuple
           ? displayRangeTuple
           : undefined,
+      domain: domainTuple,
       noDataColor: parseCssColorToRgba(singleOptions?.noDataColor)
     });
 
@@ -444,12 +447,13 @@ export default class CogCatalogItem extends MappableMixin(
       );
     }
 
-    if (options.applyDisplayRange && options.displayRange && !isRgbMode) {
+    if (options.applyDisplayRange && options.displayRange) {
       this.applyDisplayRangeMask(
         mutation.data,
         rawTile,
         imageryProvider,
-        options
+        options,
+        isRgbMode
       );
     }
 
@@ -500,21 +504,31 @@ export default class CogCatalogItem extends MappableMixin(
     buffer: Uint8ClampedArray,
     rawTile: RawCogTile,
     imageryProvider: TIFFImageryProvider,
-    options: RasterPostProcessingOptions
+    options: RasterPostProcessingOptions,
+    isRgbMode: boolean
   ) {
     const [min, max] = options.displayRange!;
+    const pixelCount = rawTile.data[0]?.length ?? 0;
+    if (pixelCount === 0) {
+      return;
+    }
+
     const targetSampleIndex = this.getSampleIndexForBand(
       imageryProvider,
       options.band
     );
-    const bandData = rawTile.data[targetSampleIndex];
-    if (!bandData) {
-      return;
-    }
+    const bandData = !isRgbMode ? rawTile.data[targetSampleIndex] : undefined;
 
-    for (let i = 0; i < bandData.length; i++) {
-      const value = bandData[i];
-      if (isNoDataValue(value, imageryProvider.noData)) {
+    for (let i = 0; i < pixelCount; i++) {
+      const value = isRgbMode
+        ? getCompositeSampleValue(rawTile.data, i)
+        : bandData?.[i];
+
+      if (
+        value === undefined ||
+        isNoDataValue(value, imageryProvider.noData) ||
+        Number.isNaN(value)
+      ) {
         continue;
       }
       if (value < min || value > max) {
@@ -597,6 +611,7 @@ interface RasterPostProcessingOptions {
   band?: number;
   applyDisplayRange?: boolean;
   displayRange?: [number, number];
+  domain?: [number, number];
   noDataColor?: RgbaTuple;
 }
 
@@ -701,11 +716,50 @@ function isNoDataValue(value: number, noData: number | undefined): boolean {
   return false;
 }
 
-function toMutableDisplayRange(
-  value: ReadonlyArray<number> | undefined
-): [number, number] | undefined {
-  if (!value || value.length < 2) {
+function getCompositeSampleValue(
+  samples: TypedArray[],
+  index: number
+): number | undefined {
+  if (!samples.length) {
     return;
   }
-  return [value[0], value[1]];
+  if (samples.length >= 3) {
+    const r = samples[0]?.[index];
+    const g = samples[1]?.[index];
+    const b = samples[2]?.[index];
+    if (
+      r === undefined ||
+      g === undefined ||
+      b === undefined ||
+      Number.isNaN(r) ||
+      Number.isNaN(g) ||
+      Number.isNaN(b)
+    ) {
+      return;
+    }
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  }
+
+  let sum = 0;
+  let count = 0;
+  for (const band of samples) {
+    const value = band?.[index];
+    if (value === undefined || Number.isNaN(value)) {
+      return;
+    }
+    sum += value;
+    count++;
+  }
+  return count > 0 ? sum / count : undefined;
+}
+
+function toMutableDisplayRange(
+  value: ReadonlyArray<number> | undefined,
+  fallback?: ReadonlyArray<number> | undefined
+): [number, number] | undefined {
+  const range = value ?? fallback;
+  if (!range || range.length < 2) {
+    return;
+  }
+  return [range[0], range[1]];
 }
