@@ -80,6 +80,7 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
       this.colorSchemeGroup,
       this.domainGroup,
       this.additionalColorsGroup,
+      this.customColorsGroup,
       this.displayRangeGroup,
       this.advancedGroup
     ]);
@@ -317,6 +318,94 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
     };
   }
 
+  /** Custom Colors Group */
+  @computed
+  private get customColorsGroup():
+    | SelectableDimensionWorkflowGroup
+    | undefined {
+    const stops = this.customColorStops;
+
+    const stopDimensions = stops.flatMap((stop, index) =>
+      filterOutUndefined([
+        {
+          type: "color",
+          id: `custom-color-${index}`,
+          name: i18next.t("models.cogStyling.customColors.stopColor", {
+            index: index + 1
+          }),
+          value: stop.color,
+          allowUndefined: false,
+          setDimensionValue: action(
+            (stratumId: string, value: string | undefined) => {
+              if (!isDefined(value)) return;
+              this.updateColorStop(stratumId, index, { color: value });
+            }
+          )
+        } as SelectableDimensionColor,
+        {
+          type: "numeric",
+          id: `custom-position-${index}`,
+          name: i18next.t("models.cogStyling.customColors.stopPosition", {
+            index: index + 1
+          }),
+          value: stop.position,
+          min: 0,
+          max: 1,
+          allowUndefined: false,
+          setDimensionValue: action(
+            (stratumId: string, value: number | undefined) => {
+              if (!isDefined(value)) return;
+              this.updateColorStop(stratumId, index, {
+                position: clamp01(value)
+              });
+            }
+          )
+        } as SelectableDimensionNumeric,
+        stops.length > 1
+          ? ({
+              type: "button",
+              id: `custom-remove-${index}`,
+              value: i18next.t("models.cogStyling.customColors.remove"),
+              setDimensionValue: action((stratumId: string) =>
+                this.removeColorStop(stratumId, index)
+              )
+            } as SelectableDimensionButton)
+          : undefined
+      ])
+    );
+
+    const controls = [
+      ...stopDimensions,
+      {
+        type: "button",
+        id: "custom-add",
+        value: i18next.t("models.cogStyling.customColors.addStop"),
+        setDimensionValue: action((stratumId: string) =>
+          this.addColorStop(stratumId)
+        )
+      } as SelectableDimensionButton
+    ];
+
+    if (stops.length > 0) {
+      controls.push({
+        type: "button",
+        id: "custom-clear",
+        value: i18next.t("models.cogStyling.customColors.clear"),
+        setDimensionValue: action((stratumId: string) =>
+          this.clearColorStops(stratumId)
+        )
+      });
+    }
+
+    return {
+      type: "group",
+      id: "custom-colors",
+      name: i18next.t("models.cogStyling.customColors.name"),
+      selectableDimensions: controls,
+      isOpen: stops.length > 0
+    };
+  }
+
   /** No data color selector */
   @computed
   private get noDataColorSelectableDim(): SelectableDimensionColor | undefined {
@@ -341,6 +430,115 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
         }
       )
     };
+  }
+
+  private get customColorStops(): CustomColorStop[] {
+    const colors = this.item.renderOptions?.single?.colors;
+    if (!colors || colors.length === 0) return [];
+
+    if (typeof colors[0] === "string") {
+      const stringColors = colors as string[];
+      if (stringColors.length === 1) {
+        return [{ position: 0, color: stringColors[0] }];
+      }
+      return stringColors.map((color, index) => ({
+        position:
+          stringColors.length === 1 ? 0 : index / (stringColors.length - 1),
+        color
+      }));
+    }
+
+    return (colors as [number, string][])
+      .map(([position, color]) => ({
+        position: clamp01(position ?? 0),
+        color
+      }))
+      .sort((a, b) => a.position - b.position);
+  }
+
+  private updateColorStop(
+    stratumId: string,
+    index: number,
+    partial: Partial<CustomColorStop>
+  ) {
+    const stops = this.customColorStops;
+    if (!stops[index]) return;
+    const updated = [...stops];
+    updated[index] = {
+      position:
+        partial.position !== undefined
+          ? clamp01(partial.position)
+          : updated[index].position,
+      color: partial.color ?? updated[index].color
+    };
+    this.writeColorStops(stratumId, updated);
+  }
+
+  private addColorStop(stratumId: string) {
+    const stops = this.customColorStops;
+    let position = 0.5;
+    if (stops.length === 1) {
+      position =
+        stops[0].position >= 0.5
+          ? clamp01(stops[0].position / 2)
+          : clamp01((stops[0].position + 1) / 2);
+    } else if (stops.length > 1) {
+      let largestGapIndex = 0;
+      let largestGap = -1;
+      for (let i = 0; i < stops.length - 1; i++) {
+        const gap = stops[i + 1].position - stops[i].position;
+        if (gap > largestGap) {
+          largestGap = gap;
+          largestGapIndex = i;
+        }
+      }
+      position = stops[largestGapIndex].position + largestGap / 2;
+    }
+    const defaultColor = stops[stops.length - 1]?.color ?? "#ff0000";
+    this.writeColorStops(stratumId, [
+      ...stops,
+      { position: clamp01(position), color: defaultColor }
+    ]);
+  }
+
+  private removeColorStop(stratumId: string, index: number) {
+    const stops = this.customColorStops;
+    if (!stops[index]) return;
+    const updated = stops.slice();
+    updated.splice(index, 1);
+    this.writeColorStops(stratumId, updated);
+  }
+
+  private clearColorStops(stratumId: string) {
+    this.ensureSingleRenderOptions(stratumId);
+    this.item.renderOptions.single!.setTrait(stratumId, "colors", undefined);
+  }
+
+  private writeColorStops(stratumId: string, stops: CustomColorStop[]) {
+    this.ensureSingleRenderOptions(stratumId);
+    if (stops.length === 0) {
+      this.item.renderOptions.single!.setTrait(stratumId, "colors", undefined);
+      return;
+    }
+
+    const sanitized = stops
+      .filter((stop) => stop.color)
+      .map(
+        (stop) => [clamp01(stop.position ?? 0), stop.color] as [number, string]
+      )
+      .sort((a, b) => a[0] - b[0]);
+
+    this.item.renderOptions.single!.setTrait(
+      stratumId,
+      "colors",
+      sanitized as any
+    );
+  }
+
+  private ensureSingleRenderOptions(stratumId: string) {
+    if (!this.item.renderOptions.single) {
+      this.item.renderOptions.setTrait(stratumId, "single", undefined);
+    }
   }
 
   /** Domain minimum value */
@@ -600,4 +798,16 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
       )
     };
   }
+}
+
+interface CustomColorStop {
+  position: number;
+  color: string;
+}
+
+function clamp01(value: number): number {
+  if (!isFinite(value)) {
+    return 0;
+  }
+  return Math.max(0, Math.min(1, value));
 }

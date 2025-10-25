@@ -434,6 +434,14 @@
       "applyDisplayRange": "Aplicar Rango de Visualización",
       "displayRangeMin": "Rango de Visualización Mín",
       "displayRangeMax": "Rango de Visualización Máx",
+      "customColors": {
+        "name": "Colores personalizados",
+        "addStop": "Agregar punto de color",
+        "clear": "Quitar colores personalizados",
+        "stopColor": "Color del punto {{index}}",
+        "stopPosition": "Posición del punto {{index}} (0-1)",
+        "remove": "Eliminar punto"
+      },
       "advanced": "Avanzado",
       "band": "Banda",
       "clampLow": "Ajustar Valores Bajos",

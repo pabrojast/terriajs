@@ -2095,6 +2095,14 @@
       "applyDisplayRange": "Apply Display Range",
       "displayRangeMin": "Display Range Min",
       "displayRangeMax": "Display Range Max",
+      "customColors": {
+        "name": "Custom Colors",
+        "addStop": "Add Color Stop",
+        "clear": "Clear Custom Colors",
+        "stopColor": "Stop {{index}} color",
+        "stopPosition": "Stop {{index}} position (0-1)",
+        "remove": "Remove stop"
+      },
       "advanced": "Advanced",
       "band": "Band",
       "clampLow": "Clamp Low Values",
