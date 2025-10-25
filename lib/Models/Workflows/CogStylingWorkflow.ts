@@ -629,8 +629,10 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
     title: string | undefined
   ) {
     this.applyLegendMutation(stratumId, (legend) => {
-      if (!legend.items[index]) return;
-      legend.items[index] = { ...legend.items[index], title };
+      if (!legend.items || !legend.items[index]) return;
+      const items = [...legend.items];
+      items[index] = { ...items[index], title };
+      legend.items = items;
     });
   }
 
