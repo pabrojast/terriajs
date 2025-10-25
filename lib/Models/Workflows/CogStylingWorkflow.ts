@@ -23,6 +23,12 @@ import LegendTraits, {
 import createStratumInstance from "../Definition/createStratumInstance";
 import StratumFromTraits from "../Definition/StratumFromTraits";
 import Model from "../Definition/Model";
+import LegendTraits, {
+  LegendItemTraits
+} from "../../Traits/TraitsClasses/LegendTraits";
+import createStratumInstance from "../Definition/createStratumInstance";
+import StratumFromTraits from "../Definition/StratumFromTraits";
+import Model from "../Definition/Model";
 
 /** Available color scales for COG rendering */
 const COLOR_SCALES: ColorScaleNames[] = [
@@ -579,6 +585,7 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
   private clearColorStops(stratumId: string) {
     this.ensureSingleRenderOptions(stratumId);
     this.item.renderOptions.single!.setTrait(stratumId, "colors", undefined);
+    this.item.setTrait(stratumId, "legends", undefined);
   }
 
   private writeColorStops(stratumId: string, stops: CustomColorStop[]) {
@@ -600,6 +607,7 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
       "colors",
       sanitized as any
     );
+    this.syncLegendWithColorStops(stratumId, sanitized);
   }
 
   private ensureSingleRenderOptions(stratumId: string) {
@@ -630,8 +638,9 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
   ) {
     this.applyLegendMutation(stratumId, (legend) => {
       if (!legend.items || !legend.items[index]) return;
-      const items = [...legend.items];
-      items[index] = { ...items[index], title };
+      const items = legend.items.map((item, i) =>
+        i === index ? { ...item, title } : item
+      );
       legend.items = items;
     });
   }
@@ -681,6 +690,55 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
         })
       )
     });
+  }
+
+  private syncLegendWithColorStops(
+    stratumId: string,
+    stops: [number, string][]
+  ) {
+    if (stops.length === 0) {
+      this.item.setTrait(stratumId, "legends", undefined);
+      return;
+    }
+    const legend = this.buildLegendFromStops(stops);
+    if (legend) {
+      this.item.setTrait(stratumId, "legends", [legend]);
+    }
+  }
+
+  private buildLegendFromStops(
+    stops: [number, string][]
+  ): StratumFromTraits<LegendTraits> | undefined {
+    if (stops.length === 0) return undefined;
+    const domain = this.item.renderOptions?.single?.domain;
+    const hasDomain = !!domain && domain.length === 2;
+    const [min, max] = hasDomain ? domain : [0, 1];
+
+    return createStratumInstance(LegendTraits, {
+      title: this.primaryLegend?.title,
+      items: stops.map(([position, color], index) =>
+        createStratumInstance(LegendItemTraits, {
+          color,
+          title: hasDomain
+            ? this.formatLegendValue(min + position * (max - min))
+            : `${Math.round(position * 100)}%`
+        })
+      )
+    });
+  }
+
+  private formatLegendValue(value: number): string {
+    const absValue = Math.abs(value);
+    if (absValue > 0 && absValue < 0.01) {
+      return value.toExponential(2);
+    }
+    if (absValue >= 10000) {
+      return value.toLocaleString(undefined, { maximumFractionDigits: 0 });
+    }
+    if (absValue >= 1000) {
+      return value.toLocaleString(undefined, { maximumFractionDigits: 1 });
+    }
+    return value.toLocaleString(undefined, { maximumFractionDigits: 2 });
   }
 
   /** Domain minimum value */

@@ -17,6 +17,7 @@
 - Fix COG transparency filters and "No data" additional color by post-processing TIFF tiles so the configured display range and fill color are applied to the rendered imagery.
 - Edit legend titles for COG layers directly from the Edit Style panel (per-item labels + reset to automatic legend).
 - Add UI controls to define, reorder and clear custom color stops for COG items so their legends can be edited like other formats.
+- Custom color stops automatically refresh the legend entries so there’s a label for every colour step (and you can still rename them manually).
 - [The next improvement]
 
 #### 8.9.5 - 2025-06-03
