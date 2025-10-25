@@ -93,16 +93,17 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
     const numberOfBinsDim = this.numberOfBinsSelectableDim;
     const reverseColorScaleDim = this.reverseColorScaleSelectableDim;
 
-    if (!colorScaleDim && !typeDim && !numberOfBinsDim && !reverseColorScaleDim) return undefined;
+    if (!colorScaleDim && !typeDim && !numberOfBinsDim && !reverseColorScaleDim)
+      return undefined;
 
     return {
       type: "group",
       id: "color-scheme",
       name: "Color Scheme",
       selectableDimensions: filterOutUndefined([
-        colorScaleDim, 
+        colorScaleDim,
         reverseColorScaleDim,
-        typeDim, 
+        typeDim,
         numberOfBinsDim
       ]),
       isOpen: true
@@ -139,9 +140,9 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
     return {
       type: "group",
       id: "display-range",
-      name: "Display Range (Transparency Filter)",
+      name: i18next.t("models.cogStyling.displayRange"),
       selectableDimensions: filterOutUndefined([applyDim, minDim, maxDim]),
-      isOpen: false
+      isOpen: true
     };
   }
 
@@ -183,16 +184,18 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
         id: scale,
         name: scale.charAt(0).toUpperCase() + scale.slice(1)
       })),
-      setDimensionValue: action((stratumId: string, value: string | undefined) => {
-        if (!this.item.renderOptions.single) {
-          this.item.renderOptions.setTrait(stratumId, "single", undefined);
+      setDimensionValue: action(
+        (stratumId: string, value: string | undefined) => {
+          if (!this.item.renderOptions.single) {
+            this.item.renderOptions.setTrait(stratumId, "single", undefined);
+          }
+          this.item.renderOptions.single!.setTrait(
+            stratumId,
+            "colorScale",
+            value as ColorScaleNames | undefined
+          );
         }
-        this.item.renderOptions.single!.setTrait(
-          stratumId,
-          "colorScale",
-          value as ColorScaleNames | undefined
-        );
-      })
+      )
     };
   }
 
@@ -226,7 +229,9 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
 
   /** Number of bins for legend */
   @computed
-  private get numberOfBinsSelectableDim(): SelectableDimensionNumeric | undefined {
+  private get numberOfBinsSelectableDim():
+    | SelectableDimensionNumeric
+    | undefined {
     const numberOfBins = this.item.renderOptions?.single?.numberOfBins;
     const type = this.item.renderOptions?.single?.type ?? "continuous";
     const defaultValue = type === "discrete" ? 8 : 7;
@@ -239,16 +244,20 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
       min: 2,
       max: 30,
       allowUndefined: true,
-      setDimensionValue: action((stratumId: string, value: number | undefined) => {
-        if (!this.item.renderOptions.single) {
-          this.item.renderOptions.setTrait(stratumId, "single", undefined);
+      setDimensionValue: action(
+        (stratumId: string, value: number | undefined) => {
+          if (!this.item.renderOptions.single) {
+            this.item.renderOptions.setTrait(stratumId, "single", undefined);
+          }
+          this.item.renderOptions.single!.setTrait(
+            stratumId,
+            "numberOfBins",
+            value !== undefined
+              ? Math.max(2, Math.min(30, Math.floor(value)))
+              : undefined
+          );
         }
-        this.item.renderOptions.single!.setTrait(
-          stratumId,
-          "numberOfBins",
-          value !== undefined ? Math.max(2, Math.min(30, Math.floor(value))) : undefined
-        );
-      })
+      )
     };
   }
 
@@ -283,7 +292,9 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
 
   /** Additional Colors Group */
   @computed
-  private get additionalColorsGroup(): SelectableDimensionWorkflowGroup | undefined {
+  private get additionalColorsGroup():
+    | SelectableDimensionWorkflowGroup
+    | undefined {
     const noDataColorDim = this.noDataColorSelectableDim;
 
     if (!noDataColorDim) return undefined;
@@ -308,24 +319,24 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
       name: "No Data Color",
       value: noDataColor,
       allowUndefined: true,
-      setDimensionValue: action((stratumId: string, value: string | undefined) => {
-        if (!this.item.renderOptions.single) {
-          this.item.renderOptions.setTrait(stratumId, "single", undefined);
+      setDimensionValue: action(
+        (stratumId: string, value: string | undefined) => {
+          if (!this.item.renderOptions.single) {
+            this.item.renderOptions.setTrait(stratumId, "single", undefined);
+          }
+          this.item.renderOptions.single!.setTrait(
+            stratumId,
+            "noDataColor",
+            value
+          );
         }
-        this.item.renderOptions.single!.setTrait(
-          stratumId,
-          "noDataColor",
-          value
-        );
-      })
+      )
     };
   }
 
   /** Domain minimum value */
   @computed
-  private get domainMinSelectableDim():
-    | SelectableDimensionNumeric
-    | undefined {
+  private get domainMinSelectableDim(): SelectableDimensionNumeric | undefined {
     const domain = this.item.renderOptions?.single?.domain;
     const value = domain?.[0];
 
@@ -335,31 +346,35 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
       name: "Minimum Value",
       value: value,
       allowUndefined: true,
-      setDimensionValue: action((stratumId: string, value: number | undefined) => {
-        if (value === undefined) {
-          // Clear the domain if undefined
-          if (this.item.renderOptions.single) {
-            this.item.renderOptions.single.setTrait(stratumId, "domain", undefined);
+      setDimensionValue: action(
+        (stratumId: string, value: number | undefined) => {
+          if (value === undefined) {
+            // Clear the domain if undefined
+            if (this.item.renderOptions.single) {
+              this.item.renderOptions.single.setTrait(
+                stratumId,
+                "domain",
+                undefined
+              );
+            }
+            return;
           }
-          return;
+          const currentDomain = this.item.renderOptions?.single?.domain;
+          if (!this.item.renderOptions.single) {
+            this.item.renderOptions.setTrait(stratumId, "single", undefined);
+          }
+          this.item.renderOptions.single!.setTrait(stratumId, "domain", [
+            value,
+            currentDomain?.[1] ?? value + 100
+          ]);
         }
-        const currentDomain = this.item.renderOptions?.single?.domain;
-        if (!this.item.renderOptions.single) {
-          this.item.renderOptions.setTrait(stratumId, "single", undefined);
-        }
-        this.item.renderOptions.single!.setTrait(stratumId, "domain", [
-          value,
-          currentDomain?.[1] ?? value + 100
-        ]);
-      })
+      )
     };
   }
 
   /** Domain maximum value */
   @computed
-  private get domainMaxSelectableDim():
-    | SelectableDimensionNumeric
-    | undefined {
+  private get domainMaxSelectableDim(): SelectableDimensionNumeric | undefined {
     const domain = this.item.renderOptions?.single?.domain;
     const value = domain?.[1];
 
@@ -369,23 +384,29 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
       name: "Maximum Value",
       value: value,
       allowUndefined: true,
-      setDimensionValue: action((stratumId: string, value: number | undefined) => {
-        if (value === undefined) {
-          // Clear the domain if undefined
-          if (this.item.renderOptions.single) {
-            this.item.renderOptions.single.setTrait(stratumId, "domain", undefined);
+      setDimensionValue: action(
+        (stratumId: string, value: number | undefined) => {
+          if (value === undefined) {
+            // Clear the domain if undefined
+            if (this.item.renderOptions.single) {
+              this.item.renderOptions.single.setTrait(
+                stratumId,
+                "domain",
+                undefined
+              );
+            }
+            return;
           }
-          return;
+          const currentDomain = this.item.renderOptions?.single?.domain;
+          if (!this.item.renderOptions.single) {
+            this.item.renderOptions.setTrait(stratumId, "single", undefined);
+          }
+          this.item.renderOptions.single!.setTrait(stratumId, "domain", [
+            currentDomain?.[0] ?? value - 100,
+            value
+          ]);
         }
-        const currentDomain = this.item.renderOptions?.single?.domain;
-        if (!this.item.renderOptions.single) {
-          this.item.renderOptions.setTrait(stratumId, "single", undefined);
-        }
-        this.item.renderOptions.single!.setTrait(stratumId, "domain", [
-          currentDomain?.[0] ?? value - 100,
-          value
-        ]);
-      })
+      )
     };
   }
 
@@ -398,8 +419,9 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
     return {
       type: "checkbox",
       id: "apply-display-range",
-      name: "Enable (values outside range will be transparent)",
+      name: i18next.t("models.cogStyling.applyDisplayRange"),
       selectedId: applyDisplayRange ? "true" : "false",
+      allowUndefined: true,
       options: [{ id: "true" }],
       setDimensionValue: action(
         (stratumId: string, value: "true" | "false" | undefined) => {
@@ -426,25 +448,31 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
     return {
       type: "numeric",
       id: "display-range-min",
-      name: "Minimum",
+      name: i18next.t("models.cogStyling.displayRangeMin"),
       value: value,
       allowUndefined: true,
-      setDimensionValue: action((stratumId: string, value: number | undefined) => {
-        if (value === undefined) {
-          if (this.item.renderOptions.single) {
-            this.item.renderOptions.single.setTrait(stratumId, "displayRange", undefined);
+      setDimensionValue: action(
+        (stratumId: string, value: number | undefined) => {
+          if (value === undefined) {
+            if (this.item.renderOptions.single) {
+              this.item.renderOptions.single.setTrait(
+                stratumId,
+                "displayRange",
+                undefined
+              );
+            }
+            return;
           }
-          return;
+          const currentRange = this.item.renderOptions?.single?.displayRange;
+          if (!this.item.renderOptions.single) {
+            this.item.renderOptions.setTrait(stratumId, "single", undefined);
+          }
+          this.item.renderOptions.single!.setTrait(stratumId, "displayRange", [
+            value,
+            currentRange?.[1] ?? value + 100
+          ]);
         }
-        const currentRange = this.item.renderOptions?.single?.displayRange;
-        if (!this.item.renderOptions.single) {
-          this.item.renderOptions.setTrait(stratumId, "single", undefined);
-        }
-        this.item.renderOptions.single!.setTrait(stratumId, "displayRange", [
-          value,
-          currentRange?.[1] ?? value + 100
-        ]);
-      })
+      )
     };
   }
 
@@ -458,25 +486,31 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
     return {
       type: "numeric",
       id: "display-range-max",
-      name: "Maximum",
+      name: i18next.t("models.cogStyling.displayRangeMax"),
       value: value,
       allowUndefined: true,
-      setDimensionValue: action((stratumId: string, value: number | undefined) => {
-        if (value === undefined) {
-          if (this.item.renderOptions.single) {
-            this.item.renderOptions.single.setTrait(stratumId, "displayRange", undefined);
+      setDimensionValue: action(
+        (stratumId: string, value: number | undefined) => {
+          if (value === undefined) {
+            if (this.item.renderOptions.single) {
+              this.item.renderOptions.single.setTrait(
+                stratumId,
+                "displayRange",
+                undefined
+              );
+            }
+            return;
           }
-          return;
+          const currentRange = this.item.renderOptions?.single?.displayRange;
+          if (!this.item.renderOptions.single) {
+            this.item.renderOptions.setTrait(stratumId, "single", undefined);
+          }
+          this.item.renderOptions.single!.setTrait(stratumId, "displayRange", [
+            currentRange?.[0] ?? value - 100,
+            value
+          ]);
         }
-        const currentRange = this.item.renderOptions?.single?.displayRange;
-        if (!this.item.renderOptions.single) {
-          this.item.renderOptions.setTrait(stratumId, "single", undefined);
-        }
-        this.item.renderOptions.single!.setTrait(stratumId, "displayRange", [
-          currentRange?.[0] ?? value - 100,
-          value
-        ]);
-      })
+      )
     };
   }
 
@@ -506,9 +540,7 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
 
   /** Clamp low values checkbox */
   @computed
-  private get clampLowSelectableDim():
-    | SelectableDimensionCheckbox
-    | undefined {
+  private get clampLowSelectableDim(): SelectableDimensionCheckbox | undefined {
     const clampLow = this.item.renderOptions?.single?.clampLow ?? false;
 
     return {
