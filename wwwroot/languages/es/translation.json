@@ -442,6 +442,12 @@
         "stopPosition": "Posición del punto {{index}} (0-1)",
         "remove": "Eliminar punto"
       },
+      "legend": {
+        "name": "Leyenda",
+        "title": "Título de la leyenda",
+        "itemTitle": "Etiqueta del elemento {{index}}",
+        "reset": "Usar leyenda automática"
+      },
       "advanced": "Avanzado",
       "band": "Banda",
       "clampLow": "Ajustar Valores Bajos",

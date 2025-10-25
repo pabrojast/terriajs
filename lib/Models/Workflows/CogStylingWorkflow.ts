@@ -10,12 +10,14 @@ import {
   SelectableDimensionCheckbox,
   SelectableDimensionColor,
   SelectableDimensionEnum,
-  SelectableDimensionNumeric
+  SelectableDimensionNumeric,
+  SelectableDimensionText
 } from "../SelectableDimensions/SelectableDimensions";
 import SelectableDimensionWorkflow, {
   SelectableDimensionWorkflowGroup
 } from "./SelectableDimensionWorkflow";
 import { ColorScaleNames } from "../../Traits/TraitsClasses/CogCatalogItemTraits";
+import LegendTraits from "../../Traits/TraitsClasses/LegendTraits";
 
 /** Available color scales for COG rendering */
 const COLOR_SCALES: ColorScaleNames[] = [
@@ -81,6 +83,7 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
       this.domainGroup,
       this.additionalColorsGroup,
       this.customColorsGroup,
+      this.legendGroup,
       this.displayRangeGroup,
       this.advancedGroup
     ]);
@@ -406,6 +409,65 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
     };
   }
 
+  /** Legend editing group */
+  @computed
+  private get legendGroup(): SelectableDimensionWorkflowGroup | undefined {
+    const legend = this.primaryLegend;
+    if (!legend) return undefined;
+
+    const itemDims =
+      legend.items?.map(
+        (item, index) =>
+          ({
+            type: "text",
+            id: `legend-item-${index}`,
+            name: i18next.t("models.cogStyling.legend.itemTitle", {
+              index: index + 1
+            }),
+            value: item.title ?? "",
+            setDimensionValue: action(
+              (stratumId: string, value: string | undefined) => {
+                this.updateLegendItemTitle(stratumId, index, value);
+              }
+            )
+          }) as SelectableDimensionText
+      ) ?? [];
+
+    const dimensions = filterOutUndefined([
+      {
+        type: "text",
+        id: "legend-title",
+        name: i18next.t("models.cogStyling.legend.title"),
+        value: legend.title,
+        setDimensionValue: action(
+          (stratumId: string, value: string | undefined) =>
+            this.updateLegendTitle(stratumId, value)
+        )
+      } as SelectableDimensionText,
+      ...itemDims,
+      legend.items && legend.items.length > 0
+        ? ({
+            type: "button",
+            id: "legend-reset",
+            value: i18next.t("models.cogStyling.legend.reset"),
+            setDimensionValue: action((stratumId: string) =>
+              this.clearLegendOverrides(stratumId)
+            )
+          } as SelectableDimensionButton)
+        : undefined
+    ]);
+
+    if (dimensions.length === 0) return undefined;
+
+    return {
+      type: "group",
+      id: "legend",
+      name: i18next.t("models.cogStyling.legend.name"),
+      selectableDimensions: dimensions,
+      isOpen: false
+    };
+  }
+
   /** No data color selector */
   @computed
   private get noDataColorSelectableDim(): SelectableDimensionColor | undefined {
@@ -539,6 +601,77 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
     if (!this.item.renderOptions.single) {
       this.item.renderOptions.setTrait(stratumId, "single", undefined);
     }
+  }
+
+  private get primaryLegend(): LegendTraits | undefined {
+    const legends = this.item.legends;
+    if (!legends || legends.length === 0) return undefined;
+    const userLegend = legends.find((legend) =>
+      legend.strata.has(CommonStrata.user)
+    );
+    return userLegend ?? legends[0];
+  }
+
+  private updateLegendTitle(stratumId: string, title: string | undefined) {
+    this.applyLegendMutation(stratumId, (legend) => {
+      legend.title = title;
+    });
+  }
+
+  private updateLegendItemTitle(
+    stratumId: string,
+    index: number,
+    title: string | undefined
+  ) {
+    this.applyLegendMutation(stratumId, (legend) => {
+      if (!legend.items[index]) return;
+      legend.items[index] = { ...legend.items[index], title };
+    });
+  }
+
+  private clearLegendOverrides(stratumId: string) {
+    this.item.setTrait(stratumId, "legends", undefined);
+  }
+
+  private applyLegendMutation(
+    stratumId: string,
+    mutator: (legend: LegendDefinition) => void
+  ) {
+    const legend = this.buildLegendDefinition();
+    if (!legend) return;
+    mutator(legend);
+    this.item.setTrait(stratumId, "legends", [legend]);
+  }
+
+  private buildLegendDefinition(): LegendDefinition | undefined {
+    const legend = this.primaryLegend;
+    if (!legend) return undefined;
+
+    return {
+      title: legend.title,
+      items: (legend.items ?? []).map((item) => ({
+        title: item.title,
+        multipleTitles: item.multipleTitles
+          ? [...item.multipleTitles]
+          : undefined,
+        maxMultipleTitlesShowed: item.maxMultipleTitlesShowed,
+        titleAbove: item.titleAbove,
+        titleBelow: item.titleBelow,
+        color: item.color,
+        outlineColor: item.outlineColor,
+        outlineWidth: item.outlineWidth,
+        outlineStyle: item.outlineStyle,
+        multipleColors: item.multipleColors
+          ? [...item.multipleColors]
+          : undefined,
+        imageUrl: item.imageUrl,
+        marker: item.marker,
+        rotation: item.rotation,
+        addSpacingAbove: item.addSpacingAbove,
+        imageHeight: item.imageHeight,
+        imageWidth: item.imageWidth
+      }))
+    };
   }
 
   /** Domain minimum value */
@@ -810,4 +943,28 @@ function clamp01(value: number): number {
     return 0;
   }
   return Math.max(0, Math.min(1, value));
+}
+
+interface LegendDefinition {
+  title?: string;
+  items: LegendItemDefinition[];
+}
+
+interface LegendItemDefinition {
+  title?: string;
+  multipleTitles?: string[];
+  maxMultipleTitlesShowed?: number;
+  titleAbove?: string;
+  titleBelow?: string;
+  color?: string;
+  outlineColor?: string;
+  outlineWidth?: number;
+  outlineStyle?: string;
+  multipleColors?: string[];
+  imageUrl?: string;
+  marker?: string;
+  rotation?: number;
+  addSpacingAbove?: boolean;
+  imageHeight?: number;
+  imageWidth?: number;
 }

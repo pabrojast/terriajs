@@ -2103,6 +2103,12 @@
         "stopPosition": "Stop {{index}} position (0-1)",
         "remove": "Remove stop"
       },
+      "legend": {
+        "name": "Legend",
+        "title": "Legend title",
+        "itemTitle": "Legend item {{index}} label",
+        "reset": "Use automatic legend"
+      },
       "advanced": "Advanced",
       "band": "Band",
       "clampLow": "Clamp Low Values",
