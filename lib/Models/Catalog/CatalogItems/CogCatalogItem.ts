@@ -249,11 +249,81 @@ export default class CogCatalogItem extends MappableMixin(
         import("proj4-fully-loaded")
       ]);
 
-    // Build render options with proper handling of displayRange
+    // Build render options with proper handling
     const singleOptions = this.renderOptions.single;
-    const displayRange = singleOptions?.applyDisplayRange
-      ? singleOptions.displayRange
-      : undefined;
+
+    // Prepare single render options
+    const singleRenderOptions: any = {};
+
+    if (singleOptions?.band !== undefined) {
+      singleRenderOptions.band = singleOptions.band;
+    }
+
+    if (singleOptions?.colorScale !== undefined) {
+      singleRenderOptions.colorScale = singleOptions.colorScale;
+    }
+
+    if (singleOptions?.colors !== undefined) {
+      singleRenderOptions.colors = singleOptions.colors;
+    }
+
+    if (singleOptions?.useRealValue !== undefined) {
+      singleRenderOptions.useRealValue = singleOptions.useRealValue;
+    }
+
+    if (singleOptions?.type !== undefined) {
+      singleRenderOptions.type = singleOptions.type;
+    }
+
+    if (singleOptions?.domain !== undefined) {
+      singleRenderOptions.domain = singleOptions.domain;
+    }
+
+    // Handle display range - always pass it if defined, let the library handle applyDisplayRange
+    if (singleOptions?.displayRange !== undefined) {
+      singleRenderOptions.displayRange = singleOptions.displayRange;
+    }
+
+    // Pass applyDisplayRange as a separate flag
+    if (singleOptions?.applyDisplayRange !== undefined) {
+      singleRenderOptions.applyDisplayRange = singleOptions.applyDisplayRange;
+    }
+
+    if (singleOptions?.clampLow !== undefined) {
+      singleRenderOptions.clampLow = singleOptions.clampLow;
+    }
+
+    if (singleOptions?.clampHigh !== undefined) {
+      singleRenderOptions.clampHigh = singleOptions.clampHigh;
+    }
+
+    if (singleOptions?.expression !== undefined) {
+      singleRenderOptions.expression = singleOptions.expression;
+    }
+
+    // Handle noDataColor - the library might expect it as a string or array
+    if (singleOptions?.noDataColor !== undefined) {
+      // Try to pass as-is first, the library should handle CSS colors
+      singleRenderOptions.noDataColor = singleOptions.noDataColor;
+    }
+
+    const renderOptions: any = {};
+
+    if (Object.keys(singleRenderOptions).length > 0) {
+      renderOptions.single = singleRenderOptions;
+    }
+
+    if (this.renderOptions.nodata !== undefined) {
+      renderOptions.nodata = this.renderOptions.nodata;
+    }
+
+    if (this.renderOptions.convertToRGB !== undefined) {
+      renderOptions.convertToRGB = this.renderOptions.convertToRGB;
+    }
+
+    if (this.renderOptions.resampleMethod !== undefined) {
+      renderOptions.resampleMethod = this.renderOptions.resampleMethod;
+    }
 
     return runInAction(() =>
       TIFFImageryProvider.fromUrl(url, {
@@ -265,30 +335,8 @@ export default class CogCatalogItem extends MappableMixin(
         hasAlphaChannel: this.hasAlphaChannel,
         // used for reprojecting from an unknown projection to 4326/3857
         projFunc: this.reprojector(proj4),
-        // make sure we omit `undefined` options so as not to override the library defaults
-        renderOptions: omitUndefined({
-          single: omitUndefined({
-            band: singleOptions?.band,
-            colorScale: singleOptions?.colorScale,
-            colors: singleOptions?.colors,
-            useRealValue: singleOptions?.useRealValue,
-            type: singleOptions?.type,
-            domain: singleOptions?.domain,
-            displayRange: displayRange,
-            clampLow: singleOptions?.clampLow,
-            clampHigh: singleOptions?.clampHigh,
-            expression: singleOptions?.expression,
-            // Handle noDataColor - convert to array format if needed
-            noDataColor: singleOptions?.noDataColor
-              ? singleOptions.noDataColor.startsWith("#")
-                ? hexToRgb(singleOptions.noDataColor)
-                : singleOptions.noDataColor
-              : undefined
-          }),
-          nodata: this.renderOptions.nodata,
-          convertToRGB: this.renderOptions.convertToRGB,
-          resampleMethod: this.renderOptions.resampleMethod
-        })
+        renderOptions:
+          Object.keys(renderOptions).length > 0 ? renderOptions : undefined
       })
     );
   }
@@ -327,36 +375,4 @@ function isCustomTilingScheme(tilingScheme: object) {
     tilingScheme.constructor !== WebMercatorTilingScheme &&
     tilingScheme.constructor !== GeographicTilingScheme
   );
-}
-
-function omitUndefined(obj: object) {
-  return Object.fromEntries(
-    Object.entries(obj).filter(([_, value]) => value !== undefined)
-  );
-}
-
-/**
- * Convert hex color to RGB array format [r, g, b, a]
- */
-function hexToRgb(hex: string): [number, number, number, number] | string {
-  // Return as-is if not a hex color
-  if (!hex.startsWith("#")) return hex;
-
-  // Remove # if present
-  hex = hex.replace("#", "");
-
-  // Handle 3-character hex
-  if (hex.length === 3) {
-    hex = hex
-      .split("")
-      .map((char) => char + char)
-      .join("");
-  }
-
-  const r = parseInt(hex.substring(0, 2), 16);
-  const g = parseInt(hex.substring(2, 4), 16);
-  const b = parseInt(hex.substring(4, 6), 16);
-  const a = hex.length === 8 ? parseInt(hex.substring(6, 8), 16) : 255;
-
-  return [r, g, b, a];
 }
