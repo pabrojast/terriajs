@@ -194,6 +194,15 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
             "colorScale",
             value as ColorScaleNames | undefined
           );
+
+          if (value !== undefined && this.item.renderOptions.single?.colors) {
+            // Remove dataset-provided custom colors so the selected scale can apply
+            this.item.renderOptions.single!.setTrait(
+              stratumId,
+              "colors",
+              undefined
+            );
+          }
         }
       )
     };
