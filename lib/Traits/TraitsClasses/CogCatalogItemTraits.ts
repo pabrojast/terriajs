@@ -85,7 +85,7 @@ export class SingleRenderOptionsTraits extends ModelTraits {
   @primitiveArrayTrait({
     name: "Display Range",
     description:
-      "Range of values to display; values outside this range will be transparent. Must enable 'Apply Display Range' for this to take effect.",
+      "Range of values to display. Values outside this range will be transparent when 'Apply Display Range' is enabled.",
     type: "number"
   })
   displayRange?: [number, number];
@@ -93,7 +93,8 @@ export class SingleRenderOptionsTraits extends ModelTraits {
   @primitiveTrait({
     type: "boolean",
     name: "Apply Display Range",
-    description: "Enable the display range filter. When enabled, values outside the Display Range will be transparent."
+    description:
+      "When enabled, values outside the Display Range will be rendered as transparent."
   })
   applyDisplayRange?: boolean;
 
@@ -121,7 +122,8 @@ export class SingleRenderOptionsTraits extends ModelTraits {
   @primitiveTrait({
     type: "number",
     name: "Number of Legend Bins",
-    description: "Number of bins/steps to show in the legend. Default is 7 for continuous and 8 for discrete."
+    description:
+      "Number of bins/steps to show in the legend. Default is 7 for continuous and 8 for discrete."
   })
   numberOfBins?: number;
 
@@ -135,7 +137,8 @@ export class SingleRenderOptionsTraits extends ModelTraits {
   @primitiveTrait({
     type: "string",
     name: "No Data Color",
-    description: "CSS color to use for no-data/null values. If not specified, no-data values will be transparent."
+    description:
+      "CSS color (e.g., '#FF0000', 'red', 'rgba(255,0,0,0.5)') to use for no-data/null values. If not specified, no-data values will be transparent."
   })
   noDataColor?: string;
 }

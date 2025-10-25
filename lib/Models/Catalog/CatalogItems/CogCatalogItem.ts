@@ -52,10 +52,13 @@ class CogLoadableStratum extends LoadableStratum(CogCatalogItemTraits) {
       ? // Warn for 2D mode
         i18next.t("models.commonModelErrors.3dTypeIn2dMode", this)
       : this.model._imageryProvider?.tilingScheme &&
-        // Show warning for experimental reprojection feature if not using EPSG 3857 or 4326
-        isCustomTilingScheme(this.model._imageryProvider?.tilingScheme)
-      ? i18next.t("models.cogCatalogItem.experimentalReprojectionWarning", this)
-      : undefined;
+          // Show warning for experimental reprojection feature if not using EPSG 3857 or 4326
+          isCustomTilingScheme(this.model._imageryProvider?.tilingScheme)
+        ? i18next.t(
+            "models.cogCatalogItem.experimentalReprojectionWarning",
+            this
+          )
+        : undefined;
   }
 
   @computed
@@ -155,7 +158,8 @@ export default class CogCatalogItem extends MappableMixin(
         band: this.renderOptions?.single?.band,
         reverseColorScale: this.renderOptions?.single?.reverseColorScale,
         numberOfBins: this.renderOptions?.single?.numberOfBins,
-        noDataColor: this.renderOptions?.single?.noDataColor
+        noDataColor: this.renderOptions?.single?.noDataColor,
+        nodata: this.renderOptions?.nodata
       }),
       () => {
         // Only reload if we have an active imagery provider
@@ -245,6 +249,12 @@ export default class CogCatalogItem extends MappableMixin(
         import("proj4-fully-loaded")
       ]);
 
+    // Build render options with proper handling of displayRange
+    const singleOptions = this.renderOptions.single;
+    const displayRange = singleOptions?.applyDisplayRange
+      ? singleOptions.displayRange
+      : undefined;
+
     return runInAction(() =>
       TIFFImageryProvider.fromUrl(url, {
         credit: this.credit,
@@ -258,17 +268,22 @@ export default class CogCatalogItem extends MappableMixin(
         // make sure we omit `undefined` options so as not to override the library defaults
         renderOptions: omitUndefined({
           single: omitUndefined({
-            band: this.renderOptions.single?.band,
-            colorScale: this.renderOptions.single?.colorScale,
-            colors: this.renderOptions.single?.colors,
-            useRealValue: this.renderOptions.single?.useRealValue,
-            type: this.renderOptions.single?.type,
-            domain: this.renderOptions.single?.domain,
-            displayRange: this.renderOptions.single?.displayRange,
-            applyDisplayRange: this.renderOptions.single?.applyDisplayRange,
-            clampLow: this.renderOptions.single?.clampLow,
-            clampHigh: this.renderOptions.single?.clampHigh,
-            expression: this.renderOptions.single?.expression
+            band: singleOptions?.band,
+            colorScale: singleOptions?.colorScale,
+            colors: singleOptions?.colors,
+            useRealValue: singleOptions?.useRealValue,
+            type: singleOptions?.type,
+            domain: singleOptions?.domain,
+            displayRange: displayRange,
+            clampLow: singleOptions?.clampLow,
+            clampHigh: singleOptions?.clampHigh,
+            expression: singleOptions?.expression,
+            // Handle noDataColor - convert to array format if needed
+            noDataColor: singleOptions?.noDataColor
+              ? singleOptions.noDataColor.startsWith("#")
+                ? hexToRgb(singleOptions.noDataColor)
+                : singleOptions.noDataColor
+              : undefined
           }),
           nodata: this.renderOptions.nodata,
           convertToRGB: this.renderOptions.convertToRGB,
@@ -318,4 +333,30 @@ function omitUndefined(obj: object) {
   return Object.fromEntries(
     Object.entries(obj).filter(([_, value]) => value !== undefined)
   );
+}
+
+/**
+ * Convert hex color to RGB array format [r, g, b, a]
+ */
+function hexToRgb(hex: string): [number, number, number, number] | string {
+  // Return as-is if not a hex color
+  if (!hex.startsWith("#")) return hex;
+
+  // Remove # if present
+  hex = hex.replace("#", "");
+
+  // Handle 3-character hex
+  if (hex.length === 3) {
+    hex = hex
+      .split("")
+      .map((char) => char + char)
+      .join("");
+  }
+
+  const r = parseInt(hex.substring(0, 2), 16);
+  const g = parseInt(hex.substring(2, 4), 16);
+  const b = parseInt(hex.substring(4, 6), 16);
+  const a = hex.length === 8 ? parseInt(hex.substring(6, 8), 16) : 255;
+
+  return [r, g, b, a];
 }
