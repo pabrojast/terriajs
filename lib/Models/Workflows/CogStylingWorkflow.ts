@@ -17,7 +17,12 @@ import SelectableDimensionWorkflow, {
   SelectableDimensionWorkflowGroup
 } from "./SelectableDimensionWorkflow";
 import { ColorScaleNames } from "../../Traits/TraitsClasses/CogCatalogItemTraits";
-import LegendTraits from "../../Traits/TraitsClasses/LegendTraits";
+import LegendTraits, {
+  LegendItemTraits
+} from "../../Traits/TraitsClasses/LegendTraits";
+import createStratumInstance from "../Definition/createStratumInstance";
+import StratumFromTraits from "../Definition/StratumFromTraits";
+import Model from "../Definition/Model";
 
 /** Available color scales for COG rendering */
 const COLOR_SCALES: ColorScaleNames[] = [
@@ -603,7 +608,7 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
     }
   }
 
-  private get primaryLegend(): LegendTraits | undefined {
+  private get primaryLegend(): Model<LegendTraits> | undefined {
     const legends = this.item.legends;
     if (!legends || legends.length === 0) return undefined;
     const userLegend = legends.find((legend) =>
@@ -635,7 +640,7 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
 
   private applyLegendMutation(
     stratumId: string,
-    mutator: (legend: LegendDefinition) => void
+    mutator: (legend: StratumFromTraits<LegendTraits>) => void
   ) {
     const legend = this.buildLegendDefinition();
     if (!legend) return;
@@ -643,35 +648,37 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
     this.item.setTrait(stratumId, "legends", [legend]);
   }
 
-  private buildLegendDefinition(): LegendDefinition | undefined {
+  private buildLegendDefinition(): StratumFromTraits<LegendTraits> | undefined {
     const legend = this.primaryLegend;
     if (!legend) return undefined;
 
-    return {
+    return createStratumInstance(LegendTraits, {
       title: legend.title,
-      items: (legend.items ?? []).map((item) => ({
-        title: item.title,
-        multipleTitles: item.multipleTitles
-          ? [...item.multipleTitles]
-          : undefined,
-        maxMultipleTitlesShowed: item.maxMultipleTitlesShowed,
-        titleAbove: item.titleAbove,
-        titleBelow: item.titleBelow,
-        color: item.color,
-        outlineColor: item.outlineColor,
-        outlineWidth: item.outlineWidth,
-        outlineStyle: item.outlineStyle,
-        multipleColors: item.multipleColors
-          ? [...item.multipleColors]
-          : undefined,
-        imageUrl: item.imageUrl,
-        marker: item.marker,
-        rotation: item.rotation,
-        addSpacingAbove: item.addSpacingAbove,
-        imageHeight: item.imageHeight,
-        imageWidth: item.imageWidth
-      }))
-    };
+      items: legend.items?.map((item) =>
+        createStratumInstance(LegendItemTraits, {
+          title: item.title,
+          multipleTitles: item.multipleTitles
+            ? [...item.multipleTitles]
+            : undefined,
+          maxMultipleTitlesShowed: item.maxMultipleTitlesShowed,
+          titleAbove: item.titleAbove,
+          titleBelow: item.titleBelow,
+          color: item.color,
+          outlineColor: item.outlineColor,
+          outlineWidth: item.outlineWidth,
+          outlineStyle: item.outlineStyle,
+          multipleColors: item.multipleColors
+            ? [...item.multipleColors]
+            : undefined,
+          imageUrl: item.imageUrl,
+          marker: item.marker,
+          rotation: item.rotation,
+          addSpacingAbove: item.addSpacingAbove,
+          imageHeight: item.imageHeight,
+          imageWidth: item.imageWidth
+        })
+      )
+    });
   }
 
   /** Domain minimum value */
@@ -943,28 +950,4 @@ function clamp01(value: number): number {
     return 0;
   }
   return Math.max(0, Math.min(1, value));
-}
-
-interface LegendDefinition {
-  title?: string;
-  items: LegendItemDefinition[];
-}
-
-interface LegendItemDefinition {
-  title?: string;
-  multipleTitles?: string[];
-  maxMultipleTitlesShowed?: number;
-  titleAbove?: string;
-  titleBelow?: string;
-  color?: string;
-  outlineColor?: string;
-  outlineWidth?: number;
-  outlineStyle?: string;
-  multipleColors?: string[];
-  imageUrl?: string;
-  marker?: string;
-  rotation?: number;
-  addSpacingAbove?: boolean;
-  imageHeight?: number;
-  imageWidth?: number;
 }
