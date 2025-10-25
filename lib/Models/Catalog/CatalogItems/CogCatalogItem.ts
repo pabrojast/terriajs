@@ -341,12 +341,16 @@ export default class CogCatalogItem extends MappableMixin(
       })
     );
 
+    const displayRangeTuple = toMutableDisplayRange(
+      singleOptions?.displayRange
+    );
+
     this.applyRasterPostProcessing(imageryProvider, {
       band: singleOptions?.band,
       applyDisplayRange: singleOptions?.applyDisplayRange ?? false,
       displayRange:
-        singleOptions?.applyDisplayRange && singleOptions?.displayRange
-          ? singleOptions.displayRange
+        singleOptions?.applyDisplayRange && displayRangeTuple
+          ? displayRangeTuple
           : undefined,
       noDataColor: parseCssColorToRgba(singleOptions?.noDataColor)
     });
@@ -695,4 +699,13 @@ function isNoDataValue(value: number, noData: number | undefined): boolean {
     return value === noData;
   }
   return false;
+}
+
+function toMutableDisplayRange(
+  value: ReadonlyArray<number> | undefined
+): [number, number] | undefined {
+  if (!value || value.length < 2) {
+    return;
+  }
+  return [value[0], value[1]];
 }
