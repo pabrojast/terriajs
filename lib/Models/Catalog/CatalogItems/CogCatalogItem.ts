@@ -13,6 +13,7 @@ import {
 import GeographicTilingScheme from "terriajs-cesium/Source/Core/GeographicTilingScheme";
 import CesiumMath from "terriajs-cesium/Source/Core/Math";
 import WebMercatorTilingScheme from "terriajs-cesium/Source/Core/WebMercatorTilingScheme";
+import Color from "terriajs-cesium/Source/Core/Color";
 import type TIFFImageryProvider from "terriajs-tiff-imagery-provider";
 import CatalogMemberMixin from "../../../ModelMixins/CatalogMemberMixin";
 import MappableMixin, { MapItem } from "../../../ModelMixins/MappableMixin";
@@ -325,7 +326,7 @@ export default class CogCatalogItem extends MappableMixin(
       renderOptions.resampleMethod = this.renderOptions.resampleMethod;
     }
 
-    return runInAction(() =>
+    const imageryProvider = await runInAction(() =>
       TIFFImageryProvider.fromUrl(url, {
         credit: this.credit,
         tileSize: this.tileSize,
@@ -339,6 +340,198 @@ export default class CogCatalogItem extends MappableMixin(
           Object.keys(renderOptions).length > 0 ? renderOptions : undefined
       })
     );
+
+    this.applyRasterPostProcessing(imageryProvider, {
+      band: singleOptions?.band,
+      applyDisplayRange: singleOptions?.applyDisplayRange ?? false,
+      displayRange:
+        singleOptions?.applyDisplayRange && singleOptions?.displayRange
+          ? singleOptions.displayRange
+          : undefined,
+      noDataColor: parseCssColorToRgba(singleOptions?.noDataColor)
+    });
+
+    return imageryProvider;
+  }
+
+  private applyRasterPostProcessing(
+    imageryProvider: TIFFImageryProvider,
+    options: RasterPostProcessingOptions
+  ): void {
+    const needsNoDataColor = options.noDataColor !== undefined;
+    const needsDisplayRange =
+      !!options.applyDisplayRange && options.displayRange !== undefined;
+
+    if (!needsNoDataColor && !needsDisplayRange) {
+      return;
+    }
+
+    const tileDataCache = new Map<string, RawCogTile>();
+    const providerWithInternals = imageryProvider as any;
+
+    if (providerWithInternals[RASTER_POST_PROCESSING_FLAG]) {
+      return;
+    }
+    providerWithInternals[RASTER_POST_PROCESSING_FLAG] = true;
+
+    const originalLoadTile =
+      typeof providerWithInternals._loadTile === "function"
+        ? providerWithInternals._loadTile.bind(imageryProvider)
+        : undefined;
+
+    if (originalLoadTile) {
+      providerWithInternals._loadTile = async (
+        x: number,
+        y: number,
+        z: number
+      ) => {
+        const tile: RawCogTile = await originalLoadTile(x, y, z);
+        tileDataCache.set(buildTileCacheKey(x, y, z), tile);
+        return tile;
+      };
+    }
+
+    const originalRequestImage =
+      imageryProvider.requestImage.bind(imageryProvider);
+
+    imageryProvider.requestImage = async (x: number, y: number, z: number) => {
+      const cacheKey = buildTileCacheKey(x, y, z);
+      try {
+        const result = await originalRequestImage(x, y, z);
+        const rawTile = tileDataCache.get(cacheKey);
+        if (rawTile && result) {
+          this.applyPostProcessingToResult(
+            imageryProvider,
+            rawTile,
+            result,
+            options
+          );
+        }
+        return result;
+      } finally {
+        tileDataCache.delete(cacheKey);
+      }
+    };
+  }
+
+  private applyPostProcessingToResult(
+    imageryProvider: TIFFImageryProvider,
+    rawTile: RawCogTile,
+    image: unknown,
+    options: RasterPostProcessingOptions
+  ) {
+    const mutation = getMutableImageData(image);
+    if (!mutation) {
+      return;
+    }
+
+    const isRgbMode = Boolean(
+      imageryProvider.renderOptions.convertToRGB ||
+        imageryProvider.renderOptions.multi
+    );
+
+    if (options.noDataColor) {
+      this.fillNoDataPixels(
+        mutation.data,
+        rawTile,
+        imageryProvider,
+        options,
+        isRgbMode
+      );
+    }
+
+    if (options.applyDisplayRange && options.displayRange && !isRgbMode) {
+      this.applyDisplayRangeMask(
+        mutation.data,
+        rawTile,
+        imageryProvider,
+        options
+      );
+    }
+
+    mutation.commit();
+  }
+
+  private fillNoDataPixels(
+    buffer: Uint8ClampedArray,
+    rawTile: RawCogTile,
+    imageryProvider: TIFFImageryProvider,
+    options: RasterPostProcessingOptions,
+    isRgbMode: boolean
+  ) {
+    const color = options.noDataColor;
+    if (!color || rawTile.data.length === 0) {
+      return;
+    }
+
+    const pixelCount = rawTile.data[0]?.length ?? 0;
+    if (pixelCount === 0) {
+      return;
+    }
+
+    const targetSampleIndex = this.getSampleIndexForBand(
+      imageryProvider,
+      options.band
+    );
+    const singleBandData = !isRgbMode
+      ? rawTile.data[targetSampleIndex]
+      : undefined;
+
+    for (let i = 0; i < pixelCount; i++) {
+      const isNoDataPixel = isRgbMode
+        ? rawTile.data.some((band) =>
+            isNoDataValue(band[i], imageryProvider.noData)
+          )
+        : singleBandData
+          ? isNoDataValue(singleBandData[i], imageryProvider.noData)
+          : false;
+
+      if (isNoDataPixel) {
+        setPixelColor(buffer, i, color);
+      }
+    }
+  }
+
+  private applyDisplayRangeMask(
+    buffer: Uint8ClampedArray,
+    rawTile: RawCogTile,
+    imageryProvider: TIFFImageryProvider,
+    options: RasterPostProcessingOptions
+  ) {
+    const [min, max] = options.displayRange!;
+    const targetSampleIndex = this.getSampleIndexForBand(
+      imageryProvider,
+      options.band
+    );
+    const bandData = rawTile.data[targetSampleIndex];
+    if (!bandData) {
+      return;
+    }
+
+    for (let i = 0; i < bandData.length; i++) {
+      const value = bandData[i];
+      if (isNoDataValue(value, imageryProvider.noData)) {
+        continue;
+      }
+      if (value < min || value > max) {
+        buffer[i * 4 + 3] = 0;
+      }
+    }
+  }
+
+  private getSampleIndexForBand(
+    imageryProvider: TIFFImageryProvider,
+    band?: number
+  ): number {
+    const zeroBased = (band ?? 1) - 1;
+    const samples = imageryProvider.readSamples;
+    if (Array.isArray(samples)) {
+      const idx = samples.indexOf(zeroBased);
+      if (idx >= 0) {
+        return idx;
+      }
+    }
+    return 0;
   }
 }
 
@@ -375,4 +568,131 @@ function isCustomTilingScheme(tilingScheme: object) {
     tilingScheme.constructor !== WebMercatorTilingScheme &&
     tilingScheme.constructor !== GeographicTilingScheme
   );
+}
+
+type TypedArray =
+  | Float32Array
+  | Float64Array
+  | Int8Array
+  | Int16Array
+  | Int32Array
+  | Uint8Array
+  | Uint8ClampedArray
+  | Uint16Array
+  | Uint32Array;
+
+type RgbaTuple = [number, number, number, number];
+
+interface RawCogTile {
+  data: TypedArray[];
+  width: number;
+  height: number;
+}
+
+interface RasterPostProcessingOptions {
+  band?: number;
+  applyDisplayRange?: boolean;
+  displayRange?: [number, number];
+  noDataColor?: RgbaTuple;
+}
+
+interface MutableImageData {
+  data: Uint8ClampedArray;
+  commit: () => void;
+}
+
+const RASTER_POST_PROCESSING_FLAG = Symbol("cogRasterPostProcessing");
+
+function parseCssColorToRgba(value?: string): RgbaTuple | undefined {
+  if (!value) {
+    return;
+  }
+  const cesiumColor = Color.fromCssColorString(value);
+  if (!cesiumColor) {
+    return;
+  }
+  return [
+    Math.round(cesiumColor.red * 255),
+    Math.round(cesiumColor.green * 255),
+    Math.round(cesiumColor.blue * 255),
+    Math.round(cesiumColor.alpha * 255)
+  ];
+}
+
+function buildTileCacheKey(x: number, y: number, z: number): string {
+  return `${x}_${y}_${z}`;
+}
+
+function isCanvasElement(value: unknown): value is HTMLCanvasElement {
+  return (
+    typeof HTMLCanvasElement !== "undefined" &&
+    value instanceof HTMLCanvasElement
+  );
+}
+
+function isOffscreenCanvas(value: unknown): value is OffscreenCanvas {
+  return (
+    typeof OffscreenCanvas !== "undefined" && value instanceof OffscreenCanvas
+  );
+}
+
+function isImageDataLike(value: unknown): value is ImageData {
+  return typeof ImageData !== "undefined" && value instanceof ImageData;
+}
+
+function getMutableImageData(image: unknown): MutableImageData | undefined {
+  if (isCanvasElement(image)) {
+    const context = image.getContext("2d");
+    if (!context) {
+      return;
+    }
+    const imageData = context.getImageData(0, 0, image.width, image.height);
+    return {
+      data: imageData.data,
+      commit: () => context.putImageData(imageData, 0, 0)
+    };
+  }
+
+  if (isOffscreenCanvas(image)) {
+    const context = image.getContext("2d");
+    if (!context) {
+      return;
+    }
+    const imageData = context.getImageData(0, 0, image.width, image.height);
+    return {
+      data: imageData.data,
+      commit: () => context.putImageData(imageData, 0, 0)
+    };
+  }
+
+  if (isImageDataLike(image)) {
+    return {
+      data: image.data,
+      commit: () => {}
+    };
+  }
+
+  return;
+}
+
+function setPixelColor(
+  buffer: Uint8ClampedArray,
+  pixelIndex: number,
+  color: RgbaTuple
+) {
+  const offset = pixelIndex * 4;
+  buffer[offset] = color[0];
+  buffer[offset + 1] = color[1];
+  buffer[offset + 2] = color[2];
+  buffer[offset + 3] = color[3];
+}
+
+function isNoDataValue(value: number, noData: number | undefined): boolean {
+  if (Number.isNaN(value)) {
+    return true;
+  }
+  if (typeof noData === "number") {
+    return value === noData;
+  }
+  return false;
 }
