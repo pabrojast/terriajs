@@ -116,9 +116,11 @@ describe("CogCatalogItem", function () {
         await item.loadMapItems();
         const renderOptions = getImageryProvider(item)?.renderOptions;
         expect(renderOptions?.single).toBeDefined();
-        expect(renderOptions.single.displayRange).toEqual([10, 50]);
-        expect(renderOptions.single.applyDisplayRange).toBe(true);
-        expect(renderOptions.single.domain).toEqual([0, 100]);
+        if (renderOptions?.single) {
+          expect(renderOptions.single.displayRange).toEqual([10, 50]);
+          expect(renderOptions.single.applyDisplayRange).toBe(true);
+          expect(renderOptions.single.domain).toEqual([0, 100]);
+        }
       });
 
       it("correctly sets noDataColor", async function () {
@@ -132,7 +134,11 @@ describe("CogCatalogItem", function () {
         await item.loadMapItems();
         const renderOptions = getImageryProvider(item)?.renderOptions;
         expect(renderOptions?.single).toBeDefined();
-        expect(renderOptions.single.noDataColor).toBe("#FF0000");
+        if (renderOptions?.single) {
+          // Check if noDataColor exists on the type, otherwise skip this assertion
+          // as the library might not expose this property in its types
+          expect((renderOptions.single as any).noDataColor).toBe("#FF0000");
+        }
       });
     });
   });
