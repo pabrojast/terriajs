@@ -452,7 +452,7 @@
         "removeItem": "Eliminar elemento",
         "defaultItemLabel": "Elemento {{index}}",
         "itemValue": "Valor del elemento {{index}}",
-        "generate": "Generar leyenda desde colores",
+        "generate": "Generar leyenda desde los colores",
         "reset": "Usar leyenda automática"
       },
       "advanced": "Avanzado",
