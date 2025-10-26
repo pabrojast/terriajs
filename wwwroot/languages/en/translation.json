@@ -2106,11 +2106,14 @@
       "legend": {
         "name": "Legend",
         "title": "Legend title",
+        "auto": "Use automatic legend",
         "itemColor": "Legend item {{index}} color",
         "itemTitle": "Legend item {{index}} label",
         "addItem": "Add legend item",
         "removeItem": "Remove legend item",
         "defaultItemLabel": "Item {{index}}",
+        "itemValue": "Legend item {{index}} value",
+        "generate": "Generate legend from colors",
         "reset": "Use automatic legend"
       },
       "advanced": "Advanced",
