@@ -23,6 +23,7 @@ import LegendTraits, {
 import createStratumInstance from "../Definition/createStratumInstance";
 import StratumFromTraits from "../Definition/StratumFromTraits";
 import Model from "../Definition/Model";
+import toMutableDisplayRange from "../../Core/toMutableDisplayRange";
 
 /** Available color scales for COG rendering */
 const COLOR_SCALES: ColorScaleNames[] = [
@@ -1217,4 +1218,15 @@ function clamp01(value: number): number {
     return 0;
   }
   return Math.max(0, Math.min(1, value));
+}
+
+function toMutableDisplayRange(
+  value: ReadonlyArray<number> | undefined,
+  fallback?: ReadonlyArray<number> | undefined
+): [number, number] | undefined {
+  const range = value ?? fallback;
+  if (!range || range.length < 2) {
+    return;
+  }
+  return [range[0], range[1]];
 }
