@@ -445,7 +445,11 @@
       "legend": {
         "name": "Leyenda",
         "title": "Título de la leyenda",
+        "itemColor": "Color del elemento {{index}}",
         "itemTitle": "Etiqueta del elemento {{index}}",
+        "addItem": "Agregar elemento",
+        "removeItem": "Eliminar elemento",
+        "defaultItemLabel": "Elemento {{index}}",
         "reset": "Usar leyenda automática"
       },
       "advanced": "Avanzado",

@@ -15,7 +15,7 @@
 - Fix `ApiTableCatalogItem` to add `queryParameters` and `updateQueryParameters` to the API requests. These were previously being ignored.
 - Changing the color scale in the COG styling panel now overrides dataset-provided custom color ramps so the selection always affects the rendered imagery (use the Reset button to restore the original legend if needed).
 - Fix COG transparency filters and "No data" additional color by post-processing TIFF tiles so the configured display range and fill color are applied to the rendered imagery.
-- Edit legend titles for COG layers directly from the Edit Style panel (per-item labels + reset to automatic legend).
+- Edit legend entries for COG layers directly from the Edit Style panel (per-item colors/labels, add/remove rows, and reset to the automatic legend).
 - Add UI controls to define, reorder and clear custom color stops for COG items so their legends can be edited like other formats.
 - Custom color stops automatically refresh the legend entries so there’s a label for every colour step (and you can still rename them manually).
 - [The next improvement]

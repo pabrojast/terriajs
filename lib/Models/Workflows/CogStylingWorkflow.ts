@@ -50,6 +50,19 @@ const COLOR_SCALES: ColorScaleNames[] = [
   "electric"
 ];
 
+const DEFAULT_LEGEND_COLORS = [
+  "#4e79a7",
+  "#f28e2b",
+  "#e15759",
+  "#76b7b2",
+  "#59a14f",
+  "#edc949",
+  "#af7aa1",
+  "#ff9da7",
+  "#9c755f",
+  "#bab0ac"
+];
+
 /** SelectableDimensionWorkflow for styling COG (Cloud Optimized GeoTIFF) catalog items */
 export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
   static type = "cog-styling";
@@ -421,9 +434,24 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
     if (!legend) return undefined;
 
     const itemDims =
-      legend.items?.map(
-        (item, index) =>
-          ({
+      legend.items?.flatMap((item, index) =>
+        filterOutUndefined([
+          {
+            type: "color",
+            id: `legend-color-${index}`,
+            name: i18next.t("models.cogStyling.legend.itemColor", {
+              index: index + 1
+            }),
+            value: item.color,
+            allowUndefined: false,
+            setDimensionValue: action(
+              (stratumId: string, value: string | undefined) => {
+                if (!isDefined(value)) return;
+                this.updateLegendItemColor(stratumId, index, value);
+              }
+            )
+          } as SelectableDimensionColor,
+          {
             type: "text",
             id: `legend-item-${index}`,
             name: i18next.t("models.cogStyling.legend.itemTitle", {
@@ -435,7 +463,18 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
                 this.updateLegendItemTitle(stratumId, index, value);
               }
             )
-          }) as SelectableDimensionText
+          } as SelectableDimensionText,
+          legend.items && legend.items.length > 1
+            ? ({
+                type: "button",
+                id: `legend-remove-${index}`,
+                value: i18next.t("models.cogStyling.legend.removeItem"),
+                setDimensionValue: action((stratumId: string) =>
+                  this.removeLegendItem(stratumId, index)
+                )
+              } as SelectableDimensionButton)
+            : undefined
+        ])
       ) ?? [];
 
     const dimensions = filterOutUndefined([
@@ -450,6 +489,14 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
         )
       } as SelectableDimensionText,
       ...itemDims,
+      {
+        type: "button",
+        id: "legend-add",
+        value: i18next.t("models.cogStyling.legend.addItem"),
+        setDimensionValue: action((stratumId: string) =>
+          this.addLegendItem(stratumId)
+        )
+      } as SelectableDimensionButton,
       legend.items && legend.items.length > 0
         ? ({
             type: "button",
@@ -635,6 +682,57 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
       const items = legend.items.map((item, i) =>
         i === index ? { ...item, title } : item
       );
+      legend.items = items;
+    });
+  }
+
+  private updateLegendItemColor(
+    stratumId: string,
+    index: number,
+    color: string
+  ) {
+    this.applyLegendMutation(stratumId, (legend) => {
+      if (!legend.items || !legend.items[index]) return;
+      const items = legend.items.map((item, i) =>
+        i === index ? { ...item, color } : item
+      );
+      legend.items = items;
+    });
+  }
+
+  private addLegendItem(stratumId: string) {
+    this.applyLegendMutation(stratumId, (legend) => {
+      const items = legend.items ? [...legend.items] : [];
+      const nextIndex = items.length;
+      const defaultColor = this.getLegendItemDefaultColor(nextIndex);
+      const defaultTitle = i18next.t(
+        "models.cogStyling.legend.defaultItemLabel",
+        { index: nextIndex + 1 }
+      );
+      items.push(
+        createStratumInstance(LegendItemTraits, {
+          color: defaultColor,
+          title: defaultTitle
+        })
+      );
+      legend.items = items;
+    });
+  }
+
+  private getLegendItemDefaultColor(index: number): string {
+    const stops = this.customColorStops;
+    if (stops.length > 0) {
+      const stop = stops[Math.min(index, stops.length - 1)];
+      if (stop?.color) return stop.color;
+    }
+    return DEFAULT_LEGEND_COLORS[index % DEFAULT_LEGEND_COLORS.length];
+  }
+
+  private removeLegendItem(stratumId: string, index: number) {
+    this.applyLegendMutation(stratumId, (legend) => {
+      if (!legend.items || !legend.items[index]) return;
+      const items = legend.items.slice();
+      items.splice(index, 1);
       legend.items = items;
     });
   }
