@@ -500,7 +500,7 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
             )
           } as SelectableDimensionButton)
         : undefined,
-      this.hasManualLegend
+      ...(this.hasManualLegend
         ? (legend.items?.flatMap((item, index) =>
             filterOutUndefined([
               {
@@ -556,7 +556,7 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
                 : undefined
             ])
           ) ?? [])
-        : undefined,
+        : []),
       this.hasManualLegend
         ? ({
             type: "button",
@@ -735,14 +735,6 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
     if (!this.item.renderOptions.single) {
       this.item.renderOptions.setTrait(stratumId, "single", undefined);
     }
-  }
-
-  private get hasManualLegend(): boolean {
-    return (
-      this.item.legends?.some((legend) =>
-        legend.strata.has(CommonStrata.user)
-      ) ?? false
-    );
   }
 
   private get primaryLegend(): Model<LegendTraits> | undefined {
@@ -1011,7 +1003,8 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
 
   private sampleScaleColors(desiredBins?: number): string[] {
     const renderOptions = this.item.renderOptions?.single;
-    const scaleName = renderOptions?.colorScale ?? "rainbow";
+    const scaleName = (renderOptions?.colorScale ??
+      "rainbow") as ColorScaleNames;
     const scale = COG_COLOR_SCALES[scaleName];
     if (!scale) return [];
 
