@@ -23,7 +23,6 @@ import LegendTraits, {
 import createStratumInstance from "../Definition/createStratumInstance";
 import StratumFromTraits from "../Definition/StratumFromTraits";
 import Model from "../Definition/Model";
-import toMutableDisplayRange from "../../Core/toMutableDisplayRange";
 
 /** Available color scales for COG rendering */
 const COLOR_SCALES: ColorScaleNames[] = [
