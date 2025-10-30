@@ -10,6 +10,8 @@ describe("CogStylingWorkflow.extractNumericValue", () => {
     expect(parse("1\u202F234,56")).toBe(1234.56);
     expect(parse("-1.234")).toBe(-1234);
     expect(parse("+1,5")).toBe(1.5);
+    expect(parse("0.125")).toBeCloseTo(0.125, 6);
+    expect(parse("0,125")).toBeCloseTo(0.125, 6);
   });
 
   it("returns undefined when no numeric value is found", () => {

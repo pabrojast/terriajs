@@ -1052,19 +1052,78 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
     if (!scale) return [];
 
     let palette = scale.colors.slice();
+    let positions =
+      scale.positions && scale.positions.length === scale.colors.length
+        ? scale.positions.slice()
+        : undefined;
+
     if (renderOptions?.reverseColorScale) {
       palette = palette.reverse();
+      if (positions) {
+        positions = positions.map((pos) => 1 - pos).reverse();
+      }
     }
 
     const count = desiredBins ?? this.getLegendBinCount();
-    if (count <= 0) return palette;
-    if (count >= palette.length) return palette.slice();
-    if (count === 1) return [palette[0]];
+    if (count <= 0) return [];
 
-    return Array.from({ length: count }, (_, i) => {
-      const t = i / (count - 1);
-      const idx = Math.round(t * (palette.length - 1));
-      return palette[idx];
+    if (count <= palette.length) {
+      if (count === palette.length) {
+        return palette.slice();
+      }
+      if (count === 1) {
+        return [palette[0]];
+      }
+      return Array.from({ length: count }, (_, i) => {
+        const t = i / (count - 1);
+        const idx = Math.round(t * (palette.length - 1));
+        return palette[idx];
+      });
+    }
+
+    if (palette.length === 0) {
+      return [];
+    }
+
+    if (palette.length === 1) {
+      return Array(count).fill(palette[0]);
+    }
+
+    const positionTable =
+      positions && positions.length === palette.length
+        ? positions
+        : palette.map((_color, index) =>
+            index === 0
+              ? 0
+              : index === palette.length - 1
+                ? 1
+                : index / (palette.length - 1)
+          );
+
+    return Array.from({ length: count }, (_, stepIndex) => {
+      const t = count === 1 ? 0 : stepIndex / (count - 1);
+      const clampedT = Math.min(Math.max(t, 0), 1);
+
+      let segmentIndex = positionTable.findIndex(
+        (pos, idx) =>
+          idx < positionTable.length - 1 &&
+          clampedT >= pos &&
+          clampedT <= positionTable[idx + 1]
+      );
+
+      if (segmentIndex < 0) {
+        segmentIndex =
+          clampedT <= positionTable[0] ? 0 : positionTable.length - 2;
+      }
+
+      const startPos = positionTable[segmentIndex];
+      const endPos = positionTable[segmentIndex + 1];
+      const localT =
+        endPos === startPos ? 0 : (clampedT - startPos) / (endPos - startPos);
+
+      const startColor = palette[segmentIndex];
+      const endColor = palette[segmentIndex + 1];
+      return interpolateHexColor(startColor, endColor, localT);
     });
   }
 
@@ -1105,29 +1164,20 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
     if (!candidate) return undefined;
     candidate = candidate.replace(/[\s\u00A0\u202F\u2009\u2007]+/g, "");
     candidate = candidate.replace(/\u2212/g, "-");
-    const separatorMatches = [...candidate.matchAll(/[.,]/g)].map(
-      (result) => result.index ?? -1
-    );
+    const separatorMatches = [...candidate.matchAll(/[.,]/g)].map((result) => ({
+      char: result[0],
+      index: result.index ?? -1
+    }));
     let normalized = candidate;
-    if (separatorMatches.length === 0) {
-      // nothing to do
-    } else if (
-      separatorMatches.length === 1 &&
-      separatorMatches[0] >= 0 &&
-      candidate.length - separatorMatches[0] - 1 === 3
-    ) {
-      // Treat lone separator with three trailing digits as a thousands separator
-      normalized = candidate.replace(/[.,]/g, "");
-    } else {
-      const index = separatorMatches[separatorMatches.length - 1];
-      if (index < 0) {
-        const stripped = candidate.replace(/[.,]/g, "");
-        const value = Number(stripped);
-        return Number.isFinite(value) ? value : undefined;
+    if (separatorMatches.length > 0) {
+      const { index } = separatorMatches[separatorMatches.length - 1];
+      if (index >= 0) {
+        const integerPart = normalized.slice(0, index).replace(/[.,]/g, "");
+        const fractionalPart = normalized.slice(index + 1).replace(/[.,]/g, "");
+        normalized = `${integerPart}.${fractionalPart}`;
+      } else {
+        normalized = normalized.replace(/[.,]/g, "");
       }
-      const integerPart = normalized.slice(0, index).replace(/[.,]/g, "");
-      const fractionalPart = normalized.slice(index + 1).replace(/[.,]/g, "");
-      normalized = `${integerPart}.${fractionalPart}`;
     }
     const value = Number(normalized);
     return Number.isFinite(value) ? value : undefined;
@@ -1416,6 +1466,61 @@ function clamp01(value: number): number {
     return 0;
   }
   return Math.max(0, Math.min(1, value));
+}
+
+function interpolateHexColor(start: string, end: string, t: number): string {
+  const startRgb = parseColorToRgb(start);
+  const endRgb = parseColorToRgb(end);
+  if (!startRgb || !endRgb) {
+    return t < 0.5 ? start : end;
+  }
+  const interpolateChannel = (a: number, b: number) =>
+    Math.round(a + (b - a) * Math.min(Math.max(t, 0), 1));
+  const [r, g, b] = [
+    interpolateChannel(startRgb[0], endRgb[0]),
+    interpolateChannel(startRgb[1], endRgb[1]),
+    interpolateChannel(startRgb[2], endRgb[2])
+  ];
+  return rgbToHex(r, g, b);
+}
+
+function parseColorToRgb(color: string): [number, number, number] | undefined {
+  const trimmed = color.trim();
+  const hexMatch = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(trimmed);
+  if (hexMatch) {
+    let hex = hexMatch[1];
+    if (hex.length === 3) {
+      hex = hex
+        .split("")
+        .map((ch) => ch + ch)
+        .join("");
+    }
+    const r = parseInt(hex.slice(0, 2), 16);
+    const g = parseInt(hex.slice(2, 4), 16);
+    const b = parseInt(hex.slice(4, 6), 16);
+    return [r, g, b];
+  }
+
+  const rgbMatch = /^rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})/i.exec(
+    trimmed
+  );
+  if (rgbMatch) {
+    const r = Number(rgbMatch[1]);
+    const g = Number(rgbMatch[2]);
+    const b = Number(rgbMatch[3]);
+    if ([r, g, b].every((v) => v >= 0 && v <= 255)) {
+      return [r, g, b];
+    }
+  }
+
+  return undefined;
+}
+
+function rgbToHex(r: number, g: number, b: number): string {
+  const clamp = (value: number) =>
+    Math.min(255, Math.max(0, Math.round(value)));
+  const toHex = (value: number) => clamp(value).toString(16).padStart(2, "0");
+  return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
 }
 
 interface LegendItemSnapshot {
