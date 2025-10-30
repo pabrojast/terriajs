@@ -452,6 +452,11 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
       };
     }
 
+    const baselineItems = legend.items?.map((item) => ({
+      title: item.title,
+      value: item.value ?? this.extractNumericValue(item.title)
+    }));
+
     const dimensions = filterOutUndefined([
       {
         type: "text",
@@ -496,7 +501,7 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
             id: "legend-sync",
             value: i18next.t("models.cogStyling.legend.sync"),
             setDimensionValue: action((stratumId: string) =>
-              this.generateLegendFromColorScale(stratumId)
+              this.generateLegendFromColorScale(stratumId, baselineItems)
             )
           } as SelectableDimensionButton)
         : undefined,
@@ -793,10 +798,16 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
 
   private addLegendItem(stratumId: string) {
     this.ensureLegendUserStratum(stratumId);
+    const baselineItems =
+      this.primaryLegend?.items?.map((item) => ({
+        title: item.title,
+        value: item.value ?? this.extractNumericValue(item.title)
+      })) ?? [];
     const entry = this.createLegendEntryFromStops(
       this.getColorStopsForLegend(this.getLegendBinCount()),
-      this.getActiveDomain(),
-      this.primaryLegend?.items?.length ?? 0
+      this.getActiveDomain() ?? this.deriveDomainFromBaseline(baselineItems),
+      this.primaryLegend?.items?.length ?? 0,
+      baselineItems
     );
     this.applyLegendMutation(stratumId, (legend) => {
       const items = legend.items ? [...legend.items] : [];
@@ -809,14 +820,6 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
       );
       legend.items = items;
     });
-  }
-
-  private getLegendItemDefaultColor(index: number): string {
-    const stops = this.getColorStopsForLegend(this.getLegendBinCount());
-    const stop = stops[Math.min(index, stops.length - 1)];
-    return (
-      stop?.[1] ?? DEFAULT_LEGEND_COLORS[index % DEFAULT_LEGEND_COLORS.length]
-    );
   }
 
   private removeLegendItem(stratumId: string, index: number) {
@@ -861,11 +864,21 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
     }
   }
 
-  private generateLegendFromColorScale(stratumId: string) {
+  private generateLegendFromColorScale(
+    stratumId: string,
+    baselineItems?: LegendItemSnapshot[]
+  ) {
     this.ensureLegendUserStratum(stratumId);
+    const baseline =
+      baselineItems ??
+      this.primaryLegend?.items?.map((item) => ({
+        title: item.title,
+        value: item.value ?? this.extractNumericValue(item.title)
+      }));
     const legend = this.buildLegendFromStops(
       this.getColorStopsForLegend(this.getLegendBinCount()),
-      this.getActiveDomain()
+      this.getActiveDomain() ?? this.deriveDomainFromBaseline(baseline),
+      baseline
     );
     if (legend) {
       this.item.setTrait(stratumId, "legends", [legend]);
@@ -925,7 +938,15 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
       this.item.setTrait(stratumId, "legends", undefined);
       return;
     }
-    const legend = this.buildLegendFromStops(stops, this.getActiveDomain());
+    const baseline = this.primaryLegend?.items?.map((item) => ({
+      title: item.title,
+      value: item.value ?? this.extractNumericValue(item.title)
+    }));
+    const legend = this.buildLegendFromStops(
+      stops,
+      this.getActiveDomain() ?? this.deriveDomainFromBaseline(baseline),
+      baseline
+    );
     if (legend) {
       this.item.setTrait(stratumId, "legends", [legend]);
     }
@@ -933,24 +954,32 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
 
   private buildLegendFromStops(
     stops: [number, string][],
-    domainOverride?: [number, number]
+    domainOverride?: [number, number],
+    baselineItems?: LegendItemSnapshot[]
   ): StratumFromTraits<LegendTraits> | undefined {
     if (stops.length === 0) return undefined;
-    const domain = domainOverride ?? this.getActiveDomain();
+    const domain =
+      domainOverride ??
+      this.getActiveDomain() ??
+      this.deriveDomainFromBaseline(baselineItems);
     const hasDomain = !!domain;
     const [min, max] = domain ?? [0, 1];
 
     return createStratumInstance(LegendTraits, {
       title: this.primaryLegend?.title,
       items: stops.map(([position, color], index) => {
-        const value = hasDomain ? min + position * (max - min) : undefined;
+        const baseline = baselineItems?.[index];
+        const baselineValue =
+          baseline?.value ?? this.extractNumericValue(baseline?.title);
+        const value = hasDomain ? min + position * (max - min) : baselineValue;
         return createStratumInstance(LegendItemTraits, {
           color,
           title:
-            value !== undefined
+            baseline?.title ??
+            (value !== undefined
               ? this.formatLegendValue(value)
-              : `${Math.round(position * 100)}%`,
-          value: value
+              : Math.round(position * 100) + "%"),
+          value
         });
       })
     });
@@ -968,7 +997,8 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
   private createLegendEntryFromStops(
     stops: [number, string][],
     domain: [number, number] | undefined,
-    index: number
+    index: number,
+    baselineItems?: LegendItemSnapshot[]
   ): { color: string; title: string; value?: number } {
     if (stops.length === 0) {
       return { color: DEFAULT_LEGEND_COLORS[0], title: "" };
@@ -979,7 +1009,20 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
       const value = domain[0] + position * (domain[1] - domain[0]);
       return { color, title: this.formatLegendValue(value), value };
     }
-    return { color, title: Math.round(position * 100) + "%" };
+    const baseline = baselineItems?.[clampedIndex];
+    if (baseline) {
+      const value = baseline.value ?? this.extractNumericValue(baseline.title);
+      return {
+        color,
+        title:
+          baseline.title ??
+          (value !== undefined
+            ? this.formatLegendValue(value)
+            : Math.round(position * 100) + "%"),
+        value
+      };
+    }
+    return { color, title: Math.round(position * 100) + "%", value: undefined };
   }
 
   private getColorStopsForLegend(desiredBins?: number): [number, string][] {
@@ -1039,6 +1082,55 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
       toMutableDisplayRange(this.item.renderOptions?.single?.displayRange) ??
       toMutableDisplayRange(this.item.renderOptions?.single?.domain)
     );
+  }
+
+  private deriveDomainFromBaseline(
+    baselineItems?: LegendItemSnapshot[]
+  ): [number, number] | undefined {
+    if (!baselineItems || baselineItems.length === 0) return undefined;
+    const values = baselineItems
+      .map((item) => item.value ?? this.extractNumericValue(item.title))
+      .filter((v): v is number => v !== undefined && isFinite(v));
+    if (values.length < 2) return undefined;
+    return [Math.min(...values), Math.max(...values)];
+  }
+
+  private extractNumericValue(title?: string | null): number | undefined {
+    if (!title) return undefined;
+    const match = title.match(
+      /[-+\u2212]?\d[\d\s\.,\u00A0\u202F\u2009\u2007\-\+\u2212]*/
+    );
+    if (!match) return undefined;
+    let candidate = match[0].trim();
+    if (!candidate) return undefined;
+    candidate = candidate.replace(/[\s\u00A0\u202F\u2009\u2007]+/g, "");
+    candidate = candidate.replace(/\u2212/g, "-");
+    const separatorMatches = [...candidate.matchAll(/[.,]/g)].map(
+      (result) => result.index ?? -1
+    );
+    let normalized = candidate;
+    if (separatorMatches.length === 0) {
+      // nothing to do
+    } else if (
+      separatorMatches.length === 1 &&
+      separatorMatches[0] >= 0 &&
+      candidate.length - separatorMatches[0] - 1 === 3
+    ) {
+      // Treat lone separator with three trailing digits as a thousands separator
+      normalized = candidate.replace(/[.,]/g, "");
+    } else {
+      const index = separatorMatches[separatorMatches.length - 1];
+      if (index < 0) {
+        const stripped = candidate.replace(/[.,]/g, "");
+        const value = Number(stripped);
+        return Number.isFinite(value) ? value : undefined;
+      }
+      const integerPart = normalized.slice(0, index).replace(/[.,]/g, "");
+      const fractionalPart = normalized.slice(index + 1).replace(/[.,]/g, "");
+      normalized = `${integerPart}.${fractionalPart}`;
+    }
+    const value = Number(normalized);
+    return Number.isFinite(value) ? value : undefined;
   }
 
   private formatLegendValue(value: number): string {
@@ -1324,6 +1416,11 @@ function clamp01(value: number): number {
     return 0;
   }
   return Math.max(0, Math.min(1, value));
+}
+
+interface LegendItemSnapshot {
+  title?: string;
+  value?: number;
 }
 
 function toMutableDisplayRange(
