@@ -695,7 +695,6 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
       { position: clamp01(position), color: defaultColor }
     ]);
   }
-
   private removeColorStop(stratumId: string, index: number) {
     const stops = this.customColorStops;
     if (!stops[index]) return;
@@ -822,10 +821,14 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
       this.getActiveDomain() ??
       this.deriveDomainFromBaseline(baselineItems) ??
       this.cachedLegendDomain;
+    const stopMin = stops[0]?.[0] ?? 0;
+    const stopMax = stops[stops.length - 1]?.[0] ?? stopMin;
     const entry = this.createLegendEntry(
       stop[0],
       stop[1],
       domain,
+      stopMin,
+      stopMax,
       targetIndex,
       baselineItems
     );
@@ -963,7 +966,9 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
       title: item.title,
       value: item.value ?? this.extractNumericValue(item.title)
     }));
-    const baselineDomain = this.deriveDomainFromBaseline(baseline);
+    const providerDomain = this.getProviderDomain();
+    const baselineDomain =
+      this.deriveDomainFromBaseline(baseline) ?? providerDomain;
     if (baselineDomain) {
       this.cachedLegendDomain = baselineDomain;
     }
@@ -973,7 +978,10 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
     );
     const legend = this.buildLegendFromStops(
       expandedStops,
-      this.getActiveDomain() ?? baselineDomain ?? this.cachedLegendDomain,
+      this.getActiveDomain() ??
+        baselineDomain ??
+        this.cachedLegendDomain ??
+        providerDomain,
       baseline
     );
     if (legend) {
@@ -987,7 +995,13 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
     baselineItems?: LegendItemSnapshot[]
   ): StratumFromTraits<LegendTraits> | undefined {
     if (stops.length === 0) return undefined;
-    const derivedDomain = this.deriveDomainFromBaseline(baselineItems);
+    const sortedStops = stops
+      .map(([position, color]) => [position, color] as [number, string])
+      .sort((a, b) => a[0] - b[0]);
+
+    const providerDomain = this.getProviderDomain();
+    const derivedDomain =
+      this.deriveDomainFromBaseline(baselineItems) ?? providerDomain;
     const domain =
       domainOverride ??
       this.getActiveDomain() ??
@@ -997,12 +1011,23 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
       this.cachedLegendDomain = domain;
     }
 
+    const stopMin = sortedStops[0][0];
+    const stopMax = sortedStops[sortedStops.length - 1][0];
+
     return createStratumInstance(LegendTraits, {
       title: this.primaryLegend?.title,
-      items: stops.map(([position, color], index) =>
+      items: sortedStops.map(([position, color], index) =>
         createStratumInstance(
           LegendItemTraits,
-          this.createLegendEntry(position, color, domain, index, baselineItems)
+          this.createLegendEntry(
+            position,
+            color,
+            domain,
+            stopMin,
+            stopMax,
+            index,
+            baselineItems
+          )
         )
       )
     });
@@ -1025,10 +1050,14 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
     position: number,
     color: string,
     domain: [number, number] | undefined,
+    stopMin: number,
+    stopMax: number,
     index: number,
     baselineItems?: LegendItemSnapshot[]
   ): { color: string; title: string; value?: number } {
-    const normalizedPosition = clamp01(position);
+    const range = stopMax - stopMin;
+    const normalizedPosition =
+      range === 0 ? 0 : clamp01((position - stopMin) / range);
     if (domain && domain.length === 2) {
       const value = domain[0] + normalizedPosition * (domain[1] - domain[0]);
       if (Number.isFinite(value)) {
@@ -1050,10 +1079,12 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
         return { color, title: baseline.title };
       }
     }
+    const fallbackValue =
+      range === 0 ? position : stopMin + normalizedPosition * range;
     return {
       color,
-      title: this.formatLegendValue(normalizedPosition),
-      value: normalizedPosition
+      title: this.formatLegendValue(fallbackValue),
+      value: fallbackValue
     };
   }
 
@@ -1096,7 +1127,7 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
     }
 
     if (positions && positions.length === palette.length) {
-      return positions.map((pos, index) => [clamp01(pos), palette[index]]);
+      return positions.map((pos, index) => [pos, palette[index]]);
     }
 
     if (palette.length === 0) {
@@ -1116,29 +1147,24 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
     const count = Math.max(1, desiredBins);
     const sorted = stops
       .filter(([, color]) => !!color)
-      .map(
-        ([position, color]) => [clamp01(position), color] as [number, string]
-      )
+      .map(([position, color]) => [position ?? 0, color] as [number, string])
       .sort((a, b) => a[0] - b[0]);
     if (sorted.length === 0) {
       return [];
     }
     if (sorted.length === 1) {
-      return Array.from({ length: count }, (_, index) => [
-        count === 1 ? sorted[0][0] : index / (count - 1),
-        sorted[0][1]
-      ]);
+      return Array.from({ length: count }, () => [sorted[0][0], sorted[0][1]]);
     }
 
     const minPos = sorted[0][0];
     const maxPos = sorted[sorted.length - 1][0];
-    const range = maxPos - minPos || 1;
+    const range = maxPos - minPos;
 
     const evaluateColor = (target: number): string => {
-      if (target <= sorted[0][0]) {
+      if (target <= minPos) {
         return sorted[0][1];
       }
-      if (target >= sorted[sorted.length - 1][0]) {
+      if (target >= maxPos) {
         return sorted[sorted.length - 1][1];
       }
       for (let i = 0; i < sorted.length - 1; i++) {
@@ -1154,13 +1180,131 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
 
     return Array.from({ length: count }, (_, index) => {
       const t = count === 1 ? 0 : index / (count - 1);
-      const targetPos = minPos + t * (maxPos - minPos);
-      const normalized = range === 0 ? 0 : (targetPos - minPos) / range;
-      return [clamp01(normalized), evaluateColor(targetPos)] as [
-        number,
-        string
-      ];
+      const targetPos = range === 0 ? minPos : minPos + t * range;
+      return [targetPos, evaluateColor(targetPos)] as [number, string];
     });
+  }
+
+  private getProviderDomain(): [number, number] | undefined {
+    const mapItems = (this.item.mapItems ?? []) as any[];
+    if (!Array.isArray(mapItems) || mapItems.length === 0) return undefined;
+    const provider = mapItems[0]?.imageryProvider as any;
+    if (!provider) return undefined;
+
+    const directCandidates = [
+      provider.renderOptions?.single?.domain,
+      provider.renderOptions?.single?.displayRange,
+      provider.domain,
+      provider.displayRange,
+      provider.dataRange,
+      provider.range,
+      provider._domain,
+      provider._displayRange
+    ];
+
+    for (const candidate of directCandidates) {
+      const range = this.extractRange(candidate);
+      if (range) return range;
+    }
+
+    const statsCandidates = [
+      provider.statistics,
+      provider._statistics,
+      provider.statistics?.global,
+      provider.statistics?.overall,
+      provider.statistics?.band,
+      provider.statistics?.band0,
+      provider.statistics?.band1,
+      Array.isArray(provider.statisticsBySample)
+        ? provider.statisticsBySample[0]
+        : undefined,
+      Array.isArray(provider.statisticsByBand)
+        ? provider.statisticsByBand[0]
+        : undefined
+    ];
+
+    for (const candidate of statsCandidates) {
+      const range = this.extractRange(candidate);
+      if (range) return range;
+    }
+
+    return undefined;
+  }
+
+  private extractRange(candidate: any): [number, number] | undefined {
+    if (candidate === undefined || candidate === null) return undefined;
+
+    const normalizePair = (min: number, max: number) => {
+      if (!Number.isFinite(min) || !Number.isFinite(max) || min === max) {
+        return undefined;
+      }
+      return min <= max
+        ? ([min, max] as [number, number])
+        : ([max, min] as [number, number]);
+    };
+
+    if (Array.isArray(candidate)) {
+      if (candidate.length >= 2) {
+        const pair = normalizePair(Number(candidate[0]), Number(candidate[1]));
+        if (pair) return pair;
+      }
+      if (candidate.length >= 1) {
+        const nested = this.extractRange(candidate[0]);
+        if (nested) return nested;
+      }
+    }
+
+    if (typeof candidate === "object") {
+      const minKeys = [
+        "min",
+        "minimum",
+        "minValue",
+        "minimumValue",
+        "low",
+        "lower",
+        "lo"
+      ];
+      const maxKeys = [
+        "max",
+        "maximum",
+        "maxValue",
+        "maximumValue",
+        "high",
+        "upper",
+        "hi"
+      ];
+      let min: number | undefined;
+      let max: number | undefined;
+      for (const key of minKeys) {
+        if (candidate[key] !== undefined) {
+          const value = Number(candidate[key]);
+          if (Number.isFinite(value)) {
+            min = value;
+            break;
+          }
+        }
+      }
+      for (const key of maxKeys) {
+        if (candidate[key] !== undefined) {
+          const value = Number(candidate[key]);
+          if (Number.isFinite(value)) {
+            max = value;
+            break;
+          }
+        }
+      }
+      if (min !== undefined && max !== undefined) {
+        const pair = normalizePair(min, max);
+        if (pair) return pair;
+      }
+
+      if (Array.isArray(candidate.values) && candidate.values.length >= 2) {
+        const nested = this.extractRange(candidate.values);
+        if (nested) return nested;
+      }
+    }
+
+    return undefined;
   }
 
   private getLegendBinCount(): number {

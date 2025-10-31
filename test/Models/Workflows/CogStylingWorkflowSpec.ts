@@ -58,4 +58,26 @@ describe("CogStylingWorkflow color stops", () => {
     expect(items[0]?.value).toBeCloseTo(10);
     expect(items[items.length - 1]?.value).toBeCloseTo(40);
   });
+
+  it("uses provider statistics when domain is missing", () => {
+    const workflow = new CogStylingWorkflow({
+      renderOptions: { single: { colors: ["#000000", "#ffffff"] } },
+      mapItems: [
+        {
+          imageryProvider: {
+            statistics: { min: -5, max: 15 }
+          }
+        }
+      ]
+    } as any);
+
+    const legend = (workflow as any).buildLegendFromStops([
+      [0, "#000000"],
+      [1, "#ffffff"]
+    ]);
+
+    const items = legend?.items ?? [];
+    expect(items[0]?.value).toBeCloseTo(-5);
+    expect(items[items.length - 1]?.value).toBeCloseTo(15);
+  });
 });
