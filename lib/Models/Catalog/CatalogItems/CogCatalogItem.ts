@@ -282,7 +282,7 @@ export default class CogCatalogItem extends MappableMixin(
 
     // Handle display range - always pass it if defined, let the library handle applyDisplayRange
     if (singleOptions?.displayRange !== undefined) {
-      singleRenderOptions.displayRange = singleOptions.displayRange;
+      singleRenderOptions.displayRange = singleOptions.displayRange.slice();
     }
 
     // Pass applyDisplayRange as a separate flag
@@ -334,7 +334,6 @@ export default class CogCatalogItem extends MappableMixin(
         minimumLevel: this.minimumLevel,
         enablePickFeatures: this.allowFeaturePicking,
         hasAlphaChannel: this.hasAlphaChannel,
-        // used for reprojecting from an unknown projection to 4326/3857
         projFunc: this.reprojector(proj4),
         renderOptions:
           Object.keys(renderOptions).length > 0 ? renderOptions : undefined
@@ -349,9 +348,9 @@ export default class CogCatalogItem extends MappableMixin(
 
     this.applyRasterPostProcessing(imageryProvider, {
       band: singleOptions?.band,
-      applyDisplayRange: singleOptions?.applyDisplayRange ?? false,
+      applyDisplayRange: singleOptions?.applyDisplayRange === true,
       displayRange:
-        singleOptions?.applyDisplayRange && displayRangeTuple
+        singleOptions?.applyDisplayRange === true && displayRangeTuple
           ? displayRangeTuple
           : undefined,
       domain: domainTuple,
@@ -509,9 +508,7 @@ export default class CogCatalogItem extends MappableMixin(
   ) {
     const [min, max] = options.displayRange!;
     const pixelCount = rawTile.data[0]?.length ?? 0;
-    if (pixelCount === 0) {
-      return;
-    }
+    if (pixelCount === 0) return;
 
     const targetSampleIndex = this.getSampleIndexForBand(
       imageryProvider,
@@ -520,19 +517,20 @@ export default class CogCatalogItem extends MappableMixin(
     const bandData = !isRgbMode ? rawTile.data[targetSampleIndex] : undefined;
 
     for (let i = 0; i < pixelCount; i++) {
-      const value = isRgbMode
-        ? getCompositeSampleValue(rawTile.data, i)
-        : bandData?.[i];
+      const offset = i * 4;
 
-      if (
-        value === undefined ||
-        isNoDataValue(value, imageryProvider.noData) ||
-        Number.isNaN(value)
-      ) {
-        continue;
+      // Get the raw value
+      let rawValue: number | undefined;
+      if (!isRgbMode && bandData) {
+        rawValue = bandData[i];
+      } else if (isRgbMode) {
+        // For RGB mode, compute from composite
+        rawValue = getCompositeSampleValue(rawTile.data, i);
       }
-      if (value < min || value > max) {
-        buffer[i * 4 + 3] = 0;
+
+      // If value is outside display range, make transparent
+      if (rawValue !== undefined && (rawValue < min || rawValue > max)) {
+        buffer[offset + 3] = 0; // Set alpha to 0 (transparent)
       }
     }
   }
