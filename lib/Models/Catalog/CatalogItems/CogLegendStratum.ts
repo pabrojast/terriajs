@@ -39,20 +39,31 @@ export class CogLegendStratum extends LoadableStratum(CogCatalogItemTraits) {
     // 1. User-defined domain
     // 2. Provider statistics (from COG metadata)
     // 3. displayRange as fallback
-    let domain = renderOptions.domain;
-    if (!domain || domain.length !== 2) {
+    let effectiveDomain: [number, number] | undefined;
+
+    if (renderOptions.domain && renderOptions.domain.length === 2) {
+      effectiveDomain = [renderOptions.domain[0], renderOptions.domain[1]];
+    } else {
       // Try to get domain from provider statistics
-      domain = this.getProviderDomain();
+      effectiveDomain = this.getProviderDomain();
     }
-    if (!domain || domain.length !== 2) {
+
+    if (
+      !effectiveDomain &&
+      renderOptions.displayRange &&
+      renderOptions.displayRange.length === 2
+    ) {
       // Try displayRange as last resort
-      domain = renderOptions.displayRange;
+      effectiveDomain = [
+        renderOptions.displayRange[0],
+        renderOptions.displayRange[1]
+      ];
     }
 
     // Only show legend if we have a valid domain
-    if (!domain || domain.length !== 2) return undefined;
+    if (!effectiveDomain) return undefined;
 
-    const [minValue, maxValue] = domain;
+    const [minValue, maxValue] = effectiveDomain;
 
     // Get colors for the selected scale
     const scaleColors =
