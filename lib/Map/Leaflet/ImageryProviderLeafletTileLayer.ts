@@ -29,6 +29,11 @@ const neScratch = new Cartographic();
 const swTileCoordinatesScratch = new Cartesian2();
 const neTileCoordinatesScratch = new Cartesian2();
 
+interface LeafletLevelInfo {
+  level: number;
+  leafletZoom: number;
+}
+
 class Credit extends CesiumCredit {
   _shownInLeaflet?: boolean;
   _shownInLeafletLastUpdate?: boolean;
@@ -45,6 +50,8 @@ export default class ImageryProviderLeafletTileLayer extends L.TileLayer {
   private _requestImageError: TileProviderError | undefined;
   private _previousCredits: Credit[] = [];
   private _leafletUpdateInterval: number;
+  private _useCustomTilingScheme: boolean = false;
+  private _levelInfos?: LeafletLevelInfo[];
 
   @observable splitDirection = SplitDirection.NONE;
   @observable splitPosition: number = 0.5;
@@ -62,6 +69,9 @@ export default class ImageryProviderLeafletTileLayer extends L.TileLayer {
     });
     makeObservable(this);
     this.imageryProvider = imageryProvider;
+    this._useCustomTilingScheme = !(
+      imageryProvider.tilingScheme instanceof WebMercatorTilingScheme
+    );
 
     // Handle splitter rection (and disposing reaction)
     let disposeSplitterReaction: IReactionDisposer | undefined;
@@ -204,18 +214,41 @@ export default class ImageryProviderLeafletTileLayer extends L.TileLayer {
   }
 
   getTileUrl(tilePoint: L.Coords): string {
-    const level = this._getLevelFromZ(tilePoint);
     const errorTileUrl = this.options.errorTileUrl || "";
-    if (level < 0) {
+    if (!this._useCustomTilingScheme) {
+      const level = this._getLevelFromZ(tilePoint);
+      if (level < 0) {
+        return errorTileUrl;
+      }
+      return (
+        getUrlForImageryTile(
+          this.imageryProvider,
+          tilePoint.x,
+          tilePoint.y,
+          level
+        ) || errorTileUrl
+      );
+    }
+
+    const providerLevel = this._leafletZoomToProviderLevel(tilePoint.z);
+    if (providerLevel < 0) {
+      return errorTileUrl;
+    }
+
+    const coords = this._computeProviderTileCoordinates(
+      tilePoint,
+      providerLevel
+    );
+    if (!coords) {
       return errorTileUrl;
     }
 
     return (
       getUrlForImageryTile(
         this.imageryProvider,
-        tilePoint.x,
-        tilePoint.y,
-        level
+        coords.x,
+        coords.y,
+        providerLevel
       ) || errorTileUrl
     );
   }
@@ -243,36 +276,39 @@ export default class ImageryProviderLeafletTileLayer extends L.TileLayer {
         }
 
         const tilingScheme = this.imageryProvider.tilingScheme;
-        if (!(tilingScheme instanceof WebMercatorTilingScheme)) {
-          this.errorEvent.raiseEvent(
-            this,
-            i18next.t("map.cesium.notWebMercatorTilingScheme")
-          );
-          return;
-        }
-
-        if (
-          tilingScheme.getNumberOfXTilesAtLevel(0) === 2 &&
-          tilingScheme.getNumberOfYTilesAtLevel(0) === 2
-        ) {
-          this._zSubtract = 1;
-        } else if (
-          tilingScheme.getNumberOfXTilesAtLevel(0) !== 1 ||
-          tilingScheme.getNumberOfYTilesAtLevel(0) !== 1
-        ) {
-          this.errorEvent.raiseEvent(
-            this,
-            i18next.t("map.cesium.unusalTilingScheme")
-          );
-          return;
+        if (tilingScheme instanceof WebMercatorTilingScheme) {
+          if (
+            tilingScheme.getNumberOfXTilesAtLevel(0) === 2 &&
+            tilingScheme.getNumberOfYTilesAtLevel(0) === 2
+          ) {
+            this._zSubtract = 1;
+          } else if (
+            tilingScheme.getNumberOfXTilesAtLevel(0) !== 1 ||
+            tilingScheme.getNumberOfYTilesAtLevel(0) !== 1
+          ) {
+            this.errorEvent.raiseEvent(
+              this,
+              i18next.t("map.cesium.unusalTilingScheme")
+            );
+            return;
+          }
+        } else {
+          this._zSubtract = 0;
+          this._ensureLevelInfos();
         }
 
         if (isDefined(this.imageryProvider.maximumLevel)) {
           this.options.maxNativeZoom = this.imageryProvider.maximumLevel;
+        } else if (this._useCustomTilingScheme && this._levelInfos?.length) {
+          const maxZoom =
+            this._levelInfos[this._levelInfos.length - 1].leafletZoom;
+          this.options.maxNativeZoom = Math.ceil(maxZoom);
         }
 
         if (defined(this.imageryProvider.minimumLevel)) {
           this.options.minNativeZoom = this.imageryProvider.minimumLevel;
+        } else if (this._useCustomTilingScheme) {
+          this.options.minNativeZoom = 0;
         }
 
         if (isDefined(this.imageryProvider.credit)) {
@@ -306,7 +342,10 @@ export default class ImageryProviderLeafletTileLayer extends L.TileLayer {
     }
 
     const bounds = this._map.getBounds();
-    const zoom = this._map.getZoom() - this._zSubtract;
+    const leafletZoom = this._map.getZoom();
+    const providerLevel = this._useCustomTilingScheme
+      ? this._leafletZoomToProviderLevel(leafletZoom)
+      : leafletZoom - this._zSubtract;
 
     const tilingScheme = this.imageryProvider.tilingScheme;
 
@@ -320,13 +359,13 @@ export default class ImageryProviderLeafletTileLayer extends L.TileLayer {
     );
     let sw = tilingScheme.positionToTileXY(
       swScratch,
-      zoom,
+      providerLevel,
       swTileCoordinatesScratch
     );
     if (!isDefined(sw)) {
       sw = swTileCoordinatesScratch;
       sw.x = 0;
-      sw.y = tilingScheme.getNumberOfYTilesAtLevel(zoom) - 1;
+      sw.y = tilingScheme.getNumberOfYTilesAtLevel(providerLevel) - 1;
     }
 
     neScratch.longitude = Math.min(
@@ -339,23 +378,26 @@ export default class ImageryProviderLeafletTileLayer extends L.TileLayer {
     );
     let ne = tilingScheme.positionToTileXY(
       neScratch,
-      zoom,
+      providerLevel,
       neTileCoordinatesScratch
     );
     if (!isDefined(ne)) {
       ne = neTileCoordinatesScratch;
-      ne.x = tilingScheme.getNumberOfXTilesAtLevel(zoom) - 1;
+      ne.x = tilingScheme.getNumberOfXTilesAtLevel(providerLevel) - 1;
       ne.y = 0;
     }
 
     const nextCredits = [];
 
-    for (let j = ne.y; j < sw.y; ++j) {
-      for (let i = sw.x; i < ne.x; ++i) {
+    for (let j = ne.y; j <= sw.y; ++j) {
+      for (let i = sw.x; i <= ne.x; ++i) {
         const credits = this.imageryProvider.getTileCredits(
-          i,
+          CesiumMath.mod(
+            i,
+            tilingScheme.getNumberOfXTilesAtLevel(providerLevel)
+          ),
           j,
-          zoom
+          providerLevel
         ) as Credit[];
         if (!defined(credits)) {
           continue;
@@ -392,6 +434,121 @@ export default class ImageryProviderLeafletTileLayer extends L.TileLayer {
     this._previousCredits = nextCredits;
   }
 
+  private _ensureLevelInfos() {
+    if (!this._useCustomTilingScheme || this._levelInfos) {
+      return;
+    }
+    const tilingScheme = this.imageryProvider.tilingScheme;
+    const worldWidthRadians =
+      tilingScheme.rectangle.east - tilingScheme.rectangle.west;
+    const worldHeightRadians =
+      tilingScheme.rectangle.north - tilingScheme.rectangle.south;
+    const minLevel = this.imageryProvider.minimumLevel ?? 0;
+    const maxLevel = isDefined(this.imageryProvider.maximumLevel)
+      ? this.imageryProvider.maximumLevel!
+      : minLevel;
+    const infos: LeafletLevelInfo[] = [];
+    for (let level = minLevel; level <= maxLevel; level++) {
+      try {
+        const rect = tilingScheme.tileXYToRectangle(0, 0, level);
+        const tileWidthRadians = rect.east - rect.west;
+        const tileHeightRadians = rect.north - rect.south;
+        if (
+          !isFinite(tileWidthRadians) ||
+          !isFinite(tileHeightRadians) ||
+          tileWidthRadians <= 0 ||
+          tileHeightRadians <= 0
+        ) {
+          continue;
+        }
+        const zoomX = Math.log2(worldWidthRadians / tileWidthRadians);
+        const zoomY = Math.log2(worldHeightRadians / tileHeightRadians);
+        const leafletZoom = (zoomX + zoomY) / 2;
+        infos.push({ level, leafletZoom });
+      } catch {
+        break;
+      }
+    }
+    if (infos.length > 0) {
+      this._levelInfos = infos;
+    }
+  }
+
+  private _leafletZoomToProviderLevel(leafletZoom: number): number {
+    if (!this._useCustomTilingScheme) {
+      return Math.max(0, Math.round(leafletZoom - this._zSubtract));
+    }
+    this._ensureLevelInfos();
+    const infos = this._levelInfos;
+    if (!infos || infos.length === 0) {
+      return Math.max(0, Math.round(leafletZoom));
+    }
+    let best = infos[0];
+    let bestDiff = Math.abs(leafletZoom - best.leafletZoom);
+    for (const info of infos) {
+      const diff = Math.abs(leafletZoom - info.leafletZoom);
+      if (diff < bestDiff) {
+        best = info;
+        bestDiff = diff;
+      } else if (diff === bestDiff && info.leafletZoom > best.leafletZoom) {
+        best = info;
+      }
+    }
+    return best.level;
+  }
+
+  private _computeProviderTileCoordinates(
+    tilePoint: L.Coords,
+    providerLevel: number
+  ):
+    | {
+        x: number;
+        y: number;
+      }
+    | undefined {
+    const tilingScheme = this.imageryProvider.tilingScheme;
+    const worldTileCount = Math.pow(2, tilePoint.z);
+    if (!isFinite(worldTileCount) || worldTileCount <= 0) {
+      return undefined;
+    }
+    const wrappedX = CesiumMath.mod(tilePoint.x, worldTileCount);
+    const clampedY = CesiumMath.clamp(tilePoint.y, 0, worldTileCount - 1);
+    const longitudeRadians =
+      ((wrappedX + 0.5) / worldTileCount) * CesiumMath.TWO_PI - Math.PI;
+    const mercatorY =
+      Math.PI - (2.0 * Math.PI * (clampedY + 0.5)) / worldTileCount;
+    const latitudeRadians = Math.atan(Math.sinh(mercatorY));
+    const cartographic = new Cartographic(
+      CesiumMath.negativePiToPi(longitudeRadians),
+      CesiumMath.clamp(
+        latitudeRadians,
+        tilingScheme.rectangle.south,
+        tilingScheme.rectangle.north
+      )
+    );
+    const result = tilingScheme.positionToTileXY(
+      cartographic,
+      providerLevel,
+      new Cartesian2()
+    );
+    if (!isDefined(result)) {
+      return undefined;
+    }
+    const numberOfXTiles = tilingScheme.getNumberOfXTilesAtLevel(providerLevel);
+    const numberOfYTiles = tilingScheme.getNumberOfYTilesAtLevel(providerLevel);
+    return {
+      x: CesiumMath.mod(
+        Math.floor(result.x),
+        numberOfXTiles > 0 ? numberOfXTiles : 1
+      ),
+      y: CesiumMath.clamp(
+        Math.floor(result.y),
+        0,
+        numberOfYTiles > 0 ? numberOfYTiles - 1 : 0
+      )
+    };
+  }
+
   async getFeaturePickingCoords(
     map: L.Map,
     longitudeRadians: number,
@@ -402,7 +559,9 @@ export default class ImageryProviderLeafletTileLayer extends L.TileLayer {
       latitudeRadians,
       0.0
     );
-    const level = Math.round(map.getZoom());
+    const level = this._useCustomTilingScheme
+      ? this._leafletZoomToProviderLevel(map.getZoom())
+      : Math.round(map.getZoom());
 
     const tilingScheme = this.imageryProvider.tilingScheme;
     const coords = tilingScheme.positionToTileXY(ll, level);

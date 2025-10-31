@@ -5,6 +5,7 @@ import TerriaFeature from "../Models/Feature/Feature";
 import { isTerriaFeatureData } from "../Models/Feature/FeatureData";
 
 export interface TimeSeriesFeatureInfoContext extends JsonObject {
+  layerTitle?: string;
   terria?: { timeSeries?: TimeSeriesContext };
 }
 
@@ -50,7 +51,7 @@ export const tableFeatureInfoContext: (
     // Corresponding row IDs for the selected feature are stored in TerriaFeatureData
     // See createLongitudeLatitudeFeaturePerId, createLongitudeLatitudeFeaturePerRow and createRegionMappedImageryProvider
     const rowIds = isTerriaFeatureData(feature.data)
-      ? feature.data.rowIds ?? []
+      ? (feature.data.rowIds ?? [])
       : [];
 
     if (!style.timeColumn || !style.colorColumn || rowIds.length < 2) return {};
@@ -118,4 +119,106 @@ export const csvFeatureInfoContext: (
     }
 
     return {};
+  };
+
+/**
+ * Add TimeSeriesFeatureInfoContext to features with JSON data.
+ * This makes JSON data from POST requests available in featureInfoTemplate.
+ *
+ * Handles JSON in these formats:
+ * - { "result": [{...}, {...}] }
+ * - { "data": [{...}, {...}] }
+ * - [{ ...}, {...}]
+ *
+ * Exposes the data so it can be used in templates like:
+ * ```
+ * <json-chart
+ *   title="{{terria.timeSeries.title}}"
+ *   id="{{terria.timeSeries.id}}"
+ *   x-column="time"
+ *   y-columns="mean">
+ *   {{terria.timeSeries.data}}
+ * </json-chart>
+ * ```
+ */
+export const jsonFeatureInfoContext: (
+  catalogItem: CatalogMemberMixin.Instance
+) => (feature: TerriaFeature) => TimeSeriesFeatureInfoContext =
+  (catalogItem) => (feature) => {
+    try {
+      // Get the raw JSON data from the feature
+      // ImageryLayerFeatureInfo stores the raw server response in .data property
+      let jsonData = feature.data;
+
+      // If data is a string (CSV), skip JSON processing
+      if (typeof jsonData === "string") {
+        return {};
+      }
+
+      // If data is not an object, try properties (but properties might have Cesium wrappers)
+      if (!jsonData || typeof jsonData !== "object") {
+        // Try to get valueOf() or the raw value if it's wrapped
+        const props = feature.properties;
+        if (props && typeof props === "object") {
+          // Check if it's a Cesium property wrapper
+          if (typeof (props as any).getValue === "function") {
+            jsonData = (props as any).getValue();
+          } else {
+            jsonData = props;
+          }
+        }
+      }
+
+      // If still no valid data, return empty
+      if (!jsonData || typeof jsonData !== "object") {
+        return {};
+      }
+
+      const featureId = feature.id?.replace?.(/"/g, "") || "feature";
+      const title = getName(catalogItem);
+
+      // Get layerTitle from the catalog item name (for WMTS items)
+      const layerTitle = getName(catalogItem);
+
+      // Convert JSON object to JSON string for the template
+      // Use a safe stringify that handles circular references
+      let jsonString: string;
+      try {
+        jsonString = JSON.stringify(jsonData);
+      } catch (stringifyError) {
+        // If circular reference, try to extract just the essential data
+        console.warn(
+          "Circular reference detected in JSON data, trying to extract arrays",
+          stringifyError
+        );
+
+        // Try to extract result or data arrays if they exist
+        const extracted =
+          (jsonData as any).result || (jsonData as any).data || jsonData;
+        try {
+          jsonString = JSON.stringify(extracted);
+        } catch (e) {
+          console.warn("Failed to stringify extracted data, giving up", e);
+          return {};
+        }
+      }
+
+      return {
+        layerTitle, // Make layerTitle available directly in template as {{layerTitle}}
+        terria: {
+          timeSeries: {
+            title,
+            id: featureId,
+            data: jsonString,
+            // Provide a pre-formatted chart element
+            chart: `<json-chart ${'identifier="' + featureId + '" '} ${
+              title ? `title="${title}"` : ""
+            } x-column="time" y-columns="mean">${jsonString}</json-chart>`
+          }
+        }
+      };
+    } catch (e) {
+      console.warn("Failed to process JSON feature info context", e);
+      return {};
+    }
   };

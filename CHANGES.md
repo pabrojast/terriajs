@@ -20,6 +20,7 @@
 - Add UI controls to define, reorder and clear custom color stops for COG items so their legends can be edited like other formats.
 - Custom color stops automatically refresh the legend entries so there’s a label for every colour step (and you can still rename them manually).
 - [The next improvement]
+- Add `featureInfoRequest` support for WMTS items to configure custom (e.g. POST) feature info requests, including templated coordinates and access to layer identifiers for services without native GetFeatureInfo.
 
 #### 8.9.5 - 2025-06-03
 

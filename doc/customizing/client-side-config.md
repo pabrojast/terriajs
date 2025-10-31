@@ -266,3 +266,31 @@ search provider values.
 | minCharacters         | no       | **number**    | 3                              | Minimum number of characters required for search to start                                         |
 | boundingBoxLimit      | no       | **Rectangle** | `Cesium.Rectangle.MAX_VALUE`   | Bounding box limits for the search results {west, south, east, north}                             |
 | showSearchInCatalog   | no       | **boolean**   | true                           | True to show "Search in Catalog" link in location search results.                                 |
+
+### WMTS custom feature info
+
+WMTS catalog items can override the default `GetFeatureInfo` call by defining a `featureInfoRequest`
+object. This is useful when a service does not expose features directly but provides a separate
+endpoint (for example an `xcube` time-series API) that should be queried when the map is clicked.
+Templates support double-curly tokens such as `{{longitude}}`, `{{latitude}}`, `{{layer}}`
+(the WMTS Identifier), `{{layerTitle}}`, `{{time}}`, and pixel/tile indices.
+
+```json5
+{
+  type: "wmts",
+  name: "Ukraine turbidity",
+  url: "https://data.dev-wins.com/xcube/wmts/1.0.0/WMTSCapabilities.xml",
+  layer: "ukraine_lwq100_pyramid.turbidity_mean",
+  featureInfoRequest: {
+    url: "https://data.dev-wins.com/xcube/timeseries/{{layerPath}}",
+    method: "POST",
+    body: '{ "type": "Point", "coordinates": [{{longitude}}, {{latitude}}] }',
+    headers: {
+      "Content-Type": "application/json"
+    }
+  }
+}
+```
+
+By default the request expects JSON and will automatically build a feature info table from the JSON
+properties returned by the service.

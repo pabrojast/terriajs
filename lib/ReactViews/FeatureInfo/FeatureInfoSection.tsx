@@ -43,6 +43,7 @@ import {
   MustacheFunction,
   mustacheFormatDateTime,
   mustacheFormatNumberFunction,
+  mustacheJsonStringify,
   mustacheRenderPartialByName,
   mustacheURLEncodeText,
   mustacheURLEncodeTextComponent
@@ -228,6 +229,7 @@ export class FeatureInfoSection extends Component<FeatureInfoProps> {
       formatDateTime: MustacheFunction;
       urlEncodeComponent: MustacheFunction;
       urlEncode: MustacheFunction;
+      jsonStringify: MustacheFunction;
       coords?: {
         latitude: number;
         longitude: number;
@@ -245,6 +247,7 @@ export class FeatureInfoSection extends Component<FeatureInfoProps> {
       formatDateTime: mustacheFormatDateTime,
       urlEncodeComponent: mustacheURLEncodeTextComponent,
       urlEncode: mustacheURLEncodeText,
+      jsonStringify: mustacheJsonStringify,
       rawDataTable: this.rawDataMarkdown
     };
 

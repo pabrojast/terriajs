@@ -141,6 +141,54 @@ export class WebMapTileServiceAvailableLayerDimensionsTraits extends ModelTraits
   dimensions?: WebMapTileServiceAvailableDimensionTraits[];
 }
 
+export class FeatureInfoRequestTraits extends ModelTraits {
+  @primitiveTrait({
+    type: "string",
+    name: "URL template",
+    description:
+      "Template for the feature info request URL. Supports double-curly tokens such as {{longitude}} and {{latitude}}."
+  })
+  url?: string;
+
+  @primitiveTrait({
+    type: "string",
+    name: "HTTP method",
+    description:
+      "HTTP method to use (GET, POST, PUT, PATCH, DELETE). Defaults to GET."
+  })
+  method?: string;
+
+  @anyTrait({
+    name: "Headers",
+    description: "Additional headers to send with the request."
+  })
+  headers?: JsonObject;
+
+  @primitiveTrait({
+    type: "string",
+    name: "Body template",
+    description:
+      "Template for the request body. Supports the same tokens as the URL template."
+  })
+  body?: string;
+
+  @primitiveTrait({
+    type: "boolean",
+    name: "Auto JSON content type",
+    description:
+      "When true (default), automatically adds Content-Type: application/json if the method sends a body and no Content-Type header is supplied."
+  })
+  autoSetJsonContentType: boolean = true;
+
+  @primitiveTrait({
+    type: "string",
+    name: "Response type",
+    description:
+      "Optional override for the expected response type (json, text, html, xml). Defaults to the GetFeatureInfo format."
+  })
+  responseType?: "json" | "text" | "html" | "xml";
+}
+
 @traitClass({
   description: `Creates a single item in the catalog from a url that points to a wmts service.`,
   example: {
@@ -250,4 +298,12 @@ export default class WebMapTileServiceCatalogItemTraits extends mixTraits(
       "Additional query parameters appended to WMTS GetFeatureInfo requests."
   })
   getFeatureInfoParameters?: JsonObject;
+
+  @objectTrait({
+    type: FeatureInfoRequestTraits,
+    name: "Custom feature info request",
+    description:
+      "Overrides the default WMTS GetFeatureInfo request with a custom HTTP request. Templates support {{token}} placeholders such as {{longitude}}, {{latitude}}, and {{layer}}."
+  })
+  featureInfoRequest?: FeatureInfoRequestTraits;
 }

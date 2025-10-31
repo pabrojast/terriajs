@@ -7,6 +7,7 @@ import Rectangle from "terriajs-cesium/Source/Core/Rectangle";
 import Ellipsoid from "terriajs-cesium/Source/Core/Ellipsoid";
 import GeographicProjection from "terriajs-cesium/Source/Core/GeographicProjection";
 import Cartographic from "terriajs-cesium/Source/Core/Cartographic";
+import CesiumMath from "terriajs-cesium/Source/Core/Math";
 import Cartesian3 from "terriajs-cesium/Source/Core/Cartesian3";
 import Resource from "terriajs-cesium/Source/Core/Resource";
 import ImageryLayerFeatureInfo from "terriajs-cesium/Source/Scene/ImageryLayerFeatureInfo";
@@ -32,6 +33,7 @@ import { InfoSectionTraits } from "../../../Traits/TraitsClasses/CatalogMemberTr
 import LegendTraits from "../../../Traits/TraitsClasses/LegendTraits";
 import { RectangleTraits } from "../../../Traits/TraitsClasses/MappableTraits";
 import WebMapTileServiceCatalogItemTraits, {
+  FeatureInfoRequestTraits,
   WebMapTileServiceAvailableDimensionTraits,
   WebMapTileServiceAvailableLayerDimensionsTraits,
   WebMapTileServiceAvailableLayerStylesTraits
@@ -53,6 +55,11 @@ import WebMapTileServiceCapabilities, {
   WmtsCapabilitiesLegend,
   WmtsLayer
 } from "./WebMapTileServiceCapabilities";
+import TerriaFeature from "../../Feature/Feature";
+import {
+  TimeSeriesFeatureInfoContext,
+  jsonFeatureInfoContext
+} from "../../../Table/tableFeatureInfoContext";
 
 type ExtendedImageryProvider = (
   | WebMapTileServiceImageryProvider
@@ -86,6 +93,8 @@ interface DimensionSummary {
 }
 
 type FeatureInfoFormatType = "json" | "xml" | "html" | "text";
+
+type TemplateTokens = Record<string, string>;
 
 class GetCapabilitiesStratum extends LoadableStratum(
   WebMapTileServiceCatalogItemTraits
@@ -274,6 +283,41 @@ class GetCapabilitiesStratum extends LoadableStratum(
       i18next.t("preview.updateFrequency"),
       i18next.t("models.webMapTileServiceCatalogItem.getCapabilitiesUrl")
     ];
+  }
+
+  @computed
+  get kvpTileUrl(): string | undefined {
+    const operations = this.capabilities.json?.OperationsMetadata?.Operation;
+    const ops = forceArray(operations);
+    for (const operation of ops) {
+      if (operation?.name?.toLowerCase() !== "gettile") {
+        continue;
+      }
+      const gets = forceArray(operation.DCP?.HTTP?.Get);
+      for (const candidate of gets) {
+        // Look for KVP encoding
+        const constraint = candidate?.Constraint;
+        if (constraint) {
+          const constraints = Array.isArray(constraint)
+            ? constraint
+            : [constraint];
+          const kvpConstraint = constraints.find(
+            (c: any) =>
+              c?.name?.toLowerCase() === "getencoding" &&
+              forceArray(c?.AllowedValues?.Value).some(
+                (v: any) => String(v).toLowerCase() === "kvp"
+              )
+          );
+          if (kvpConstraint) {
+            const href = candidate?.["xlink:href"];
+            if (typeof href === "string" && href.length > 0) {
+              return href;
+            }
+          }
+        }
+      }
+    }
+    return undefined;
   }
 
   @computed
@@ -701,13 +745,13 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
       }
 
       const formatCandidates = forceArray(layer.Format).map((item: any) =>
-        typeof item === "string" ? item : item?.toString?.() ?? ""
+        typeof item === "string" ? item : (item?.toString?.() ?? "")
       );
       const format = formatCandidates.includes("image/png")
         ? "image/png"
         : formatCandidates.includes("image/jpeg")
-        ? "image/jpeg"
-        : "image/png";
+          ? "image/jpeg"
+          : "image/png";
 
       const resourceUrl: ResourceUrl | ResourceUrl[] | undefined =
         layer.ResourceURL;
@@ -721,6 +765,9 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
         );
         return undefined;
       }
+
+      // First, collect dimensions to determine if we need them
+      const dimensions: Record<string, string> = { ...(this.dimensions ?? {}) };
 
       if (resourceUrl) {
         const candidates = Array.isArray(resourceUrl)
@@ -752,8 +799,6 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
           templateTokens = extractTemplateTokens(preferredTemplate.template);
         }
       }
-
-      const dimensions: Record<string, string> = { ...(this.dimensions ?? {}) };
       const defaults = stratum.currentLayerDimensions ?? [];
       const timeDimensionName = defaults.find(
         (dimension) => dimension.name?.toLowerCase() === "time"
@@ -810,6 +855,30 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
 
       const finalDimensions =
         Object.keys(dimensions).length > 0 ? dimensions : undefined;
+
+      // Check if REST template supports the dimensions we need to pass.
+      // Cesium's WebMapTileServiceImageryProvider only applies dimensions via query parameters
+      // when using KVP mode. For REST mode, dimensions must be in the template as placeholders.
+      // If dimensions exist but template doesn't support them, fallback to KVP mode.
+      if (finalDimensions && templateTokens.length > 0) {
+        const lowerTokens = templateTokens.map((t) => t.toLowerCase());
+        const dimensionKeys = Object.keys(finalDimensions);
+        const unsupportedDimensions = dimensionKeys.filter(
+          (key) => !lowerTokens.includes(key.toLowerCase())
+        );
+
+        if (unsupportedDimensions.length > 0) {
+          console.log(
+            `[WMTS] REST template does not support dimensions: ${unsupportedDimensions.join(
+              ", "
+            )}. Falling back to KVP mode to support dimensional data.`
+          );
+          // Reset to KVP mode by using the KVP endpoint from capabilities
+          baseUrl =
+            stratum.kvpTileUrl ?? new URI(this.url).search("").toString();
+          templateTokens = [];
+        }
+      }
 
       // Log WMTS configuration for debugging tile load issues
       if (!templateTokens.length && baseUrl.indexOf("{") !== -1) {
@@ -871,12 +940,14 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
       const usingUrlTemplate =
         imageryProvider instanceof UrlTemplateImageryProvider;
 
-      // Only enable feature picking if we have a valid GetFeatureInfo endpoint
-      const hasValidFeatureInfoEndpoint = isDefined(this.featureInfoEndpoint);
+      // Enable feature picking only if a GetFeatureInfo endpoint or custom request is available
+      const hasFeatureInfoSupport =
+        isDefined(this.featureInfoEndpoint) ||
+        isDefined(this.featureInfoRequest);
       imageryProvider.enablePickFeatures =
-        this.allowFeaturePicking && hasValidFeatureInfoEndpoint;
+        this.allowFeaturePicking && hasFeatureInfoSupport;
 
-      if (this.allowFeaturePicking && hasValidFeatureInfoEndpoint) {
+      if (this.allowFeaturePicking && hasFeatureInfoSupport) {
         (imageryProvider as any).pickFeatures = (
           x: number,
           y: number,
@@ -974,23 +1045,21 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
       return;
     }
 
-    const levels = tileMatrixSetLabels.map((label, index) => {
+    // Build labelByLevel map for semantic lookups
+    // This maps parsed level numbers (or indices) to labels
+    tileMatrixSetLabels.forEach((label, index) => {
       const parsedLevel = parseTileMatrixLevel(label);
       if (isDefined(parsedLevel)) {
         labelByLevel.set(parsedLevel, label);
-        return parsedLevel;
       }
+      // Always also set the index mapping as primary
       labelByLevel.set(index, label);
-      return index;
     });
 
-    const numericLevels = levels.filter((level) => Number.isFinite(level));
-    const maxLevel = numericLevels.reduce((currentMaximum, level) => {
-      return level > currentMaximum ? level : currentMaximum;
-    }, 0);
-    const minLevel = numericLevels.reduce((currentMinimum, level) => {
-      return level < currentMinimum ? level : currentMinimum;
-    }, numericLevels[0] ?? 0);
+    // Use array indices for min/max level, not parsed identifiers
+    // Cesium/Leaflet use 0-based array indices regardless of TileMatrix identifiers
+    const minLevel = 0;
+    const maxLevel = tileMatrixSetLabels.length - 1;
 
     return {
       id: selectedId,
@@ -1054,8 +1123,10 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
     tileMatrices.forEach((matrix: any, index: number) => {
       const width = Number(matrix.MatrixWidth);
       const height = Number(matrix.MatrixHeight);
-      const parsedLevel = parseTileMatrixLevel(matrix.Identifier);
-      const key = isDefined(parsedLevel) ? parsedLevel : index;
+      // Use array index as the key, not the TileMatrix Identifier
+      // This is because Cesium/Leaflet use 0-based level indices, regardless of
+      // what the actual TileMatrix identifiers are (e.g., WorldCRS84Quad uses 6-10)
+      const key = index;
 
       // Parse TopLeftCorner if available
       let topLeftCorner: [number, number] | undefined;
@@ -1454,23 +1525,19 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
       return undefined;
     }
 
-    const featureInfoUrl = this.featureInfoEndpoint;
-    if (!featureInfoUrl) {
+    const stratum = this.capabilitiesStratum;
+    const capabilitiesLayer = stratum?.capabilitiesLayer;
+    const layerIdentifier =
+      capabilitiesLayer?.Identifier ?? this.layer ?? stratum?.layer;
+    if (!layerIdentifier) {
       return undefined;
     }
+
+    const layerTitle =
+      this.layer ?? capabilitiesLayer?.Title ?? layerIdentifier;
 
     const tileMatrixSet = this.tileMatrixSet;
-    if (!tileMatrixSet) {
-      return undefined;
-    }
-
-    const stratum = this.capabilitiesStratum;
-    const layerName = this.layer ?? stratum?.layer;
-    if (!layerName) {
-      return undefined;
-    }
-
-    const { type, format } = this.featureInfoFormatOptions;
+    const { type: defaultType, format } = this.featureInfoFormatOptions;
 
     const tilingScheme = imageryProvider.tilingScheme;
     const tileRectangle = tilingScheme.tileXYToRectangle(x, y, level);
@@ -1488,15 +1555,72 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
     const j = clamp(Math.floor(v * tileHeight), 0, tileHeight - 1);
 
     const tileMatrix =
-      tileMatrixSet.labels && tileMatrixSet.labels[level]
+      tileMatrixSet?.labels && tileMatrixSet.labels[level]
         ? tileMatrixSet.labels[level]
         : level.toString();
+
+    const dimensionStrings: Record<string, string> = {};
+    const dimensionParams = this.dimensions ?? {};
+    Object.entries(dimensionParams).forEach(([key, value]) => {
+      if (value === undefined || value === null || value === "") {
+        return;
+      }
+      dimensionStrings[key] = String(value);
+    });
+
+    const extraParamStrings: Record<string, string> = {};
+    const extraParams = this.getFeatureInfoParameters ?? {};
+    Object.entries(extraParams).forEach(([key, value]) => {
+      if (value === undefined || value === null || value === "") {
+        return;
+      }
+      extraParamStrings[key] = String(value);
+    });
+
+    const tokens = this.buildFeatureInfoTemplateTokens({
+      layerIdentifier,
+      layerTitle,
+      style: this.style ?? "",
+      tileMatrixSet,
+      tileMatrix,
+      tileRow: y,
+      tileCol: x,
+      pixelI: i,
+      pixelJ: j,
+      level,
+      longitude,
+      latitude,
+      tileRectangle,
+      tileWidth,
+      tileHeight,
+      timeTag,
+      dimensions: dimensionStrings,
+      extraParams: extraParamStrings
+    });
+
+    const customRequest = this.featureInfoRequest;
+    if (customRequest) {
+      const customType = isDefined(customRequest.responseType)
+        ? normalizeFeatureInfoType(customRequest.responseType)
+        : defaultType;
+      return this.pickFeaturesWithCustomRequest(
+        customRequest,
+        tokens,
+        customType,
+        format
+      );
+    }
+
+    const featureInfoUrl = this.featureInfoEndpoint;
+    if (!featureInfoUrl || !tileMatrixSet) {
+      return undefined;
+    }
 
     const query: Record<string, string> = {
       SERVICE: "WMTS",
       VERSION: "1.0.0",
       REQUEST: "GetFeatureInfo",
-      LAYER: layerName,
+      LAYER: layerIdentifier,
       STYLE: this.style ?? "",
       TILEMATRIXSET: tileMatrixSet.id,
       TILEMATRIX: tileMatrix,
@@ -1526,18 +1650,12 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
       addDimensionParam("time", timeTag);
     }
 
-    const dimensionParams = this.dimensions ?? {};
-    Object.entries(dimensionParams).forEach(([key, value]) => {
-      const stringValue =
-        value === undefined || value === null ? undefined : String(value);
-      addDimensionParam(key, stringValue);
-    });
+    Object.entries(dimensionStrings).forEach(([key, value]) =>
+      addDimensionParam(key, value)
+    );
 
-    const extraParams = this.getFeatureInfoParameters ?? {};
-    Object.entries(extraParams).forEach(([key, value]) => {
-      if (value !== undefined && value !== null && value !== "") {
-        query[key] = String(value);
-      }
+    Object.entries(extraParamStrings).forEach(([key, value]) => {
+      query[key] = value;
     });
 
     const uri = new URI(featureInfoUrl);
@@ -1547,17 +1665,231 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
       url: proxyCatalogItemUrl(this, uri.toString())
     });
 
+    const fetchPromise = fetchResourceByFormat(resource, defaultType);
+
+    if (!fetchPromise) {
+      return undefined;
+    }
+
+    return fetchPromise
+      .then((data) => {
+        if (!isDefined(data)) {
+          return undefined;
+        }
+        try {
+          const features = parseFeatureInfoResponse(data, defaultType, format);
+          if (!features) {
+            return undefined;
+          }
+          if (defaultType === "json") {
+            features.forEach((feature) => {
+              if (
+                !feature.description &&
+                feature.properties &&
+                typeof feature.configureDescriptionFromProperties === "function"
+              ) {
+                feature.configureDescriptionFromProperties(feature.properties);
+              }
+            });
+          }
+          return features;
+        } catch (error) {
+          console.warn("Failed to parse WMTS GetFeatureInfo response", error);
+          return undefined;
+        }
+      })
+      .catch((error) => {
+        console.warn("WMTS GetFeatureInfo request failed", error);
+        return undefined;
+      });
+  }
+
+  private buildFeatureInfoTemplateTokens(params: {
+    layerIdentifier: string;
+    layerTitle: string;
+    style: string;
+    tileMatrixSet?: NonNullable<WebMapTileServiceCatalogItem["tileMatrixSet"]>;
+    tileMatrix: string;
+    tileRow: number;
+    tileCol: number;
+    pixelI: number;
+    pixelJ: number;
+    level: number;
+    longitude: number;
+    latitude: number;
+    tileRectangle: Rectangle;
+    tileWidth: number;
+    tileHeight: number;
+    timeTag?: string;
+    dimensions: Record<string, string>;
+    extraParams: Record<string, string>;
+  }): TemplateTokens {
+    const {
+      layerIdentifier,
+      layerTitle,
+      style,
+      tileMatrixSet,
+      tileMatrix,
+      tileRow,
+      tileCol,
+      pixelI,
+      pixelJ,
+      level,
+      longitude,
+      latitude,
+      tileRectangle,
+      tileWidth,
+      tileHeight,
+      timeTag,
+      dimensions,
+      extraParams
+    } = params;
+
+    const longitudeDegrees = CesiumMath.toDegrees(longitude);
+    const latitudeDegrees = CesiumMath.toDegrees(latitude);
+
+    const tokens: TemplateTokens = {
+      layer: layerIdentifier,
+      layerId: layerIdentifier,
+      layerName: layerIdentifier,
+      layerIdentifier,
+      layerPath: layerIdentifier.replace(/\./g, "/"),
+      layerTitle,
+      layerTitlePath: layerTitle.replace(/\s+/g, "/"),
+      layerTitleSlug: slugify(layerTitle),
+      style,
+      tileMatrix,
+      tileRow: tileRow.toString(),
+      tileCol: tileCol.toString(),
+      x: tileCol.toString(),
+      y: tileRow.toString(),
+      level: level.toString(),
+      z: level.toString(),
+      i: pixelI.toString(),
+      j: pixelJ.toString(),
+      pixelI: pixelI.toString(),
+      pixelJ: pixelJ.toString(),
+      longitude: longitudeDegrees.toString(),
+      latitude: latitudeDegrees.toString(),
+      longitudeDegrees: longitudeDegrees.toString(),
+      latitudeDegrees: latitudeDegrees.toString(),
+      longitudeRadians: longitude.toString(),
+      latitudeRadians: latitude.toString(),
+      tileWidth: tileWidth.toString(),
+      tileHeight: tileHeight.toString(),
+      tileWest: CesiumMath.toDegrees(tileRectangle.west).toString(),
+      tileSouth: CesiumMath.toDegrees(tileRectangle.south).toString(),
+      tileEast: CesiumMath.toDegrees(tileRectangle.east).toString(),
+      tileNorth: CesiumMath.toDegrees(tileRectangle.north).toString(),
+      tileWestRadians: tileRectangle.west.toString(),
+      tileSouthRadians: tileRectangle.south.toString(),
+      tileEastRadians: tileRectangle.east.toString(),
+      tileNorthRadians: tileRectangle.north.toString()
+    };
+
+    if (tileMatrixSet) {
+      tokens.tileMatrixSet = tileMatrixSet.id;
+      tokens.tileMatrixSetId = tileMatrixSet.id;
+      tokens.tileMatrixSetProjection = tileMatrixSet.projection;
+    }
+
+    if (timeTag) {
+      tokens.time = timeTag;
+    }
+
+    Object.entries(dimensions).forEach(([key, value]) => {
+      if (!value) {
+        return;
+      }
+      const normalizedKey = key.trim();
+      if (!normalizedKey) {
+        return;
+      }
+      tokens[normalizedKey] = value;
+      tokens[`dim_${normalizedKey}`] = value;
+    });
+
+    Object.entries(extraParams).forEach(([key, value]) => {
+      if (!value) {
+        return;
+      }
+      tokens[key] = value;
+    });
+
+    return tokens;
+  }
+
+  private pickFeaturesWithCustomRequest(
+    request: FeatureInfoRequestTraits,
+    tokens: TemplateTokens,
+    type: FeatureInfoFormatType,
+    format: string
+  ): Promise<ImageryLayerFeatureInfo[] | undefined> | undefined {
+    const urlTemplate = request.url ?? this.featureInfoEndpoint;
+    if (!isDefined(urlTemplate)) {
+      return undefined;
+    }
+
+    const requestUrl = applyTemplate(urlTemplate, tokens);
+    if (!isDefined(requestUrl)) {
+      return undefined;
+    }
+
+    const proxiedUrl = proxyCatalogItemUrl(this, requestUrl);
+    const headers: Record<string, string> = {};
+
+    if (isDefined(request.headers)) {
+      Object.entries(request.headers).forEach(([key, value]) => {
+        if (value === undefined || value === null) {
+          return;
+        }
+        headers[key] = String(value);
+      });
+    }
+
+    const method = (request.method ?? "GET").toUpperCase();
+    const bodyTemplate = request.body;
+    let body = applyTemplate(bodyTemplate, tokens);
+
+    if (methodRequiresBody(method) && !isDefined(body)) {
+      body = "";
+    }
+
+    if (
+      isDefined(body) &&
+      methodRequiresBody(method) &&
+      request.autoSetJsonContentType !== false &&
+      !hasHeaderIgnoreCase(headers, "content-type")
+    ) {
+      headers["Content-Type"] = "application/json";
+    }
+
+    const resource = new Resource({
+      url: proxiedUrl,
+      headers
+    });
+
+    const responseType = mapFeatureInfoTypeToResourceResponseType(type);
+
     let fetchPromise: Promise<any> | undefined;
-    switch (type) {
-      case "xml":
-        fetchPromise = resource.fetchXML();
+    switch (method) {
+      case "GET":
+        fetchPromise = fetchResourceByFormat(resource, type);
         break;
-      case "html":
-      case "text":
-        fetchPromise = resource.fetchText();
+      case "POST":
+        fetchPromise = resource.post(body ?? "", { responseType });
+        break;
+      case "PUT":
+        fetchPromise = resource.put(body ?? "", { responseType });
+        break;
+      case "PATCH":
+        fetchPromise = resource.patch(body ?? "", { responseType });
+        break;
+      case "DELETE":
+        fetchPromise = resource.delete({ responseType });
         break;
       default:
-        fetchPromise = resource.fetchJson();
+        fetchPromise = resource.fetch({ responseType });
         break;
     }
 
@@ -1571,14 +1903,32 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
           return undefined;
         }
         try {
-          return parseFeatureInfoResponse(data, type, format);
+          const features = parseFeatureInfoResponse(data, type, format);
+          if (!features) {
+            return undefined;
+          }
+          if (type === "json") {
+            features.forEach((feature) => {
+              if (
+                !feature.description &&
+                feature.properties &&
+                typeof feature.configureDescriptionFromProperties === "function"
+              ) {
+                feature.configureDescriptionFromProperties(feature.properties);
+              }
+            });
+          }
+          return features;
         } catch (error) {
-          console.warn("Failed to parse WMTS GetFeatureInfo response", error);
+          console.warn(
+            "Failed to parse custom WMTS GetFeatureInfo response",
+            error
+          );
           return undefined;
         }
       })
       .catch((error) => {
-        console.warn("WMTS GetFeatureInfo request failed", error);
+        console.warn("Custom WMTS GetFeatureInfo request failed", error);
         return undefined;
       });
   }
@@ -1703,6 +2053,34 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
   @computed
   get discreteTimes() {
     return this.capabilitiesStratum?.discreteTimes;
+  }
+
+  /**
+   * Provides feature info context for JSON responses from featureInfoRequest.
+   * This makes JSON data from POST requests available in featureInfoTemplate templates.
+   *
+   * For example, when a WMTS layer uses a custom featureInfoRequest with POST method,
+   * the JSON response data becomes available as {{terria.timeSeries.data}} in the template.
+   */
+  @computed
+  get featureInfoContext(): (
+    feature: TerriaFeature
+  ) => TimeSeriesFeatureInfoContext {
+    // Determine the response type: use explicit responseType if set, otherwise use default
+    const customRequest = this.featureInfoRequest;
+    const responseType = customRequest?.responseType;
+    const { type: defaultType } = this.featureInfoFormatOptions;
+
+    const effectiveType = isDefined(responseType)
+      ? normalizeFeatureInfoType(responseType)
+      : defaultType;
+
+    // Provide JSON context if the effective response type is JSON
+    if (effectiveType === "json") {
+      return jsonFeatureInfoContext(this);
+    }
+
+    return () => ({});
   }
 
   protected get defaultGetCapabilitiesUrl(): string | undefined {
@@ -2516,6 +2894,80 @@ function defaultInfoFormatForType(type: FeatureInfoFormatType): string {
   }
 }
 
+function fetchResourceByFormat(
+  resource: Resource,
+  type: FeatureInfoFormatType
+): Promise<any> | undefined {
+  switch (type) {
+    case "xml":
+      return resource.fetchXML();
+    case "html":
+    case "text":
+      return resource.fetchText();
+    case "json":
+    default:
+      return resource.fetchJson();
+  }
+}
+
+function mapFeatureInfoTypeToResourceResponseType(
+  type: FeatureInfoFormatType
+): "json" | "text" | "document" {
+  switch (type) {
+    case "xml":
+      return "document";
+    case "html":
+    case "text":
+      return "text";
+    case "json":
+    default:
+      return "json";
+  }
+}
+
+const templateTokenRegex = /\{\{\s*([^}]+?)\s*\}\}/g;
+
+function slugify(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function applyTemplate(
+  template: string | undefined,
+  tokens: TemplateTokens
+): string | undefined {
+  if (!isDefined(template)) {
+    return undefined;
+  }
+  return template.replace(templateTokenRegex, (match, rawToken) => {
+    const key = String(rawToken).trim();
+    const replacement = tokens[key];
+    return replacement !== undefined ? replacement : match;
+  });
+}
+
+function methodRequiresBody(method: string): boolean {
+  switch (method) {
+    case "POST":
+    case "PUT":
+    case "PATCH":
+      return true;
+    default:
+      return false;
+  }
+}
+
+function hasHeaderIgnoreCase(
+  headers: Record<string, string>,
+  headerName: string
+): boolean {
+  const target = headerName.toLowerCase();
+  return Object.keys(headers).some((key) => key.toLowerCase() === target);
+}
+
 function clamp(value: number, min: number, max: number) {
   if (Number.isNaN(value)) {
     return min;
@@ -2541,8 +2993,8 @@ function parseFeatureInfoResponse(
     const features = Array.isArray(data.features)
       ? data.features
       : Array.isArray(data)
-      ? data
-      : [data];
+        ? data
+        : [data];
     return features.map((feature: any) => {
       const info = new ImageryLayerFeatureInfo();
       info.data = feature;
