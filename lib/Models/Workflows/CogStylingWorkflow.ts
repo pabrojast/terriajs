@@ -499,6 +499,16 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
             })
           } as SelectableDimensionText)
         : undefined,
+      !this.hasManualLegend
+        ? ({
+            type: "button",
+            id: "legend-disable-auto",
+            value: i18next.t("models.cogStyling.legend.disableAuto"),
+            setDimensionValue: action((stratumId: string) =>
+              this.ensureLegendUserStratum(stratumId)
+            )
+          } as SelectableDimensionButton)
+        : undefined,
       this.hasManualLegend
         ? ({
             type: "button",
