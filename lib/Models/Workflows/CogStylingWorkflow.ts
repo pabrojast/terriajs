@@ -68,6 +68,9 @@ const DEFAULT_LEGEND_COLORS = [
 export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
   static type = "cog-styling";
 
+  /** Cached numeric domain derived from previous legend synchronisations */
+  private cachedLegendDomain?: [number, number];
+
   constructor(readonly item: CogCatalogItem) {
     makeObservable(this);
   }
@@ -85,6 +88,7 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
       buttonText: "Reset to Defaults",
       onClick: action(() => {
         // Delete user stratum for renderOptions to reset to defaults
+        this.cachedLegendDomain = undefined;
         this.item.renderOptions?.strata.delete(CommonStrata.user);
         this.item.renderOptions?.single?.strata.delete(CommonStrata.user);
       })
@@ -371,14 +375,12 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
             index: index + 1
           }),
           value: stop.position,
-          min: 0,
-          max: 1,
           allowUndefined: false,
           setDimensionValue: action(
             (stratumId: string, value: number | undefined) => {
               if (!isDefined(value)) return;
               this.updateColorStop(stratumId, index, {
-                position: clamp01(value)
+                position: value
               });
             }
           )
@@ -636,7 +638,7 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
 
     return (colors as unknown as readonly [number, string][])
       .map(([position, color]) => ({
-        position: clamp01(position ?? 0),
+        position: position ?? 0,
         color
       }))
       .sort((a, b) => a.position - b.position);
@@ -653,7 +655,7 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
     updated[index] = {
       position:
         partial.position !== undefined
-          ? clamp01(partial.position)
+          ? partial.position
           : updated[index].position,
       color: partial.color ?? updated[index].color
     };
@@ -662,28 +664,39 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
 
   private addColorStop(stratumId: string) {
     const stops = this.customColorStops;
+    const sortedStops = stops.slice().sort((a, b) => a.position - b.position);
     let position = 0.5;
-    if (stops.length === 1) {
-      position =
-        stops[0].position >= 0.5
-          ? clamp01(stops[0].position / 2)
-          : clamp01((stops[0].position + 1) / 2);
-    } else if (stops.length > 1) {
+    const treatStopsAsAbsolute = sortedStops.some(
+      (stop) => stop.position < 0 || stop.position > 1
+    );
+    if (sortedStops.length === 0) {
+      position = 0.5;
+    } else if (sortedStops.length === 1) {
+      const single = sortedStops[0].position;
+      position = treatStopsAsAbsolute
+        ? single
+        : single >= 0.5
+          ? single / 2
+          : (single + 1) / 2;
+    } else {
       let largestGapIndex = 0;
-      let largestGap = -1;
-      for (let i = 0; i < stops.length - 1; i++) {
-        const gap = stops[i + 1].position - stops[i].position;
+      let largestGap = -Infinity;
+      for (let i = 0; i < sortedStops.length - 1; i++) {
+        const gap = sortedStops[i + 1].position - sortedStops[i].position;
         if (gap > largestGap) {
           largestGap = gap;
           largestGapIndex = i;
         }
       }
-      position = stops[largestGapIndex].position + largestGap / 2;
+      position =
+        sortedStops[largestGapIndex].position +
+        (Number.isFinite(largestGap) ? largestGap / 2 : 0);
     }
-    const defaultColor = stops[stops.length - 1]?.color ?? "#ff0000";
+    const defaultColor =
+      sortedStops[sortedStops.length - 1]?.color ?? "#ff0000";
     this.writeColorStops(stratumId, [
-      ...stops,
-      { position: clamp01(position), color: defaultColor }
+      ...sortedStops,
+      { position, color: defaultColor }
     ]);
   }
 
@@ -698,6 +711,7 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
   private clearColorStops(stratumId: string) {
     this.ensureSingleRenderOptions(stratumId);
     this.item.renderOptions.single!.setTrait(stratumId, "colors", undefined);
+    this.cachedLegendDomain = undefined;
     this.item.setTrait(stratumId, "legends", undefined);
   }
 
@@ -713,9 +727,7 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
 
     const sanitized = stops
       .filter((stop) => stop.color)
-      .map(
-        (stop) => [clamp01(stop.position ?? 0), stop.color] as [number, string]
-      )
+      .map((stop) => [stop.position ?? 0, stop.color] as [number, string])
       .sort((a, b) => a[0] - b[0]);
 
     this.item.renderOptions.single!.setTrait(
@@ -832,6 +844,7 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
   }
 
   private clearLegendOverrides(stratumId: string) {
+    this.cachedLegendDomain = undefined;
     this.item.setTrait(stratumId, "legends", undefined);
   }
 
@@ -958,12 +971,32 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
     baselineItems?: LegendItemSnapshot[]
   ): StratumFromTraits<LegendTraits> | undefined {
     if (stops.length === 0) return undefined;
+    const stopPositions = stops.map(([position]) => position);
+    const stopMin = Math.min(...stopPositions);
+    const stopMax = Math.max(...stopPositions);
+    const stopRange = stopMax - stopMin;
+    const treatStopsAsAbsolute = stopPositions.some(
+      (position) => position < 0 || position > 1
+    );
+    const domainFromStops =
+      treatStopsAsAbsolute &&
+      Number.isFinite(stopMin) &&
+      Number.isFinite(stopMax) &&
+      stopRange > 0
+        ? ([stopMin, stopMax] as [number, number])
+        : undefined;
+
     const domain =
       domainOverride ??
       this.getActiveDomain() ??
-      this.deriveDomainFromBaseline(baselineItems);
-    const hasDomain = !!domain;
+      this.deriveDomainFromBaseline(baselineItems) ??
+      domainFromStops ??
+      this.cachedLegendDomain;
+    const hasDomain = domain !== undefined;
     const [min, max] = domain ?? [0, 1];
+    if (hasDomain) {
+      this.cachedLegendDomain = [min, max];
+    }
 
     return createStratumInstance(LegendTraits, {
       title: this.primaryLegend?.title,
@@ -971,14 +1004,30 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
         const baseline = baselineItems?.[index];
         const baselineValue =
           baseline?.value ?? this.extractNumericValue(baseline?.title);
-        const value = hasDomain ? min + position * (max - min) : baselineValue;
+        const normalizedPosition = treatStopsAsAbsolute
+          ? stopRange !== 0
+            ? clamp01((position - stopMin) / stopRange)
+            : 0
+          : clamp01(position);
+        const fallbackDomain = this.cachedLegendDomain;
+        const computedValue = hasDomain
+          ? min + normalizedPosition * (max - min)
+          : treatStopsAsAbsolute
+            ? position
+            : (baselineValue ??
+              (fallbackDomain
+                ? fallbackDomain[0] +
+                  normalizedPosition * (fallbackDomain[1] - fallbackDomain[0])
+                : normalizedPosition));
+        const value = Number.isFinite(computedValue)
+          ? (computedValue as number)
+          : baselineValue;
         return createStratumInstance(LegendItemTraits, {
           color,
           title:
-            baseline?.title ??
-            (value !== undefined
+            value !== undefined
               ? this.formatLegendValue(value)
-              : Math.round(position * 100) + "%"),
+              : (baseline?.title ?? Math.round(position * 100) + "%"),
           value
         });
       })
@@ -991,7 +1040,7 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
     if (stops.length === 0) {
       return [];
     }
-    return stops.map((stop) => [clamp01(stop.position ?? 0), stop.color]);
+    return stops.map((stop) => [stop.position ?? 0, stop.color]);
   }
 
   private createLegendEntryFromStops(
@@ -1005,24 +1054,60 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
     }
     const clampedIndex = Math.min(index, stops.length - 1);
     const [position, color] = stops[clampedIndex];
-    if (domain && domain.length === 2) {
-      const value = domain[0] + position * (domain[1] - domain[0]);
-      return { color, title: this.formatLegendValue(value), value };
+    const stopPositions = stops.map(([pos]) => pos);
+    const stopMin = Math.min(...stopPositions);
+    const stopMax = Math.max(...stopPositions);
+    const stopRange = stopMax - stopMin;
+    const treatStopsAsAbsolute = stopPositions.some(
+      (pos) => pos < 0 || pos > 1
+    );
+    const domainFromStops =
+      treatStopsAsAbsolute &&
+      Number.isFinite(stopMin) &&
+      Number.isFinite(stopMax) &&
+      stopRange > 0
+        ? ([stopMin, stopMax] as [number, number])
+        : undefined;
+    const effectiveDomain =
+      domain ??
+      this.getActiveDomain() ??
+      this.cachedLegendDomain ??
+      this.deriveDomainFromBaseline(baselineItems) ??
+      domainFromStops;
+    const normalizedPosition = treatStopsAsAbsolute
+      ? stopRange !== 0
+        ? clamp01((position - stopMin) / stopRange)
+        : 0
+      : clamp01(position);
+    if (effectiveDomain && effectiveDomain.length === 2) {
+      const value =
+        effectiveDomain[0] +
+        normalizedPosition * (effectiveDomain[1] - effectiveDomain[0]);
+      if (Number.isFinite(value)) {
+        return { color, title: this.formatLegendValue(value), value };
+      }
     }
     const baseline = baselineItems?.[clampedIndex];
     if (baseline) {
-      const value = baseline.value ?? this.extractNumericValue(baseline.title);
+      const baselineNumeric =
+        baseline.value ?? this.extractNumericValue(baseline.title);
+      const value =
+        baselineNumeric ?? (treatStopsAsAbsolute ? position : undefined);
       return {
         color,
         title:
-          baseline.title ??
-          (value !== undefined
+          value !== undefined
             ? this.formatLegendValue(value)
-            : Math.round(position * 100) + "%"),
+            : (baseline.title ?? Math.round(position * 100) + "%"),
         value
       };
     }
-    return { color, title: Math.round(position * 100) + "%", value: undefined };
+    const fallbackValue = treatStopsAsAbsolute ? position : normalizedPosition;
+    return {
+      color,
+      title: this.formatLegendValue(fallbackValue),
+      value: fallbackValue
+    };
   }
 
   private getColorStopsForLegend(desiredBins?: number): [number, string][] {
@@ -1151,7 +1236,18 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
       .map((item) => item.value ?? this.extractNumericValue(item.title))
       .filter((v): v is number => v !== undefined && isFinite(v));
     if (values.length < 2) return undefined;
-    return [Math.min(...values), Math.max(...values)];
+    const derived: [number, number] = [
+      Math.min(...values),
+      Math.max(...values)
+    ];
+    if (
+      Number.isFinite(derived[0]) &&
+      Number.isFinite(derived[1]) &&
+      derived[0] <= derived[1]
+    ) {
+      this.cachedLegendDomain = derived;
+    }
+    return derived;
   }
 
   private extractNumericValue(title?: string | null): number | undefined {

@@ -21,3 +21,35 @@ describe("CogStylingWorkflow.extractNumericValue", () => {
     expect(parse("no value")).toBeUndefined();
   });
 });
+
+describe("CogStylingWorkflow color stops", () => {
+  it("preserves absolute stop positions and derives numeric legend values", () => {
+    const itemStub = {
+      renderOptions: {
+        single: {
+          colors: [
+            [10, "#ff0000"],
+            [20, "#00ff00"]
+          ]
+        }
+      }
+    };
+    const workflow = new CogStylingWorkflow(itemStub as any);
+
+    const stops = (workflow as any).customColorStops;
+    expect(stops.map((stop: any) => stop.position)).toEqual([10, 20]);
+
+    const tuples = (workflow as any).getStopTuplesFromCustomStops(stops);
+    expect(tuples).toEqual([
+      [10, "#ff0000"],
+      [20, "#00ff00"]
+    ]);
+
+    const legend = (workflow as any).buildLegendFromStops(tuples);
+    const items = legend?.items ?? [];
+    expect(items[0]?.value).toBe(10);
+    const lastItem = items[items.length - 1];
+    expect(lastItem?.value).toBe(20);
+    expect(lastItem?.title).toBe("20");
+  });
+});
