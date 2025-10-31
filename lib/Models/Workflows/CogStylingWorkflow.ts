@@ -142,6 +142,7 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
   private get domainGroup(): SelectableDimensionWorkflowGroup | undefined {
     const minDim = this.domainMinSelectableDim;
     const maxDim = this.domainMaxSelectableDim;
+    const autoDetectButton = this.autoDetectDomainButton;
 
     if (!minDim && !maxDim) return undefined;
 
@@ -149,7 +150,11 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
       type: "group",
       id: "domain",
       name: "Value Range",
-      selectableDimensions: filterOutUndefined([minDim, maxDim]),
+      selectableDimensions: filterOutUndefined([
+        minDim,
+        maxDim,
+        autoDetectButton
+      ]),
       isOpen: true
     };
   }
@@ -1402,7 +1407,8 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
   @computed
   private get domainMinSelectableDim(): SelectableDimensionNumeric | undefined {
     const domain = this.item.renderOptions?.single?.domain;
-    const value = domain?.[0];
+    const providerDomain = this.getProviderDomain();
+    const value = domain?.[0] ?? providerDomain?.[0];
 
     return {
       type: "numeric",
@@ -1424,12 +1430,13 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
             return;
           }
           const currentDomain = this.item.renderOptions?.single?.domain;
+          const providerDomain = this.getProviderDomain();
           if (!this.item.renderOptions.single) {
             this.item.renderOptions.setTrait(stratumId, "single", undefined);
           }
           this.item.renderOptions.single!.setTrait(stratumId, "domain", [
             value,
-            currentDomain?.[1] ?? value + 100
+            currentDomain?.[1] ?? providerDomain?.[1] ?? value + 100
           ]);
         }
       )
@@ -1440,7 +1447,8 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
   @computed
   private get domainMaxSelectableDim(): SelectableDimensionNumeric | undefined {
     const domain = this.item.renderOptions?.single?.domain;
-    const value = domain?.[1];
+    const providerDomain = this.getProviderDomain();
+    const value = domain?.[1] ?? providerDomain?.[1];
 
     return {
       type: "numeric",
@@ -1462,15 +1470,58 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
             return;
           }
           const currentDomain = this.item.renderOptions?.single?.domain;
+          const providerDomain = this.getProviderDomain();
           if (!this.item.renderOptions.single) {
             this.item.renderOptions.setTrait(stratumId, "single", undefined);
           }
           this.item.renderOptions.single!.setTrait(stratumId, "domain", [
-            currentDomain?.[0] ?? value - 100,
+            currentDomain?.[0] ?? providerDomain?.[0] ?? value - 100,
             value
           ]);
         }
       )
+    };
+  }
+
+  /** Auto-detect domain button */
+  @computed
+  private get autoDetectDomainButton(): SelectableDimensionButton | undefined {
+    const providerDomain = this.getProviderDomain();
+    const currentDomain = this.item.renderOptions?.single?.domain;
+
+    // Only show button if:
+    // 1. Provider has statistics available, OR
+    // 2. User has set a domain and might want to reset it
+    if (!providerDomain && !currentDomain) return undefined;
+
+    return {
+      type: "button",
+      id: "auto-detect-domain",
+      value: providerDomain
+        ? i18next.t("models.cogStyling.domain.autoDetect")
+        : i18next.t("models.cogStyling.domain.clearManual"),
+      setDimensionValue: action((stratumId: string) => {
+        if (providerDomain) {
+          // Set domain from provider statistics
+          if (!this.item.renderOptions.single) {
+            this.item.renderOptions.setTrait(stratumId, "single", undefined);
+          }
+          this.item.renderOptions.single!.setTrait(
+            stratumId,
+            "domain",
+            providerDomain
+          );
+        } else {
+          // Clear manual domain
+          if (this.item.renderOptions.single) {
+            this.item.renderOptions.single.setTrait(
+              stratumId,
+              "domain",
+              undefined
+            );
+          }
+        }
+      })
     };
   }
 
@@ -1507,7 +1558,8 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
   private get displayRangeMinSelectableDim(): SelectableDimensionNumeric {
     const displayRange = this.item.renderOptions?.single?.displayRange;
     const domain = this.item.renderOptions?.single?.domain;
-    const value = displayRange?.[0] ?? domain?.[0];
+    const providerDomain = this.getProviderDomain();
+    const value = displayRange?.[0] ?? domain?.[0] ?? providerDomain?.[0];
 
     return {
       type: "numeric",
@@ -1528,12 +1580,17 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
             return;
           }
           const currentRange = this.item.renderOptions?.single?.displayRange;
+          const domain = this.item.renderOptions?.single?.domain;
+          const providerDomain = this.getProviderDomain();
           if (!this.item.renderOptions.single) {
             this.item.renderOptions.setTrait(stratumId, "single", undefined);
           }
           this.item.renderOptions.single!.setTrait(stratumId, "displayRange", [
             value,
-            currentRange?.[1] ?? value + 100
+            currentRange?.[1] ??
+              domain?.[1] ??
+              providerDomain?.[1] ??
+              value + 100
           ]);
         }
       )
@@ -1545,7 +1602,8 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
   private get displayRangeMaxSelectableDim(): SelectableDimensionNumeric {
     const displayRange = this.item.renderOptions?.single?.displayRange;
     const domain = this.item.renderOptions?.single?.domain;
-    const value = displayRange?.[1] ?? domain?.[1];
+    const providerDomain = this.getProviderDomain();
+    const value = displayRange?.[1] ?? domain?.[1] ?? providerDomain?.[1];
 
     return {
       type: "numeric",
@@ -1566,11 +1624,16 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
             return;
           }
           const currentRange = this.item.renderOptions?.single?.displayRange;
+          const domain = this.item.renderOptions?.single?.domain;
+          const providerDomain = this.getProviderDomain();
           if (!this.item.renderOptions.single) {
             this.item.renderOptions.setTrait(stratumId, "single", undefined);
           }
           this.item.renderOptions.single!.setTrait(stratumId, "displayRange", [
-            currentRange?.[0] ?? value - 100,
+            currentRange?.[0] ??
+              domain?.[0] ??
+              providerDomain?.[0] ??
+              value - 100,
             value
           ]);
         }

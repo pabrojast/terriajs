@@ -2088,7 +2088,11 @@
       "renderType": "Render Type",
       "continuous": "Continuous",
       "discrete": "Discrete",
-      "domain": "Value Domain (auto-calculated if not set)",
+      "domain": {
+        "title": "Value Domain (auto-calculated if not set)",
+        "autoDetect": "Auto-detect from COG",
+        "clearManual": "Clear manual values"
+      },
       "minimumValue": "Min Value (optional, auto-calculated)",
       "maximumValue": "Max Value (optional, auto-calculated)",
       "displayRange": "Display Range",

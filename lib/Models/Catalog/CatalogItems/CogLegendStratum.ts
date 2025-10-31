@@ -31,12 +31,25 @@ export class CogLegendStratum extends LoadableStratum(CogCatalogItemTraits) {
     if (!renderOptions) return undefined;
 
     const colorScale = renderOptions.colorScale ?? "rainbow";
-    const domain = renderOptions.domain;
     const type = renderOptions.type ?? "continuous";
     const numberOfBins = renderOptions.numberOfBins;
     const reverseColorScale = renderOptions.reverseColorScale ?? false;
 
-    // Only show legend if we have a domain (either set by user or calculated)
+    // Try to get domain from multiple sources in priority order:
+    // 1. User-defined domain
+    // 2. Provider statistics (from COG metadata)
+    // 3. displayRange as fallback
+    let domain = renderOptions.domain;
+    if (!domain || domain.length !== 2) {
+      // Try to get domain from provider statistics
+      domain = this.getProviderDomain();
+    }
+    if (!domain || domain.length !== 2) {
+      // Try displayRange as last resort
+      domain = renderOptions.displayRange;
+    }
+
+    // Only show legend if we have a valid domain
     if (!domain || domain.length !== 2) return undefined;
 
     const [minValue, maxValue] = domain;
@@ -153,5 +166,138 @@ export class CogLegendStratum extends LoadableStratum(CogCatalogItemTraits) {
       maximumFractionDigits: 2,
       minimumFractionDigits: 0
     });
+  }
+
+  /**
+   * Extracts the domain (min/max) from the imagery provider statistics
+   * This searches through various possible locations where the provider might store statistics
+   */
+  private getProviderDomain(): [number, number] | undefined {
+    const mapItems = (this.catalogItem.mapItems ?? []) as any[];
+    if (!Array.isArray(mapItems) || mapItems.length === 0) return undefined;
+    const provider = mapItems[0]?.imageryProvider as any;
+    if (!provider) return undefined;
+
+    // Direct property candidates
+    const directCandidates = [
+      provider.renderOptions?.single?.domain,
+      provider.renderOptions?.single?.displayRange,
+      provider.domain,
+      provider.displayRange,
+      provider.dataRange,
+      provider.range,
+      provider._domain,
+      provider._displayRange
+    ];
+
+    for (const candidate of directCandidates) {
+      const range = this._extractRange(candidate);
+      if (range) return range;
+    }
+
+    // Statistics candidates (from COG metadata)
+    const statsCandidates = [
+      provider.statistics,
+      provider._statistics,
+      provider.statistics?.global,
+      provider.statistics?.overall,
+      provider.statistics?.band,
+      provider.statistics?.band0,
+      provider.statistics?.band1,
+      Array.isArray(provider.statisticsBySample)
+        ? provider.statisticsBySample[0]
+        : undefined,
+      Array.isArray(provider.statisticsByBand)
+        ? provider.statisticsByBand[0]
+        : undefined
+    ];
+
+    for (const candidate of statsCandidates) {
+      const range = this._extractRange(candidate);
+      if (range) return range;
+    }
+
+    return undefined;
+  }
+
+  /**
+   * Helper to extract a numeric range from various data structures
+   */
+  private _extractRange(candidate: any): [number, number] | undefined {
+    if (candidate === undefined || candidate === null) return undefined;
+
+    const normalizePair = (min: number, max: number) => {
+      if (!Number.isFinite(min) || !Number.isFinite(max) || min === max) {
+        return undefined;
+      }
+      return min <= max
+        ? ([min, max] as [number, number])
+        : ([max, min] as [number, number]);
+    };
+
+    // Array format: [min, max]
+    if (Array.isArray(candidate)) {
+      if (candidate.length >= 2) {
+        const pair = normalizePair(Number(candidate[0]), Number(candidate[1]));
+        if (pair) return pair;
+      }
+      if (candidate.length >= 1) {
+        const nested = this._extractRange(candidate[0]);
+        if (nested) return nested;
+      }
+    }
+
+    // Object format: { min, max } or variations
+    if (typeof candidate === "object") {
+      const minKeys = [
+        "min",
+        "minimum",
+        "minValue",
+        "minimumValue",
+        "low",
+        "lower",
+        "lo"
+      ];
+      const maxKeys = [
+        "max",
+        "maximum",
+        "maxValue",
+        "maximumValue",
+        "high",
+        "upper",
+        "hi"
+      ];
+      let min: number | undefined;
+      let max: number | undefined;
+      for (const key of minKeys) {
+        if (candidate[key] !== undefined) {
+          const value = Number(candidate[key]);
+          if (Number.isFinite(value)) {
+            min = value;
+            break;
+          }
+        }
+      }
+      for (const key of maxKeys) {
+        if (candidate[key] !== undefined) {
+          const value = Number(candidate[key]);
+          if (Number.isFinite(value)) {
+            max = value;
+            break;
+          }
+        }
+      }
+      if (min !== undefined && max !== undefined) {
+        const pair = normalizePair(min, max);
+        if (pair) return pair;
+      }
+
+      if (Array.isArray(candidate.values) && candidate.values.length >= 2) {
+        const nested = this._extractRange(candidate.values);
+        if (nested) return nested;
+      }
+    }
+
+    return undefined;
   }
 }
