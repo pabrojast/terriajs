@@ -411,6 +411,57 @@
           }
         }
       }
+    },
+    "cogCatalogItem": {
+      "experimentalReprojectionWarning": "Este COG no está en una proyección nativa (EPSG:4326 o EPSG:3857). La reproyección es experimental y puede que no funcione como se espera. Si tiene control de los datos fuente, le recomendamos reproyectarlos a EPSG:4326 o EPSG:3857 usando GDAL o herramientas similares."
+    },
+    "cog": {
+      "editStyle": "Editar estilo",
+      "legendTitle": "Valores"
+    },
+    "cogStyling": {
+      "name": "Estilo COG",
+      "reset": "Restablecer al estilo predeterminado",
+      "colorScheme": "Esquema de Color",
+      "colorScale": "Escala de Color",
+      "renderType": "Tipo de Renderizado",
+      "continuous": "Continuo",
+      "discrete": "Discreto",
+      "domain": "Dominio de Valores (auto-calculado si no se establece)",
+      "minimumValue": "Valor Mín (opcional, auto-calculado)",
+      "maximumValue": "Valor Máx (opcional, auto-calculado)",
+      "displayRange": "Rango de Visualización",
+      "applyDisplayRange": "Aplicar Rango de Visualización",
+      "displayRangeMin": "Rango de Visualización Mín",
+      "displayRangeMax": "Rango de Visualización Máx",
+      "customColors": {
+        "name": "Colores personalizados",
+        "addStop": "Agregar punto de color",
+        "clear": "Quitar colores personalizados",
+        "stopColor": "Color del punto {{index}}",
+        "stopPosition": "Posición del punto {{index}} (0-1)",
+        "remove": "Eliminar punto"
+      },
+      "legend": {
+        "name": "Leyenda",
+        "title": "Título de la leyenda",
+        "auto": "Usar leyenda automática",
+        "autoInfo": "La leyenda sigue la paleta {{scale}} con {{steps}} pasos. Haz clic en \"Desactivar modo automático\" para editar.",
+        "disableAuto": "Desactivar modo automático",
+        "itemColor": "Color del elemento {{index}}",
+        "itemTitle": "Etiqueta del elemento {{index}}",
+        "addItem": "Agregar elemento",
+        "removeItem": "Eliminar elemento",
+        "defaultItemLabel": "Elemento {{index}}",
+        "itemValue": "Valor del elemento {{index}}",
+        "generate": "Generar leyenda desde la escala de color",
+        "sync": "Sincronizar leyenda con la escala",
+        "reset": "Usar leyenda automática"
+      },
+      "advanced": "Avanzado",
+      "band": "Banda",
+      "clampLow": "Ajustar Valores Bajos",
+      "clampHigh": "Ajustar Valores Altos"
     }
   },
   "analytics": {

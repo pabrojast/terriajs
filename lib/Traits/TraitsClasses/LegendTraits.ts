@@ -12,6 +12,13 @@ export class LegendItemTraits extends ModelTraits {
   title?: string;
 
   @primitiveTrait({
+    name: "Value",
+    description: "Numeric value represented by this legend item.",
+    type: "number"
+  })
+  value?: number;
+
+  @primitiveTrait({
     name: "Multiple Titles",
     description: "Multiple titles to display next to this legend item.",
     type: "string"

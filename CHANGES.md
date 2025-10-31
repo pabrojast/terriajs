@@ -3,7 +3,6 @@
 #### next release (8.9.6)
 
 - **Breaking changes:**
-
   - Update `protomaps-leafet` package to 5.0.1 which only support protomaps basempap tileset >v4.0
     - See [protomaps leaflet CHANGELOG](https://github.com/protomaps/protomaps-leaflet/blob/main/CHANGELOG.md#500).
   - Update react and react-dom to version 18
@@ -14,6 +13,12 @@
 - Add `MapboxSearchProvider` for geocoding using Mapbox.
 - Upgrade yarn to 1.22.22
 - Fix `ApiTableCatalogItem` to add `queryParameters` and `updateQueryParameters` to the API requests. These were previously being ignored.
+- Changing the color scale in the COG styling panel now overrides dataset-provided custom color ramps so the selection always affects the rendered imagery (use the Reset button to restore the original legend if needed).
+- Fix COG transparency filters and "No data" additional color by post-processing TIFF tiles so the configured display range and fill color are applied to the rendered imagery.
+- Edit legend entries for COG layers directly from the Edit Style panel (generate from current colors, tweak per-item colors/labels/values, add/remove rows, and toggle back to the automatic legend at any time).
+- Legend sync now carries numeric breakpoints forward, so continuous ramps show real values instead of percentages when you regenerate or auto-sync.
+- Add UI controls to define, reorder and clear custom color stops for COG items so their legends can be edited like other formats.
+- Custom color stops automatically refresh the legend entries so there’s a label for every colour step (and you can still rename them manually).
 - [The next improvement]
 
 #### 8.9.5 - 2025-06-03
@@ -80,7 +85,6 @@
 
 - **Breaking changes:**
 - Major changes to UI
-
   - Changed workbench and bottom dock to absolute positioned over map with transparent background
   - Generally increase padding and font sizes to improve readability
   - Generally use a darker default theme
@@ -195,7 +199,6 @@
 #### 8.7.7 - 2024-10-01
 
 - **Breaking changes:**
-
   - Remove RollbarErrorServiceProvder
   - Error services now instantiated externally to terriajs
 
@@ -428,7 +431,6 @@
 #### 8.3.0 - 2023-05-22
 
 - **Breaking changes:**
-
   - **Upgraded Mobx to version 6.7.x**
   - **Upgraded Typescript to version 4.9.x**
   - See https://github.com/TerriaJS/terriajs/discussions/6787 for how to upgrade your map

@@ -2,19 +2,38 @@ import i18next from "i18next";
 import { computed, runInAction, makeObservable, override } from "mobx";
 import defined from "terriajs-cesium/Source/Core/defined";
 import WebMercatorTilingScheme from "terriajs-cesium/Source/Core/WebMercatorTilingScheme";
+import GeographicTilingScheme from "terriajs-cesium/Source/Core/GeographicTilingScheme";
+import Rectangle from "terriajs-cesium/Source/Core/Rectangle";
+import Ellipsoid from "terriajs-cesium/Source/Core/Ellipsoid";
+import GeographicProjection from "terriajs-cesium/Source/Core/GeographicProjection";
+import Cartographic from "terriajs-cesium/Source/Core/Cartographic";
+import Cartesian3 from "terriajs-cesium/Source/Core/Cartesian3";
+import Resource from "terriajs-cesium/Source/Core/Resource";
+import ImageryLayerFeatureInfo from "terriajs-cesium/Source/Scene/ImageryLayerFeatureInfo";
+import GetFeatureInfoFormat from "terriajs-cesium/Source/Scene/GetFeatureInfoFormat";
+import UrlTemplateImageryProvider from "terriajs-cesium/Source/Scene/UrlTemplateImageryProvider";
 import WebMapTileServiceImageryProvider from "terriajs-cesium/Source/Scene/WebMapTileServiceImageryProvider";
 import URI from "urijs";
 import containsAny from "../../../Core/containsAny";
+import createDiscreteTimesFromIsoSegments from "../../../Core/createDiscreteTimes";
+import createTransformerAllowUndefined from "../../../Core/createTransformerAllowUndefined";
+import filterOutUndefined from "../../../Core/filterOutUndefined";
 import isDefined from "../../../Core/isDefined";
 import TerriaError from "../../../Core/TerriaError";
 import CatalogMemberMixin from "../../../ModelMixins/CatalogMemberMixin";
+import DiscretelyTimeVaryingMixin from "../../../ModelMixins/DiscretelyTimeVaryingMixin";
 import GetCapabilitiesMixin from "../../../ModelMixins/GetCapabilitiesMixin";
-import MappableMixin, { MapItem } from "../../../ModelMixins/MappableMixin";
+import MappableMixin, {
+  ImageryParts,
+  MapItem
+} from "../../../ModelMixins/MappableMixin";
 import UrlMixin from "../../../ModelMixins/UrlMixin";
 import { InfoSectionTraits } from "../../../Traits/TraitsClasses/CatalogMemberTraits";
 import LegendTraits from "../../../Traits/TraitsClasses/LegendTraits";
 import { RectangleTraits } from "../../../Traits/TraitsClasses/MappableTraits";
 import WebMapTileServiceCatalogItemTraits, {
+  WebMapTileServiceAvailableDimensionTraits,
+  WebMapTileServiceAvailableLayerDimensionsTraits,
   WebMapTileServiceAvailableLayerStylesTraits
 } from "../../../Traits/TraitsClasses/WebMapTileServiceCatalogItemTraits";
 import isReadOnlyArray from "../../../Core/isReadOnlyArray";
@@ -22,9 +41,10 @@ import CreateModel from "../../Definition/CreateModel";
 import createStratumInstance from "../../Definition/createStratumInstance";
 import LoadableStratum from "../../Definition/LoadableStratum";
 import { BaseModel } from "../../Definition/Model";
+import StratumFromTraits from "../../Definition/StratumFromTraits";
+import { SelectableDimensionEnum } from "../../SelectableDimensions/SelectableDimensions";
 import { ServiceProvider } from "./OwsInterfaces";
 import proxyCatalogItemUrl from "../proxyCatalogItemUrl";
-import StratumFromTraits from "../../Definition/StratumFromTraits";
 import { ModelConstructorParameters } from "../../Definition/Model";
 import WebMapTileServiceCapabilities, {
   CapabilitiesStyle,
@@ -34,11 +54,38 @@ import WebMapTileServiceCapabilities, {
   WmtsLayer
 } from "./WebMapTileServiceCapabilities";
 
+type ExtendedImageryProvider = (
+  | WebMapTileServiceImageryProvider
+  | UrlTemplateImageryProvider
+) & {
+  enablePickFeatures?: boolean;
+  pickFeatures?: (
+    x: number,
+    y: number,
+    level: number,
+    longitude: number,
+    latitude: number
+  ) => Promise<ImageryLayerFeatureInfo[] | undefined> | undefined;
+};
+
 interface UsableTileMatrixSets {
   identifiers: string[];
   tileWidth: number;
   tileHeight: number;
+  projection: "EPSG:3857" | "EPSG:4326";
 }
+
+interface DimensionSummary {
+  name?: string;
+  values: string[];
+  units?: string;
+  unitSymbol?: string;
+  default?: string;
+  multipleValues?: boolean;
+  nearestValue?: boolean;
+}
+
+type FeatureInfoFormatType = "json" | "xml" | "html" | "text";
 
 class GetCapabilitiesStratum extends LoadableStratum(
   WebMapTileServiceCatalogItemTraits
@@ -230,6 +277,25 @@ class GetCapabilitiesStratum extends LoadableStratum(
   }
 
   @computed
+  get featureInfoUrl(): string | undefined {
+    const operations = this.capabilities.json?.OperationsMetadata?.Operation;
+    const ops = forceArray(operations);
+    for (const operation of ops) {
+      if (operation?.name?.toLowerCase() !== "getfeatureinfo") {
+        continue;
+      }
+      const gets = forceArray(operation.DCP?.HTTP?.Get);
+      for (const candidate of gets) {
+        const href = candidate?.["xlink:href"];
+        if (typeof href === "string" && href.length > 0) {
+          return href;
+        }
+      }
+    }
+    return undefined;
+  }
+
+  @computed
   get shortReport() {
     return !isDefined(this.catalogItem.tileMatrixSet)
       ? `${i18next.t(
@@ -315,38 +381,132 @@ class GetCapabilitiesStratum extends LoadableStratum(
   }
 
   @computed
+  get layerDimensions(): Map<string, DimensionSummary[]> {
+    const layers = this.capabilities?.json?.Contents?.Layer;
+    return buildLayerDimensionMap(layers);
+  }
+
+  @computed
+  get currentLayerDimensions(): DimensionSummary[] | undefined {
+    // Use the Identifier from capabilitiesLayer instead of the user-provided layer name
+    // because the layer name might be a Title, but layerDimensions map uses Identifier as key
+    const layerIdentifier = this.capabilitiesLayer?.Identifier;
+    if (!layerIdentifier) {
+      return;
+    }
+    return this.layerDimensions.get(layerIdentifier);
+  }
+
+  @computed
+  get availableDimensions(): StratumFromTraits<WebMapTileServiceAvailableLayerDimensionsTraits>[] {
+    const result: StratumFromTraits<WebMapTileServiceAvailableLayerDimensionsTraits>[] =
+      [];
+    this.layerDimensions.forEach((dimensions, layerName) => {
+      const usable = dimensions.filter(
+        (dimension) =>
+          dimension.name &&
+          dimension.name.toLowerCase() !== "time" &&
+          dimension.values.length > 0
+      );
+      if (usable.length === 0) {
+        return;
+      }
+
+      result.push(
+        createStratumInstance(WebMapTileServiceAvailableLayerDimensionsTraits, {
+          layerName,
+          dimensions: usable.map((dimension) =>
+            createStratumInstance(WebMapTileServiceAvailableDimensionTraits, {
+              name: dimension.name,
+              values: dimension.values,
+              units: dimension.units,
+              unitSymbol: dimension.unitSymbol,
+              multipleValues: dimension.multipleValues,
+              nearestValue: dimension.nearestValue,
+              default: dimension.default
+            })
+          )
+        })
+      );
+    });
+
+    return result;
+  }
+
+  @computed
+  get discreteTimes(): { time: string; tag: string | undefined }[] | undefined {
+    const timeDimension = this.currentLayerDimensions?.find(
+      (dimension) => dimension.name?.toLowerCase() === "time"
+    );
+    if (!timeDimension) {
+      return undefined;
+    }
+
+    const result: { time: string; tag: string | undefined }[] = [];
+    timeDimension.values.forEach((value) => {
+      const segments = value.split("/").map((segment) => segment.trim());
+      if (segments.length === 1) {
+        if (segments[0].length > 0 && segments[0].toLowerCase() !== "current") {
+          result.push({ time: segments[0], tag: undefined });
+        }
+      } else if (segments.length >= 2) {
+        createDiscreteTimesFromIsoSegments(
+          result,
+          segments[0],
+          segments[1],
+          segments[2],
+          this.catalogItem.maxRefreshIntervals
+        );
+      }
+    });
+
+    return result.length > 0 ? result : undefined;
+  }
+
+  @computed
   get usableTileMatrixSets() {
     const usableTileMatrixSets: { [key: string]: UsableTileMatrixSets } = {
       "urn:ogc:def:wkss:OGC:1.0:GoogleMapsCompatible": {
         identifiers: ["0"],
         tileWidth: 256,
-        tileHeight: 256
+        tileHeight: 256,
+        projection: "EPSG:3857"
       }
     };
-
-    const standardTilingScheme = new WebMercatorTilingScheme();
 
     const matrixSets = this.capabilities.tileMatrixSets;
     if (matrixSets === undefined) {
       return;
     }
+
     for (let i = 0; i < matrixSets.length; i++) {
       const matrixSet = matrixSets[i];
-      if (
-        !matrixSet.SupportedCRS ||
-        (!/EPSG.*900913/.test(matrixSet.SupportedCRS) &&
-          !/EPSG.*3857/.test(matrixSet.SupportedCRS))
-      ) {
+      if (!matrixSet.SupportedCRS) {
         continue;
       }
-      // Usable tile matrix sets must have a single 256x256 tile at the root.
+
+      // Detect projection type
+      let projection: "EPSG:3857" | "EPSG:4326" | undefined;
+      if (
+        /EPSG.*900913/.test(matrixSet.SupportedCRS) ||
+        /EPSG.*3857/.test(matrixSet.SupportedCRS)
+      ) {
+        projection = "EPSG:3857";
+      } else if (
+        /EPSG.*4326/.test(matrixSet.SupportedCRS) ||
+        /CRS84/.test(matrixSet.SupportedCRS)
+      ) {
+        projection = "EPSG:4326";
+      } else {
+        continue; // Unsupported projection
+      }
+
       const matrices = matrixSet.TileMatrix;
       if (!isDefined(matrices) || matrices.length < 1) {
         continue;
       }
 
       const levelZeroMatrix = matrices[0];
-
       if (!isDefined(levelZeroMatrix.TopLeftCorner)) {
         continue;
       }
@@ -354,14 +514,31 @@ class GetCapabilitiesStratum extends LoadableStratum(
       const levelZeroTopLeftCorner = levelZeroMatrix.TopLeftCorner.split(" ");
       const startX = parseFloat(levelZeroTopLeftCorner[0]);
       const startY = parseFloat(levelZeroTopLeftCorner[1]);
-      const rectangleInMeters = standardTilingScheme.rectangleToNativeRectangle(
-        standardTilingScheme.rectangle
-      );
-      if (
-        Math.abs(startX - rectangleInMeters.west) > 1 ||
-        Math.abs(startY - rectangleInMeters.north) > 1
-      ) {
-        continue;
+
+      // Validate coordinates based on projection
+      if (projection === "EPSG:3857") {
+        const tilingScheme = new WebMercatorTilingScheme();
+        const rectangleInMeters = tilingScheme.rectangleToNativeRectangle(
+          tilingScheme.rectangle
+        );
+        if (
+          Math.abs(startX - rectangleInMeters.west) > 1 ||
+          Math.abs(startY - rectangleInMeters.north) > 1
+        ) {
+          continue;
+        }
+      } else if (projection === "EPSG:4326") {
+        // For EPSG:4326, expect TopLeftCorner near -180, 90
+        // More relaxed validation as different services may use different origins
+        const expectedX = -180;
+        const expectedY = 90;
+        const tolerance = 10; // 10 degree tolerance for flexibility
+        if (
+          Math.abs(startX - expectedX) > tolerance ||
+          Math.abs(startY - expectedY) > tolerance
+        ) {
+          continue;
+        }
       }
 
       if (defined(matrixSet.TileMatrix) && matrixSet.TileMatrix.length > 0) {
@@ -372,7 +549,8 @@ class GetCapabilitiesStratum extends LoadableStratum(
         usableTileMatrixSets[matrixSet.Identifier] = {
           identifiers: ids,
           tileWidth: firstTile.TileWidth,
-          tileHeight: firstTile.TileHeight
+          tileHeight: firstTile.TileHeight,
+          projection: projection
         };
       }
     }
@@ -413,10 +591,12 @@ class GetCapabilitiesStratum extends LoadableStratum(
   }
 }
 
-class WebMapTileServiceCatalogItem extends MappableMixin(
-  GetCapabilitiesMixin(
-    UrlMixin(
-      CatalogMemberMixin(CreateModel(WebMapTileServiceCatalogItemTraits))
+class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
+  MappableMixin(
+    GetCapabilitiesMixin(
+      UrlMixin(
+        CatalogMemberMixin(CreateModel(WebMapTileServiceCatalogItemTraits))
+      )
     )
   )
 ) {
@@ -436,6 +616,28 @@ class WebMapTileServiceCatalogItem extends MappableMixin(
   ];
 
   static readonly type = "wmts";
+
+  private get capabilitiesStratum(): GetCapabilitiesStratum | undefined {
+    return this.strata.get(GetCapabilitiesMixin.getCapabilitiesStratumName) as
+      | GetCapabilitiesStratum
+      | undefined;
+  }
+
+  private get featureInfoEndpoint(): string | undefined {
+    // Only use explicit getFeatureInfoUrl or the one from capabilities
+    // Do not fallback to url or getCapabilitiesUrl as these are not valid GetFeatureInfo endpoints
+    return this.getFeatureInfoUrl ?? this.capabilitiesStratum?.featureInfoUrl;
+  }
+
+  private get featureInfoFormatOptions(): {
+    type: FeatureInfoFormatType;
+    format: string;
+  } {
+    const trait = this.getFeatureInfoFormat;
+    const type = normalizeFeatureInfoType(trait?.type);
+    const format = trait?.format ?? defaultInfoFormatForType(type);
+    return { type, format };
+  }
 
   constructor(...args: ModelConstructorParameters) {
     super(...args);
@@ -477,99 +679,243 @@ class WebMapTileServiceCatalogItem extends MappableMixin(
 
   @computed
   get imageryProvider() {
-    const stratum = this.strata.get(
-      GetCapabilitiesMixin.getCapabilitiesStratumName
-    ) as GetCapabilitiesStratum;
+    return this._createImageryProvider(this.currentDiscreteTimeTag);
+  }
 
-    if (
-      !isDefined(this.layer) ||
-      !isDefined(this.url) ||
-      !isDefined(stratum) ||
-      !isDefined(this.style)
-    ) {
-      return;
-    }
+  private _createImageryProvider = createTransformerAllowUndefined(
+    (timeTag: string | undefined): ExtendedImageryProvider | undefined => {
+      const stratum = this.capabilitiesStratum;
+      if (
+        !isDefined(this.layer) ||
+        !isDefined(this.url) ||
+        !isDefined(stratum) ||
+        !isDefined(this.style)
+      ) {
+        return undefined;
+      }
 
-    const layer = stratum.capabilitiesLayer;
-    const layerIdentifier = layer?.Identifier;
-    if (!isDefined(layer) || !isDefined(layerIdentifier)) {
-      return;
-    }
+      const layer = stratum.capabilitiesLayer;
+      const layerIdentifier = layer?.Identifier;
+      if (!isDefined(layer) || !isDefined(layerIdentifier)) {
+        return undefined;
+      }
 
-    let format: string = "image/png";
-    const formats = layer.Format;
-    if (
-      formats &&
-      formats?.indexOf("image/png") === -1 &&
-      formats?.indexOf("image/jpeg") !== -1
-    ) {
-      format = "image/jpeg";
-    }
+      const formatCandidates = forceArray(layer.Format).map((item: any) =>
+        typeof item === "string" ? item : item?.toString?.() ?? ""
+      );
+      const format = formatCandidates.includes("image/png")
+        ? "image/png"
+        : formatCandidates.includes("image/jpeg")
+        ? "image/jpeg"
+        : "image/png";
 
-    // if layer has defined ResourceURL we should use it because some layers support only Restful encoding. See #2927
-    const resourceUrl: ResourceUrl | ResourceUrl[] | undefined =
-      layer.ResourceURL;
-    let baseUrl: string = new URI(this.url).search("").toString();
-    if (resourceUrl) {
-      if (Array.isArray(resourceUrl)) {
-        for (let i = 0; i < resourceUrl.length; i++) {
-          const url: ResourceUrl = resourceUrl[i];
-          if (
-            url.format.indexOf(format) !== -1 ||
-            url.format.indexOf("png") !== -1
+      const resourceUrl: ResourceUrl | ResourceUrl[] | undefined =
+        layer.ResourceURL;
+      let baseUrl: string = new URI(this.url).search("").toString();
+      let templateTokens: string[] = [];
+
+      const tileMatrixSet = this.tileMatrixSet;
+      if (!isDefined(tileMatrixSet)) {
+        console.error(
+          `[WMTS] No usable TileMatrixSet found for layer ${layerIdentifier}`
+        );
+        return undefined;
+      }
+
+      if (resourceUrl) {
+        const candidates = Array.isArray(resourceUrl)
+          ? resourceUrl
+          : [resourceUrl];
+        const matchingFormat = candidates.filter((candidate) => {
+          let candidateFormat: string | undefined;
+          if (typeof candidate.format === "string") {
+            candidateFormat = candidate.format;
+          } else if (
+            candidate.format !== undefined &&
+            candidate.format !== null
           ) {
-            baseUrl = url.template;
+            candidateFormat = String(candidate.format);
           }
-        }
-      } else {
-        if (
-          format === resourceUrl.format ||
-          resourceUrl.format.indexOf("png") !== -1
-        ) {
-          baseUrl = resourceUrl.template;
+          if (!candidateFormat) {
+            return false;
+          }
+          return (
+            candidateFormat.indexOf(format) !== -1 ||
+            candidateFormat.indexOf("png") !== -1
+          );
+        });
+        const preferredTemplate = matchingFormat.find((candidate) =>
+          templateMatchesTileMatrixSet(candidate.template, tileMatrixSet)
+        );
+        if (preferredTemplate?.template) {
+          baseUrl = preferredTemplate.template;
+          templateTokens = extractTemplateTokens(preferredTemplate.template);
         }
       }
-    }
 
-    const tileMatrixSet = this.tileMatrixSet;
-    if (!isDefined(tileMatrixSet)) {
-      return;
-    }
+      const dimensions: Record<string, string> = { ...(this.dimensions ?? {}) };
+      const defaults = stratum.currentLayerDimensions ?? [];
+      const timeDimensionName = defaults.find(
+        (dimension) => dimension.name?.toLowerCase() === "time"
+      )?.name;
+      const timeKeys = new Set<string>();
+      if (timeDimensionName) {
+        timeKeys.add(timeDimensionName);
+      }
+      templateTokens
+        .filter((token) => token.toLowerCase() === "time")
+        .forEach((token) => timeKeys.add(token));
+      if (!timeKeys.size) {
+        timeKeys.add("time");
+      }
 
-    const imageryProvider = new WebMapTileServiceImageryProvider({
-      url: proxyCatalogItemUrl(this, baseUrl),
-      layer: layerIdentifier,
-      style: this.style,
-      tileMatrixSetID: tileMatrixSet.id,
-      tileMatrixLabels: tileMatrixSet.labels,
-      minimumLevel: this.minimumLevel ?? tileMatrixSet.minLevel,
-      maximumLevel: this.maximumLevel ?? tileMatrixSet.maxLevel,
-      tileWidth: this.tileWidth ?? tileMatrixSet.tileWidth,
-      tileHeight:
-        this.tileHeight ?? this.minimumLevel ?? tileMatrixSet.tileHeight,
-      tilingScheme: new WebMercatorTilingScheme(),
-      format,
-      credit: this.attribution
-      // TODO: implement picking for WebMapTileServiceImageryProvider
-      //enablePickFeatures: this.allowFeaturePicking
-    });
-    return imageryProvider;
-  }
+      defaults.forEach((dimension) => {
+        if (!dimension.name) {
+          return;
+        }
+        const name = dimension.name;
+        if (name.toLowerCase() === "time") {
+          if (!timeTag && dimension.default && !dimensions[name]) {
+            dimensions[name] = dimension.default;
+          }
+        } else if (dimension.default && !dimensions[name]) {
+          dimensions[name] = dimension.default;
+        }
+      });
+
+      if (timeTag) {
+        Object.keys(dimensions).forEach((key) => {
+          if (key.toLowerCase() === "time") {
+            delete dimensions[key];
+          }
+        });
+        timeKeys.forEach((key) => {
+          dimensions[key] = timeTag;
+        });
+      }
+
+      Object.keys(dimensions).forEach((key) => {
+        const value = dimensions[key];
+        if (value === undefined || value === null || value === "") {
+          delete dimensions[key];
+        }
+      });
+
+      // Select appropriate tiling scheme based on projection
+      // For GIBS and other services with non-standard tile matrix sets, we need to create a custom tiling scheme
+      const tilingScheme = this.createTilingScheme(
+        tileMatrixSet.id,
+        tileMatrixSet.projection
+      );
+
+      const finalDimensions =
+        Object.keys(dimensions).length > 0 ? dimensions : undefined;
+
+      // Log WMTS configuration for debugging tile load issues
+      if (!templateTokens.length && baseUrl.indexOf("{") !== -1) {
+        templateTokens = extractTemplateTokens(baseUrl);
+      }
+
+      let imageryProvider = this.createUrlTemplateImageryProvider({
+        templateUrl: baseUrl,
+        tileMatrixSet,
+        tilingScheme,
+        format,
+        layerIdentifier,
+        templateTokens,
+        dimensions: finalDimensions,
+        timeTag
+      });
+
+      if (!imageryProvider) {
+        const minIndex = 0;
+        const maxIndex = Math.max(0, tileMatrixSet.labels.length - 1);
+        const minLevel = clamp(
+          this.minimumLevel ?? tileMatrixSet.minLevel ?? minIndex,
+          minIndex,
+          maxIndex
+        );
+        const maxLevel = clamp(
+          this.maximumLevel ?? tileMatrixSet.maxLevel ?? maxIndex,
+          minIndex,
+          maxIndex
+        );
+
+        // Get actual tile pixel dimensions from the TileMatrixSet
+        const levelDimensions = this.getTileMatrixLevelDimensions(
+          tileMatrixSet.id
+        );
+        const level0Dims = levelDimensions?.get(0);
+        const actualTileWidth =
+          level0Dims?.tileWidth ?? tileMatrixSet.tileWidth;
+        const actualTileHeight =
+          level0Dims?.tileHeight ?? tileMatrixSet.tileHeight;
+
+        imageryProvider = new WebMapTileServiceImageryProvider({
+          url: proxyCatalogItemUrl(this, baseUrl),
+          layer: layerIdentifier,
+          style: this.style,
+          tileMatrixSetID: tileMatrixSet.id,
+          tileMatrixLabels: tileMatrixSet.labels,
+          minimumLevel: minLevel,
+          maximumLevel: maxLevel,
+          tileWidth: actualTileWidth,
+          tileHeight: actualTileHeight,
+          tilingScheme,
+          format,
+          credit: this.attribution,
+          dimensions: finalDimensions
+        }) as ExtendedImageryProvider;
+      }
+
+      const usingUrlTemplate =
+        imageryProvider instanceof UrlTemplateImageryProvider;
+
+      // Only enable feature picking if we have a valid GetFeatureInfo endpoint
+      const hasValidFeatureInfoEndpoint = isDefined(this.featureInfoEndpoint);
+      imageryProvider.enablePickFeatures =
+        this.allowFeaturePicking && hasValidFeatureInfoEndpoint;
+
+      if (this.allowFeaturePicking && hasValidFeatureInfoEndpoint) {
+        (imageryProvider as any).pickFeatures = (
+          x: number,
+          y: number,
+          level: number,
+          longitude: number,
+          latitude: number
+        ) =>
+          this.pickFeatures(
+            imageryProvider,
+            x,
+            y,
+            level,
+            longitude,
+            latitude,
+            timeTag
+          );
+      }
+
+      return imageryProvider;
+    }
+  );
 
   @computed
   get tileMatrixSet():
     | {
         id: string;
         labels: string[];
+        labelByLevel: Map<number, string>;
         maxLevel: number;
         minLevel: number;
         tileWidth: number;
         tileHeight: number;
+        projection: "EPSG:3857" | "EPSG:4326";
       }
     | undefined {
-    const stratum = this.strata.get(
-      GetCapabilitiesMixin.getCapabilitiesStratumName
-    ) as GetCapabilitiesStratum;
+    const stratum = this.capabilitiesStratum;
+    if (!stratum) {
+      return;
+    }
     if (!this.layer) {
       return;
     }
@@ -590,45 +936,651 @@ class WebMapTileServiceCatalogItem extends MappableMixin(
       }
     }
 
-    let tileMatrixSetId: string =
-      "urn:ogc:def:wkss:OGC:1.0:GoogleMapsCompatible";
-    let maxLevel: number = 0;
-    let minLevel: number = 0;
-    let tileWidth: number = 256;
-    let tileHeight: number = 256;
-    let tileMatrixSetLabels: string[] = [];
+    let selectedId: string | undefined;
+    let selected: UsableTileMatrixSets | undefined;
+
     for (let i = 0; i < tileMatrixSetLinks.length; i++) {
-      const tileMatrixSet = tileMatrixSetLinks[i].TileMatrixSet;
-      if (usableTileMatrixSets && usableTileMatrixSets[tileMatrixSet]) {
-        tileMatrixSetId = tileMatrixSet;
-        tileMatrixSetLabels = usableTileMatrixSets[tileMatrixSet].identifiers;
-        tileWidth = Number(usableTileMatrixSets[tileMatrixSet].tileWidth);
-        tileHeight = Number(usableTileMatrixSets[tileMatrixSet].tileHeight);
-        break;
+      const candidateId = tileMatrixSetLinks[i].TileMatrixSet;
+      const candidate = usableTileMatrixSets?.[candidateId];
+      if (!candidate) {
+        continue;
+      }
+
+      if (!selected) {
+        selectedId = candidateId;
+        selected = candidate;
+        continue;
+      }
+
+      if (
+        candidate.projection === "EPSG:3857" &&
+        selected.projection !== "EPSG:3857"
+      ) {
+        selectedId = candidateId;
+        selected = candidate;
       }
     }
 
-    if (Array.isArray(tileMatrixSetLabels)) {
-      const levels = tileMatrixSetLabels.map((label) => {
-        const lastIndex = label.lastIndexOf(":");
-        return Math.abs(Number(label.substring(lastIndex + 1)));
-      });
-      maxLevel = levels.reduce((currentMaximum, level) => {
-        return level > currentMaximum ? level : currentMaximum;
-      }, 0);
-      minLevel = levels.reduce((currentMaximum, level) => {
-        return level < currentMaximum ? level : currentMaximum;
-      }, 0);
+    if (!selected || !selectedId) {
+      return;
     }
 
+    const tileMatrixSetLabels = selected.identifiers;
+    const labelByLevel = new Map<number, string>();
+    if (
+      !Array.isArray(tileMatrixSetLabels) ||
+      tileMatrixSetLabels.length === 0
+    ) {
+      return;
+    }
+
+    const levels = tileMatrixSetLabels.map((label, index) => {
+      const parsedLevel = parseTileMatrixLevel(label);
+      if (isDefined(parsedLevel)) {
+        labelByLevel.set(parsedLevel, label);
+        return parsedLevel;
+      }
+      labelByLevel.set(index, label);
+      return index;
+    });
+
+    const numericLevels = levels.filter((level) => Number.isFinite(level));
+    const maxLevel = numericLevels.reduce((currentMaximum, level) => {
+      return level > currentMaximum ? level : currentMaximum;
+    }, 0);
+    const minLevel = numericLevels.reduce((currentMinimum, level) => {
+      return level < currentMinimum ? level : currentMinimum;
+    }, numericLevels[0] ?? 0);
+
     return {
-      id: tileMatrixSetId,
+      id: selectedId,
       labels: tileMatrixSetLabels,
+      labelByLevel,
       maxLevel: maxLevel,
       minLevel: minLevel,
-      tileWidth: tileWidth,
-      tileHeight: tileHeight
+      tileWidth: Number(selected.tileWidth) || 256,
+      tileHeight: Number(selected.tileHeight) || 256,
+      projection: selected.projection
     };
+  }
+
+  private getTileMatrixSetDefinition(tileMatrixSetId: string) {
+    const capabilities = this.capabilitiesStratum?.capabilities;
+    const tileMatrixSets = capabilities?.json?.Contents?.TileMatrixSet;
+    if (!tileMatrixSets) {
+      return;
+    }
+
+    const tileMatrixSetArray = Array.isArray(tileMatrixSets)
+      ? tileMatrixSets
+      : [tileMatrixSets];
+    return tileMatrixSetArray.find(
+      (tms: any) => tms.Identifier === tileMatrixSetId
+    );
+  }
+
+  private getTileMatrixLevelDimensions(tileMatrixSetId: string):
+    | Map<
+        number,
+        {
+          width: number;
+          height: number;
+          topLeftCorner?: [number, number];
+          scaleDenominator?: number;
+          tileWidth?: number;
+          tileHeight?: number;
+        }
+      >
+    | undefined {
+    const tileMatrixSet = this.getTileMatrixSetDefinition(tileMatrixSetId);
+    const tileMatrixEntries = tileMatrixSet?.TileMatrix;
+    if (!tileMatrixEntries) {
+      return;
+    }
+
+    const tileMatrices = forceArray(tileMatrixEntries);
+
+    const levelDimensions = new Map<
+      number,
+      {
+        width: number;
+        height: number;
+        topLeftCorner?: [number, number];
+        scaleDenominator?: number;
+        tileWidth?: number;
+        tileHeight?: number;
+      }
+    >();
+    tileMatrices.forEach((matrix: any, index: number) => {
+      const width = Number(matrix.MatrixWidth);
+      const height = Number(matrix.MatrixHeight);
+      const parsedLevel = parseTileMatrixLevel(matrix.Identifier);
+      const key = isDefined(parsedLevel) ? parsedLevel : index;
+
+      // Parse TopLeftCorner if available
+      let topLeftCorner: [number, number] | undefined;
+      if (matrix.TopLeftCorner) {
+        const coords = matrix.TopLeftCorner.split(" ");
+        if (coords.length >= 2) {
+          const x = parseFloat(coords[0]);
+          const y = parseFloat(coords[1]);
+          if (Number.isFinite(x) && Number.isFinite(y)) {
+            topLeftCorner = [x, y];
+          }
+        }
+      }
+
+      // Parse ScaleDenominator if available
+      const scaleDenominator = matrix.ScaleDenominator
+        ? Number(matrix.ScaleDenominator)
+        : undefined;
+
+      // Parse TileWidth and TileHeight if available
+      const tileWidth = matrix.TileWidth ? Number(matrix.TileWidth) : undefined;
+      const tileHeight = matrix.TileHeight
+        ? Number(matrix.TileHeight)
+        : undefined;
+
+      if (
+        Number.isFinite(width) &&
+        Number.isFinite(height) &&
+        width > 0 &&
+        height > 0
+      ) {
+        levelDimensions.set(key, {
+          width,
+          height,
+          topLeftCorner,
+          scaleDenominator,
+          tileWidth,
+          tileHeight
+        });
+      }
+    });
+
+    if (levelDimensions.size === 0) {
+      return;
+    }
+
+    return levelDimensions;
+  }
+
+  /**
+   * Checks if a TileMatrixSet has a non-standard tile progression.
+   * Standard EPSG:4326 follows: level 0 = 2x1, level 1 = 4x2, level 2 = 8x4, etc.
+   * GIBS and other services may use non-standard progressions like: 2x1, 3x2, 5x3, 10x5
+   */
+  private hasNonStandardTileProgression(tileMatrixSet: {
+    id: string;
+    labels: string[];
+    labelByLevel: Map<number, string>;
+    maxLevel: number;
+    minLevel: number;
+    tileWidth: number;
+    tileHeight: number;
+    projection: "EPSG:3857" | "EPSG:4326";
+  }): boolean {
+    const levelDimensions = this.getTileMatrixLevelDimensions(tileMatrixSet.id);
+    if (!levelDimensions || levelDimensions.size === 0) {
+      return false;
+    }
+
+    // Check first few levels for standard progression
+    // Standard EPSG:4326 GeographicTilingScheme:
+    // Level 0: 2x1, Level 1: 4x2, Level 2: 8x4, Level 3: 16x8
+    const standardProgressionEPSG4326 = [
+      { level: 0, width: 2, height: 1 },
+      { level: 1, width: 4, height: 2 },
+      { level: 2, width: 8, height: 4 },
+      { level: 3, width: 16, height: 8 }
+    ];
+
+    // Standard Web Mercator:
+    // Level 0: 1x1, Level 1: 2x2, Level 2: 4x4, Level 3: 8x8
+    const standardProgressionWebMercator = [
+      { level: 0, width: 1, height: 1 },
+      { level: 1, width: 2, height: 2 },
+      { level: 2, width: 4, height: 4 },
+      { level: 3, width: 8, height: 8 }
+    ];
+
+    const standardProgression =
+      tileMatrixSet.projection === "EPSG:4326"
+        ? standardProgressionEPSG4326
+        : standardProgressionWebMercator;
+
+    // Check at least 2 levels to determine if progression is non-standard
+    let nonStandardCount = 0;
+    for (const standard of standardProgression.slice(0, 3)) {
+      const actual = levelDimensions.get(standard.level);
+      if (actual) {
+        if (
+          actual.width !== standard.width ||
+          actual.height !== standard.height
+        ) {
+          nonStandardCount++;
+        }
+      }
+    }
+
+    // If 2 or more levels don't match standard progression, it's non-standard
+    const isNonStandard = nonStandardCount >= 2;
+
+    return isNonStandard;
+  }
+
+  private createTilingScheme(
+    tileMatrixSetId: string,
+    projection: "EPSG:3857" | "EPSG:4326"
+  ) {
+    const levelDimensions = this.getTileMatrixLevelDimensions(tileMatrixSetId);
+    if (!levelDimensions || levelDimensions.size === 0) {
+      // Fallback to standard tiling schemes
+      return projection === "EPSG:4326"
+        ? new GeographicTilingScheme()
+        : new WebMercatorTilingScheme();
+    }
+
+    // Create custom tiling scheme that respects the actual tile matrix dimensions
+    if (projection === "EPSG:4326") {
+      return new CustomGeographicTilingScheme(levelDimensions);
+    } else {
+      return new CustomWebMercatorTilingScheme(levelDimensions);
+    }
+  }
+
+  private createUrlTemplateImageryProvider(options: {
+    templateUrl: string;
+    tileMatrixSet: {
+      id: string;
+      labels: string[];
+      labelByLevel: Map<number, string>;
+      maxLevel: number;
+      minLevel: number;
+      tileWidth: number;
+      tileHeight: number;
+      projection: "EPSG:3857" | "EPSG:4326";
+    };
+    tilingScheme: any;
+    format: string;
+    layerIdentifier: string;
+    templateTokens: string[];
+    dimensions: Record<string, string> | undefined;
+    timeTag: string | undefined;
+  }): ExtendedImageryProvider | undefined {
+    const {
+      templateUrl,
+      tileMatrixSet,
+      tilingScheme,
+      format,
+      layerIdentifier,
+      templateTokens,
+      dimensions,
+      timeTag
+    } = options;
+
+    const tokens = new Set(templateTokens);
+
+    // Check if the TileMatrixSet has a non-standard tile progression
+    // (e.g., GIBS uses 2x1, 3x2, 5x3, 10x5 instead of standard 2x1, 4x2, 8x4, 16x8)
+    const hasNonStandardProgression =
+      this.hasNonStandardTileProgression(tileMatrixSet);
+
+    // If the template contains WMTS placeholders, we would normally prefer using
+    // the native WebMapTileServiceImageryProvider. However, for non-standard
+    // tile matrix sets (like GIBS), we must use UrlTemplateImageryProvider
+    // to ensure correct tile positioning.
+    const wmtsPlaceholderTokens = new Set([
+      "TileMatrixSet",
+      "tilematrixset",
+      "TileMatrix",
+      "tilematrix",
+      "TileMatrixId",
+      "TileMatrixID",
+      "TileRow",
+      "TILEROW",
+      "tilerow",
+      "TileCol",
+      "TILECOL",
+      "tilecol"
+    ]);
+    const containsWmtsPlaceholders = Array.from(tokens).some((t) =>
+      wmtsPlaceholderTokens.has(t)
+    );
+
+    if (containsWmtsPlaceholders) {
+      // For WMTS placeholders, ALWAYS use WebMapTileServiceImageryProvider
+      // It respects TileMatrixLabels and custom tiling schemes better than UrlTemplateImageryProvider
+      return undefined;
+    }
+    if (tokens.size === 0) {
+      // No template tokens - nothing to substitute, so stick with WMTS provider.
+      return undefined;
+    }
+
+    const customTags: Record<
+      string,
+      (
+        imageryProvider: UrlTemplateImageryProvider,
+        x: number,
+        y: number,
+        level: number
+      ) => string
+    > = {};
+
+    const registerConstantTag = (tokenVariants: string[], value?: string) => {
+      if (!isDefined(value)) {
+        return;
+      }
+      tokenVariants.forEach((token) => {
+        if (tokens.has(token)) {
+          customTags[token] = () => value;
+          tokens.delete(token);
+        }
+      });
+    };
+
+    registerConstantTag(
+      ["TileMatrixSet", "TileMatrixSetID", "TileMatrixSetId", "tilematrixset"],
+      tileMatrixSet.id
+    );
+    registerConstantTag(["Layer", "layer"], layerIdentifier);
+    registerConstantTag(["Style", "style"], this.style ?? undefined);
+    registerConstantTag(["Format", "format"], format);
+
+    const registerTag = (
+      token: string,
+      fn: (
+        imageryProvider: UrlTemplateImageryProvider,
+        x: number,
+        y: number,
+        level: number
+      ) => string
+    ) => {
+      if (tokens.has(token)) {
+        customTags[token] = fn;
+        tokens.delete(token);
+      }
+    };
+
+    const tileMatrixLabels = tileMatrixSet.labels.slice();
+    const tileMatrixForLevel = (level: number) => {
+      const label =
+        tileMatrixSet.labelByLevel.get(level) ??
+        tileMatrixLabels[level] ??
+        tileMatrixLabels[tileMatrixLabels.length - 1];
+      return label ?? level.toString();
+    };
+
+    registerTag("TileMatrixSet", () => tileMatrixSet.id);
+    registerTag("tilematrixset", () => tileMatrixSet.id);
+
+    registerTag("TileMatrix", (_provider, x, y, level) => {
+      const label = tileMatrixForLevel(level);
+      return label;
+    });
+    registerTag("tilematrix", (_provider, _x, _y, level) =>
+      tileMatrixForLevel(level)
+    );
+    registerTag("TileMatrixId", (_provider, _x, _y, level) =>
+      tileMatrixForLevel(level)
+    );
+    registerTag("TileMatrixID", (_provider, _x, _y, level) =>
+      tileMatrixForLevel(level)
+    );
+
+    registerTag("TileRow", (_provider, x, y, level) => {
+      return y.toString();
+    });
+    registerTag("TILEROW", (_provider, _x, y) => y.toString());
+    registerTag("tilerow", (_provider, _x, y) => y.toString());
+
+    registerTag("TileCol", (_provider, x, y, level) => {
+      return x.toString();
+    });
+    registerTag("TILECOL", (_provider, x) => x.toString());
+    registerTag("tilecol", (_provider, x) => x.toString());
+
+    // Provide dimension values (such as time) via custom tags.
+    tokens.forEach((token) => {
+      if (customTags[token]) {
+        return;
+      }
+      const dimensionValue = this.getDimensionValueForToken(
+        token,
+        dimensions,
+        timeTag
+      );
+      if (isDefined(dimensionValue)) {
+        customTags[token] = () => dimensionValue;
+        tokens.delete(token);
+      }
+    });
+
+    const knownUrlTemplateTokens = new Set([
+      "x",
+      "y",
+      "z",
+      "s",
+      "reverseX",
+      "reverseY",
+      "-x",
+      "-y",
+      "westDegrees",
+      "southDegrees",
+      "eastDegrees",
+      "northDegrees",
+      "west",
+      "south",
+      "east",
+      "north"
+    ]);
+
+    const unresolvedTokens = Array.from(tokens).filter(
+      (token) => !knownUrlTemplateTokens.has(token)
+    );
+    if (unresolvedTokens.length > 0) {
+      console.warn(
+        `[WMTS] Unable to substitute template tokens ${unresolvedTokens.join(
+          ", "
+        )}. Falling back to WebMapTileServiceImageryProvider.`
+      );
+      return undefined;
+    }
+
+    const minIndex = tileMatrixSet.minLevel;
+    const maxIndex = tileMatrixSet.maxLevel;
+
+    // Get actual tile pixel dimensions from the TileMatrixSet
+    // GIBS uses 512x512, but this.tileMatrixSet might have cached values from first tile
+    const levelDimensions = this.getTileMatrixLevelDimensions(tileMatrixSet.id);
+    const level0Dims = levelDimensions?.get(0);
+    const actualTileWidth = level0Dims?.tileWidth ?? tileMatrixSet.tileWidth;
+    const actualTileHeight = level0Dims?.tileHeight ?? tileMatrixSet.tileHeight;
+
+    const provider = new UrlTemplateImageryProvider({
+      url: proxyCatalogItemUrl(this, templateUrl),
+      tilingScheme,
+      tileWidth: actualTileWidth,
+      tileHeight: actualTileHeight,
+      minimumLevel: this.minimumLevel ?? minIndex,
+      maximumLevel: this.maximumLevel ?? maxIndex,
+      credit: this.attribution,
+      customTags: Object.keys(customTags).length > 0 ? customTags : undefined,
+      enablePickFeatures: this.allowFeaturePicking
+    }) as ExtendedImageryProvider;
+
+    return provider;
+  }
+
+  private getDimensionValueForToken(
+    token: string,
+    dimensions: Record<string, string> | undefined,
+    fallbackTime: string | undefined
+  ): string | undefined {
+    const lowerToken = token.toLowerCase();
+    if (dimensions) {
+      for (const [key, value] of Object.entries(dimensions)) {
+        const lowerKey = key.toLowerCase();
+        if (lowerKey === lowerToken) {
+          return String(value);
+        }
+        if (
+          !lowerToken.startsWith("dim_") &&
+          lowerKey === `dim_${lowerToken}`
+        ) {
+          return String(value);
+        }
+      }
+    }
+
+    if (lowerToken === "time" && isDefined(fallbackTime)) {
+      return String(fallbackTime);
+    }
+
+    return undefined;
+  }
+
+  private pickFeatures(
+    imageryProvider: ExtendedImageryProvider,
+    x: number,
+    y: number,
+    level: number,
+    longitude: number,
+    latitude: number,
+    timeTag: string | undefined
+  ): Promise<ImageryLayerFeatureInfo[] | undefined> | undefined {
+    if (!this.allowFeaturePicking) {
+      return undefined;
+    }
+
+    const featureInfoUrl = this.featureInfoEndpoint;
+    if (!featureInfoUrl) {
+      return undefined;
+    }
+
+    const tileMatrixSet = this.tileMatrixSet;
+    if (!tileMatrixSet) {
+      return undefined;
+    }
+
+    const stratum = this.capabilitiesStratum;
+    const layerName = this.layer ?? stratum?.layer;
+    if (!layerName) {
+      return undefined;
+    }
+
+    const { type, format } = this.featureInfoFormatOptions;
+
+    const tilingScheme = imageryProvider.tilingScheme;
+    const tileRectangle = tilingScheme.tileXYToRectangle(x, y, level);
+    const tileWidth = imageryProvider.tileWidth;
+    const tileHeight = imageryProvider.tileHeight;
+
+    const u =
+      (longitude - tileRectangle.west) /
+      (tileRectangle.east - tileRectangle.west);
+    const v =
+      (tileRectangle.north - latitude) /
+      (tileRectangle.north - tileRectangle.south);
+
+    const i = clamp(Math.floor(u * tileWidth), 0, tileWidth - 1);
+    const j = clamp(Math.floor(v * tileHeight), 0, tileHeight - 1);
+
+    const tileMatrix =
+      tileMatrixSet.labels && tileMatrixSet.labels[level]
+        ? tileMatrixSet.labels[level]
+        : level.toString();
+
+    const query: Record<string, string> = {
+      SERVICE: "WMTS",
+      VERSION: "1.0.0",
+      REQUEST: "GetFeatureInfo",
+      LAYER: layerName,
+      STYLE: this.style ?? "",
+      TILEMATRIXSET: tileMatrixSet.id,
+      TILEMATRIX: tileMatrix,
+      TILEROW: y.toString(),
+      TILECOL: x.toString(),
+      I: i.toString(),
+      J: j.toString(),
+      INFOFORMAT: format
+    };
+
+    const addDimensionParam = (key: string, value: string | undefined) => {
+      if (!value) {
+        return;
+      }
+      query[key] = value;
+      const lower = key.toLowerCase();
+      if (lower === "time" || lower === "dim_time") {
+        query.time = value;
+        query.TIME = value;
+        query.dim_time = value;
+      } else if (!lower.startsWith("dim_")) {
+        query[`dim_${key}`] = value;
+      }
+    };
+
+    if (timeTag) {
+      addDimensionParam("time", timeTag);
+    }
+
+    const dimensionParams = this.dimensions ?? {};
+    Object.entries(dimensionParams).forEach(([key, value]) => {
+      const stringValue =
+        value === undefined || value === null ? undefined : String(value);
+      addDimensionParam(key, stringValue);
+    });
+
+    const extraParams = this.getFeatureInfoParameters ?? {};
+    Object.entries(extraParams).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== "") {
+        query[key] = String(value);
+      }
+    });
+
+    const uri = new URI(featureInfoUrl);
+    Object.entries(query).forEach(([key, value]) => uri.addQuery(key, value));
+
+    const resource = new Resource({
+      url: proxyCatalogItemUrl(this, uri.toString())
+    });
+
+    let fetchPromise: Promise<any> | undefined;
+    switch (type) {
+      case "xml":
+        fetchPromise = resource.fetchXML();
+        break;
+      case "html":
+      case "text":
+        fetchPromise = resource.fetchText();
+        break;
+      default:
+        fetchPromise = resource.fetchJson();
+        break;
+    }
+
+    if (!fetchPromise) {
+      return undefined;
+    }
+
+    return fetchPromise
+      .then((data) => {
+        if (!isDefined(data)) {
+          return undefined;
+        }
+        try {
+          return parseFeatureInfoResponse(data, type, format);
+        } catch (error) {
+          console.warn("Failed to parse WMTS GetFeatureInfo response", error);
+          return undefined;
+        }
+      })
+      .catch((error) => {
+        console.warn("WMTS GetFeatureInfo request failed", error);
+        return undefined;
+      });
   }
 
   protected forceLoadMapItems(): Promise<void> {
@@ -637,19 +1589,120 @@ class WebMapTileServiceCatalogItem extends MappableMixin(
 
   @computed
   get mapItems(): MapItem[] {
-    if (isDefined(this.imageryProvider)) {
-      return [
-        {
-          alpha: this.opacity,
-          show: this.show,
-          imageryProvider: this.imageryProvider,
-          clippingRectangle: this.clipToRectangle
-            ? this.cesiumRectangle
-            : undefined
-        }
-      ];
+    const items: MapItem[] = [];
+    const current = this._currentImageryParts;
+    if (current) {
+      items.push(current);
     }
-    return [];
+    const next = this._nextImageryParts;
+    if (next) {
+      items.push(next);
+    }
+    return items;
+  }
+
+  @computed
+  private get _currentImageryParts(): ImageryParts | undefined {
+    const imageryProvider = this.imageryProvider;
+    if (!imageryProvider) {
+      return undefined;
+    }
+
+    // Only enable feature picking if we have a valid GetFeatureInfo endpoint
+    const hasValidFeatureInfoEndpoint = isDefined(this.featureInfoEndpoint);
+    imageryProvider.enablePickFeatures =
+      this.allowFeaturePicking && hasValidFeatureInfoEndpoint;
+
+    return {
+      imageryProvider,
+      alpha: this.opacity,
+      show: this.show,
+      clippingRectangle: this.clipToRectangle ? this.cesiumRectangle : undefined
+    };
+  }
+
+  @computed
+  private get _nextImageryParts(): ImageryParts | undefined {
+    if (
+      !this.terria.timelineStack.contains(this) ||
+      this.isPaused ||
+      !this.nextDiscreteTimeTag
+    ) {
+      return undefined;
+    }
+
+    const imageryProvider = this._createImageryProvider(
+      this.nextDiscreteTimeTag
+    );
+    if (!imageryProvider) {
+      return undefined;
+    }
+
+    imageryProvider.enablePickFeatures = false;
+
+    return {
+      imageryProvider,
+      alpha: 0.0,
+      show: true,
+      clippingRectangle: this.clipToRectangle ? this.cesiumRectangle : undefined
+    };
+  }
+
+  @override
+  get selectableDimensions() {
+    if (this.disableDimensionSelectors) {
+      return super.selectableDimensions;
+    }
+
+    return filterOutUndefined([
+      ...super.selectableDimensions,
+      ...this.wmtsDimensionSelectableDimensions
+    ]);
+  }
+
+  @computed
+  private get wmtsDimensionSelectableDimensions(): SelectableDimensionEnum[] {
+    const dimensions = this.capabilitiesStratum?.currentLayerDimensions ?? [];
+    return dimensions
+      .filter(
+        (dimension) =>
+          dimension.name &&
+          dimension.name.toLowerCase() !== "time" &&
+          dimension.values.length > 1
+      )
+      .map((dimension) => {
+        const name = dimension.name!;
+        const selected =
+          this.dimensions?.[name] ?? dimension.default ?? dimension.values[0];
+        return {
+          id: `${this.uniqueId}-${name}`,
+          name,
+          options: dimension.values.map((value) => ({
+            id: value,
+            name: value
+          })),
+          selectedId: selected,
+          setDimensionValue: (
+            stratumId: string,
+            newValue: string | undefined
+          ) => {
+            const nextDimensions = { ...(this.dimensions ?? {}) };
+            if (!newValue) {
+              delete nextDimensions[name];
+            } else {
+              nextDimensions[name] = newValue;
+            }
+            this.setTrait(stratumId, "dimensions", nextDimensions);
+          },
+          allowUndefined: true,
+          undefinedLabel: "Default"
+        } as SelectableDimensionEnum;
+      });
+  }
+
+  @computed
+  get discreteTimes() {
+    return this.capabilitiesStratum?.discreteTimes;
   }
 
   protected get defaultGetCapabilitiesUrl(): string | undefined {
@@ -666,6 +1719,577 @@ class WebMapTileServiceCatalogItem extends MappableMixin(
       return undefined;
     }
   }
+}
+
+/**
+ * Custom Geographic Tiling Scheme that uses actual tile matrix dimensions from WMTS capabilities
+ * instead of assuming power-of-2 doubling at each level.
+ */
+class CustomGeographicTilingScheme {
+  private levelDimensions: Map<
+    number,
+    {
+      width: number;
+      height: number;
+      topLeftCorner?: [number, number];
+      scaleDenominator?: number;
+      tileWidth?: number;
+      tileHeight?: number;
+    }
+  >;
+  public ellipsoid: Ellipsoid;
+  public rectangle: Rectangle;
+  public projection: GeographicProjection;
+  public numberOfLevelZeroTilesX: number;
+  public numberOfLevelZeroTilesY: number;
+
+  constructor(
+    levelDimensions: Map<
+      number,
+      {
+        width: number;
+        height: number;
+        topLeftCorner?: [number, number];
+        scaleDenominator?: number;
+        tileWidth?: number;
+        tileHeight?: number;
+      }
+    >
+  ) {
+    this.levelDimensions = levelDimensions;
+    this.ellipsoid = Ellipsoid.WGS84;
+
+    const level0 = levelDimensions.get(0);
+
+    this.numberOfLevelZeroTilesX = level0?.width ?? 2;
+    this.numberOfLevelZeroTilesY = level0?.height ?? 1;
+
+    // For EPSG:4326, use standard geographic rectangle covering the entire globe
+    this.rectangle = Rectangle.fromDegrees(-180, -90, 180, 90);
+
+    this.projection = new GeographicProjection(this.ellipsoid);
+  }
+
+  private computeTileMetrics(levelDim: {
+    width: number;
+    height: number;
+    topLeftCorner?: [number, number];
+    scaleDenominator?: number;
+    tileWidth?: number;
+    tileHeight?: number;
+  }): {
+    radiansPerPixel?: number;
+    tileWidthRadians: number;
+    tileHeightRadians: number;
+    tileWidthDegrees: number;
+    tileHeightDegrees: number;
+    topLeftLonRadians: number;
+    topLeftLatRadians: number;
+    topLeftLonDegrees: number;
+    topLeftLatDegrees: number;
+  } {
+    const metersPerPixel =
+      levelDim.scaleDenominator && levelDim.scaleDenominator > 0
+        ? levelDim.scaleDenominator * 0.00028
+        : undefined;
+    const radiansPerPixel =
+      metersPerPixel !== undefined
+        ? metersPerPixel / this.ellipsoid.maximumRadius
+        : undefined;
+
+    const tileWidthRadians =
+      radiansPerPixel !== undefined && levelDim.tileWidth
+        ? Math.abs(radiansPerPixel * levelDim.tileWidth)
+        : (this.rectangle.east - this.rectangle.west) / levelDim.width;
+
+    const tileHeightRadians =
+      radiansPerPixel !== undefined && levelDim.tileHeight
+        ? Math.abs(radiansPerPixel * levelDim.tileHeight)
+        : (this.rectangle.north - this.rectangle.south) / levelDim.height;
+
+    const topLeftLonDegrees = levelDim.topLeftCorner
+      ? levelDim.topLeftCorner[0]
+      : -180;
+    const topLeftLatDegrees = levelDim.topLeftCorner
+      ? levelDim.topLeftCorner[1]
+      : 90;
+
+    const toRadians = (degrees: number) => (degrees * Math.PI) / 180;
+
+    const topLeftLonRadians = toRadians(topLeftLonDegrees);
+    const topLeftLatRadians = toRadians(topLeftLatDegrees);
+
+    const toDegrees = (radians: number) => (radians * 180) / Math.PI;
+
+    return {
+      radiansPerPixel,
+      tileWidthRadians,
+      tileHeightRadians,
+      tileWidthDegrees: toDegrees(tileWidthRadians),
+      tileHeightDegrees: toDegrees(tileHeightRadians),
+      topLeftLonRadians,
+      topLeftLatRadians,
+      topLeftLonDegrees,
+      topLeftLatDegrees
+    };
+  }
+
+  getNumberOfXTilesAtLevel(level: number): number {
+    const dims = this.levelDimensions.get(level);
+    if (dims) {
+      return dims.width;
+    }
+    // Fallback: assume standard doubling from level 0 (2 tiles)
+    return 2 << level;
+  }
+
+  getNumberOfYTilesAtLevel(level: number): number {
+    const dims = this.levelDimensions.get(level);
+    if (dims) {
+      return dims.height;
+    }
+    // Fallback: assume standard doubling from level 0 (1 tile)
+    return 1 << level;
+  }
+
+  rectangleToNativeRectangle(rectangle: Rectangle): Rectangle {
+    return rectangle;
+  }
+
+  positionToTileXY(position: any, level: number, result?: any): any {
+    if (!defined(result)) {
+      result = { x: 0, y: 0 };
+    }
+
+    const longitudeRad = position.longitude;
+    const latitudeRad = position.latitude;
+
+    const levelDim = this.levelDimensions.get(level);
+
+    if (!levelDim) {
+      // Fallback to uniform distribution using the full geographic rectangle
+      const numberOfXTiles = this.getNumberOfXTilesAtLevel(level);
+      const numberOfYTiles = this.getNumberOfYTilesAtLevel(level);
+      const rectangle = this.rectangle;
+
+      const rectWestDeg = rectangle.west * (180 / Math.PI);
+      const rectEastDeg = rectangle.east * (180 / Math.PI);
+      const rectNorthDeg = rectangle.north * (180 / Math.PI);
+      const rectSouthDeg = rectangle.south * (180 / Math.PI);
+      const longitudeDeg = longitudeRad * (180 / Math.PI);
+      const latitudeDeg = latitudeRad * (180 / Math.PI);
+
+      const xTileWidth = (rectEastDeg - rectWestDeg) / numberOfXTiles;
+      const yTileHeight = (rectNorthDeg - rectSouthDeg) / numberOfYTiles;
+
+      let xTileCoordinate = Math.floor(
+        (longitudeDeg - rectWestDeg) / xTileWidth
+      );
+      if (xTileCoordinate >= numberOfXTiles) {
+        xTileCoordinate = numberOfXTiles - 1;
+      }
+      if (xTileCoordinate < 0) {
+        xTileCoordinate = 0;
+      }
+
+      let yTileCoordinate = Math.floor(
+        (rectNorthDeg - latitudeDeg) / yTileHeight
+      );
+      if (yTileCoordinate >= numberOfYTiles) {
+        yTileCoordinate = numberOfYTiles - 1;
+      }
+      if (yTileCoordinate < 0) {
+        yTileCoordinate = 0;
+      }
+
+      result.x = xTileCoordinate;
+      result.y = yTileCoordinate;
+      return result;
+    }
+
+    const {
+      tileWidthRadians,
+      tileHeightRadians,
+      topLeftLonRadians,
+      topLeftLatRadians
+    } = this.computeTileMetrics(levelDim);
+
+    const totalWidthRadians = tileWidthRadians * levelDim.width;
+    const totalHeightRadians = tileHeightRadians * levelDim.height;
+
+    let deltaLon = longitudeRad - topLeftLonRadians;
+    if (totalWidthRadians > 0) {
+      deltaLon =
+        ((deltaLon % totalWidthRadians) + totalWidthRadians) %
+        totalWidthRadians;
+    }
+
+    let deltaLat = topLeftLatRadians - latitudeRad;
+    if (totalHeightRadians > 0) {
+      deltaLat =
+        ((deltaLat % totalHeightRadians) + totalHeightRadians) %
+        totalHeightRadians;
+    }
+
+    let xTileCoordinate = Math.floor(deltaLon / tileWidthRadians);
+    if (!Number.isFinite(xTileCoordinate)) {
+      xTileCoordinate = 0;
+    }
+    if (xTileCoordinate >= levelDim.width) {
+      xTileCoordinate = levelDim.width - 1;
+    }
+    if (xTileCoordinate < 0) {
+      xTileCoordinate = 0;
+    }
+
+    let yTileCoordinate = Math.floor(deltaLat / tileHeightRadians);
+    if (!Number.isFinite(yTileCoordinate)) {
+      yTileCoordinate = 0;
+    }
+    if (yTileCoordinate >= levelDim.height) {
+      yTileCoordinate = levelDim.height - 1;
+    }
+    if (yTileCoordinate < 0) {
+      yTileCoordinate = 0;
+    }
+
+    result.x = xTileCoordinate;
+    result.y = yTileCoordinate;
+    return result;
+  }
+
+  tileXYToRectangle(
+    x: number,
+    y: number,
+    level: number,
+    result?: Rectangle
+  ): Rectangle {
+    const levelDim = this.levelDimensions.get(level);
+
+    if (!levelDim) {
+      const numberOfXTiles = this.getNumberOfXTilesAtLevel(level);
+      const numberOfYTiles = this.getNumberOfYTilesAtLevel(level);
+      const rectangle = this.rectangle;
+      const xTileWidth = (rectangle.east - rectangle.west) / numberOfXTiles;
+      const yTileHeight = (rectangle.north - rectangle.south) / numberOfYTiles;
+
+      const west = rectangle.west + x * xTileWidth;
+      const east = rectangle.west + (x + 1) * xTileWidth;
+      const north = rectangle.north - y * yTileHeight;
+      const south = rectangle.north - (y + 1) * yTileHeight;
+
+      if (!result) {
+        return new Rectangle(west, south, east, north);
+      }
+      result.west = west;
+      result.south = south;
+      result.east = east;
+      result.north = north;
+      return result;
+    }
+
+    const {
+      tileWidthRadians,
+      tileHeightRadians,
+      tileWidthDegrees,
+      tileHeightDegrees,
+      topLeftLonRadians,
+      topLeftLatRadians,
+      topLeftLonDegrees,
+      topLeftLatDegrees,
+      radiansPerPixel
+    } = this.computeTileMetrics(levelDim);
+
+    const west = topLeftLonRadians + x * tileWidthRadians;
+    const east = topLeftLonRadians + (x + 1) * tileWidthRadians;
+    const north = topLeftLatRadians - y * tileHeightRadians;
+    const south = topLeftLatRadians - (y + 1) * tileHeightRadians;
+
+    if (!result) {
+      return new Rectangle(west, south, east, north);
+    }
+
+    result.west = west;
+    result.south = south;
+    result.east = east;
+    result.north = north;
+    return result;
+  }
+
+  tileXYToNativeRectangle(
+    x: number,
+    y: number,
+    level: number,
+    result?: any
+  ): any {
+    return this.tileXYToRectangle(x, y, level, result);
+  }
+}
+
+/**
+ * Custom Web Mercator Tiling Scheme that uses actual tile matrix dimensions from WMTS capabilities
+ * instead of assuming power-of-2 doubling at each level.
+ */
+class CustomWebMercatorTilingScheme {
+  private levelDimensions: Map<
+    number,
+    {
+      width: number;
+      height: number;
+      topLeftCorner?: [number, number];
+      scaleDenominator?: number;
+      tileWidth?: number;
+      tileHeight?: number;
+    }
+  >;
+  private baseScheme: WebMercatorTilingScheme;
+  public ellipsoid: Ellipsoid;
+  public rectangle: Rectangle;
+  public projection: any;
+  public numberOfLevelZeroTilesX: number;
+  public numberOfLevelZeroTilesY: number;
+
+  constructor(
+    levelDimensions: Map<
+      number,
+      {
+        width: number;
+        height: number;
+        topLeftCorner?: [number, number];
+        scaleDenominator?: number;
+        tileWidth?: number;
+        tileHeight?: number;
+      }
+    >
+  ) {
+    this.levelDimensions = levelDimensions;
+    this.baseScheme = new WebMercatorTilingScheme();
+    this.ellipsoid = this.baseScheme.ellipsoid;
+    this.rectangle = this.baseScheme.rectangle;
+    this.projection = this.baseScheme.projection;
+
+    // Set the number of tiles at level 0
+    const level0 = levelDimensions.get(0);
+    this.numberOfLevelZeroTilesX = level0?.width ?? 1;
+    this.numberOfLevelZeroTilesY = level0?.height ?? 1;
+  }
+
+  getNumberOfXTilesAtLevel(level: number): number {
+    const dims = this.levelDimensions.get(level);
+    if (dims) {
+      return dims.width;
+    }
+    return this.baseScheme.getNumberOfXTilesAtLevel(level);
+  }
+
+  getNumberOfYTilesAtLevel(level: number): number {
+    const dims = this.levelDimensions.get(level);
+    if (dims) {
+      return dims.height;
+    }
+    return this.baseScheme.getNumberOfYTilesAtLevel(level);
+  }
+
+  rectangleToNativeRectangle(rectangle: Rectangle): any {
+    return this.baseScheme.rectangleToNativeRectangle(rectangle);
+  }
+
+  positionToTileXY(position: any, level: number, result?: any): any {
+    const levelDim = this.levelDimensions.get(level);
+
+    if (
+      !levelDim ||
+      !levelDim.scaleDenominator ||
+      !levelDim.tileWidth ||
+      !levelDim.tileHeight ||
+      !levelDim.topLeftCorner
+    ) {
+      // Fallback to standard Web Mercator scheme
+      return this.baseScheme.positionToTileXY(position, level, result);
+    }
+
+    if (!defined(result)) {
+      result = { x: 0, y: 0 };
+    }
+
+    // Convert position to Web Mercator projection
+    const webMercatorPos = this.projection.project(position);
+
+    // Use ScaleDenominator to calculate actual tile size in meters
+    const pixelSizeMeters = levelDim.scaleDenominator * 0.00028;
+    const tileWidthMeters = levelDim.tileWidth * pixelSizeMeters;
+    const tileHeightMeters = levelDim.tileHeight * pixelSizeMeters;
+
+    // Convert TopLeftCorner from geographic to Web Mercator
+    const topLeftGeo = Cartographic.fromDegrees(
+      levelDim.topLeftCorner[0],
+      levelDim.topLeftCorner[1]
+    );
+    const topLeftWebMercator = this.projection.project(topLeftGeo);
+
+    const numberOfXTiles = levelDim.width;
+    const numberOfYTiles = levelDim.height;
+
+    let xTileCoordinate = Math.floor(
+      (webMercatorPos.x - topLeftWebMercator.x) / tileWidthMeters
+    );
+    if (xTileCoordinate >= numberOfXTiles) {
+      xTileCoordinate = numberOfXTiles - 1;
+    }
+    if (xTileCoordinate < 0) {
+      xTileCoordinate = 0;
+    }
+
+    let yTileCoordinate = Math.floor(
+      (topLeftWebMercator.y - webMercatorPos.y) / tileHeightMeters
+    );
+    if (yTileCoordinate >= numberOfYTiles) {
+      yTileCoordinate = numberOfYTiles - 1;
+    }
+    if (yTileCoordinate < 0) {
+      yTileCoordinate = 0;
+    }
+
+    result.x = xTileCoordinate;
+    result.y = yTileCoordinate;
+    return result;
+  }
+
+  tileXYToRectangle(
+    x: number,
+    y: number,
+    level: number,
+    result?: Rectangle
+  ): Rectangle {
+    const levelDim = this.levelDimensions.get(level);
+
+    if (
+      !levelDim ||
+      !levelDim.scaleDenominator ||
+      !levelDim.tileWidth ||
+      !levelDim.tileHeight ||
+      !levelDim.topLeftCorner
+    ) {
+      // Fallback to standard Web Mercator scheme
+      return this.baseScheme.tileXYToRectangle(x, y, level, result);
+    }
+
+    // Use ScaleDenominator to calculate actual tile size in meters
+    const pixelSizeMeters = levelDim.scaleDenominator * 0.00028;
+    const tileWidthMeters = levelDim.tileWidth * pixelSizeMeters;
+    const tileHeightMeters = levelDim.tileHeight * pixelSizeMeters;
+
+    // Convert TopLeftCorner from geographic to Web Mercator
+    const topLeftGeo = Cartographic.fromDegrees(
+      levelDim.topLeftCorner[0],
+      levelDim.topLeftCorner[1]
+    );
+    const topLeftWebMercator = this.projection.project(topLeftGeo);
+
+    // Calculate bounds in Web Mercator meters
+    const westMeters = topLeftWebMercator.x + x * tileWidthMeters;
+    const eastMeters = topLeftWebMercator.x + (x + 1) * tileWidthMeters;
+    const northMeters = topLeftWebMercator.y - y * tileHeightMeters;
+    const southMeters = topLeftWebMercator.y - (y + 1) * tileHeightMeters;
+
+    // Convert back to geographic coordinates (radians)
+    const swCorner = this.projection.unproject(
+      new Cartesian3(westMeters, southMeters, 0)
+    );
+    const neCorner = this.projection.unproject(
+      new Cartesian3(eastMeters, northMeters, 0)
+    );
+
+    if (!result) {
+      return new Rectangle(
+        swCorner.longitude,
+        swCorner.latitude,
+        neCorner.longitude,
+        neCorner.latitude
+      );
+    }
+
+    result.west = swCorner.longitude;
+    result.south = swCorner.latitude;
+    result.east = neCorner.longitude;
+    result.north = neCorner.latitude;
+    return result;
+  }
+
+  tileXYToNativeRectangle(
+    x: number,
+    y: number,
+    level: number,
+    result?: any
+  ): any {
+    return this.baseScheme.tileXYToNativeRectangle(x, y, level, result);
+  }
+}
+
+function extractTemplateTokens(template: string | undefined): string[] {
+  if (!template) {
+    return [];
+  }
+  const matches = template.match(/{([^}]+)}/g);
+  if (!matches) {
+    return [];
+  }
+  return matches.map((match) => match.slice(1, -1));
+}
+
+function parseTileMatrixLevel(identifier: unknown): number | undefined {
+  if (!isDefined(identifier)) {
+    return;
+  }
+  const text =
+    typeof identifier === "string" ? identifier : identifier?.toString?.();
+  if (!isDefined(text)) {
+    return;
+  }
+  const trimmed = text.trim();
+  if (!trimmed) {
+    return;
+  }
+  const afterColon = trimmed.substring(trimmed.lastIndexOf(":") + 1);
+  const match = afterColon.match(/-?\d+(\.\d+)?/);
+  const candidate = match ? match[0] : afterColon;
+  const value = Number(candidate);
+  return Number.isFinite(value) ? value : undefined;
+}
+
+function templateMatchesTileMatrixSet(
+  template: string | undefined,
+  tileMatrixSet: {
+    id: string;
+    projection: "EPSG:3857" | "EPSG:4326";
+  }
+): boolean {
+  if (!template) {
+    return false;
+  }
+  const lowerTemplate = template.toLowerCase();
+  const idLower = tileMatrixSet.id.toLowerCase();
+  if (idLower && lowerTemplate.includes(idLower)) {
+    return true;
+  }
+  if (lowerTemplate.includes("{tilematrixset}")) {
+    return true;
+  }
+
+  if (tileMatrixSet.projection === "EPSG:3857") {
+    return (
+      lowerTemplate.includes("epsg3857") ||
+      lowerTemplate.includes("3857") ||
+      lowerTemplate.includes("googlemaps") ||
+      lowerTemplate.includes("mercator")
+    );
+  }
+
+  return (
+    lowerTemplate.includes("epsg4326") ||
+    lowerTemplate.includes("crs84") ||
+    lowerTemplate.includes("4326")
+  );
 }
 
 export function getServiceContactInformation(contactInfo: ServiceProvider) {
@@ -694,6 +2318,246 @@ export function getServiceContactInformation(contactInfo: ServiceProvider) {
     }
   }
   return text;
+}
+
+function buildLayerDimensionMap(layers: any): Map<string, DimensionSummary[]> {
+  const result = new Map<string, DimensionSummary[]>();
+  const layerArray = forceArray(layers);
+
+  const visit = (layer: any, inherited: DimensionSummary[]) => {
+    if (!layer) {
+      return;
+    }
+
+    const identifier = layer.Identifier || layer.Name || layer.Title;
+    const combined = getSingleLayerDimensionsFromCapabilities(layer, inherited);
+
+    if (identifier) {
+      result.set(identifier, combined);
+    }
+
+    forceArray(layer.Layer).forEach((child) => visit(child, combined));
+  };
+
+  layerArray.forEach((layer) => visit(layer, []));
+  return result;
+}
+
+function getSingleLayerDimensionsFromCapabilities(
+  layerInCapabilities: any,
+  inheritedDimensions: DimensionSummary[]
+): DimensionSummary[] {
+  const inherited = inheritedDimensions ?? [];
+  if (!layerInCapabilities || !layerInCapabilities.Dimension) {
+    return inherited;
+  }
+
+  const dimensions = forceArray(layerInCapabilities.Dimension);
+  const extents = forceArray(layerInCapabilities.Extent);
+
+  const filteredInherited = inherited.filter(
+    (inheritedDimension) =>
+      !dimensions.some((dimension) => {
+        const name = (
+          dimension?.Identifier ||
+          dimension?.name ||
+          ""
+        ).toString();
+        return (
+          name.length > 0 &&
+          inheritedDimension.name &&
+          name.toLowerCase() === inheritedDimension.name.toLowerCase()
+        );
+      })
+  );
+
+  const converted = dimensions.map((dimension) => {
+    const name = (dimension?.Identifier || dimension?.name || "").toString();
+
+    const extent = extents.find(
+      (candidate: any) =>
+        candidate?.name === dimension?.name ||
+        candidate?.Identifier === dimension?.Identifier
+    );
+    const values = parseDimensionValues(dimension, extent);
+
+    return {
+      name,
+      values,
+      units: dimension?.units || dimension?.UOM, // WMTS uses UOM instead of units
+      unitSymbol: dimension?.unitSymbol,
+      default: dimension?.default || dimension?.Default || values[0],
+      multipleValues: dimension?.multipleValues,
+      nearestValue: dimension?.nearestValue,
+      current: dimension?.current || dimension?.Current // WMTS has Current field
+    } as DimensionSummary;
+  });
+
+  return mergeDimensionSummaries(filteredInherited, converted);
+}
+
+function mergeDimensionSummaries(
+  inherited: DimensionSummary[],
+  own: DimensionSummary[]
+): DimensionSummary[] {
+  const filteredInherited = inherited.filter(
+    (dimension) =>
+      !own.some(
+        (candidate) =>
+          candidate.name &&
+          dimension.name &&
+          candidate.name.toLowerCase() === dimension.name.toLowerCase()
+      )
+  );
+  return filteredInherited.concat(own);
+}
+
+function parseDimensionValues(dimension: any, extent: any): string[] {
+  const candidates: any[] = [];
+  if (dimension?.Value !== undefined) {
+    candidates.push(dimension.Value);
+  }
+  if (dimension?.Values !== undefined) {
+    candidates.push(dimension.Values);
+  }
+  if (dimension?.text !== undefined) {
+    candidates.push(dimension.text);
+  }
+  if (extent !== undefined) {
+    if (typeof extent === "string") {
+      candidates.push(extent);
+    } else if (extent && typeof extent.text === "string") {
+      candidates.push(extent.text);
+    }
+  }
+  if (candidates.length === 0 && typeof dimension === "string") {
+    candidates.push(dimension);
+  }
+
+  const values: string[] = [];
+  candidates.forEach((candidate) => {
+    forceArray(candidate)
+      .map(extractDimensionText)
+      .forEach((text) => {
+        if (!text) {
+          return;
+        }
+        const entries = text.includes(",") ? text.split(",") : [text];
+        entries
+          .map((entry) => entry.trim())
+          .filter((entry) => entry.length > 0)
+          .forEach((entry) => values.push(entry));
+      });
+  });
+
+  return values.filter((value) => value.length > 0);
+}
+
+function extractDimensionText(item: any): string | undefined {
+  if (typeof item === "string") {
+    return item;
+  }
+  if (typeof item === "number") {
+    return item.toString();
+  }
+  if (!item) {
+    return undefined;
+  }
+  if (typeof item.text === "string") {
+    return item.text;
+  }
+  if (typeof item._text === "string") {
+    return item._text;
+  }
+  if (typeof item.Value === "string") {
+    return item.Value;
+  }
+  return undefined;
+}
+
+function forceArray<T>(value: T | T[] | readonly T[] | undefined): T[] {
+  if (!isDefined(value)) {
+    return [];
+  }
+  if (Array.isArray(value)) {
+    return Array.from(value) as T[];
+  }
+  return [value as T];
+}
+
+function normalizeFeatureInfoType(
+  type: string | undefined
+): FeatureInfoFormatType {
+  switch (type) {
+    case "xml":
+      return "xml";
+    case "html":
+      return "html";
+    case "text":
+    case "csv":
+      return "text";
+    case "json":
+    default:
+      return "json";
+  }
+}
+
+function defaultInfoFormatForType(type: FeatureInfoFormatType): string {
+  switch (type) {
+    case "xml":
+      return "text/xml";
+    case "html":
+      return "text/html";
+    case "text":
+      return "text/plain";
+    case "json":
+    default:
+      return "application/json";
+  }
+}
+
+function clamp(value: number, min: number, max: number) {
+  if (Number.isNaN(value)) {
+    return min;
+  }
+  return Math.min(Math.max(value, min), max);
+}
+
+function parseFeatureInfoResponse(
+  data: any,
+  type: FeatureInfoFormatType,
+  format: string
+): ImageryLayerFeatureInfo[] | undefined {
+  const parser = new GetFeatureInfoFormat(type, format);
+
+  // Use the parser's getFeatureInfoFromData method if available
+  if (typeof (parser as any).getFeatureInfoFromData === "function") {
+    return (parser as any).getFeatureInfoFromData(data);
+  }
+
+  // Fallback: try to parse based on type
+  if (type === "json" && data) {
+    // For JSON responses, wrap in ImageryLayerFeatureInfo if needed
+    const features = Array.isArray(data.features)
+      ? data.features
+      : Array.isArray(data)
+      ? data
+      : [data];
+    return features.map((feature: any) => {
+      const info = new ImageryLayerFeatureInfo();
+      info.data = feature;
+      info.properties = feature.properties || feature;
+      if (feature.geometry) {
+        info.position = feature.geometry;
+      }
+      return info;
+    });
+  }
+
+  // For other types, create a simple feature info object
+  const info = new ImageryLayerFeatureInfo();
+  info.data = data;
+  return [info];
 }
 
 export default WebMapTileServiceCatalogItem;

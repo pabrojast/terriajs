@@ -13,10 +13,6 @@ import UrlTraits from "./UrlTraits";
 import primitiveArrayTrait from "../Decorators/primitiveArrayTrait";
 
 export type ColorScaleNames =
-  | "viridis"
-  | "plasma"
-  | "inferno"
-  | "magma"
   | "rainbow"
   | "jet"
   | "hsv"
@@ -29,18 +25,16 @@ export type ColorScaleNames =
   | "bone"
   | "copper"
   | "greys"
-  | "yignbu"
+  | "ylgnbu"
   | "greens"
-  | "yiorrd"
+  | "ylorrd"
   | "bluered"
   | "rdbu"
   | "picnic"
   | "portland"
   | "blackbody"
   | "earth"
-  | "electric"
-  | "alpha"
-  | "matter";
+  | "electric";
 /**
  * Definition of traits for the `single` rendering options.
  */
@@ -91,7 +85,7 @@ export class SingleRenderOptionsTraits extends ModelTraits {
   @primitiveArrayTrait({
     name: "Display Range",
     description:
-      "Range of values to render; values outside the range will be transparent.",
+      "Range of values to display. Values outside this range will be transparent when 'Apply Display Range' is enabled.",
     type: "number"
   })
   displayRange?: [number, number];
@@ -99,7 +93,8 @@ export class SingleRenderOptionsTraits extends ModelTraits {
   @primitiveTrait({
     type: "boolean",
     name: "Apply Display Range",
-    description: "Sets whether to use the display range."
+    description:
+      "When enabled, values outside the Display Range will be rendered as transparent."
   })
   applyDisplayRange?: boolean;
 
@@ -123,6 +118,29 @@ export class SingleRenderOptionsTraits extends ModelTraits {
     description: "Mathematical expression to evaluate in the chart."
   })
   expression?: string;
+
+  @primitiveTrait({
+    type: "number",
+    name: "Number of Legend Bins",
+    description:
+      "Number of bins/steps to show in the legend. Default is 7 for continuous and 8 for discrete."
+  })
+  numberOfBins?: number;
+
+  @primitiveTrait({
+    type: "boolean",
+    name: "Reverse Color Scale",
+    description: "Whether to reverse the color scale (flip the colors)."
+  })
+  reverseColorScale?: boolean;
+
+  @primitiveTrait({
+    type: "string",
+    name: "No Data Color",
+    description:
+      "CSS color (e.g., '#FF0000', 'red', 'rgba(255,0,0,0.5)') to use for no-data/null values. If not specified, no-data values will be transparent."
+  })
+  noDataColor?: string;
 }
 
 export class CogRenderOptionsTraits extends ModelTraits {

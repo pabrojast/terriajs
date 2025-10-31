@@ -21,6 +21,7 @@ export interface WmtsLayer {
   readonly WGS84BoundingBox?: BoundingBox;
   readonly Style?: CapabilitiesStyle | CapabilitiesStyle[];
   readonly Format?: string | ReadonlyArray<string>;
+  readonly InfoFormat?: string | ReadonlyArray<string>;
   readonly infoFormat?: string | ReadonlyArray<string>;
   readonly TileMatrixSetLink?: TileMatrixSetLink | TileMatrixSetLink[];
   readonly ResourceURL?: ResourceUrl | ResourceUrl[];
@@ -69,14 +70,14 @@ interface CapabilitiesJson {
 }
 
 interface OperationsMetadata {
-  readonly Operation: Operation;
+  readonly Operation?: Operation | Operation[];
 }
 
 interface Operation {
-  name: string;
-  DCP: {
-    HTTP: {
-      Get?: OnlineResource;
+  name?: string;
+  DCP?: {
+    HTTP?: {
+      Get?: OnlineResource | ReadonlyArray<OnlineResource>;
     };
   };
 }

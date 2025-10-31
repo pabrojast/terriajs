@@ -2075,6 +2075,54 @@
     },
     "cogCatalogItem": {
       "experimentalReprojectionWarning": "This COG is not in a native projection (EPSG:4326 or EPSG:3857). Reprojecting is experimental and may not work as expected. If you have control of the source data we recommend reprojecting to EPSG:4326 or EPSG:3857 using GDAL or similar."
+    },
+    "cog": {
+      "editStyle": "Edit style",
+      "legendTitle": "Values"
+    },
+    "cogStyling": {
+      "name": "Style COG",
+      "reset": "Reset to default style",
+      "colorScheme": "Color Scheme",
+      "colorScale": "Color Scale",
+      "renderType": "Render Type",
+      "continuous": "Continuous",
+      "discrete": "Discrete",
+      "domain": "Value Domain (auto-calculated if not set)",
+      "minimumValue": "Min Value (optional, auto-calculated)",
+      "maximumValue": "Max Value (optional, auto-calculated)",
+      "displayRange": "Display Range",
+      "applyDisplayRange": "Apply Display Range",
+      "displayRangeMin": "Display Range Min",
+      "displayRangeMax": "Display Range Max",
+      "customColors": {
+        "name": "Custom Colors",
+        "addStop": "Add Color Stop",
+        "clear": "Clear Custom Colors",
+        "stopColor": "Stop {{index}} color",
+        "stopPosition": "Stop {{index}} position (0-1)",
+        "remove": "Remove stop"
+      },
+      "legend": {
+        "name": "Legend",
+        "title": "Legend title",
+        "auto": "Use automatic legend",
+        "autoInfo": "Legend follows the {{scale}} color scale with {{steps}} steps. Click \"Disable auto mode\" to edit.",
+        "disableAuto": "Disable auto mode",
+        "itemColor": "Legend item {{index}} color",
+        "itemTitle": "Legend item {{index}} label",
+        "addItem": "Add legend item",
+        "removeItem": "Remove legend item",
+        "defaultItemLabel": "Item {{index}}",
+        "itemValue": "Legend item {{index}} value",
+        "generate": "Generate legend from color scale",
+        "sync": "Sync legend with color scale",
+        "reset": "Use automatic legend"
+      },
+      "advanced": "Advanced",
+      "band": "Band",
+      "clampLow": "Clamp Low Values",
+      "clampHigh": "Clamp High Values"
     }
   },
   "searchProvider": {

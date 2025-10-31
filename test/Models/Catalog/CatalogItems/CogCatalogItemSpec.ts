@@ -102,6 +102,44 @@ describe("CogCatalogItem", function () {
         expect(renderOptions).toBeDefined();
         expect(renderOptions.resampleMethod).toBe("nearest");
       });
+
+      it("correctly sets display range options", async function () {
+        const testUrl = TEST_URLS["4326"];
+        item.setTrait(CommonStrata.user, "url", testUrl);
+        updateModelFromJson(item.renderOptions, CommonStrata.user, {
+          single: {
+            displayRange: [10, 50],
+            applyDisplayRange: true,
+            domain: [0, 100]
+          }
+        });
+        await item.loadMapItems();
+        const renderOptions = getImageryProvider(item)?.renderOptions;
+        expect(renderOptions?.single).toBeDefined();
+        if (renderOptions?.single) {
+          expect(renderOptions.single.displayRange).toEqual([10, 50]);
+          expect(renderOptions.single.applyDisplayRange).toBe(true);
+          expect(renderOptions.single.domain).toEqual([0, 100]);
+        }
+      });
+
+      it("correctly sets noDataColor", async function () {
+        const testUrl = TEST_URLS["4326"];
+        item.setTrait(CommonStrata.user, "url", testUrl);
+        updateModelFromJson(item.renderOptions, CommonStrata.user, {
+          single: {
+            noDataColor: "#FF0000"
+          }
+        });
+        await item.loadMapItems();
+        const renderOptions = getImageryProvider(item)?.renderOptions;
+        expect(renderOptions?.single).toBeDefined();
+        if (renderOptions?.single) {
+          // Check if noDataColor exists on the type, otherwise skip this assertion
+          // as the library might not expose this property in its types
+          expect((renderOptions.single as any).noDataColor).toBe("#FF0000");
+        }
+      });
     });
   });
 
