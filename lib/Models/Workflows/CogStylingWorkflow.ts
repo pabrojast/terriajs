@@ -375,12 +375,14 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
             index: index + 1
           }),
           value: stop.position,
+          min: 0,
+          max: 1,
           allowUndefined: false,
           setDimensionValue: action(
             (stratumId: string, value: number | undefined) => {
               if (!isDefined(value)) return;
               this.updateColorStop(stratumId, index, {
-                position: value
+                position: clamp01(value)
               });
             }
           )
@@ -638,7 +640,7 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
 
     return (colors as unknown as readonly [number, string][])
       .map(([position, color]) => ({
-        position: position ?? 0,
+        position: clamp01(position ?? 0),
         color
       }))
       .sort((a, b) => a.position - b.position);
@@ -655,7 +657,7 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
     updated[index] = {
       position:
         partial.position !== undefined
-          ? partial.position
+          ? clamp01(partial.position)
           : updated[index].position,
       color: partial.color ?? updated[index].color
     };
@@ -664,23 +666,16 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
 
   private addColorStop(stratumId: string) {
     const stops = this.customColorStops;
-    const sortedStops = stops.slice().sort((a, b) => a.position - b.position);
     let position = 0.5;
-    const treatStopsAsAbsolute = sortedStops.some(
-      (stop) => stop.position < 0 || stop.position > 1
-    );
-    if (sortedStops.length === 0) {
+    if (stops.length === 0) {
       position = 0.5;
-    } else if (sortedStops.length === 1) {
-      const single = sortedStops[0].position;
-      position = treatStopsAsAbsolute
-        ? single
-        : single >= 0.5
-          ? single / 2
-          : (single + 1) / 2;
+    } else if (stops.length === 1) {
+      const single = stops[0].position;
+      position = single >= 0.5 ? single / 2 : (single + 1) / 2;
     } else {
       let largestGapIndex = 0;
-      let largestGap = -Infinity;
+      let largestGap = -1;
+      const sortedStops = stops.slice().sort((a, b) => a.position - b.position);
       for (let i = 0; i < sortedStops.length - 1; i++) {
         const gap = sortedStops[i + 1].position - sortedStops[i].position;
         if (gap > largestGap) {
@@ -693,10 +688,11 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
         (Number.isFinite(largestGap) ? largestGap / 2 : 0);
     }
     const defaultColor =
-      sortedStops[sortedStops.length - 1]?.color ?? "#ff0000";
+      stops.slice().sort((a, b) => a.position - b.position)[stops.length - 1]
+        ?.color ?? "#ff0000";
     this.writeColorStops(stratumId, [
-      ...sortedStops,
-      { position, color: defaultColor }
+      ...stops,
+      { position: clamp01(position), color: defaultColor }
     ]);
   }
 
@@ -727,7 +723,9 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
 
     const sanitized = stops
       .filter((stop) => stop.color)
-      .map((stop) => [stop.position ?? 0, stop.color] as [number, string])
+      .map(
+        (stop) => [clamp01(stop.position ?? 0), stop.color] as [number, string]
+      )
       .sort((a, b) => a[0] - b[0]);
 
     this.item.renderOptions.single!.setTrait(
@@ -815,10 +813,20 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
         title: item.title,
         value: item.value ?? this.extractNumericValue(item.title)
       })) ?? [];
-    const entry = this.createLegendEntryFromStops(
-      this.getColorStopsForLegend(this.getLegendBinCount()),
-      this.getActiveDomain() ?? this.deriveDomainFromBaseline(baselineItems),
-      this.primaryLegend?.items?.length ?? 0,
+    const stops = this.getColorStopsForLegend(this.getLegendBinCount());
+    const targetIndex = this.primaryLegend?.items?.length ?? 0;
+    const stop = stops[
+      Math.min(targetIndex, Math.max(0, stops.length - 1))
+    ] ?? [0, DEFAULT_LEGEND_COLORS[0]];
+    const domain =
+      this.getActiveDomain() ??
+      this.deriveDomainFromBaseline(baselineItems) ??
+      this.cachedLegendDomain;
+    const entry = this.createLegendEntry(
+      stop[0],
+      stop[1],
+      domain,
+      targetIndex,
       baselineItems
     );
     this.applyLegendMutation(stratumId, (legend) => {
@@ -955,9 +963,17 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
       title: item.title,
       value: item.value ?? this.extractNumericValue(item.title)
     }));
-    const legend = this.buildLegendFromStops(
+    const baselineDomain = this.deriveDomainFromBaseline(baseline);
+    if (baselineDomain) {
+      this.cachedLegendDomain = baselineDomain;
+    }
+    const expandedStops = this.expandStopsForLegend(
       stops,
-      this.getActiveDomain() ?? this.deriveDomainFromBaseline(baseline),
+      this.getLegendBinCount()
+    );
+    const legend = this.buildLegendFromStops(
+      expandedStops,
+      this.getActiveDomain() ?? baselineDomain ?? this.cachedLegendDomain,
       baseline
     );
     if (legend) {
@@ -971,66 +987,24 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
     baselineItems?: LegendItemSnapshot[]
   ): StratumFromTraits<LegendTraits> | undefined {
     if (stops.length === 0) return undefined;
-    const stopPositions = stops.map(([position]) => position);
-    const stopMin = Math.min(...stopPositions);
-    const stopMax = Math.max(...stopPositions);
-    const stopRange = stopMax - stopMin;
-    const treatStopsAsAbsolute = stopPositions.some(
-      (position) => position < 0 || position > 1
-    );
-    const domainFromStops =
-      treatStopsAsAbsolute &&
-      Number.isFinite(stopMin) &&
-      Number.isFinite(stopMax) &&
-      stopRange > 0
-        ? ([stopMin, stopMax] as [number, number])
-        : undefined;
-
+    const derivedDomain = this.deriveDomainFromBaseline(baselineItems);
     const domain =
       domainOverride ??
       this.getActiveDomain() ??
-      this.deriveDomainFromBaseline(baselineItems) ??
-      domainFromStops ??
+      derivedDomain ??
       this.cachedLegendDomain;
-    const hasDomain = domain !== undefined;
-    const [min, max] = domain ?? [0, 1];
-    if (hasDomain) {
-      this.cachedLegendDomain = [min, max];
+    if (domain) {
+      this.cachedLegendDomain = domain;
     }
 
     return createStratumInstance(LegendTraits, {
       title: this.primaryLegend?.title,
-      items: stops.map(([position, color], index) => {
-        const baseline = baselineItems?.[index];
-        const baselineValue =
-          baseline?.value ?? this.extractNumericValue(baseline?.title);
-        const normalizedPosition = treatStopsAsAbsolute
-          ? stopRange !== 0
-            ? clamp01((position - stopMin) / stopRange)
-            : 0
-          : clamp01(position);
-        const fallbackDomain = this.cachedLegendDomain;
-        const computedValue = hasDomain
-          ? min + normalizedPosition * (max - min)
-          : treatStopsAsAbsolute
-            ? position
-            : (baselineValue ??
-              (fallbackDomain
-                ? fallbackDomain[0] +
-                  normalizedPosition * (fallbackDomain[1] - fallbackDomain[0])
-                : normalizedPosition));
-        const value = Number.isFinite(computedValue)
-          ? (computedValue as number)
-          : baselineValue;
-        return createStratumInstance(LegendItemTraits, {
-          color,
-          title:
-            value !== undefined
-              ? this.formatLegendValue(value)
-              : (baseline?.title ?? Math.round(position * 100) + "%"),
-          value
-        });
-      })
+      items: stops.map(([position, color], index) =>
+        createStratumInstance(
+          LegendItemTraits,
+          this.createLegendEntry(position, color, domain, index, baselineItems)
+        )
+      )
     });
   }
 
@@ -1040,96 +1014,68 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
     if (stops.length === 0) {
       return [];
     }
-    return stops.map((stop) => [stop.position ?? 0, stop.color]);
+    return stops
+      .map(
+        (stop) => [clamp01(stop.position ?? 0), stop.color] as [number, string]
+      )
+      .sort((a, b) => a[0] - b[0]);
   }
 
-  private createLegendEntryFromStops(
-    stops: [number, string][],
+  private createLegendEntry(
+    position: number,
+    color: string,
     domain: [number, number] | undefined,
     index: number,
     baselineItems?: LegendItemSnapshot[]
   ): { color: string; title: string; value?: number } {
-    if (stops.length === 0) {
-      return { color: DEFAULT_LEGEND_COLORS[0], title: "" };
-    }
-    const clampedIndex = Math.min(index, stops.length - 1);
-    const [position, color] = stops[clampedIndex];
-    const stopPositions = stops.map(([pos]) => pos);
-    const stopMin = Math.min(...stopPositions);
-    const stopMax = Math.max(...stopPositions);
-    const stopRange = stopMax - stopMin;
-    const treatStopsAsAbsolute = stopPositions.some(
-      (pos) => pos < 0 || pos > 1
-    );
-    const domainFromStops =
-      treatStopsAsAbsolute &&
-      Number.isFinite(stopMin) &&
-      Number.isFinite(stopMax) &&
-      stopRange > 0
-        ? ([stopMin, stopMax] as [number, number])
-        : undefined;
-    const effectiveDomain =
-      domain ??
-      this.getActiveDomain() ??
-      this.cachedLegendDomain ??
-      this.deriveDomainFromBaseline(baselineItems) ??
-      domainFromStops;
-    const normalizedPosition = treatStopsAsAbsolute
-      ? stopRange !== 0
-        ? clamp01((position - stopMin) / stopRange)
-        : 0
-      : clamp01(position);
-    if (effectiveDomain && effectiveDomain.length === 2) {
-      const value =
-        effectiveDomain[0] +
-        normalizedPosition * (effectiveDomain[1] - effectiveDomain[0]);
+    const normalizedPosition = clamp01(position);
+    if (domain && domain.length === 2) {
+      const value = domain[0] + normalizedPosition * (domain[1] - domain[0]);
       if (Number.isFinite(value)) {
         return { color, title: this.formatLegendValue(value), value };
       }
     }
-    const baseline = baselineItems?.[clampedIndex];
+    const baseline = baselineItems?.[index];
     if (baseline) {
       const baselineNumeric =
         baseline.value ?? this.extractNumericValue(baseline.title);
-      const value =
-        baselineNumeric ?? (treatStopsAsAbsolute ? position : undefined);
-      return {
-        color,
-        title:
-          value !== undefined
-            ? this.formatLegendValue(value)
-            : (baseline.title ?? Math.round(position * 100) + "%"),
-        value
-      };
+      if (baselineNumeric !== undefined) {
+        return {
+          color,
+          title: this.formatLegendValue(baselineNumeric),
+          value: baselineNumeric
+        };
+      }
+      if (baseline.title) {
+        return { color, title: baseline.title };
+      }
     }
-    const fallbackValue = treatStopsAsAbsolute ? position : normalizedPosition;
     return {
       color,
-      title: this.formatLegendValue(fallbackValue),
-      value: fallbackValue
+      title: this.formatLegendValue(normalizedPosition),
+      value: normalizedPosition
     };
   }
 
   private getColorStopsForLegend(desiredBins?: number): [number, string][] {
+    const targetBins = desiredBins ?? this.getLegendBinCount();
     const customStops = this.getStopTuplesFromCustomStops(
       this.customColorStops
     );
     if (customStops.length > 0) {
-      return customStops.sort((a, b) => a[0] - b[0]);
+      return this.expandStopsForLegend(customStops, targetBins);
     }
-
-    const colors = this.sampleScaleColors(desiredBins);
-    if (colors.length === 0) {
-      return [[0, DEFAULT_LEGEND_COLORS[0]]];
+    const defaultStops = this.getDefaultScaleStops();
+    if (defaultStops.length === 0) {
+      return this.expandStopsForLegend(
+        [[0, DEFAULT_LEGEND_COLORS[0]]],
+        targetBins
+      );
     }
-
-    return colors.map((color, index) => [
-      colors.length === 1 ? 0 : index / (colors.length - 1),
-      color
-    ]);
+    return this.expandStopsForLegend(defaultStops, targetBins);
   }
 
-  private sampleScaleColors(desiredBins?: number): string[] {
+  private getDefaultScaleStops(): [number, string][] {
     const renderOptions = this.item.renderOptions?.single;
     const scaleName = (renderOptions?.colorScale ??
       "rainbow") as ColorScaleNames;
@@ -1138,7 +1084,7 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
 
     let palette = scale.colors.slice();
     let positions =
-      scale.positions && scale.positions.length === scale.colors.length
+      scale.positions && scale.positions.length === palette.length
         ? scale.positions.slice()
         : undefined;
 
@@ -1149,66 +1095,71 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
       }
     }
 
-    const count = desiredBins ?? this.getLegendBinCount();
-    if (count <= 0) return [];
-
-    if (count <= palette.length) {
-      if (count === palette.length) {
-        return palette.slice();
-      }
-      if (count === 1) {
-        return [palette[0]];
-      }
-      return Array.from({ length: count }, (_, i) => {
-        const t = i / (count - 1);
-        const idx = Math.round(t * (palette.length - 1));
-        return palette[idx];
-      });
+    if (positions && positions.length === palette.length) {
+      return positions.map((pos, index) => [clamp01(pos), palette[index]]);
     }
 
     if (palette.length === 0) {
       return [];
     }
-
     if (palette.length === 1) {
-      return Array(count).fill(palette[0]);
+      return [[0, palette[0]]];
     }
 
-    const positionTable =
-      positions && positions.length === palette.length
-        ? positions
-        : palette.map((_color, index) =>
-            index === 0
-              ? 0
-              : index === palette.length - 1
-                ? 1
-                : index / (palette.length - 1)
-          );
+    return palette.map((color, index) => [index / (palette.length - 1), color]);
+  }
 
-    return Array.from({ length: count }, (_, stepIndex) => {
-      const t = count === 1 ? 0 : stepIndex / (count - 1);
-      const clampedT = Math.min(Math.max(t, 0), 1);
+  private expandStopsForLegend(
+    stops: [number, string][],
+    desiredBins: number
+  ): [number, string][] {
+    const count = Math.max(1, desiredBins);
+    const sorted = stops
+      .filter(([, color]) => !!color)
+      .map(
+        ([position, color]) => [clamp01(position), color] as [number, string]
+      )
+      .sort((a, b) => a[0] - b[0]);
+    if (sorted.length === 0) {
+      return [];
+    }
+    if (sorted.length === 1) {
+      return Array.from({ length: count }, (_, index) => [
+        count === 1 ? sorted[0][0] : index / (count - 1),
+        sorted[0][1]
+      ]);
+    }
 
-      let segmentIndex = positionTable.findIndex(
-        (pos, idx) =>
-          idx < positionTable.length - 1 &&
-          clampedT >= pos &&
-          clampedT <= positionTable[idx + 1]
-      );
+    const minPos = sorted[0][0];
+    const maxPos = sorted[sorted.length - 1][0];
+    const range = maxPos - minPos || 1;
 
-      if (segmentIndex < 0) {
-        segmentIndex =
-          clampedT <= positionTable[0] ? 0 : positionTable.length - 2;
+    const evaluateColor = (target: number): string => {
+      if (target <= sorted[0][0]) {
+        return sorted[0][1];
       }
+      if (target >= sorted[sorted.length - 1][0]) {
+        return sorted[sorted.length - 1][1];
+      }
+      for (let i = 0; i < sorted.length - 1; i++) {
+        const [posA, colorA] = sorted[i];
+        const [posB, colorB] = sorted[i + 1];
+        if (target >= posA && target <= posB) {
+          const localT = posB === posA ? 0 : (target - posA) / (posB - posA);
+          return interpolateColor(colorA, colorB, localT);
+        }
+      }
+      return sorted[sorted.length - 1][1];
+    };
 
-      const startPos = positionTable[segmentIndex];
-      const endPos = positionTable[segmentIndex + 1];
-      const localT =
-        endPos === startPos ? 0 : (clampedT - startPos) / (endPos - startPos);
-
-      const startColor = palette[segmentIndex];
-      const endColor = palette[segmentIndex + 1];
-      return interpolateHexColor(startColor, endColor, localT);
+    return Array.from({ length: count }, (_, index) => {
+      const t = count === 1 ? 0 : index / (count - 1);
+      const targetPos = minPos + t * (maxPos - minPos);
+      const normalized = range === 0 ? 0 : (targetPos - minPos) / range;
+      return [clamp01(normalized), evaluateColor(targetPos)] as [
+        number,
+        string
+      ];
     });
   }
 
@@ -1578,6 +1529,10 @@ function interpolateHexColor(start: string, end: string, t: number): string {
     interpolateChannel(startRgb[2], endRgb[2])
   ];
   return rgbToHex(r, g, b);
+}
+
+function interpolateColor(start: string, end: string, t: number): string {
+  return interpolateHexColor(start, end, t);
 }
 
 function parseColorToRgb(color: string): [number, number, number] | undefined {

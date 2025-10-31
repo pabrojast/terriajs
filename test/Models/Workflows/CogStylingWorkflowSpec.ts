@@ -23,33 +23,39 @@ describe("CogStylingWorkflow.extractNumericValue", () => {
 });
 
 describe("CogStylingWorkflow color stops", () => {
-  it("preserves absolute stop positions and derives numeric legend values", () => {
+  it("expands stops to match bin count and preserves domain values", () => {
     const itemStub = {
       renderOptions: {
         single: {
           colors: [
-            [10, "#ff0000"],
-            [20, "#00ff00"]
+            [0, "#ff0000"],
+            [1, "#00ff00"]
           ]
         }
       }
     };
     const workflow = new CogStylingWorkflow(itemStub as any);
+    const stops = (workflow as any).getStopTuplesFromCustomStops(
+      (workflow as any).customColorStops
+    );
+    const expanded = (workflow as any).expandStopsForLegend(stops, 7);
+    expect(expanded.length).toBe(7);
+    expect(expanded[0][0]).toBeCloseTo(0, 5);
+    expect(expanded[expanded.length - 1][0]).toBeCloseTo(1, 5);
 
-    const stops = (workflow as any).customColorStops;
-    expect(stops.map((stop: any) => stop.position)).toEqual([10, 20]);
+    const baseline = Array.from({ length: 7 }, (_, index) => ({
+      title: `${10 + index * 5}`,
+      value: 10 + index * 5
+    }));
 
-    const tuples = (workflow as any).getStopTuplesFromCustomStops(stops);
-    expect(tuples).toEqual([
-      [10, "#ff0000"],
-      [20, "#00ff00"]
-    ]);
-
-    const legend = (workflow as any).buildLegendFromStops(tuples);
+    const legend = (workflow as any).buildLegendFromStops(
+      expanded,
+      undefined,
+      baseline
+    );
     const items = legend?.items ?? [];
-    expect(items[0]?.value).toBe(10);
-    const lastItem = items[items.length - 1];
-    expect(lastItem?.value).toBe(20);
-    expect(lastItem?.title).toBe("20");
+    expect(items.length).toBe(7);
+    expect(items[0]?.value).toBeCloseTo(10);
+    expect(items[items.length - 1]?.value).toBeCloseTo(40);
   });
 });
