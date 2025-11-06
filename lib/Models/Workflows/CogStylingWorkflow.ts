@@ -1242,7 +1242,35 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
     }
     console.log("[COG Auto-detect Debug] plot:", provider.plot);
     console.log("[COG Auto-detect Debug] bands:", provider.bands);
+    if (provider.bands && typeof provider.bands === "object") {
+      console.log(
+        "[COG Auto-detect Debug] bands keys:",
+        Object.keys(provider.bands)
+      );
+      const bandKeys = Object.keys(provider.bands);
+      if (bandKeys.length > 0) {
+        const firstBandKey = bandKeys[0];
+        console.log(
+          `[COG Auto-detect Debug] bands[${firstBandKey}]:`,
+          provider.bands[firstBandKey]
+        );
+        if (
+          provider.bands[firstBandKey] &&
+          typeof provider.bands[firstBandKey] === "object"
+        ) {
+          console.log(
+            `[COG Auto-detect Debug] bands[${firstBandKey}] keys:`,
+            Object.keys(provider.bands[firstBandKey])
+          );
+        }
+      }
+    }
     console.log("[COG Auto-detect Debug] noData:", provider.noData);
+
+    // Check if _source.getImage is available to lazy-load image data
+    if (provider._source && typeof provider._source.getImage === "function") {
+      console.log("[COG Auto-detect Debug] _source.getImage is available");
+    }
 
     const directCandidates = [
       provider.renderOptions?.single?.domain,
