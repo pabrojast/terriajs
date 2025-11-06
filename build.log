@@ -1,0 +1,4 @@
+
+> terriajs@8.9.5 build-for-node
+> tsc -b tsconfig-node.json
+

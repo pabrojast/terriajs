@@ -189,6 +189,13 @@ export class CogLegendStratum extends LoadableStratum(CogCatalogItemTraits) {
     const provider = mapItems[0]?.imageryProvider as any;
     if (!provider) return undefined;
 
+    // Debug logging to see what's available
+    console.log("[COG Legend Debug] Provider keys:", Object.keys(provider));
+    console.log("[COG Legend Debug] Statistics:", provider.statistics);
+    console.log("[COG Legend Debug] _statistics:", provider._statistics);
+    console.log("[COG Legend Debug] pool:", provider.pool);
+    console.log("[COG Legend Debug] tiffImages:", provider.tiffImages);
+
     // Direct property candidates
     const directCandidates = [
       provider.renderOptions?.single?.domain,
@@ -203,7 +210,13 @@ export class CogLegendStratum extends LoadableStratum(CogCatalogItemTraits) {
 
     for (const candidate of directCandidates) {
       const range = this._extractRange(candidate);
-      if (range) return range;
+      if (range) {
+        console.log(
+          "[COG Legend Debug] Found domain from direct candidate:",
+          range
+        );
+        return range;
+      }
     }
 
     // Statistics candidates (from COG metadata)
@@ -225,9 +238,80 @@ export class CogLegendStratum extends LoadableStratum(CogCatalogItemTraits) {
 
     for (const candidate of statsCandidates) {
       const range = this._extractRange(candidate);
-      if (range) return range;
+      if (range) {
+        console.log("[COG Legend Debug] Found domain from statistics:", range);
+        return range;
+      }
     }
 
+    // Try to extract from tiffImages if available (some versions store it there)
+    if (
+      provider.tiffImages &&
+      Array.isArray(provider.tiffImages) &&
+      provider.tiffImages.length > 0
+    ) {
+      const tiffImage = provider.tiffImages[0];
+      console.log(
+        "[COG Legend Debug] tiffImage keys:",
+        tiffImage ? Object.keys(tiffImage) : "null"
+      );
+      if (tiffImage) {
+        const tiffCandidates = [
+          tiffImage.stats,
+          tiffImage.statistics,
+          tiffImage.metadata?.stats,
+          tiffImage.metadata?.statistics,
+          tiffImage.fileDirectory?.GDAL_METADATA,
+          tiffImage.gdalMetadata
+        ];
+
+        for (const candidate of tiffCandidates) {
+          console.log("[COG Legend Debug] Checking tiff candidate:", candidate);
+          const range = this._extractRange(candidate);
+          if (range) {
+            console.log(
+              "[COG Legend Debug] Found domain from tiffImage:",
+              range
+            );
+            return range;
+          }
+        }
+      }
+    }
+
+    // Try pool.images if available
+    if (
+      provider.pool?.images &&
+      Array.isArray(provider.pool.images) &&
+      provider.pool.images.length > 0
+    ) {
+      const poolImage = provider.pool.images[0];
+      console.log(
+        "[COG Legend Debug] poolImage keys:",
+        poolImage ? Object.keys(poolImage) : "null"
+      );
+      if (poolImage) {
+        const poolCandidates = [
+          poolImage.stats,
+          poolImage.statistics,
+          poolImage.metadata?.stats,
+          poolImage.metadata?.statistics
+        ];
+
+        for (const candidate of poolCandidates) {
+          const range = this._extractRange(candidate);
+          if (range) {
+            console.log(
+              "[COG Legend Debug] Found domain from pool image:",
+              range
+            );
+            return range;
+          }
+        }
+      }
+    }
+
+    console.log("[COG Legend Debug] No domain found in provider");
     return undefined;
   }
 
