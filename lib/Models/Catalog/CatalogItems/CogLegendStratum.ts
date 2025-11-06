@@ -198,16 +198,22 @@ export class CogLegendStratum extends LoadableStratum(CogCatalogItemTraits) {
 
     // Investigate private properties
     console.log("[COG Legend Debug] _source:", provider._source);
-    console.log(
-      "[COG Legend Debug] _source keys:",
-      provider._source ? Object.keys(provider._source) : "null"
-    );
+    if (provider._source && typeof provider._source === "object") {
+      console.log(
+        "[COG Legend Debug] _source keys:",
+        Object.keys(provider._source)
+      );
+    }
     console.log("[COG Legend Debug] _images:", provider._images);
     console.log(
       "[COG Legend Debug] _images length:",
       provider._images ? provider._images.length : 0
     );
-    if (provider._images && provider._images.length > 0) {
+    if (
+      provider._images &&
+      provider._images.length > 0 &&
+      provider._images[0]
+    ) {
       console.log(
         "[COG Legend Debug] _images[0] keys:",
         Object.keys(provider._images[0])
