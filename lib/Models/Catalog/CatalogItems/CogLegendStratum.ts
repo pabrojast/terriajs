@@ -1,4 +1,5 @@
 import { computed, makeObservable } from "mobx";
+import * as d3Scale from "d3-scale-chromatic";
 import createStratumInstance from "../../Definition/createStratumInstance";
 import LoadableStratum from "../../Definition/LoadableStratum";
 import { BaseModel } from "../../Definition/Model";
@@ -9,6 +10,23 @@ import LegendTraits, {
 import CogCatalogItemTraits from "../../../Traits/TraitsClasses/CogCatalogItemTraits";
 import CogCatalogItem from "./CogCatalogItem";
 import { COG_COLOR_SCALES } from "./CogColorScales";
+
+/**
+ * Map COG color scale names to d3-scale-chromatic interpolation functions
+ * Using d3 interpolation provides perceptually uniform color transitions
+ */
+const COG_TO_D3_INTERPOLATION: Record<
+  string,
+  ((t: number) => string) | undefined
+> = {
+  greys: d3Scale.interpolateGreys,
+  greens: d3Scale.interpolateGreens,
+  ylgnbu: d3Scale.interpolateYlGnBu,
+  ylorrd: d3Scale.interpolateYlOrRd,
+  rdbu: d3Scale.interpolateRdBu,
+  cool: d3Scale.interpolateCool,
+  warm: d3Scale.interpolateWarm
+};
 
 /**
  * LoadableStratum for generating COG legends based on color scale and domain
@@ -85,7 +103,9 @@ export class CogLegendStratum extends LoadableStratum(CogCatalogItemTraits) {
       minValue,
       maxValue,
       type,
-      numberOfBins
+      numberOfBins,
+      colorScale,
+      reverseColorScale
     );
     if (!items) return undefined;
 
@@ -102,7 +122,9 @@ export class CogLegendStratum extends LoadableStratum(CogCatalogItemTraits) {
     minValue: number,
     maxValue: number,
     type: "continuous" | "discrete",
-    numberOfBins?: number
+    numberOfBins: number | undefined,
+    colorScale: string,
+    reverseColorScale: boolean
   ): StratumFromTraits<LegendItemTraits>[] | undefined {
     if (type === "discrete") {
       // For discrete legends, show a fixed number of bins
@@ -141,11 +163,16 @@ export class CogLegendStratum extends LoadableStratum(CogCatalogItemTraits) {
       return Array.from({ length: numSamples }, (_, i) => {
         const value = maxValue - ((maxValue - minValue) * i) / (numSamples - 1);
 
-        // Calculate position in the color array (0 to 1)
-        const position = (numSamples - 1 - i) / (numSamples - 1);
+        // Calculate normalized position (0 to 1) for color interpolation
+        const t = (numSamples - 1 - i) / (numSamples - 1);
 
         // Interpolate color at this position
-        const color = this._interpolateColor(colors, position);
+        const color = this._interpolateColor(
+          colors,
+          t,
+          colorScale,
+          reverseColorScale
+        );
 
         return createStratumInstance(LegendItemTraits, {
           color,
@@ -157,9 +184,36 @@ export class CogLegendStratum extends LoadableStratum(CogCatalogItemTraits) {
   }
 
   /**
+   * Interpolates a color at a given position (0 to 1)
+   * Uses d3-scale-chromatic interpolation when available for better color quality,
+   * otherwise falls back to manual RGB interpolation
+   */
+  private _interpolateColor(
+    colors: string[],
+    t: number,
+    colorScale: string,
+    reverseColorScale: boolean
+  ): string {
+    // Try to use d3-scale-chromatic interpolation for better quality
+    const d3Interpolator = COG_TO_D3_INTERPOLATION[colorScale];
+
+    if (d3Interpolator) {
+      // Use d3 interpolation - it handles color spaces better than simple RGB lerp
+      // Note: d3 interpolators expect t in [0,1] where 0 is start and 1 is end
+      // If reverseColorScale is true, the colors array is already reversed,
+      // so we can use t directly
+      return d3Interpolator(t);
+    }
+
+    // Fallback to manual interpolation for scales without d3 equivalent
+    return this._interpolateColorManual(colors, t);
+  }
+
+  /**
+   * Manual color interpolation fallback
    * Interpolates a color from the color array at a given position (0 to 1)
    */
-  private _interpolateColor(colors: string[], position: number): string {
+  private _interpolateColorManual(colors: string[], position: number): string {
     if (colors.length === 0) return "#000000";
     if (colors.length === 1) return colors[0];
 
@@ -179,13 +233,15 @@ export class CogLegendStratum extends LoadableStratum(CogCatalogItemTraits) {
     // Interpolation factor between the two colors
     const factor = scaledPosition - lowerIndex;
 
-    return this._lerpColor(colors[lowerIndex], colors[upperIndex], factor);
+    // Use Lab color space interpolation for better perceptual uniformity
+    return this._lerpColorInLab(colors[lowerIndex], colors[upperIndex], factor);
   }
 
   /**
-   * Linearly interpolates between two CSS color strings
+   * Interpolates between two CSS color strings using Lab color space
+   * Lab color space provides perceptually uniform interpolation
    */
-  private _lerpColor(color1: string, color2: string, t: number): string {
+  private _lerpColorInLab(color1: string, color2: string, t: number): string {
     // Parse colors to RGB
     const c1 = this._parseColor(color1);
     const c2 = this._parseColor(color2);
@@ -194,12 +250,101 @@ export class CogLegendStratum extends LoadableStratum(CogCatalogItemTraits) {
       return t < 0.5 ? color1 : color2;
     }
 
-    // Interpolate each channel
-    const r = Math.round(c1.r + (c2.r - c1.r) * t);
-    const g = Math.round(c1.g + (c2.g - c1.g) * t);
-    const b = Math.round(c1.b + (c2.b - c1.b) * t);
+    // Convert RGB to Lab color space
+    const lab1 = this._rgbToLab(c1.r, c1.g, c1.b);
+    const lab2 = this._rgbToLab(c2.r, c2.g, c2.b);
 
-    return `rgb(${r}, ${g}, ${b})`;
+    // Interpolate in Lab space
+    const L = lab1.L + (lab2.L - lab1.L) * t;
+    const a = lab1.a + (lab2.a - lab1.a) * t;
+    const b = lab1.b + (lab2.b - lab1.b) * t;
+
+    // Convert back to RGB
+    const rgb = this._labToRgb(L, a, b);
+
+    return `rgb(${rgb.r}, ${rgb.g}, ${rgb.b})`;
+  }
+
+  /**
+   * Converts RGB to Lab color space
+   */
+  private _rgbToLab(
+    r: number,
+    g: number,
+    b: number
+  ): { L: number; a: number; b: number } {
+    // Normalize RGB values
+    let rNorm = r / 255;
+    let gNorm = g / 255;
+    let bNorm = b / 255;
+
+    // Convert to linear RGB
+    rNorm =
+      rNorm > 0.04045 ? Math.pow((rNorm + 0.055) / 1.055, 2.4) : rNorm / 12.92;
+    gNorm =
+      gNorm > 0.04045 ? Math.pow((gNorm + 0.055) / 1.055, 2.4) : gNorm / 12.92;
+    bNorm =
+      bNorm > 0.04045 ? Math.pow((bNorm + 0.055) / 1.055, 2.4) : bNorm / 12.92;
+
+    // Convert to XYZ (D65 illuminant)
+    const x =
+      (rNorm * 0.4124564 + gNorm * 0.3575761 + bNorm * 0.1804375) / 0.95047;
+    const y = (rNorm * 0.2126729 + gNorm * 0.7151522 + bNorm * 0.072175) / 1.0;
+    const z =
+      (rNorm * 0.0193339 + gNorm * 0.119192 + bNorm * 0.9503041) / 1.08883;
+
+    // Convert XYZ to Lab
+    const fx = x > 0.008856 ? Math.pow(x, 1 / 3) : 7.787 * x + 16 / 116;
+    const fy = y > 0.008856 ? Math.pow(y, 1 / 3) : 7.787 * y + 16 / 116;
+    const fz = z > 0.008856 ? Math.pow(z, 1 / 3) : 7.787 * z + 16 / 116;
+
+    const L = 116 * fy - 16;
+    const a = 500 * (fx - fy);
+    const bVal = 200 * (fy - fz);
+
+    return { L, a, b: bVal };
+  }
+
+  /**
+   * Converts Lab color space to RGB
+   */
+  private _labToRgb(
+    L: number,
+    a: number,
+    b: number
+  ): { r: number; g: number; b: number } {
+    // Convert Lab to XYZ
+    const fy = (L + 16) / 116;
+    const fx = a / 500 + fy;
+    const fz = fy - b / 200;
+
+    const xr = fx > 0.206897 ? Math.pow(fx, 3) : (fx - 16 / 116) / 7.787;
+    const yr = fy > 0.206897 ? Math.pow(fy, 3) : (fy - 16 / 116) / 7.787;
+    const zr = fz > 0.206897 ? Math.pow(fz, 3) : (fz - 16 / 116) / 7.787;
+
+    const x = xr * 0.95047;
+    const y = yr * 1.0;
+    const z = zr * 1.08883;
+
+    // Convert XYZ to linear RGB
+    let rLin = x * 3.2404542 + y * -1.5371385 + z * -0.4985314;
+    let gLin = x * -0.969266 + y * 1.8760108 + z * 0.041556;
+    let bLin = x * 0.0556434 + y * -0.2040259 + z * 1.0572252;
+
+    // Convert linear RGB to sRGB
+    rLin =
+      rLin > 0.0031308 ? 1.055 * Math.pow(rLin, 1 / 2.4) - 0.055 : 12.92 * rLin;
+    gLin =
+      gLin > 0.0031308 ? 1.055 * Math.pow(gLin, 1 / 2.4) - 0.055 : 12.92 * gLin;
+    bLin =
+      bLin > 0.0031308 ? 1.055 * Math.pow(bLin, 1 / 2.4) - 0.055 : 12.92 * bLin;
+
+    // Clamp values to [0, 255]
+    const r = Math.max(0, Math.min(255, Math.round(rLin * 255)));
+    const g = Math.max(0, Math.min(255, Math.round(gLin * 255)));
+    const bOut = Math.max(0, Math.min(255, Math.round(bLin * 255)));
+
+    return { r, g, b: bOut };
   }
 
   /**

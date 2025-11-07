@@ -18,8 +18,8 @@
 - Edit legend entries for COG layers directly from the Edit Style panel (generate from current colors, tweak per-item colors/labels/values, add/remove rows, and toggle back to the automatic legend at any time).
 - Legend sync now carries numeric breakpoints forward, so continuous ramps show real values instead of percentages when you regenerate or auto-sync.
 - Add UI controls to define, reorder and clear custom color stops for COG items so their legends can be edited like other formats.
-- Custom color stops automatically refresh the legend entries so there’s a label for every colour step (and you can still rename them manually).
-- [The next improvement]
+- Custom color stops automatically refresh the legend entries so there's a label for every colour step (and you can still rename them manually).
+- Improve continuous legend color interpolation for COG items by using d3-scale-chromatic interpolation functions where available (greys, greens, ylgnbu, ylorrd, rdbu, cool, warm) and Lab color space interpolation for other scales, resulting in perceptually uniform and more visually accurate color gradients that better match the rendered imagery.
 - Add `featureInfoRequest` support for WMTS items to configure custom (e.g. POST) feature info requests, including templated coordinates and access to layer identifiers for services without native GetFeatureInfo.
 
 #### 8.9.5 - 2025-06-03
