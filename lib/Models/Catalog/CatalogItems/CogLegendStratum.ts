@@ -252,6 +252,52 @@ export class CogLegendStratum extends LoadableStratum(CogCatalogItemTraits) {
       console.log("[COG Legend Debug] _source.getImage is available");
     }
 
+    // First, try to extract from provider.bands (most reliable for COGs)
+    if (provider.bands && typeof provider.bands === "object") {
+      const bandKeys = Object.keys(provider.bands);
+      if (bandKeys.length > 0) {
+        // Get the first band (or the band specified in renderOptions)
+        const targetBand = provider.renderOptions?.single?.band || 1;
+        const bandStats =
+          provider.bands[targetBand] || provider.bands[bandKeys[0]];
+
+        if (bandStats && typeof bandStats === "object") {
+          const range = this._extractRange(bandStats);
+          if (range) {
+            // Filter out noData values from the range
+            let [min, max] = range;
+            const noData = provider.noData;
+
+            // If min equals noData, it's likely not a real data value
+            // In this case, we should use a reasonable minimum or let the user set it
+            // For now, we'll return the range as-is, but mark it for potential adjustment
+            if (typeof noData === "number" && min === noData) {
+              // The minimum is the noData value, which means the actual minimum is higher
+              // We could either:
+              // 1. Return undefined to force manual domain setting
+              // 2. Use a heuristic (like noData + 1)
+              // 3. Return the range and let the rendering handle it
+              // For now, we'll return undefined to indicate no valid domain
+              console.log(
+                "[COG Legend Debug] Band min equals noData, domain needs manual setting or tile analysis"
+              );
+              // Let's still return something useful - use 0 as min if noData is negative
+              if (noData < 0 && max > 0) {
+                console.log(
+                  "[COG Legend Debug] Using 0 as minimum since noData is negative:",
+                  [0, max]
+                );
+                return [0, max];
+              }
+            }
+
+            console.log("[COG Legend Debug] Found domain from bands:", range);
+            return range;
+          }
+        }
+      }
+    }
+
     // Direct property candidates
     const directCandidates = [
       provider.renderOptions?.single?.domain,

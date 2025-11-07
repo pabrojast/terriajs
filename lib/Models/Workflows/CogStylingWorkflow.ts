@@ -1272,6 +1272,47 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
       console.log("[COG Auto-detect Debug] _source.getImage is available");
     }
 
+    // First, try to extract from provider.bands (most reliable for COGs)
+    if (provider.bands && typeof provider.bands === "object") {
+      const bandKeys = Object.keys(provider.bands);
+      if (bandKeys.length > 0) {
+        // Get the first band (or the band specified in renderOptions)
+        const targetBand = this.item.renderOptions?.single?.band || 1;
+        const bandStats =
+          provider.bands[targetBand] || provider.bands[bandKeys[0]];
+
+        if (bandStats && typeof bandStats === "object") {
+          const range = this.extractRange(bandStats);
+          if (range) {
+            // Filter out noData values from the range
+            let [min, max] = range;
+            const noData = provider.noData;
+
+            // If min equals noData, it's likely not a real data value
+            if (typeof noData === "number" && min === noData) {
+              console.log(
+                "[COG Auto-detect Debug] Band min equals noData, domain needs manual setting or tile analysis"
+              );
+              // Let's still return something useful - use 0 as min if noData is negative
+              if (noData < 0 && max > 0) {
+                console.log(
+                  "[COG Auto-detect Debug] Using 0 as minimum since noData is negative:",
+                  [0, max]
+                );
+                return [0, max];
+              }
+            }
+
+            console.log(
+              "[COG Auto-detect Debug] Found domain from bands:",
+              range
+            );
+            return range;
+          }
+        }
+      }
+    }
+
     const directCandidates = [
       provider.renderOptions?.single?.domain,
       provider.renderOptions?.single?.displayRange,
