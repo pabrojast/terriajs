@@ -1031,20 +1031,22 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
 
     return createStratumInstance(LegendTraits, {
       title: this.primaryLegend?.title,
-      items: sortedStops.map(([position, color], index) =>
-        createStratumInstance(
-          LegendItemTraits,
-          this.createLegendEntry(
-            position,
-            color,
-            domain,
-            stopMin,
-            stopMax,
-            index,
-            baselineItems
+      items: sortedStops
+        .map(([position, color], index) =>
+          createStratumInstance(
+            LegendItemTraits,
+            this.createLegendEntry(
+              position,
+              color,
+              domain,
+              stopMin,
+              stopMax,
+              index,
+              baselineItems
+            )
           )
         )
-      )
+        .reverse() // Reverse to show high values at top, matching auto-generated legend
     });
   }
 
