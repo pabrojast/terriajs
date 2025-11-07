@@ -28,9 +28,12 @@ export class CogLegendStratum extends LoadableStratum(CogCatalogItemTraits) {
   @computed
   get legends(): StratumFromTraits<LegendTraits>[] | undefined {
     const renderOptions = this.catalogItem.renderOptions?.single;
-    if (!renderOptions) return undefined;
 
-    const colorScale = renderOptions.colorScale ?? "rainbow";
+    // Don't auto-generate legend if no colorScale is explicitly set
+    // This prevents showing a rainbow legend when the COG is rendering in grayscale
+    if (!renderOptions || !renderOptions.colorScale) return undefined;
+
+    const colorScale = renderOptions.colorScale;
     const type = renderOptions.type ?? "continuous";
     const numberOfBins = renderOptions.numberOfBins;
     const reverseColorScale = renderOptions.reverseColorScale ?? false;
@@ -189,69 +192,6 @@ export class CogLegendStratum extends LoadableStratum(CogCatalogItemTraits) {
     const provider = mapItems[0]?.imageryProvider as any;
     if (!provider) return undefined;
 
-    // Debug logging to see what's available
-    console.log("[COG Legend Debug] Provider keys:", Object.keys(provider));
-    console.log("[COG Legend Debug] Statistics:", provider.statistics);
-    console.log("[COG Legend Debug] _statistics:", provider._statistics);
-    console.log("[COG Legend Debug] pool:", provider.pool);
-    console.log("[COG Legend Debug] tiffImages:", provider.tiffImages);
-
-    // Investigate private properties
-    console.log("[COG Legend Debug] _source:", provider._source);
-    if (provider._source && typeof provider._source === "object") {
-      console.log(
-        "[COG Legend Debug] _source keys:",
-        Object.keys(provider._source)
-      );
-    }
-    console.log("[COG Legend Debug] _images:", provider._images);
-    console.log(
-      "[COG Legend Debug] _images length:",
-      provider._images ? provider._images.length : 0
-    );
-    if (
-      provider._images &&
-      provider._images.length > 0 &&
-      provider._images[0]
-    ) {
-      console.log(
-        "[COG Legend Debug] _images[0] keys:",
-        Object.keys(provider._images[0])
-      );
-      console.log("[COG Legend Debug] _images[0]:", provider._images[0]);
-    }
-    console.log("[COG Legend Debug] plot:", provider.plot);
-    console.log("[COG Legend Debug] bands:", provider.bands);
-    if (provider.bands && typeof provider.bands === "object") {
-      console.log(
-        "[COG Legend Debug] bands keys:",
-        Object.keys(provider.bands)
-      );
-      const bandKeys = Object.keys(provider.bands);
-      if (bandKeys.length > 0) {
-        const firstBandKey = bandKeys[0];
-        console.log(
-          `[COG Legend Debug] bands[${firstBandKey}]:`,
-          provider.bands[firstBandKey]
-        );
-        if (
-          provider.bands[firstBandKey] &&
-          typeof provider.bands[firstBandKey] === "object"
-        ) {
-          console.log(
-            `[COG Legend Debug] bands[${firstBandKey}] keys:`,
-            Object.keys(provider.bands[firstBandKey])
-          );
-        }
-      }
-    }
-    console.log("[COG Legend Debug] noData:", provider.noData);
-
-    // Check if _source.getImage is available to lazy-load image data
-    if (provider._source && typeof provider._source.getImage === "function") {
-      console.log("[COG Legend Debug] _source.getImage is available");
-    }
-
     // First, try to extract from provider.bands (most reliable for COGs)
     if (provider.bands && typeof provider.bands === "object") {
       const bandKeys = Object.keys(provider.bands);
@@ -273,25 +213,12 @@ export class CogLegendStratum extends LoadableStratum(CogCatalogItemTraits) {
             // For now, we'll return the range as-is, but mark it for potential adjustment
             if (typeof noData === "number" && min === noData) {
               // The minimum is the noData value, which means the actual minimum is higher
-              // We could either:
-              // 1. Return undefined to force manual domain setting
-              // 2. Use a heuristic (like noData + 1)
-              // 3. Return the range and let the rendering handle it
-              // For now, we'll return undefined to indicate no valid domain
-              console.log(
-                "[COG Legend Debug] Band min equals noData, domain needs manual setting or tile analysis"
-              );
-              // Let's still return something useful - use 0 as min if noData is negative
+              // Use 0 as min if noData is negative and max is positive
               if (noData < 0 && max > 0) {
-                console.log(
-                  "[COG Legend Debug] Using 0 as minimum since noData is negative:",
-                  [0, max]
-                );
                 return [0, max];
               }
             }
 
-            console.log("[COG Legend Debug] Found domain from bands:", range);
             return range;
           }
         }
@@ -312,13 +239,7 @@ export class CogLegendStratum extends LoadableStratum(CogCatalogItemTraits) {
 
     for (const candidate of directCandidates) {
       const range = this._extractRange(candidate);
-      if (range) {
-        console.log(
-          "[COG Legend Debug] Found domain from direct candidate:",
-          range
-        );
-        return range;
-      }
+      if (range) return range;
     }
 
     // Statistics candidates (from COG metadata)
@@ -340,80 +261,9 @@ export class CogLegendStratum extends LoadableStratum(CogCatalogItemTraits) {
 
     for (const candidate of statsCandidates) {
       const range = this._extractRange(candidate);
-      if (range) {
-        console.log("[COG Legend Debug] Found domain from statistics:", range);
-        return range;
-      }
+      if (range) return range;
     }
 
-    // Try to extract from tiffImages if available (some versions store it there)
-    if (
-      provider.tiffImages &&
-      Array.isArray(provider.tiffImages) &&
-      provider.tiffImages.length > 0
-    ) {
-      const tiffImage = provider.tiffImages[0];
-      console.log(
-        "[COG Legend Debug] tiffImage keys:",
-        tiffImage ? Object.keys(tiffImage) : "null"
-      );
-      if (tiffImage) {
-        const tiffCandidates = [
-          tiffImage.stats,
-          tiffImage.statistics,
-          tiffImage.metadata?.stats,
-          tiffImage.metadata?.statistics,
-          tiffImage.fileDirectory?.GDAL_METADATA,
-          tiffImage.gdalMetadata
-        ];
-
-        for (const candidate of tiffCandidates) {
-          console.log("[COG Legend Debug] Checking tiff candidate:", candidate);
-          const range = this._extractRange(candidate);
-          if (range) {
-            console.log(
-              "[COG Legend Debug] Found domain from tiffImage:",
-              range
-            );
-            return range;
-          }
-        }
-      }
-    }
-
-    // Try pool.images if available
-    if (
-      provider.pool?.images &&
-      Array.isArray(provider.pool.images) &&
-      provider.pool.images.length > 0
-    ) {
-      const poolImage = provider.pool.images[0];
-      console.log(
-        "[COG Legend Debug] poolImage keys:",
-        poolImage ? Object.keys(poolImage) : "null"
-      );
-      if (poolImage) {
-        const poolCandidates = [
-          poolImage.stats,
-          poolImage.statistics,
-          poolImage.metadata?.stats,
-          poolImage.metadata?.statistics
-        ];
-
-        for (const candidate of poolCandidates) {
-          const range = this._extractRange(candidate);
-          if (range) {
-            console.log(
-              "[COG Legend Debug] Found domain from pool image:",
-              range
-            );
-            return range;
-          }
-        }
-      }
-    }
-
-    console.log("[COG Legend Debug] No domain found in provider");
     return undefined;
   }
 
