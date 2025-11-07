@@ -131,24 +131,112 @@ export class CogLegendStratum extends LoadableStratum(CogCatalogItemTraits) {
         });
       }).reverse();
     } else {
-      // For continuous legends, show a gradient with samples
-      // Use user-specified numberOfBins or default to 7
-      const defaultSamples = 7;
+      // For continuous legends, show a smooth gradient by interpolating colors
+      // Use more samples (default 10) to create a smoother gradient effect
+      // User can override with numberOfBins if they want fewer steps
+      const defaultSamples = 10;
       const numSamples =
         numberOfBins && numberOfBins > 0 ? numberOfBins : defaultSamples;
+
       return Array.from({ length: numSamples }, (_, i) => {
         const value = maxValue - ((maxValue - minValue) * i) / (numSamples - 1);
-        const colorIndex = Math.floor(
-          ((numSamples - 1 - i) / (numSamples - 1)) * (colors.length - 1)
-        );
+
+        // Calculate position in the color array (0 to 1)
+        const position = (numSamples - 1 - i) / (numSamples - 1);
+
+        // Interpolate color at this position
+        const color = this._interpolateColor(colors, position);
 
         return createStratumInstance(LegendItemTraits, {
-          color: colors[colorIndex],
+          color,
           title: this._formatValue(value),
           value
         });
       });
     }
+  }
+
+  /**
+   * Interpolates a color from the color array at a given position (0 to 1)
+   */
+  private _interpolateColor(colors: string[], position: number): string {
+    if (colors.length === 0) return "#000000";
+    if (colors.length === 1) return colors[0];
+
+    // Clamp position between 0 and 1
+    const t = Math.max(0, Math.min(1, position));
+
+    // Find the two colors to interpolate between
+    const scaledPosition = t * (colors.length - 1);
+    const lowerIndex = Math.floor(scaledPosition);
+    const upperIndex = Math.ceil(scaledPosition);
+
+    // If we're exactly on a color, return it
+    if (lowerIndex === upperIndex) {
+      return colors[lowerIndex];
+    }
+
+    // Interpolation factor between the two colors
+    const factor = scaledPosition - lowerIndex;
+
+    return this._lerpColor(colors[lowerIndex], colors[upperIndex], factor);
+  }
+
+  /**
+   * Linearly interpolates between two CSS color strings
+   */
+  private _lerpColor(color1: string, color2: string, t: number): string {
+    // Parse colors to RGB
+    const c1 = this._parseColor(color1);
+    const c2 = this._parseColor(color2);
+
+    if (!c1 || !c2) {
+      return t < 0.5 ? color1 : color2;
+    }
+
+    // Interpolate each channel
+    const r = Math.round(c1.r + (c2.r - c1.r) * t);
+    const g = Math.round(c1.g + (c2.g - c1.g) * t);
+    const b = Math.round(c1.b + (c2.b - c1.b) * t);
+
+    return `rgb(${r}, ${g}, ${b})`;
+  }
+
+  /**
+   * Parses a CSS color string to RGB components
+   */
+  private _parseColor(
+    color: string
+  ): { r: number; g: number; b: number } | null {
+    // Handle hex colors
+    if (color.startsWith("#")) {
+      const hex = color.slice(1);
+      if (hex.length === 3) {
+        return {
+          r: parseInt(hex[0] + hex[0], 16),
+          g: parseInt(hex[1] + hex[1], 16),
+          b: parseInt(hex[2] + hex[2], 16)
+        };
+      } else if (hex.length === 6) {
+        return {
+          r: parseInt(hex.slice(0, 2), 16),
+          g: parseInt(hex.slice(2, 4), 16),
+          b: parseInt(hex.slice(4, 6), 16)
+        };
+      }
+    }
+
+    // Handle rgb/rgba colors
+    const rgbMatch = color.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+    if (rgbMatch) {
+      return {
+        r: parseInt(rgbMatch[1]),
+        g: parseInt(rgbMatch[2]),
+        b: parseInt(rgbMatch[3])
+      };
+    }
+
+    return null;
   }
 
   private _formatValue(value: number): string {
