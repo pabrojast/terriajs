@@ -154,9 +154,10 @@ export class CogLegendStratum extends LoadableStratum(CogCatalogItemTraits) {
       }).reverse();
     } else {
       // For continuous legends, show a smooth gradient by interpolating colors
-      // Use more samples (default 10) to create a smoother gradient effect
+      // Use many samples (default 30) with small height to create a smoother gradient effect
+      // that looks more continuous like a real gradient
       // User can override with numberOfBins if they want fewer steps
-      const defaultSamples = 10;
+      const defaultSamples = 30;
       const numSamples =
         numberOfBins && numberOfBins > 0 ? numberOfBins : defaultSamples;
 
@@ -177,7 +178,9 @@ export class CogLegendStratum extends LoadableStratum(CogCatalogItemTraits) {
         return createStratumInstance(LegendItemTraits, {
           color,
           title: this._formatValue(value),
-          value
+          value,
+          // Use smaller height for continuous legends to create gradient effect
+          imageHeight: 5
         });
       });
     }

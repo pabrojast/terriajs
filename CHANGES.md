@@ -20,6 +20,7 @@
 - Add UI controls to define, reorder and clear custom color stops for COG items so their legends can be edited like other formats.
 - Custom color stops automatically refresh the legend entries so there's a label for every colour step (and you can still rename them manually).
 - Improve continuous legend color interpolation for COG items by using d3-scale-chromatic interpolation functions where available (greys, greens, ylgnbu, ylorrd, rdbu, cool, warm) and Lab color space interpolation for other scales, resulting in perceptually uniform and more visually accurate color gradients that better match the rendered imagery.
+- Improve continuous legend visualization for COG items by increasing the default number of legend samples from 10 to 30 and reducing the height of each sample to 5px, creating a smoother gradient effect that better resembles true continuous color scales (similar to vector/shape legends). Users can still customize the number of steps via the "Legend Steps" control (range: 2-50).
 - Add `featureInfoRequest` support for WMTS items to configure custom (e.g. POST) feature info requests, including templated coordinates and access to layer identifiers for services without native GetFeatureInfo.
 
 #### 8.9.5 - 2025-06-03

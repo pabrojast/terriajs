@@ -21,7 +21,8 @@
       "Bash(yarn tsc:*)",
       "Bash(tee:*)",
       "Bash(curl:*)",
-      "Bash(npx gulp build:*)"
+      "Bash(npx gulp build:*)",
+      "Bash(./node_modules/.bin/tsc:*)"
     ],
     "deny": [],
     "additionalDirectories": ["C:\\Users\\Lenovo\\Proyectos\\TerriaMap"]

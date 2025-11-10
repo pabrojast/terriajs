@@ -275,7 +275,7 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
     | undefined {
     const numberOfBins = this.item.renderOptions?.single?.numberOfBins;
     const type = this.item.renderOptions?.single?.type ?? "continuous";
-    const defaultValue = type === "discrete" ? 8 : 7;
+    const defaultValue = type === "discrete" ? 8 : 30;
 
     return {
       type: "numeric",
@@ -283,7 +283,7 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
       name: "Legend Steps",
       value: numberOfBins ?? defaultValue,
       min: 2,
-      max: 30,
+      max: 50,
       allowUndefined: true,
       setDimensionValue: action(
         (stratumId: string, value: number | undefined) => {
@@ -294,7 +294,7 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
             stratumId,
             "numberOfBins",
             value !== undefined
-              ? Math.max(2, Math.min(30, Math.floor(value)))
+              ? Math.max(2, Math.min(50, Math.floor(value)))
               : undefined
           );
         }
@@ -1357,7 +1357,7 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
   private getLegendBinCount(): number {
     const renderOptions = this.item.renderOptions?.single;
     const type = renderOptions?.type ?? "continuous";
-    const defaultBins = type === "discrete" ? 8 : 7;
+    const defaultBins = type === "discrete" ? 8 : 30;
     return renderOptions?.numberOfBins && renderOptions.numberOfBins > 0
       ? renderOptions.numberOfBins
       : defaultBins;
