@@ -123,7 +123,7 @@ export class SingleRenderOptionsTraits extends ModelTraits {
     type: "number",
     name: "Number of Legend Bins",
     description:
-      "Number of bins/steps to show in the legend. Default is 30 for continuous (to create a smooth gradient effect) and 8 for discrete."
+      "Number of bins/steps to show in discrete legends. Default is 8. Note: Continuous legends use SVG gradients and ignore this setting."
   })
   numberOfBins?: number;
 

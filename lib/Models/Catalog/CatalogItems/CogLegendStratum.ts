@@ -98,6 +98,25 @@ export class CogLegendStratum extends LoadableStratum(CogCatalogItemTraits) {
       colors = [...colors].reverse();
     }
 
+    // For continuous type, generate SVG gradient legend
+    if (type === "continuous") {
+      const svgUrl = this._generateGradientSvg(
+        colors,
+        minValue,
+        maxValue,
+        colorScale,
+        reverseColorScale
+      );
+      return [
+        createStratumInstance(LegendTraits, {
+          title: "Color Scale",
+          url: svgUrl,
+          urlMimeType: "image/svg+xml"
+        })
+      ];
+    }
+
+    // For discrete type, use traditional item-based legend
     const items = this._getLegendItems(
       colors,
       minValue,
@@ -115,6 +134,63 @@ export class CogLegendStratum extends LoadableStratum(CogCatalogItemTraits) {
         items
       })
     ];
+  }
+
+  /**
+   * Generates an SVG data URI with a horizontal gradient for continuous legends
+   */
+  private _generateGradientSvg(
+    colors: string[],
+    minValue: number,
+    maxValue: number,
+    colorScale: string,
+    reverseColorScale: boolean
+  ): string {
+    const width = 300;
+    const height = 40;
+    const gradientHeight = 20;
+    const fontSize = 12;
+    const labelMargin = 5;
+
+    // Generate gradient stops
+    const numStops = 50; // More stops for smoother gradient
+    const stops: string[] = [];
+
+    for (let i = 0; i < numStops; i++) {
+      const t = i / (numStops - 1);
+      const color = this._interpolateColor(
+        colors,
+        t,
+        colorScale,
+        reverseColorScale
+      );
+      const percentage = (t * 100).toFixed(1);
+      stops.push(`<stop offset="${percentage}%" stop-color="${color}"/>`);
+    }
+
+    // Format min/max values
+    const minLabel = this._formatValue(minValue);
+    const maxLabel = this._formatValue(maxValue);
+
+    // Generate SVG
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+  <defs>
+    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="0%">
+      ${stops.join("\n      ")}
+    </linearGradient>
+  </defs>
+  <rect x="0" y="${labelMargin + fontSize}" width="${width}" height="${gradientHeight}" fill="url(#grad)" stroke="#333" stroke-width="1"/>
+  <text x="0" y="${fontSize}" font-family="Arial, sans-serif" font-size="${fontSize}" fill="#fff">${minLabel}</text>
+  <text x="${width}" y="${fontSize}" font-family="Arial, sans-serif" font-size="${fontSize}" fill="#fff" text-anchor="end">${maxLabel}</text>
+</svg>`;
+
+    // Return as data URI
+    // Use Buffer if available (Node.js) or btoa (browser)
+    const base64 =
+      typeof Buffer !== "undefined"
+        ? Buffer.from(svg).toString("base64")
+        : btoa(svg);
+    return `data:image/svg+xml;base64,${base64}`;
   }
 
   private _getLegendItems(
@@ -153,10 +229,9 @@ export class CogLegendStratum extends LoadableStratum(CogCatalogItemTraits) {
         });
       }).reverse();
     } else {
-      // For continuous legends, show a smooth gradient by interpolating colors
-      // Use many samples (default 30) with small height to create a smoother gradient effect
-      // that looks more continuous like a real gradient
-      // User can override with numberOfBins if they want fewer steps
+      // For continuous legends, this method is not used anymore
+      // They now use SVG gradient legend (see _generateGradientSvg)
+      // But keep this for backwards compatibility if someone explicitly requests items
       const defaultSamples = 30;
       const numSamples =
         numberOfBins && numberOfBins > 0 ? numberOfBins : defaultSamples;
@@ -179,7 +254,6 @@ export class CogLegendStratum extends LoadableStratum(CogCatalogItemTraits) {
           color,
           title: this._formatValue(value),
           value,
-          // Use smaller height for continuous legends to create gradient effect
           imageHeight: 5
         });
       });
