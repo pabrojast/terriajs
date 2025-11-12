@@ -520,7 +520,7 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
             )
           } as SelectableDimensionButton)
         : undefined,
-      this.hasManualLegend
+      this.hasManualLegend && !legend.url
         ? ({
             type: "button",
             id: "legend-sync",
@@ -587,7 +587,7 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
             ])
           ) ?? [])
         : []),
-      this.hasManualLegend
+      this.hasManualLegend && !legend.url
         ? ({
             type: "button",
             id: "legend-add",
@@ -899,6 +899,10 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
     if (!legend.strata.has(CommonStrata.user)) {
       const clone = createStratumInstance(LegendTraits, {
         title: legend.title,
+        url: legend.url,
+        urlMimeType: legend.urlMimeType,
+        imageScaling: legend.imageScaling,
+        backgroundColor: legend.backgroundColor,
         items:
           legend.items?.map((item) =>
             createStratumInstance(LegendItemTraits, {
