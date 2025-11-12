@@ -492,7 +492,8 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
         setDimensionValue: action(
           (stratumId: string, value: "true" | "false" | undefined) => {
             if (value === "true") {
-              this.item.setTrait(stratumId, "legends", undefined);
+              // Remove legends from user stratum to allow CogLegendStratum to regenerate them automatically
+              this.item.legends?.forEach(legend => legend.strata.delete(CommonStrata.user));
             } else {
               this.ensureLegendUserStratum(stratumId);
             }
@@ -727,7 +728,8 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
     this.ensureSingleRenderOptions(stratumId);
     this.item.renderOptions.single!.setTrait(stratumId, "colors", undefined);
     this.cachedLegendDomain = undefined;
-    this.item.setTrait(stratumId, "legends", undefined);
+    // Remove legends from user stratum to allow CogLegendStratum to regenerate them automatically
+    this.item.legends?.forEach(legend => legend.strata.delete(CommonStrata.user));
   }
 
   private writeColorStops(stratumId: string, stops: CustomColorStop[]) {
@@ -735,7 +737,8 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
     if (stops.length === 0) {
       this.item.renderOptions.single!.setTrait(stratumId, "colors", undefined);
       if (!this.hasManualLegend) {
-        this.item.setTrait(stratumId, "legends", undefined);
+        // Remove legends from user stratum to allow CogLegendStratum to regenerate them automatically
+        this.item.legends?.forEach(legend => legend.strata.delete(CommonStrata.user));
       }
       return;
     }
@@ -876,7 +879,8 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
 
   private clearLegendOverrides(stratumId: string) {
     this.cachedLegendDomain = undefined;
-    this.item.setTrait(stratumId, "legends", undefined);
+    // Remove legends from user stratum to allow CogLegendStratum to regenerate them automatically
+    this.item.legends?.forEach(legend => legend.strata.delete(CommonStrata.user));
   }
 
   private ensureLegendUserStratum(stratumId: string) {
@@ -979,7 +983,8 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
     stops: [number, string][]
   ) {
     if (stops.length === 0) {
-      this.item.setTrait(stratumId, "legends", undefined);
+      // Remove legends from user stratum to allow CogLegendStratum to regenerate them automatically
+      this.item.legends?.forEach(legend => legend.strata.delete(CommonStrata.user));
       return;
     }
     const baseline = this.primaryLegend?.items?.map((item) => ({

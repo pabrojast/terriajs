@@ -22,9 +22,14 @@
       "Bash(tee:*)",
       "Bash(curl:*)",
       "Bash(npx gulp build:*)",
-      "Bash(./node_modules/.bin/tsc:*)"
+      "Bash(./node_modules/.bin/tsc:*)",
+      "Bash(npm run build:*)",
+      "Bash(yarn build-for-node)",
+      "mcp__ide__getDiagnostics"
     ],
     "deny": [],
-    "additionalDirectories": ["C:\\Users\\Lenovo\\Proyectos\\TerriaMap"]
+    "additionalDirectories": [
+      "C:\\Users\\Lenovo\\Proyectos\\TerriaMap"
+    ]
   }
 }
