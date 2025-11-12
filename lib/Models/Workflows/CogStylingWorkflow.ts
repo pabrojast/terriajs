@@ -954,6 +954,10 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
 
     return createStratumInstance(LegendTraits, {
       title: legend.title,
+      url: legend.url,
+      urlMimeType: legend.urlMimeType,
+      imageScaling: legend.imageScaling,
+      backgroundColor: legend.backgroundColor,
       items: legend.items?.map((item) =>
         createStratumInstance(LegendItemTraits, {
           title: item.title,
