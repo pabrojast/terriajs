@@ -10134,10 +10134,10 @@ terriajs-server@^4.0.2:
     request-promise "^4.0.1"
     yargs "^17.7.2"
 
-terriajs-tiff-imagery-provider@2.13.3-webpack5-3:
-  version "2.13.3-webpack5-3"
-  resolved "https://registry.yarnpkg.com/terriajs-tiff-imagery-provider/-/terriajs-tiff-imagery-provider-2.13.3-webpack5-3.tgz#d0848a2a429667ee1b73540db509c147d73f33eb"
-  integrity sha512-I7h+2FNz01sefKTf14V4yNn4nldJ12wDCCgrywD3jbGM0hAa9Qy2KHWgKHSvi4OELNNeP3G/vnrvLN/SMoeOAg==
+"terriajs-tiff-imagery-provider@npm:@pabrojast/terriajs-tiff-imagery-provider@^2.15.3":
+  version "2.15.3"
+  resolved "https://registry.yarnpkg.com/@pabrojast/terriajs-tiff-imagery-provider/-/terriajs-tiff-imagery-provider-2.15.3.tgz#e480ec6c2d4c3dbdf19591b10be9d59c02ee4c50"
+  integrity sha512-YFeu5+chuSyaSADxa/+OKVqMzFgLpE45vhHGkq6KHqpTsnYHASkY9S7aLusnK/FNpR3qYs/fEgna3ALk2It0Hw==
   dependencies:
     geotiff "^2.0.7"
 
