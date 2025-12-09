@@ -314,6 +314,8 @@ export default class CogCatalogItem extends MappableMixin(
       renderOptions.single = singleRenderOptions;
     }
 
+    console.log("COG renderOptions being passed:", JSON.stringify(renderOptions, null, 2));
+
     if (this.renderOptions.nodata !== undefined) {
       renderOptions.nodata = this.renderOptions.nodata;
     }
