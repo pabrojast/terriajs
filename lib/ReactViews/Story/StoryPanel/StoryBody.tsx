@@ -8,8 +8,9 @@ const StoryContainer = styled(Box).attrs((props: { isCollapsed: boolean }) => ({
   paddedVertically: props.isCollapsed ? 0 : 2,
   scroll: true
 }))<{ isCollapsed: boolean }>`
-  background-color: ${(props) => props.theme.transparentDark};
+  background-color: rgba(255, 255, 255, 0.95);
   backdrop-filter: ${(props) => props.theme.blur};
+  color: #000;
   padding-top: 0;
   padding: ${(props) => (props.isCollapsed ? 0 : 15)}px;
   flex: 1 1 auto;
@@ -100,6 +101,7 @@ const StoryBody = ({
           gap: 5px;
         `}
         medium
+        textDark
       >
         {sourceBasedParse(story)}
       </Text>
