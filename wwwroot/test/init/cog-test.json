@@ -1,0 +1,18 @@
+{
+  "catalog": [
+    {
+      "type": "cog",
+      "id": "landslide-risk-cog",
+      "name": "Landslide Risk (RF Mean 1980-2018)",
+      "description": "Cloud Optimized GeoTIFF showing landslide risk factor mean from 1980-2018",
+      "url": "https://ihpwinsdata.blob.core.windows.net/data/resources/43524568-7e92-416a-af60-c00116814f8f/ls_rf_mean_1980-2018_cog_fixed.tif",
+      "renderOptions": {
+        "single": {
+          "band": 1,
+          "domain": [0, 1.65],
+          "colorScale": "viridis"
+        }
+      }
+    }
+  ]
+}
