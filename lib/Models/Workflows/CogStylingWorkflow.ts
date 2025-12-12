@@ -448,6 +448,8 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
   @computed
   private get legendGroup(): SelectableDimensionWorkflowGroup | undefined {
     const legend = this.primaryLegend;
+    const renderType = this.item.renderOptions?.single?.type ?? "continuous";
+    const isContinuous = renderType === "continuous";
 
     if (!legend) {
       return {
@@ -473,38 +475,44 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
       value: item.value ?? this.extractNumericValue(item.title)
     }));
 
+    // For continuous mode: simpler UI without auto legend options
+    // For discrete mode: full UI with auto legend checkbox
     const dimensions = filterOutUndefined([
       {
         type: "text",
         id: "legend-title",
         name: i18next.t("models.cogStyling.legend.title"),
         value: legend.title,
-        disable: !this.hasManualLegend,
+        disable: !isContinuous && !this.hasManualLegend,
         setDimensionValue: action(
           (stratumId: string, value: string | undefined) =>
             this.updateLegendTitle(stratumId, value)
         )
       } as SelectableDimensionText,
-      {
-        type: "checkbox",
-        id: "legend-auto",
-        name: i18next.t("models.cogStyling.legend.auto"),
-        selectedId: this.hasManualLegend ? "false" : "true",
-        options: [{ id: "true" }],
-        setDimensionValue: action(
-          (stratumId: string, value: "true" | "false" | undefined) => {
-            if (value === "true") {
-              // Remove legends from user stratum to allow CogLegendStratum to regenerate them automatically
-              this.item.legends?.forEach((legend) =>
-                legend.strata.delete(CommonStrata.user)
-              );
-            } else {
-              this.ensureLegendUserStratum(stratumId);
-            }
-          }
-        )
-      } as SelectableDimensionCheckbox,
-      !this.hasManualLegend
+      // Only show auto legend checkbox for discrete mode
+      !isContinuous
+        ? ({
+            type: "checkbox",
+            id: "legend-auto",
+            name: i18next.t("models.cogStyling.legend.auto"),
+            selectedId: this.hasManualLegend ? "false" : "true",
+            options: [{ id: "true" }],
+            setDimensionValue: action(
+              (stratumId: string, value: "true" | "false" | undefined) => {
+                if (value === "true") {
+                  // Remove legends from user stratum to allow CogLegendStratum to regenerate them automatically
+                  this.item.legends?.forEach((legend) =>
+                    legend.strata.delete(CommonStrata.user)
+                  );
+                } else {
+                  this.ensureLegendUserStratum(stratumId);
+                }
+              }
+            )
+          } as SelectableDimensionCheckbox)
+        : undefined,
+      // Only show auto info for discrete mode when not in manual mode
+      !isContinuous && !this.hasManualLegend
         ? ({
             type: "text",
             id: "legend-auto-info",
@@ -514,7 +522,8 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
             })
           } as SelectableDimensionText)
         : undefined,
-      !this.hasManualLegend
+      // Only show disable auto button for discrete mode when not in manual mode
+      !isContinuous && !this.hasManualLegend
         ? ({
             type: "button",
             id: "legend-disable-auto",
@@ -524,7 +533,8 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
             )
           } as SelectableDimensionButton)
         : undefined,
-      this.hasManualLegend && !legend.url
+      // Sync button: show for discrete manual mode, or for continuous mode
+      (isContinuous || this.hasManualLegend) && !legend.url
         ? ({
             type: "button",
             id: "legend-sync",
@@ -534,7 +544,8 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
             )
           } as SelectableDimensionButton)
         : undefined,
-      ...(this.hasManualLegend
+      // Legend items editing: show for discrete manual mode, or for continuous mode
+      ...(isContinuous || this.hasManualLegend
         ? legend.items?.flatMap((item, index) =>
             filterOutUndefined([
               {
@@ -591,7 +602,8 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
             ])
           ) ?? []
         : []),
-      this.hasManualLegend && !legend.url
+      // Add item button: show for discrete manual mode, or for continuous mode
+      (isContinuous || this.hasManualLegend) && !legend.url
         ? ({
             type: "button",
             id: "legend-add",
@@ -601,7 +613,8 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
             )
           } as SelectableDimensionButton)
         : undefined,
-      this.hasManualLegend
+      // Reset button: show for discrete manual mode, or for continuous mode
+      isContinuous || this.hasManualLegend
         ? ({
             type: "button",
             id: "legend-reset",
