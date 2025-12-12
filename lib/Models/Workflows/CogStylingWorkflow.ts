@@ -24,6 +24,7 @@ import createStratumInstance from "../Definition/createStratumInstance";
 import StratumFromTraits from "../Definition/StratumFromTraits";
 import Model from "../Definition/Model";
 import { COG_COLOR_SCALES } from "../Catalog/CatalogItems/CogColorScales";
+import { CogColorScaleOptionRenderer } from "../../ReactViews/SelectableDimensions/CogColorScaleOptionRenderer";
 
 /** Available color scales for COG rendering */
 const COLOR_SCALES: ColorScaleNames[] = [
@@ -216,6 +217,7 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
         id: scale,
         name: scale.charAt(0).toUpperCase() + scale.slice(1)
       })),
+      optionRenderer: CogColorScaleOptionRenderer,
       setDimensionValue: action(
         (stratumId: string, value: string | undefined) => {
           if (!this.item.renderOptions.single) {
@@ -493,7 +495,9 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
           (stratumId: string, value: "true" | "false" | undefined) => {
             if (value === "true") {
               // Remove legends from user stratum to allow CogLegendStratum to regenerate them automatically
-              this.item.legends?.forEach(legend => legend.strata.delete(CommonStrata.user));
+              this.item.legends?.forEach((legend) =>
+                legend.strata.delete(CommonStrata.user)
+              );
             } else {
               this.ensureLegendUserStratum(stratumId);
             }
@@ -531,7 +535,7 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
           } as SelectableDimensionButton)
         : undefined,
       ...(this.hasManualLegend
-        ? (legend.items?.flatMap((item, index) =>
+        ? legend.items?.flatMap((item, index) =>
             filterOutUndefined([
               {
                 type: "color",
@@ -585,7 +589,7 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
                   } as SelectableDimensionButton)
                 : undefined
             ])
-          ) ?? [])
+          ) ?? []
         : []),
       this.hasManualLegend && !legend.url
         ? ({
@@ -729,7 +733,9 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
     this.item.renderOptions.single!.setTrait(stratumId, "colors", undefined);
     this.cachedLegendDomain = undefined;
     // Remove legends from user stratum to allow CogLegendStratum to regenerate them automatically
-    this.item.legends?.forEach(legend => legend.strata.delete(CommonStrata.user));
+    this.item.legends?.forEach((legend) =>
+      legend.strata.delete(CommonStrata.user)
+    );
   }
 
   private writeColorStops(stratumId: string, stops: CustomColorStop[]) {
@@ -738,7 +744,9 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
       this.item.renderOptions.single!.setTrait(stratumId, "colors", undefined);
       if (!this.hasManualLegend) {
         // Remove legends from user stratum to allow CogLegendStratum to regenerate them automatically
-        this.item.legends?.forEach(legend => legend.strata.delete(CommonStrata.user));
+        this.item.legends?.forEach((legend) =>
+          legend.strata.delete(CommonStrata.user)
+        );
       }
       return;
     }
@@ -880,7 +888,9 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
   private clearLegendOverrides(stratumId: string) {
     this.cachedLegendDomain = undefined;
     // Remove legends from user stratum to allow CogLegendStratum to regenerate them automatically
-    this.item.legends?.forEach(legend => legend.strata.delete(CommonStrata.user));
+    this.item.legends?.forEach((legend) =>
+      legend.strata.delete(CommonStrata.user)
+    );
   }
 
   private ensureLegendUserStratum(stratumId: string) {
@@ -992,7 +1002,9 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
   ) {
     if (stops.length === 0) {
       // Remove legends from user stratum to allow CogLegendStratum to regenerate them automatically
-      this.item.legends?.forEach(legend => legend.strata.delete(CommonStrata.user));
+      this.item.legends?.forEach((legend) =>
+        legend.strata.delete(CommonStrata.user)
+      );
       return;
     }
     const baseline = this.primaryLegend?.items?.map((item) => ({
