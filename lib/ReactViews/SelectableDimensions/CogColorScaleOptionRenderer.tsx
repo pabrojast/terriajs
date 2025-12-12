@@ -87,12 +87,12 @@ function generateGradientColors(
  */
 function ramp(scaleName: string | undefined): ReactChild {
   if (!scaleName) {
-    return <span style={{ color: "#888" }}>Select a color scale</span>;
+    return <span style={{ color: "#ccc" }}>Select a color scale</span>;
   }
 
   const scale = COG_COLOR_SCALES[scaleName as ColorScaleNames];
   if (!scale) {
-    return <span style={{ color: "#888" }}>Unknown scale: {scaleName}</span>;
+    return <span style={{ color: "#ccc" }}>Unknown scale: {scaleName}</span>;
   }
 
   const colors = generateGradientColors(scale.colors, scale.positions);
