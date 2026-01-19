@@ -388,7 +388,11 @@
       "cancelBtn": "cancel",
       "cancelEditing": "Cancel",
       "saveBtn": "save",
-      "saveStory": "Save"
+      "saveStory": "Save",
+      "legend": {
+        "insert": "Insert legend",
+        "empty": "No legends available"
+      }
     },
     "locationBtn": "center scene",
     "exitBtn": "exit story",

@@ -4,12 +4,48 @@ import classNames from "classnames";
 import Styles from "./story-editor.scss";
 import { withTranslation } from "react-i18next";
 import tinymce from "tinymce";
+import isDefined from "../../Core/isDefined";
+import { getName } from "../../ModelMixins/CatalogMemberMixin";
+import hasTraits from "../../Models/Definition/hasTraits";
 import Text from "../../Styled/Text";
 import Box from "../../Styled/Box";
 import Button from "../../Styled/Button";
+import LegendOwnerTraits from "../../Traits/TraitsClasses/LegendOwnerTraits";
 
 // Lazy load the Editor component as the tinyMCE library is large
 const Editor = lazy(() => import("../Generic/Editor.jsx"));
+const LEGEND_TAG = "terria-legend";
+const LEGEND_EDITOR_STYLE = `
+  ${LEGEND_TAG} {
+    display: block;
+    padding: 8px;
+    border: 1px dashed #b3b3b3;
+    background: #f7f7f7;
+  }
+
+  ${LEGEND_TAG}::before {
+    content: attr(data-title);
+    display: block;
+    color: #555;
+    font-size: 12px;
+  }
+`;
+
+const escapeAttributeValue = (value) =>
+  String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/'/g, "&#39;");
+
+const buildLegendHtml = (itemId, title) => {
+  const escapedId = escapeAttributeValue(itemId);
+  const escapedTitle = title ? escapeAttributeValue(title) : "";
+  const titleAttr = escapedTitle ? ` data-title="${escapedTitle}"` : "";
+  return `<p><${LEGEND_TAG} data-id="${escapedId}"${titleAttr}></${LEGEND_TAG}></p>`;
+};
+
 class StoryEditor extends Component {
   constructor(props) {
     super(props);
@@ -29,6 +65,7 @@ class StoryEditor extends Component {
     this.cancelEditing = this.cancelEditing.bind(this);
     this.updateTitle = this.updateTitle.bind(this);
     this.onKeyDown = this.onKeyDown.bind(this);
+    this.setupEditor = this.setupEditor.bind(this);
 
     this.onKeyUp = this.onKeyUp.bind(this);
     this.slideInTimer = null;
@@ -145,6 +182,48 @@ class StoryEditor extends Component {
     }
   }
 
+  setupEditor(editor) {
+    editor.ui.registry.addMenuButton("legend", {
+      text: this.props.t("story.editor.legend.insert"),
+      fetch: (callback) => {
+        const terria = this.props.terria;
+        const legendItems = terria?.workbench?.items
+          ?.filter((item) => isDefined(item.uniqueId))
+          .filter(
+            (item) =>
+              hasTraits(item, LegendOwnerTraits, "legends") &&
+              isDefined(item.legends) &&
+              item.legends.length > 0
+          )
+          .map((item) => {
+            const itemName = getName(item) || item.uniqueId;
+            return {
+              type: "menuitem",
+              text: itemName,
+              onAction: () => {
+                if (!item.uniqueId) return;
+                editor.insertContent(buildLegendHtml(item.uniqueId, itemName));
+              }
+            };
+          });
+
+        if (!legendItems || legendItems.length === 0) {
+          callback([
+            {
+              type: "menuitem",
+              text: this.props.t("story.editor.legend.empty"),
+              onAction: () => {},
+              disabled: true
+            }
+          ]);
+          return;
+        }
+
+        callback(legendItems);
+      }
+    });
+  }
+
   render() {
     const { t } = this.props;
     const maxImageHeight = "350px"; // TODO: where to put this to reduce coupling?
@@ -194,6 +273,11 @@ class StoryEditor extends Component {
                   this.setState({ text });
                 }}
                 terria={this.props.terria}
+                toolbarItems="legend"
+                setup={this.setupEditor}
+                customElements={LEGEND_TAG}
+                extendedValidElements={`${LEGEND_TAG}[data-id|data-title]`}
+                contentStyle={LEGEND_EDITOR_STYLE}
               />
             </Suspense>
           </div>
