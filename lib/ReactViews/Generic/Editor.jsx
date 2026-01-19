@@ -25,6 +25,23 @@ import contentUiCss from "tinymce/skins/ui/oxide/content.min.css";
 
 export default function TinyEditor(props) {
   const editorRef = useRef(null);
+  const defaultToolbar =
+    "blocks | bold italic forecolor | align |" +
+    " bullist numlist table |" +
+    "image media link |" +
+    "undo redo | removeformat";
+  const toolbar = props.toolbarItems
+    ? `${defaultToolbar} | ${props.toolbarItems}`
+    : defaultToolbar;
+  const contentStyles = [contentCss, contentUiCss];
+  if (props.contentStyle) {
+    contentStyles.push(props.contentStyle);
+  }
+  const setup = (editor) => {
+    if (props.setup) {
+      props.setup(editor);
+    }
+  };
 
   return (
     <Editor
@@ -39,14 +56,15 @@ export default function TinyEditor(props) {
         branding: false,
         statusbar: false,
         plugins: ["link", "image", "media", "table", "lists", "autolink"],
-        toolbar:
-          "blocks | bold italic forecolor | align |" +
-          " bullist numlist table |" +
-          "image media link |" +
-          "undo redo | removeformat",
+        toolbar,
         content_css: false,
-        content_style: [contentCss, contentUiCss].join("\n"),
-        image_dimensions: false
+        content_style: contentStyles.join("\n"),
+        image_dimensions: false,
+        setup,
+        ...(props.customElements ? { custom_elements: props.customElements } : {}),
+        ...(props.extendedValidElements
+          ? { extended_valid_elements: props.extendedValidElements }
+          : {})
       }}
     />
   );
@@ -56,5 +74,10 @@ TinyEditor.propTypes = {
   html: PropTypes.string,
   onChange: PropTypes.func.isRequired,
   actions: PropTypes.array,
-  terria: PropTypes.object
+  terria: PropTypes.object,
+  toolbarItems: PropTypes.string,
+  setup: PropTypes.func,
+  customElements: PropTypes.string,
+  extendedValidElements: PropTypes.string,
+  contentStyle: PropTypes.string
 };

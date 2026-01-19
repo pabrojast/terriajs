@@ -3,6 +3,7 @@ import parseCustomHtmlToReact from "../../Custom/parseCustomHtmlToReact";
 import styled from "styled-components";
 import Box from "../../../Styled/Box";
 import Text from "../../../Styled/Text";
+import Terria from "../../../Models/Terria";
 
 const StoryContainer = styled(Box).attrs((props: { isCollapsed: boolean }) => ({
   paddedVertically: props.isCollapsed ? 0 : 2,
@@ -65,32 +66,31 @@ function shouldAddIframeTag(story: Story) {
   return result;
 }
 
-function sourceBasedParse(story: Story) {
+function sourceBasedParse(story: Story, terria?: Terria) {
+  const addTags = ["terria-legend"];
   if (shouldAddIframeTag(story)) {
-    return parseCustomHtmlToReact(
-      story.text,
-      { showExternalLinkWarning: true },
-      false,
-      {
-        ADD_TAGS: ["iframe"]
-      }
-    );
-  } else {
-    return parseCustomHtmlToReact(
-      story.text,
-      { showExternalLinkWarning: true },
-      false,
-      {}
-    );
+    addTags.push("iframe");
   }
+
+  return parseCustomHtmlToReact(
+    story.text,
+    { showExternalLinkWarning: true, terria },
+    false,
+    {
+      ADD_TAGS: addTags,
+      ADD_ATTR: ["data-id", "data-title"]
+    }
+  );
 }
 
 const StoryBody = ({
   isCollapsed,
-  story
+  story,
+  terria
 }: {
   isCollapsed: boolean;
   story: Story;
+  terria?: Terria;
 }) =>
   story.text && story.text !== "" ? (
     <StoryContainer isCollapsed={isCollapsed} column>
@@ -103,7 +103,7 @@ const StoryBody = ({
         medium
         textDark
       >
-        {sourceBasedParse(story)}
+        {sourceBasedParse(story, terria)}
       </Text>
     </StoryContainer>
   ) : null;

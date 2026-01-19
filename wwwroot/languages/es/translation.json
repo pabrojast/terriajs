@@ -636,7 +636,11 @@
       "saveBtn": "guardar",
       "cancelBtn": "cancelar",
       "cancelEditing": "Cancelar",
-      "placeholder": "Introduzca un título aquí"
+      "placeholder": "Introduzca un título aquí",
+      "legend": {
+        "insert": "Insertar leyenda",
+        "empty": "No hay leyendas disponibles"
+      }
     },
     "removeAllStories": "Eliminar Todas",
     "delete": "Eliminar",

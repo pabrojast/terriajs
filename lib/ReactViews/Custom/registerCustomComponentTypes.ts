@@ -8,6 +8,7 @@ import CsvChartCustomComponent from "./CsvChartCustomComponent";
 import CustomComponent from "./CustomComponent";
 import FeedbackLinkCustomComponent from "./FeedbackLinkCustomComponent";
 import JsonChartCustomComponent from "./JsonChartCustomComponent";
+import LegendCustomComponent from "./LegendCustomComponent";
 import SOSChartCustomComponent from "./SOSChartCustomComponent";
 import TerriaTooltipCustomComponent from "./TerriaTooltip";
 
@@ -26,6 +27,7 @@ export default function registerCustomComponentTypes(terria?: Terria) {
   CustomComponent.register(new CollapsibleCustomComponent());
   CustomComponent.register(new FeedbackLinkCustomComponent());
   CustomComponent.register(new TerriaTooltipCustomComponent());
+  CustomComponent.register(new LegendCustomComponent());
 
   // At the time this is called `cesiumIonOAuth2ApplicationID` won't be populated yet.
   // Subscribe to it now in case it's populated later.
