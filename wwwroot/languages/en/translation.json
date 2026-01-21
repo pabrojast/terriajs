@@ -1399,6 +1399,12 @@
     "thredds": {
       "nameGroup": "THREDDS Catalog Group"
     },
+    "stac": {
+      "collectionName": "STAC Collection",
+      "catalogName": "STAC Catalog",
+      "noCogAssetError": "No COG asset found in STAC collection",
+      "invalidCollectionError": "Invalid STAC collection: type must be 'Collection'"
+    },
     "threddsItem": {
       "name": "THREDDS Item Reference"
     },

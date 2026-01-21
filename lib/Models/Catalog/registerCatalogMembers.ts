@@ -65,6 +65,8 @@ import WebProcessingServiceCatalogGroup from "./Ows/WebProcessingServiceCatalogG
 import SdmxJsonCatalogGroup from "./SdmxJson/SdmxJsonCatalogGroup";
 import SdmxJsonCatalogItem from "./SdmxJson/SdmxJsonCatalogItem";
 import CogCatalogItem from "./CatalogItems/CogCatalogItem";
+import StacCollectionCatalogItem from "./Stac/StacCollectionCatalogItem";
+import StacCatalogGroup from "./Stac/StacCatalogGroup";
 
 export default function registerCatalogMembers() {
   CatalogMemberFactory.register(CatalogGroup.type, CatalogGroup);
@@ -243,6 +245,11 @@ export default function registerCatalogMembers() {
   );
   CatalogMemberFactory.register(AssImpCatalogItem.type, AssImpCatalogItem);
   CatalogMemberFactory.register(CogCatalogItem.type, CogCatalogItem);
+  CatalogMemberFactory.register(
+    StacCollectionCatalogItem.type,
+    StacCollectionCatalogItem
+  );
+  CatalogMemberFactory.register(StacCatalogGroup.type, StacCatalogGroup);
 
   UrlToCatalogMemberMapping.register(
     matchesExtension("csv"),
@@ -292,6 +299,18 @@ export default function registerCatalogMembers() {
   UrlToCatalogMemberMapping.register(
     matchesExtension("tif", "tiff", "geotiff"),
     CogCatalogItem.type
+  );
+
+  // STAC URL patterns
+  UrlToCatalogMemberMapping.register(
+    matchesUrl(/\/collections\/[^/]+$/i),
+    StacCollectionCatalogItem.type,
+    true
+  );
+  UrlToCatalogMemberMapping.register(
+    matchesUrl(/stac.*\/$/i),
+    StacCatalogGroup.type,
+    true
   );
 
   // These items work by trying to match a URL, then loading the data. If it fails, they move on.
