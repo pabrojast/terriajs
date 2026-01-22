@@ -12,14 +12,15 @@ import {
 import CesiumMath from "terriajs-cesium/Source/Core/Math";
 import type TIFFImageryProvider from "terriajs-tiff-imagery-provider";
 import isDefined from "../../../Core/isDefined";
-import { JsonObject } from "../../../Core/Json";
 import loadJson from "../../../Core/loadJson";
 import CatalogMemberMixin from "../../../ModelMixins/CatalogMemberMixin";
 import MappableMixin, { MapItem } from "../../../ModelMixins/MappableMixin";
 import UrlMixin from "../../../ModelMixins/UrlMixin";
+import { InfoSectionTraits } from "../../../Traits/TraitsClasses/CatalogMemberTraits";
 import StacCollectionCatalogItemTraits from "../../../Traits/TraitsClasses/StacCollectionCatalogItemTraits";
 import { RectangleTraits } from "../../../Traits/TraitsClasses/MappableTraits";
 import CreateModel from "../../Definition/CreateModel";
+import createStratumInstance from "../../Definition/createStratumInstance";
 import LoadableStratum from "../../Definition/LoadableStratum";
 import { BaseModel } from "../../Definition/Model";
 import StratumFromTraits from "../../Definition/StratumFromTraits";
@@ -242,30 +243,25 @@ class StacCollectionStratum extends LoadableStratum(
   }
 
   @computed
-  get info() {
-    const info: Array<{
-      name: string;
-      content: string;
-      contentAsObject: undefined;
-      show: boolean;
-    }> = [];
+  get info(): StratumFromTraits<InfoSectionTraits>[] {
+    const info: StratumFromTraits<InfoSectionTraits>[] = [];
 
     if (this.collection.license) {
-      info.push({
-        name: i18next.t("preview.licence"),
-        content: this.collection.license,
-        contentAsObject: undefined,
-        show: true
-      });
+      info.push(
+        createStratumInstance(InfoSectionTraits, {
+          name: i18next.t("preview.licence"),
+          content: this.collection.license
+        })
+      );
     }
 
     if (this.collection.keywords && this.collection.keywords.length > 0) {
-      info.push({
-        name: i18next.t("preview.keywords") || "Keywords",
-        content: this.collection.keywords.join(", "),
-        contentAsObject: undefined,
-        show: true
-      });
+      info.push(
+        createStratumInstance(InfoSectionTraits, {
+          name: i18next.t("preview.keywords") || "Keywords",
+          content: this.collection.keywords.join(", ")
+        })
+      );
     }
 
     if (this.collection.providers && this.collection.providers.length > 0) {
@@ -276,24 +272,24 @@ class StacCollectionStratum extends LoadableStratum(
           return `${p.name}${roles}${url}`;
         })
         .join("\n");
-      info.push({
-        name: i18next.t("preview.contact") || "Providers",
-        content: providersContent,
-        contentAsObject: undefined,
-        show: true
-      });
+      info.push(
+        createStratumInstance(InfoSectionTraits, {
+          name: i18next.t("preview.contact") || "Providers",
+          content: providersContent
+        })
+      );
     }
 
     const temporal = this.collection.extent?.temporal?.interval?.[0];
     if (temporal) {
       const start = temporal[0] || "ongoing";
       const end = temporal[1] || "present";
-      info.push({
-        name: i18next.t("preview.temporalExtent") || "Temporal Extent",
-        content: `${start} to ${end}`,
-        contentAsObject: undefined,
-        show: true
-      });
+      info.push(
+        createStratumInstance(InfoSectionTraits, {
+          name: i18next.t("preview.temporalExtent") || "Temporal Extent",
+          content: `${start} to ${end}`
+        })
+      );
     }
 
     return info;
