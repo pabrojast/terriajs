@@ -243,19 +243,28 @@ class StacCollectionStratum extends LoadableStratum(
 
   @computed
   get info() {
-    const info: Array<{ name: string; content: string }> = [];
+    const info: Array<{
+      name: string;
+      content: string;
+      contentAsObject: undefined;
+      show: boolean;
+    }> = [];
 
     if (this.collection.license) {
       info.push({
         name: i18next.t("preview.licence"),
-        content: this.collection.license
+        content: this.collection.license,
+        contentAsObject: undefined,
+        show: true
       });
     }
 
     if (this.collection.keywords && this.collection.keywords.length > 0) {
       info.push({
         name: i18next.t("preview.keywords") || "Keywords",
-        content: this.collection.keywords.join(", ")
+        content: this.collection.keywords.join(", "),
+        contentAsObject: undefined,
+        show: true
       });
     }
 
@@ -269,7 +278,9 @@ class StacCollectionStratum extends LoadableStratum(
         .join("\n");
       info.push({
         name: i18next.t("preview.contact") || "Providers",
-        content: providersContent
+        content: providersContent,
+        contentAsObject: undefined,
+        show: true
       });
     }
 
@@ -279,7 +290,9 @@ class StacCollectionStratum extends LoadableStratum(
       const end = temporal[1] || "present";
       info.push({
         name: i18next.t("preview.temporalExtent") || "Temporal Extent",
-        content: `${start} to ${end}`
+        content: `${start} to ${end}`,
+        contentAsObject: undefined,
+        show: true
       });
     }
 
