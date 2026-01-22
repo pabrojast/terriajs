@@ -118,14 +118,18 @@ describe("StacCollectionCatalogItem", function () {
     });
 
     it("can set asset configuration", function () {
-      item.setTrait(CommonStrata.user, "asset", { assetKey: "CHL" });
+      item.setTrait(CommonStrata.user, "asset", {
+        assetKey: "CHL",
+        bandName: undefined
+      });
       expect(item.asset?.assetKey).toBe("CHL");
     });
 
     it("can set render configuration", function () {
       item.setTrait(CommonStrata.user, "render", {
         renderKey: "chl",
-        colormapName: "viridis"
+        colormapName: "viridis",
+        rescale: undefined
       });
       expect(item.render?.renderKey).toBe("chl");
       expect(item.render?.colormapName).toBe("viridis");
