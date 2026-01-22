@@ -130,33 +130,29 @@ export class StacCatalogStratum extends LoadableStratum(
       collectionsUrl = new URL("collections", this.catalogGroup.url).href;
     }
 
-    try {
-      const response = (await loadJson(
-        proxyCatalogItemUrl(this.catalogGroup, collectionsUrl)
-      )) as StacCollectionsResponse;
+    const response = (await loadJson(
+      proxyCatalogItemUrl(this.catalogGroup, collectionsUrl)
+    )) as StacCollectionsResponse;
 
-      let collections = response.collections || [];
+    let collections = response.collections || [];
 
-      // Apply filter if specified
-      if (this.catalogGroup.collectionsFilter) {
-        const filterIds = this.catalogGroup.collectionsFilter
-          .split(",")
-          .map((id) => id.trim());
-        collections = collections.filter((c) => filterIds.includes(c.id));
-      }
+    // Apply filter if specified
+    if (this.catalogGroup.collectionsFilter) {
+      const filterIds = this.catalogGroup.collectionsFilter
+        .split(",")
+        .map((id) => id.trim());
+      collections = collections.filter((c) => filterIds.includes(c.id));
+    }
 
-      // Apply limit
-      const maxCollections = this.catalogGroup.maximumCollections ?? 100;
-      collections = collections.slice(0, maxCollections);
+    // Apply limit
+    const maxCollections = this.catalogGroup.maximumCollections ?? 100;
+    collections = collections.slice(0, maxCollections);
 
-      this.collections = collections;
+    this.collections = collections;
 
-      // Create catalog items for each collection
-      for (const collection of collections) {
-        this.createCollectionItem(collection);
-      }
-    } catch (e) {
-      console.warn("Failed to load STAC collections:", e);
+    // Create catalog items for each collection
+    for (const collection of collections) {
+      this.createCollectionItem(collection);
     }
   }
 

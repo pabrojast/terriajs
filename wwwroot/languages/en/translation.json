@@ -756,7 +756,9 @@
       "ifc": "IFC",
       "cog": "Cloud Optimised Geotiff",
       "i3s": "I3S",
-      "cesium-ion": "Cesium ion"
+      "cesium-ion": "Cesium ion",
+      "stac-collection": "STAC Collection",
+      "stac-catalog": "STAC Catalog"
     },
     "printWindow": {
       "errorTitle": "Error printing",
@@ -1399,12 +1401,6 @@
     "thredds": {
       "nameGroup": "THREDDS Catalog Group"
     },
-    "stac": {
-      "collectionName": "STAC Collection",
-      "catalogName": "STAC Catalog",
-      "noCogAssetError": "No COG asset found in STAC collection",
-      "invalidCollectionError": "Invalid STAC collection: type must be 'Collection'"
-    },
     "threddsItem": {
       "name": "THREDDS Item Reference"
     },
@@ -1577,6 +1573,12 @@
     },
     "commonModelErrors": {
       "3dTypeIn2dMode": "**Note:** This dataset can not be displayed in the 2D viewer. Switch to one of the 3D map modes."
+    },
+    "stac": {
+      "collectionName": "STAC Collection",
+      "catalogName": "STAC Catalog",
+      "noCogAssetFound": "No COG asset found in STAC collection",
+      "loadError": "Failed to load STAC imagery: {{message}}"
     },
     "scaleDatasetNotVisible": {
       "scaleZoomIn": "Dataset is not available at this scale, zoom in to see it",

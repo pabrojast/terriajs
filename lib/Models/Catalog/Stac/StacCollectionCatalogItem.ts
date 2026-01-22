@@ -377,6 +377,9 @@ export default class StacCollectionCatalogItem extends UrlMixin(
   @observable
   _stacStratum: StacCollectionStratum | undefined;
 
+  @observable
+  private _loadError: string | undefined;
+
   /**
    * The reprojector function to use for reprojecting non native projections
    */
@@ -400,7 +403,7 @@ export default class StacCollectionCatalogItem extends UrlMixin(
 
     // Re-create the imageryProvider if `mapItems` is consumed again
     onBecomeObserved(this, "mapItems", () => {
-      if (!this._imageryProvider && !this.isLoadingMapItems) {
+      if (!this._imageryProvider && !this.isLoadingMapItems && !this._loadError) {
         this.loadMapItems(true);
       }
     });
@@ -416,6 +419,9 @@ export default class StacCollectionCatalogItem extends UrlMixin(
 
   @override
   get shortReport(): string | undefined {
+    if (this._loadError) {
+      return i18next.t("models.stac.loadError", { message: this._loadError });
+    }
     if (this.terria.currentViewer.type === "Leaflet") {
       return i18next.t("models.commonModelErrors.3dTypeIn2dMode", this);
     }
@@ -430,7 +436,11 @@ export default class StacCollectionCatalogItem extends UrlMixin(
     });
   }
 
+  @action
   protected async forceLoadMapItems(): Promise<void> {
+    // Reset error state
+    this._loadError = undefined;
+
     const stratum = this._stacStratum;
     if (!stratum) {
       return;
@@ -439,14 +449,24 @@ export default class StacCollectionCatalogItem extends UrlMixin(
     // Find a COG asset URL to render
     const cogUrl = this.findCogAssetUrl(stratum);
     if (!cogUrl) {
-      console.warn("No COG asset found in STAC collection");
+      runInAction(() => {
+        this._loadError = i18next.t("models.stac.noCogAssetFound");
+      });
       return;
     }
 
-    const imageryProvider = await this.createImageryProvider(cogUrl);
-    runInAction(() => {
-      this._imageryProvider = imageryProvider;
-    });
+    try {
+      const imageryProvider = await this.createImageryProvider(cogUrl);
+      runInAction(() => {
+        this._imageryProvider = imageryProvider;
+      });
+    } catch (error) {
+      runInAction(() => {
+        this._loadError =
+          error instanceof Error ? error.message : String(error);
+      });
+      throw error;
+    }
   }
 
   /**
