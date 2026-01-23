@@ -336,10 +336,7 @@ class StacCollectionStratum extends LoadableStratum(
         }
 
         // Add bbox filter if specified
-        if (
-          catalogItem.bboxFilter &&
-          catalogItem.bboxFilter.length >= 4
-        ) {
+        if (catalogItem.bboxFilter && catalogItem.bboxFilter.length >= 4) {
           itemsUrlWithParams.searchParams.set(
             "bbox",
             catalogItem.bboxFilter.join(",")
@@ -350,10 +347,7 @@ class StacCollectionStratum extends LoadableStratum(
           proxyCatalogItemUrl(catalogItem, itemsUrlWithParams.href)
         )) as StacItemsResponse;
 
-        if (
-          itemsResponse.features &&
-          itemsResponse.features.length > 0
-        ) {
+        if (itemsResponse.features && itemsResponse.features.length > 0) {
           items = itemsResponse.features;
         }
       } catch (e) {
@@ -413,7 +407,11 @@ export default class StacCollectionCatalogItem extends UrlMixin(
 
     // Re-create the imageryProvider if `mapItems` is consumed again
     onBecomeObserved(this, "mapItems", () => {
-      if (!this._imageryProvider && !this.isLoadingMapItems && !this._loadError) {
+      if (
+        !this._imageryProvider &&
+        !this.isLoadingMapItems &&
+        !this._loadError
+      ) {
         this.loadMapItems(true);
       }
     });
@@ -510,10 +508,7 @@ export default class StacCollectionCatalogItem extends UrlMixin(
 
     // Skip if bbox is degenerate (zero area) - would cause Cesium render errors
     const EPSILON = 0.0001;
-    if (
-      Math.abs(west - east) < EPSILON ||
-      Math.abs(north - south) < EPSILON
-    ) {
+    if (Math.abs(west - east) < EPSILON || Math.abs(north - south) < EPSILON) {
       return;
     }
 
@@ -639,7 +634,6 @@ export default class StacCollectionCatalogItem extends UrlMixin(
     } catch (error) {
       console.warn("Failed to load STAC items geometry:", error);
     }
-  }
   }
 
   /**
@@ -791,8 +785,8 @@ export default class StacCollectionCatalogItem extends UrlMixin(
       const renderConfig = renderKey
         ? collection.renders?.[renderKey]
         : collection.renders
-          ? Object.values(collection.renders)[0]
-          : undefined;
+        ? Object.values(collection.renders)[0]
+        : undefined;
 
       if (renderConfig) {
         const single: Record<string, unknown> = {};
@@ -801,10 +795,7 @@ export default class StacCollectionCatalogItem extends UrlMixin(
           single.domain = renderConfig.rescale[0];
         }
 
-        if (
-          renderConfig.colormap_name ||
-          this.render?.colormapName
-        ) {
+        if (renderConfig.colormap_name || this.render?.colormapName) {
           // Map common STAC colormap names to COG color scales
           const colormapName =
             this.render?.colormapName || renderConfig.colormap_name;
@@ -883,10 +874,15 @@ function reprojector(proj4: unknown) {
   return (code: number) => {
     if (![4326, 3857, 900913].includes(code)) {
       try {
-        const prj = (proj4 as (from: string, to: string) => {
-          forward: (coord: number[]) => number[];
-          inverse: (coord: number[]) => number[];
-        })("EPSG:4326", `EPSG:${code}`);
+        const prj = (
+          proj4 as (
+            from: string,
+            to: string
+          ) => {
+            forward: (coord: number[]) => number[];
+            inverse: (coord: number[]) => number[];
+          }
+        )("EPSG:4326", `EPSG:${code}`);
         if (prj)
           return {
             project: prj.forward,
