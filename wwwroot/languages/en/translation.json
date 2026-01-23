@@ -758,7 +758,8 @@
       "i3s": "I3S",
       "cesium-ion": "Cesium ion",
       "stac-collection": "STAC Collection",
-      "stac-catalog": "STAC Catalog"
+      "stac-catalog": "STAC Catalog",
+      "stac-item": "STAC Item"
     },
     "printWindow": {
       "errorTitle": "Error printing",
@@ -1577,7 +1578,8 @@
     "stac": {
       "collectionName": "STAC Collection",
       "catalogName": "STAC Catalog",
-      "noCogAssetFound": "No COG asset found in STAC collection",
+      "itemName": "STAC Item",
+      "noCogAssetFound": "No COG asset found in STAC data",
       "loadError": "Failed to load STAC imagery: {{message}}"
     },
     "scaleDatasetNotVisible": {

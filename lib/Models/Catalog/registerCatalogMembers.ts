@@ -67,6 +67,7 @@ import SdmxJsonCatalogItem from "./SdmxJson/SdmxJsonCatalogItem";
 import CogCatalogItem from "./CatalogItems/CogCatalogItem";
 import StacCollectionCatalogItem from "./Stac/StacCollectionCatalogItem";
 import StacCatalogGroup from "./Stac/StacCatalogGroup";
+import StacItemCatalogItem from "./Stac/StacItemCatalogItem";
 
 export default function registerCatalogMembers() {
   CatalogMemberFactory.register(CatalogGroup.type, CatalogGroup);
@@ -250,6 +251,7 @@ export default function registerCatalogMembers() {
     StacCollectionCatalogItem
   );
   CatalogMemberFactory.register(StacCatalogGroup.type, StacCatalogGroup);
+  CatalogMemberFactory.register(StacItemCatalogItem.type, StacItemCatalogItem);
 
   UrlToCatalogMemberMapping.register(
     matchesExtension("csv"),
@@ -302,6 +304,13 @@ export default function registerCatalogMembers() {
   );
 
   // STAC URL patterns
+  // STAC Item pattern: /collections/{collection}/items/{item}
+  UrlToCatalogMemberMapping.register(
+    matchesUrl(/\/collections\/[^/]+\/items\/[^/]+$/i),
+    StacItemCatalogItem.type,
+    true
+  );
+  // STAC Collection pattern: /collections/{collection}
   UrlToCatalogMemberMapping.register(
     matchesUrl(/\/collections\/[^/]+$/i),
     StacCollectionCatalogItem.type,

@@ -146,6 +146,10 @@ const builtinRemoteDataTypes: RemoteDataType[] = [
   {
     value: "stac-collection",
     name: "core.dataType.stac-collection"
+  },
+  {
+    value: "stac-item",
+    name: "core.dataType.stac-item"
   }
   // Add next builtin remote upload type
 ];
