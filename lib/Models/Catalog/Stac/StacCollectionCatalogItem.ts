@@ -495,9 +495,17 @@ export default class StacCollectionCatalogItem extends UrlMixin(
     const [west, south, east, north] = bbox;
 
     // Skip if bbox is degenerate (zero area) - would cause Cesium render errors
-    if (west === east || north === south) {
+    const EPSILON = 0.0001;
+    if (
+      Math.abs(west - east) < EPSILON ||
+      Math.abs(north - south) < EPSILON
+    ) {
       return;
     }
+
+    // Determine if bbox spans most of the world - don't clamp global extents
+    const isGlobalExtent =
+      Math.abs(east - west) > 300 || Math.abs(north - south) > 150;
 
     // Create a GeoJSON polygon from the bbox
     const geojson: GeoJSON.Feature = {
@@ -526,7 +534,7 @@ export default class StacCollectionCatalogItem extends UrlMixin(
         stroke: Color.CYAN,
         strokeWidth: 3,
         fill: Color.CYAN.withAlpha(0.1),
-        clampToGround: true
+        clampToGround: !isGlobalExtent // Skip clamping for global extents
       });
 
       runInAction(() => {
