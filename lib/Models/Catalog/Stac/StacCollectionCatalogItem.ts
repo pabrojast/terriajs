@@ -494,6 +494,11 @@ export default class StacCollectionCatalogItem extends UrlMixin(
 
     const [west, south, east, north] = bbox;
 
+    // Skip if bbox is degenerate (zero area) - would cause Cesium render errors
+    if (west === east || north === south) {
+      return;
+    }
+
     // Create a GeoJSON polygon from the bbox
     const geojson: GeoJSON.Feature = {
       type: "Feature",
@@ -515,17 +520,22 @@ export default class StacCollectionCatalogItem extends UrlMixin(
       }
     };
 
-    const dataSource = new GeoJsonDataSource(this.name || collection.id);
-    await dataSource.load(geojson, {
-      stroke: Color.CYAN,
-      strokeWidth: 3,
-      fill: Color.CYAN.withAlpha(0.1),
-      clampToGround: true
-    });
+    try {
+      const dataSource = new GeoJsonDataSource(this.name || collection.id);
+      await dataSource.load(geojson, {
+        stroke: Color.CYAN,
+        strokeWidth: 3,
+        fill: Color.CYAN.withAlpha(0.1),
+        clampToGround: true
+      });
 
-    runInAction(() => {
-      this._geoJsonDataSource = dataSource;
-    });
+      runInAction(() => {
+        this._geoJsonDataSource = dataSource;
+      });
+    } catch (error) {
+      // Ignore geometry errors - the item can still function without bbox display
+      console.warn("Failed to load STAC collection bbox geometry:", error);
+    }
   }
 
   /**

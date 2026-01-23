@@ -367,17 +367,23 @@ export default class StacItemCatalogItem extends UrlMixin(
       }
     };
 
-    const dataSource = new GeoJsonDataSource(this.name || item.id);
-    await dataSource.load(geojson, {
-      stroke: Color.CYAN,
-      strokeWidth: 3,
-      fill: Color.CYAN.withAlpha(0.1),
-      clampToGround: true
-    });
+    try {
+      const dataSource = new GeoJsonDataSource(this.name || item.id);
+      await dataSource.load(geojson, {
+        stroke: Color.CYAN,
+        strokeWidth: 3,
+        fill: Color.CYAN.withAlpha(0.1),
+        clampToGround: true
+      });
 
-    runInAction(() => {
-      this._geoJsonDataSource = dataSource;
-    });
+      runInAction(() => {
+        this._geoJsonDataSource = dataSource;
+      });
+    } catch (error) {
+      // Ignore geometry errors (e.g., degenerate polygons)
+      // The item can still be displayed via rectangle
+      console.warn("Failed to load STAC item geometry:", error);
+    }
   }
 
   /**
