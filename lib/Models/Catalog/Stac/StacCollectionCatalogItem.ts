@@ -537,11 +537,13 @@ export default class StacCollectionCatalogItem extends UrlMixin(
 
     try {
       const dataSource = new GeoJsonDataSource(this.name || collection.id);
+      // Note: clampToGround is disabled to avoid Cesium EllipsoidRhumbLine errors
+      // with certain polygon geometries that have near-duplicate points
       await dataSource.load(geojson, {
         stroke: Color.CYAN,
         strokeWidth: 3,
         fill: Color.CYAN.withAlpha(0.1),
-        clampToGround: true
+        clampToGround: false
       });
 
       runInAction(() => {
