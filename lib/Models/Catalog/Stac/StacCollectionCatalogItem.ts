@@ -645,23 +645,34 @@ export default class StacCollectionCatalogItem extends UrlMixin(
 
     if (!item) {
       // No items available, try collection-level assets
+      console.log(`STAC: No items available, checking collection assets`);
       if (collection.assets) {
-        const cogAsset = Object.values(collection.assets).find(
-          (asset) =>
+        const cogAsset = Object.entries(collection.assets).find(
+          ([, asset]) =>
             asset.type?.includes("geotiff") ||
             asset.type?.includes("tiff") ||
             asset.href?.endsWith(".tif") ||
             asset.href?.endsWith(".tiff")
         );
-        return cogAsset?.href;
+        if (cogAsset) {
+          console.log(`STAC: Found collection asset: ${cogAsset[0]}`);
+          return cogAsset[1].href;
+        }
       }
+      console.log(`STAC: No COG assets found in collection`);
       return undefined;
     }
+
+    console.log(
+      `STAC: Item ${item.id} has assets:`,
+      Object.keys(item.assets).join(", ")
+    );
 
     // Determine which asset to use
     const assetKey = this.asset?.assetKey;
 
     if (assetKey && item.assets[assetKey]) {
+      console.log(`STAC: Using configured asset: ${assetKey}`);
       return item.assets[assetKey].href;
     }
 
@@ -671,22 +682,29 @@ export default class StacCollectionCatalogItem extends UrlMixin(
       const render = collection.renders[renderKey];
       const assetName = render.assets?.[0];
       if (assetName && item.assets[assetName]) {
+        console.log(`STAC: Using render asset: ${assetName} from ${renderKey}`);
         return item.assets[assetName].href;
       }
     }
 
     // Try first render if available
     if (collection.renders) {
-      const firstRender = Object.values(collection.renders)[0];
-      const assetName = firstRender?.assets?.[0];
-      if (assetName && item.assets[assetName]) {
-        return item.assets[assetName].href;
+      const firstRenderEntry = Object.entries(collection.renders)[0];
+      if (firstRenderEntry) {
+        const [renderName, firstRender] = firstRenderEntry;
+        const assetName = firstRender?.assets?.[0];
+        if (assetName && item.assets[assetName]) {
+          console.log(
+            `STAC: Using first render asset: ${assetName} from ${renderName}`
+          );
+          return item.assets[assetName].href;
+        }
       }
     }
 
     // Find first COG asset
-    const cogAsset = Object.values(item.assets).find(
-      (asset) =>
+    const cogAssetEntry = Object.entries(item.assets).find(
+      ([, asset]) =>
         asset.type?.includes("geotiff") ||
         asset.type?.includes("tiff") ||
         asset.roles?.includes("data") ||
@@ -694,7 +712,13 @@ export default class StacCollectionCatalogItem extends UrlMixin(
         asset.href?.endsWith(".tiff")
     );
 
-    return cogAsset?.href;
+    if (cogAssetEntry) {
+      console.log(`STAC: Found COG asset: ${cogAssetEntry[0]}`);
+      return cogAssetEntry[1].href;
+    }
+
+    console.log(`STAC: No COG assets found in item`);
+    return undefined;
   }
 
   /**
@@ -703,6 +727,8 @@ export default class StacCollectionCatalogItem extends UrlMixin(
   private async createImageryProvider(
     url: string
   ): Promise<TIFFImageryProvider> {
+    console.log(`STAC: Loading COG from: ${url}`);
+
     const [{ default: TIFFImageryProvider }, { default: proj4 }] =
       await Promise.all([
         import("terriajs-tiff-imagery-provider"),
@@ -710,25 +736,37 @@ export default class StacCollectionCatalogItem extends UrlMixin(
       ]);
 
     const proxiedUrl = proxyCatalogItemUrl(this, url);
+    console.log(`STAC: Proxied URL: ${proxiedUrl}`);
 
     // Build render options from traits
     const renderOptions = this.buildRenderOptions();
+    console.log(`STAC: Render options:`, renderOptions);
 
-    const imageryProvider = await runInAction(() =>
-      TIFFImageryProvider.fromUrl(proxiedUrl, {
-        credit: this.credit,
-        tileSize: this.tileSize,
-        maximumLevel: this.maximumLevel,
-        minimumLevel: this.minimumLevel,
-        enablePickFeatures: this.allowFeaturePicking,
-        hasAlphaChannel: this.hasAlphaChannel,
-        projFunc: this.reprojector(proj4),
-        renderOptions:
-          Object.keys(renderOptions).length > 0 ? renderOptions : undefined
-      })
-    );
+    try {
+      const imageryProvider = await runInAction(() =>
+        TIFFImageryProvider.fromUrl(proxiedUrl, {
+          credit: this.credit,
+          tileSize: this.tileSize,
+          maximumLevel: this.maximumLevel,
+          minimumLevel: this.minimumLevel,
+          enablePickFeatures: this.allowFeaturePicking,
+          hasAlphaChannel: this.hasAlphaChannel,
+          projFunc: this.reprojector(proj4),
+          renderOptions:
+            Object.keys(renderOptions).length > 0 ? renderOptions : undefined
+        })
+      );
 
-    return imageryProvider;
+      console.log(`STAC: COG loaded successfully`);
+      return imageryProvider;
+    } catch (error) {
+      console.error(`STAC: Failed to load COG from ${url}:`, error);
+      throw new Error(
+        `Failed to load STAC imagery: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
+    }
   }
 
   /**
