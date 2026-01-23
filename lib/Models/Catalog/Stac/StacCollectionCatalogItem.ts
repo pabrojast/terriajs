@@ -503,9 +503,16 @@ export default class StacCollectionCatalogItem extends UrlMixin(
       return;
     }
 
-    // Determine if bbox spans most of the world - don't clamp global extents
-    const isGlobalExtent =
-      Math.abs(east - west) > 300 || Math.abs(north - south) > 150;
+    // Skip global/near-global extents - they don't add visual value and can cause
+    // Cesium rendering errors with EllipsoidRhumbLine geometry calculations
+    const bboxWidth = Math.abs(east - west);
+    const bboxHeight = Math.abs(north - south);
+    if (bboxWidth > 300 || bboxHeight > 150) {
+      console.log(
+        `Skipping bbox display for ${collection.id}: extent too large (${bboxWidth}° x ${bboxHeight}°)`
+      );
+      return;
+    }
 
     // Create a GeoJSON polygon from the bbox
     const geojson: GeoJSON.Feature = {
@@ -534,7 +541,7 @@ export default class StacCollectionCatalogItem extends UrlMixin(
         stroke: Color.CYAN,
         strokeWidth: 3,
         fill: Color.CYAN.withAlpha(0.1),
-        clampToGround: !isGlobalExtent // Skip clamping for global extents
+        clampToGround: true
       });
 
       runInAction(() => {
