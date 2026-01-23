@@ -10,6 +10,8 @@ import {
   runInAction
 } from "mobx";
 import CesiumMath from "terriajs-cesium/Source/Core/Math";
+import Color from "terriajs-cesium/Source/Core/Color";
+import GeoJsonDataSource from "terriajs-cesium/Source/DataSources/GeoJsonDataSource";
 import type TIFFImageryProvider from "terriajs-tiff-imagery-provider";
 import isDefined from "../../../Core/isDefined";
 import loadJson from "../../../Core/loadJson";
@@ -249,6 +251,9 @@ export default class StacItemCatalogItem extends UrlMixin(
   @observable
   private _loadError: string | undefined;
 
+  @observable
+  private _geoJsonDataSource: GeoJsonDataSource | undefined;
+
   /**
    * The reprojector function to use for reprojecting non native projections
    */
@@ -315,13 +320,16 @@ export default class StacItemCatalogItem extends UrlMixin(
       return;
     }
 
+    // Always create the geometry data source for the STAC Item footprint
+    await this.createGeometryDataSource(stratum);
+
     // Find a COG asset URL to render
     const cogUrl = this.findCogAssetUrl(stratum);
     if (!cogUrl) {
       runInAction(() => {
         this._loadError = i18next.t("models.stac.noCogAssetFound");
       });
-      // Don't throw - allow the item to show with bbox even without imagery
+      // Don't throw - the geometry will still be shown
       return;
     }
 
@@ -335,9 +343,41 @@ export default class StacItemCatalogItem extends UrlMixin(
         this._loadError =
           error instanceof Error ? error.message : String(error);
       });
-      // Don't throw - allow the item to show with bbox even if imagery fails
+      // Don't throw - the geometry will still be shown
       // The error will be shown in shortReport
     }
+  }
+
+  /**
+   * Create a GeoJSON data source for the STAC Item geometry
+   */
+  private async createGeometryDataSource(
+    stratum: StacItemStratum
+  ): Promise<void> {
+    const item = stratum.item;
+
+    // Create a GeoJSON feature from the STAC item
+    const geojson: GeoJSON.Feature = {
+      type: "Feature",
+      geometry: item.geometry,
+      properties: {
+        name: item.properties.title || item.id,
+        datetime: item.properties.datetime,
+        ...item.properties
+      }
+    };
+
+    const dataSource = new GeoJsonDataSource(this.name || item.id);
+    await dataSource.load(geojson, {
+      stroke: Color.CYAN,
+      strokeWidth: 3,
+      fill: Color.CYAN.withAlpha(0.1),
+      clampToGround: true
+    });
+
+    runInAction(() => {
+      this._geoJsonDataSource = dataSource;
+    });
   }
 
   /**
@@ -451,20 +491,27 @@ export default class StacItemCatalogItem extends UrlMixin(
   }
 
   @computed get mapItems(): MapItem[] {
-    const imageryProvider = this._imageryProvider;
-    if (!imageryProvider) {
-      return [];
+    const result: MapItem[] = [];
+
+    // Add the geometry data source (footprint)
+    const dataSource = this._geoJsonDataSource;
+    if (dataSource) {
+      result.push(dataSource);
     }
 
-    return [
-      {
+    // Add the imagery provider if available
+    const imageryProvider = this._imageryProvider;
+    if (imageryProvider) {
+      result.push({
         show: this.show,
         alpha: this.opacity,
         // @ts-expect-error - The return type of 'requestImage' method in our custom ImageryProvider can be ImageData
         imageryProvider,
         clippingRectangle: this.cesiumRectangle
-      }
-    ];
+      });
+    }
+
+    return result;
   }
 }
 
