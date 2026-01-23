@@ -321,6 +321,7 @@ export default class StacItemCatalogItem extends UrlMixin(
       runInAction(() => {
         this._loadError = i18next.t("models.stac.noCogAssetFound");
       });
+      // Don't throw - allow the item to show with bbox even without imagery
       return;
     }
 
@@ -334,7 +335,8 @@ export default class StacItemCatalogItem extends UrlMixin(
         this._loadError =
           error instanceof Error ? error.message : String(error);
       });
-      throw error;
+      // Don't throw - allow the item to show with bbox even if imagery fails
+      // The error will be shown in shortReport
     }
   }
 
