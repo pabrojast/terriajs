@@ -171,17 +171,22 @@ class StacCollectionStratum extends LoadableStratum(
   constructor(
     readonly catalogItem: StacCollectionCatalogItem,
     readonly collection: StacCollection,
-    readonly firstItem?: StacItem
+    readonly items: StacItem[] = []
   ) {
     super();
     makeObservable(this);
+  }
+
+  /** First item for COG asset discovery */
+  get firstItem(): StacItem | undefined {
+    return this.items[0];
   }
 
   duplicateLoadableStratum(model: BaseModel): this {
     return new StacCollectionStratum(
       model as StacCollectionCatalogItem,
       this.collection,
-      this.firstItem
+      this.items
     ) as this;
   }
 
@@ -311,14 +316,14 @@ class StacCollectionStratum extends LoadableStratum(
       throw new Error("Invalid STAC collection: type must be 'Collection'");
     }
 
-    // Try to fetch the first item to get a COG URL for rendering
-    let firstItem: StacItem | undefined;
+    // Try to fetch items to get COG URLs for rendering and item geometries
+    let items: StacItem[] = [];
     const itemsLink = collection.links.find((link) => link.rel === "items");
 
     if (itemsLink) {
       try {
         const itemsUrl = new URL(itemsLink.href, catalogItem.url).href;
-        const limit = catalogItem.maximumItems ?? 1;
+        const limit = catalogItem.maximumItems ?? 10;
         const itemsUrlWithParams = new URL(itemsUrl);
         itemsUrlWithParams.searchParams.set("limit", String(limit));
 
@@ -349,14 +354,14 @@ class StacCollectionStratum extends LoadableStratum(
           itemsResponse.features &&
           itemsResponse.features.length > 0
         ) {
-          firstItem = itemsResponse.features[0];
+          items = itemsResponse.features;
         }
       } catch (e) {
         console.warn("Failed to fetch STAC items:", e);
       }
     }
 
-    return new StacCollectionStratum(catalogItem, collection, firstItem);
+    return new StacCollectionStratum(catalogItem, collection, items);
   }
 }
 
@@ -480,12 +485,21 @@ export default class StacCollectionCatalogItem extends UrlMixin(
   }
 
   /**
-   * Create a GeoJSON data source for the Collection bbox
+   * Create a GeoJSON data source for item geometries or Collection bbox
    */
   private async createBboxDataSource(
     stratum: StacCollectionStratum
   ): Promise<void> {
     const collection = stratum.collection;
+    const items = stratum.items;
+
+    // If we have items, show their geometries
+    if (items.length > 0) {
+      await this.createItemsGeometryDataSource(items, collection);
+      return;
+    }
+
+    // Fallback: show collection bbox
     const bbox = collection.extent?.spatial?.bbox?.[0];
 
     if (!bbox || bbox.length < 4) {
@@ -537,8 +551,6 @@ export default class StacCollectionCatalogItem extends UrlMixin(
 
     try {
       const dataSource = new GeoJsonDataSource(this.name || collection.id);
-      // Note: clampToGround is disabled to avoid Cesium EllipsoidRhumbLine errors
-      // with certain polygon geometries that have near-duplicate points
       await dataSource.load(geojson, {
         stroke: Color.CYAN,
         strokeWidth: 3,
@@ -550,9 +562,84 @@ export default class StacCollectionCatalogItem extends UrlMixin(
         this._geoJsonDataSource = dataSource;
       });
     } catch (error) {
-      // Ignore geometry errors - the item can still function without bbox display
       console.warn("Failed to load STAC collection bbox geometry:", error);
     }
+  }
+
+  /**
+   * Create a GeoJSON data source with geometries from STAC items
+   */
+  private async createItemsGeometryDataSource(
+    items: StacItem[],
+    collection: StacCollection
+  ): Promise<void> {
+    const EPSILON = 0.0001;
+
+    const features: GeoJSON.Feature[] = items
+      .filter((item) => {
+        // Skip items without valid geometry
+        if (!item.geometry) return false;
+
+        // For polygons, check if they have valid (non-degenerate) coordinates
+        if (item.geometry.type === "Polygon") {
+          const coords = item.geometry.coordinates[0];
+          if (!coords || coords.length < 4) return false;
+
+          // Check for degenerate bbox
+          if (item.bbox && item.bbox.length >= 4) {
+            const [west, south, east, north] = item.bbox;
+            if (
+              Math.abs(west - east) < EPSILON ||
+              Math.abs(north - south) < EPSILON
+            ) {
+              return false;
+            }
+          }
+        }
+
+        return true;
+      })
+      .map((item) => ({
+        type: "Feature" as const,
+        geometry: item.geometry,
+        properties: {
+          id: item.id,
+          datetime: item.properties.datetime,
+          ...item.properties
+        }
+      }));
+
+    if (features.length === 0) {
+      return;
+    }
+
+    const featureCollection: GeoJSON.FeatureCollection = {
+      type: "FeatureCollection",
+      features
+    };
+
+    try {
+      const dataSource = new GeoJsonDataSource(
+        this.name || collection.id || "STAC Items"
+      );
+      await dataSource.load(featureCollection, {
+        stroke: Color.CYAN,
+        strokeWidth: 2,
+        fill: Color.CYAN.withAlpha(0.15),
+        clampToGround: false
+      });
+
+      runInAction(() => {
+        this._geoJsonDataSource = dataSource;
+      });
+
+      console.log(
+        `Loaded ${features.length} item geometries for ${collection.id}`
+      );
+    } catch (error) {
+      console.warn("Failed to load STAC items geometry:", error);
+    }
+  }
   }
 
   /**
