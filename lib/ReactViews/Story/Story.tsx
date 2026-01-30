@@ -265,6 +265,7 @@ const Story = (props: Props) => {
           cursor: move;
           float: none !important;
           border: 1px solid #baebf8;
+          ${menuOpen ? "z-index: 2; overflow: visible;" : ""}
           // Improve drag rendering performance
           will-change: transform;
           // Avoid text selection causing jitter during drag
