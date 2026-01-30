@@ -30,6 +30,95 @@ import StoryBody from "./StoryBody";
 import FooterBar from "./StoryFooterBar";
 import TitleBar from "./TitleBar";
 
+const DRAG_MARGIN = 8;
+
+const clamp01 = (value: number) => Math.min(1, Math.max(0, value));
+
+const parseTranslate = (transform?: string | null) => {
+  if (!transform) return { x: 0, y: 0 };
+
+  const translate3d = transform.match(
+    /translate3d\(([^,]+),\s*([^,]+),\s*[^)]+\)/
+  );
+  if (translate3d) {
+    const x = parseFloat(translate3d[1]);
+    const y = parseFloat(translate3d[2]);
+    return {
+      x: Number.isFinite(x) ? x : 0,
+      y: Number.isFinite(y) ? y : 0
+    };
+  }
+
+  const translate2d = transform.match(/translate\(([^,]+),\s*([^)]+)\)/);
+  if (translate2d) {
+    const x = parseFloat(translate2d[1]);
+    const y = parseFloat(translate2d[2]);
+    return {
+      x: Number.isFinite(x) ? x : 0,
+      y: Number.isFinite(y) ? y : 0
+    };
+  }
+
+  return { x: 0, y: 0 };
+};
+
+const getViewportSize = () => {
+  const width = window.innerWidth || document.documentElement.clientWidth || 0;
+  const height =
+    window.innerHeight || document.documentElement.clientHeight || 0;
+  return { width, height };
+};
+
+const getDragBounds = (element: HTMLElement, dx: number, dy: number) => {
+  const rect = element.getBoundingClientRect();
+  const { width: viewportWidth, height: viewportHeight } = getViewportSize();
+  if (!viewportWidth || !viewportHeight) return null;
+
+  const baseLeft = rect.left - dx;
+  const baseTop = rect.top - dy;
+
+  return {
+    minAllowedDx: DRAG_MARGIN - baseLeft,
+    maxAllowedDx: viewportWidth - DRAG_MARGIN - rect.width - baseLeft,
+    minAllowedDy: DRAG_MARGIN - baseTop,
+    maxAllowedDy: viewportHeight - DRAG_MARGIN - rect.height - baseTop
+  };
+};
+
+const getRelativePosition = (
+  dx: number,
+  dy: number,
+  bounds: NonNullable<ReturnType<typeof getDragBounds>>
+) => {
+  const rangeX = bounds.maxAllowedDx - bounds.minAllowedDx;
+  const rangeY = bounds.maxAllowedDy - bounds.minAllowedDy;
+  const xRatio = rangeX > 0 ? (dx - bounds.minAllowedDx) / rangeX : 0;
+  const yRatio = rangeY > 0 ? (dy - bounds.minAllowedDy) / rangeY : 0;
+  return {
+    xRatio: clamp01(xRatio),
+    yRatio: clamp01(yRatio)
+  };
+};
+
+const getPositionFromRelative = (
+  bounds: NonNullable<ReturnType<typeof getDragBounds>>,
+  xRatio: number,
+  yRatio: number
+) => {
+  const rangeX = bounds.maxAllowedDx - bounds.minAllowedDx;
+  const rangeY = bounds.maxAllowedDy - bounds.minAllowedDy;
+  return {
+    x:
+      rangeX > 0
+        ? bounds.minAllowedDx + clamp01(xRatio) * rangeX
+        : bounds.maxAllowedDx,
+    y:
+      rangeY > 0
+        ? bounds.minAllowedDy + clamp01(yRatio) * rangeY
+        : bounds.maxAllowedDy
+  };
+};
+
 /**
  *
  * @param {any} story
@@ -127,29 +216,25 @@ const DraggableStoryPanel = observer(
 
     // Save story position and dimensions
     const saveStoryPosition = useCallback(() => {
-      if (!panelRef.current || !story) return;
+      if (!panelRef.current) return;
+
+      const currentStory = viewState.terria.stories[currentStoryId];
+      if (!currentStory) return;
 
       const element = panelRef.current;
       const rect = element.getBoundingClientRect();
-      const transform = element.style.transform;
-
-      // Parse transform translate3d values
-      let x = 0,
-        y = 0;
-      if (transform) {
-        const match = transform.match(
-          /translate3d\(([^,]+),\s*([^,]+),\s*[^)]+\)/
-        );
-        if (match) {
-          x = parseFloat(match[1]);
-          y = parseFloat(match[2]);
-        }
-      }
+      const { x, y } = parseTranslate(element.style.transform);
+      const bounds = getDragBounds(element, x, y);
+      const relative = bounds ? getRelativePosition(x, y, bounds) : undefined;
 
       // Update story position in place
       const updatedStory = {
-        ...story,
-        position: { x, y },
+        ...currentStory,
+        position: {
+          x,
+          y,
+          ...(relative ? relative : {})
+        },
         dimensions: {
           width: rect.width,
           height: rect.height
@@ -162,7 +247,7 @@ const DraggableStoryPanel = observer(
         updatedStories[currentStoryId] = updatedStory;
         viewState.terria.stories = updatedStories;
       });
-    }, [story, currentStoryId, viewState.terria]);
+    }, [currentStoryId, viewState.terria]);
 
     // Apply saved position to draggable element
     const applySavedPosition = useCallback(() => {
@@ -170,8 +255,30 @@ const DraggableStoryPanel = observer(
 
       // If we have a saved position, apply it via the draggable controls
       if (story?.position) {
-        const { x, y } = story.position;
-        dragControls?.setPosition?.(x, y, true);
+        const { x, y, xRatio, yRatio } = story.position;
+        if (
+          Number.isFinite(xRatio) &&
+          Number.isFinite(yRatio) &&
+          panelRef.current
+        ) {
+          const { x: currentX, y: currentY } = parseTranslate(
+            panelRef.current.style.transform
+          );
+          const bounds = getDragBounds(panelRef.current, currentX, currentY);
+          if (bounds) {
+            const nextPosition = getPositionFromRelative(
+              bounds,
+              xRatio as number,
+              yRatio as number
+            );
+            dragControls?.setPosition?.(nextPosition.x, nextPosition.y, true);
+            return;
+          }
+        }
+        if (Number.isFinite(x) && Number.isFinite(y)) {
+          dragControls?.setPosition?.(x, y, true);
+          return;
+        }
         return;
       }
 
@@ -195,8 +302,15 @@ const DraggableStoryPanel = observer(
     useEffect(() => {
       if (!panelRef.current) return;
 
+      let frame: number | undefined;
+
       const handleDragEnd = () => {
-        saveStoryPosition();
+        if (frame !== undefined) {
+          cancelAnimationFrame(frame);
+        }
+        frame = requestAnimationFrame(() => {
+          saveStoryPosition();
+        });
       };
 
       // Listen for mouseup and touchend on document to catch drag end
@@ -209,6 +323,9 @@ const DraggableStoryPanel = observer(
       return () => {
         document.removeEventListener("mouseup", handleMouseUp);
         document.removeEventListener("touchend", handleTouchEnd);
+        if (frame !== undefined) {
+          cancelAnimationFrame(frame);
+        }
       };
     }, [saveStoryPosition]);
 
@@ -216,6 +333,55 @@ const DraggableStoryPanel = observer(
     useEffect(() => {
       applySavedPosition();
     }, [applySavedPosition, currentStoryId]);
+
+    // Keep position relative on viewport resize
+    useEffect(() => {
+      let frame: number | undefined;
+
+      const handleResize = () => {
+        if (!panelRef.current) return;
+
+        if (frame !== undefined) {
+          cancelAnimationFrame(frame);
+        }
+        frame = requestAnimationFrame(() => {
+          const currentStory = viewState.terria.stories[currentStoryId];
+          if (!currentStory) return;
+
+          const element = panelRef.current;
+          const { x: currentX, y: currentY } = parseTranslate(
+            element.style.transform
+          );
+          const bounds = getDragBounds(element, currentX, currentY);
+          if (!bounds) return;
+
+          if (
+            currentStory.position &&
+            Number.isFinite(currentStory.position.xRatio) &&
+            Number.isFinite(currentStory.position.yRatio)
+          ) {
+            const nextPosition = getPositionFromRelative(
+              bounds,
+              currentStory.position.xRatio as number,
+              currentStory.position.yRatio as number
+            );
+            dragControls?.setPosition?.(nextPosition.x, nextPosition.y, true);
+          } else {
+            dragControls?.constrainToBounds?.();
+          }
+
+          saveStoryPosition();
+        });
+      };
+
+      window.addEventListener("resize", handleResize);
+      return () => {
+        if (frame !== undefined) {
+          cancelAnimationFrame(frame);
+        }
+        window.removeEventListener("resize", handleResize);
+      };
+    }, [currentStoryId, dragControls, saveStoryPosition, viewState.terria]);
 
     // Apply saved dimensions
     useEffect(() => {

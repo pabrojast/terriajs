@@ -8,8 +8,8 @@ import "tinymce/icons/default";
 import "tinymce/themes/silver";
 import "tinymce/models/dom";
 /* Import a skin (can be a custom skin instead of the default) */
-// import "!!style-loader!css-loader!tinymce/skins/ui/oxide/skin.min.css";
-import "!!style-loader!css-loader!./editor.skin.min.css"; // Custom borderless skin
+import "!!style-loader!css-loader!tinymce/skins/ui/oxide/skin.min.css";
+import "!!style-loader!css-loader!./editor.skin.min.css"; // Custom borderless skin overrides
 
 /* Import TinyMCE plugins */
 import "tinymce/plugins/media";
@@ -61,7 +61,9 @@ export default function TinyEditor(props) {
         content_style: contentStyles.join("\n"),
         image_dimensions: false,
         setup,
-        ...(props.customElements ? { custom_elements: props.customElements } : {}),
+        ...(props.customElements
+          ? { custom_elements: props.customElements }
+          : {}),
         ...(props.extendedValidElements
           ? { extended_valid_elements: props.extendedValidElements }
           : {})

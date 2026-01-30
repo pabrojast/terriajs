@@ -43,6 +43,9 @@ export interface StoryData {
   position?: {
     x: number;
     y: number;
+    /** Normalized position within available bounds (0..1). */
+    xRatio?: number;
+    yRatio?: number;
   };
   dimensions?: {
     width: number;
