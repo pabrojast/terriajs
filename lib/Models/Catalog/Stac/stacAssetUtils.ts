@@ -26,6 +26,12 @@ interface StacAssetAccessLinkOptions {
   terrascopeViewerUrl?: string;
 }
 
+interface StacPreviewPreferenceOptions {
+  asset?: StacAssetLike;
+  resolvedAssetHref?: string;
+  catalogUrl?: string;
+}
+
 export function resolveStacHref(
   href: string | undefined,
   baseUrl: string | undefined
@@ -131,9 +137,12 @@ export function getStacAssetAccessLink(options: StacAssetAccessLinkOptions): {
   const resolvedAssetHref = options.resolvedAssetHref;
 
   const shouldUseTerrascopeViewer =
-    requiresAuthentication &&
     !!options.terrascopeViewerUrl &&
-    (isTerrascopeUrl(options.catalogUrl) || isTerrascopeUrl(resolvedAssetHref));
+    shouldForcePreviewForProtectedTerrascopeAsset({
+      asset: options.asset,
+      resolvedAssetHref,
+      catalogUrl: options.catalogUrl
+    });
 
   return {
     href: shouldUseTerrascopeViewer
@@ -142,6 +151,17 @@ export function getStacAssetAccessLink(options: StacAssetAccessLinkOptions): {
     requiresAuthentication,
     redirectsToTerrascopeLogin: shouldUseTerrascopeViewer
   };
+}
+
+export function shouldForcePreviewForProtectedTerrascopeAsset(
+  options: StacPreviewPreferenceOptions
+): boolean {
+  if (!isStacAssetAuthProtected(options.asset)) return false;
+
+  return (
+    isTerrascopeUrl(options.catalogUrl) ||
+    isTerrascopeUrl(options.resolvedAssetHref)
+  );
 }
 
 function previewAssetScore(key: string, asset: StacAssetLike): number {

@@ -35,8 +35,8 @@ import {
   buildTerrascopeViewerUrl,
   findStacPreviewAsset,
   getStacAssetAccessLink,
-  isStacAssetAuthProtected,
-  resolveStacHref
+  resolveStacHref,
+  shouldForcePreviewForProtectedTerrascopeAsset
 } from "./stacAssetUtils";
 
 /**
@@ -208,12 +208,14 @@ class StacItemStratum extends LoadableStratum(StacItemCatalogItemTraits) {
       this.catalogItem.url
     );
     if (previewAsset) {
+      const openPreviewImageText =
+        i18next.t("preview.openPreviewImage") || "Open preview image";
       info.push(
         createStratumInstance(InfoSectionTraits, {
           name: i18next.t("preview.dataPreview") || "Preview",
           content: [
             `![${this.item.id}](${previewAsset.resolvedHref})`,
-            `[Open preview image](${previewAsset.resolvedHref})`
+            `[${openPreviewImageText}](${previewAsset.resolvedHref})`
           ].join("\n\n")
         })
       );
@@ -389,9 +391,18 @@ export default class StacItemCatalogItem extends UrlMixin(
     await this.createGeometryDataSource(stratum);
 
     const cogAsset = this.findCogAsset(stratum);
+    const resolvedCogAssetHref = cogAsset
+      ? resolveStacHref(cogAsset.href, this.url) ?? cogAsset.href
+      : undefined;
     const previewAsset = findStacPreviewAsset(stratum.item.assets, this.url);
     const hasRenderablePreview =
       !!previewAsset && !!stratum.item.bbox && stratum.item.bbox.length >= 4;
+    const shouldForcePreviewForCog =
+      shouldForcePreviewForProtectedTerrascopeAsset({
+        asset: cogAsset,
+        resolvedAssetHref: resolvedCogAssetHref,
+        catalogUrl: this.url
+      });
 
     if (!cogAsset && !hasRenderablePreview) {
       runInAction(() => {
@@ -401,10 +412,7 @@ export default class StacItemCatalogItem extends UrlMixin(
       return;
     }
 
-    if (
-      hasRenderablePreview &&
-      (!cogAsset || isStacAssetAuthProtected(cogAsset))
-    ) {
+    if (hasRenderablePreview && (!cogAsset || shouldForcePreviewForCog)) {
       try {
         const imageryProvider = await this.createPreviewImageryProvider(
           previewAsset!.resolvedHref,
@@ -422,7 +430,9 @@ export default class StacItemCatalogItem extends UrlMixin(
     if (!cogAsset) return;
 
     try {
-      const imageryProvider = await this.createImageryProvider(cogAsset.href);
+      const imageryProvider = await this.createImageryProvider(
+        resolvedCogAssetHref ?? cogAsset.href
+      );
       runInAction(() => {
         this._imageryProvider = imageryProvider;
       });

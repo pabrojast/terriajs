@@ -2,7 +2,8 @@ import {
   buildTerrascopeViewerUrl,
   findStacPreviewAsset,
   getStacAssetAccessLink,
-  resolveStacHref
+  resolveStacHref,
+  shouldForcePreviewForProtectedTerrascopeAsset
 } from "../../../../lib/Models/Catalog/Stac/stacAssetUtils";
 
 describe("stacAssetUtils", function () {
@@ -92,5 +93,32 @@ describe("stacAssetUtils", function () {
     expect(accessLink.href).toBe("https://example.com/public-preview.png");
     expect(accessLink.requiresAuthentication).toBe(false);
     expect(accessLink.redirectsToTerrascopeLogin).toBe(false);
+  });
+
+  it("forces preview for protected Terrascope assets", function () {
+    const shouldForcePreview = shouldForcePreviewForProtectedTerrascopeAsset({
+      asset: {
+        href: "https://services.terrascope.be/download/secure-data.tif",
+        "auth:refs": ["oidc"]
+      },
+      resolvedAssetHref:
+        "https://services.terrascope.be/download/secure-data.tif",
+      catalogUrl: "https://stac.terrascope.be/collections/terrascope-s2-chl-v1"
+    });
+
+    expect(shouldForcePreview).toBe(true);
+  });
+
+  it("does not force preview for protected non-Terrascope assets", function () {
+    const shouldForcePreview = shouldForcePreviewForProtectedTerrascopeAsset({
+      asset: {
+        href: "https://example.com/download/secure-data.tif",
+        "auth:refs": ["oidc"]
+      },
+      resolvedAssetHref: "https://example.com/download/secure-data.tif",
+      catalogUrl: "https://example.com/stac"
+    });
+
+    expect(shouldForcePreview).toBe(false);
   });
 });

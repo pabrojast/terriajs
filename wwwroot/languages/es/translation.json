@@ -893,6 +893,7 @@
     "terrascopeLoginAndDownload": "Iniciar sesión en Terrascope y descargar",
     "openAssetLink": "Abrir",
     "assetRequiresLogin": "requiere inicio de sesión",
+    "openPreviewImage": "Abrir imagen de vista previa",
     "preview": "{{appName}} vista previa",
     "previewItemErrorTitle": "No se ha podido previsualizar el artículo del catálogo.",
     "previewItemErrorMessage": "Se ha producido un error al cargar el elemento del catálogo.",

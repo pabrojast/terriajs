@@ -3,7 +3,7 @@ import StacCollectionCatalogItem from "../../../../lib/Models/Catalog/Stac/StacC
 import CommonStrata from "../../../../lib/Models/Definition/CommonStrata";
 
 // Sample STAC Collection JSON for testing
-const SAMPLE_STAC_COLLECTION = {
+const _SAMPLE_STAC_COLLECTION = {
   id: "test-collection",
   type: "Collection",
   stac_version: "1.1.0",
@@ -139,6 +139,29 @@ describe("StacCollectionCatalogItem", function () {
   describe("typeName", function () {
     it("returns STAC Collection", function () {
       expect(item.typeName).toBe("STAC Collection");
+    });
+  });
+
+  describe("asset auth handling", function () {
+    it("preserves auth refs from collection assets when no items are available", function () {
+      const stratum = {
+        firstItem: undefined,
+        collection: {
+          assets: {
+            CHL: {
+              href: "https://services.terrascope.be/download/chl.tif",
+              type: "image/tiff; application=geotiff; profile=cloud-optimized",
+              "auth:refs": ["oidc"]
+            }
+          },
+          item_assets: {}
+        }
+      } as any;
+
+      const cogAsset = (item as any).findCogAsset(stratum);
+
+      expect(cogAsset?.key).toBe("CHL");
+      expect(cogAsset?.["auth:refs"]).toEqual(["oidc"]);
     });
   });
 });

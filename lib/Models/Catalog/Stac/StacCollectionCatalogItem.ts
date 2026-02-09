@@ -35,8 +35,8 @@ import {
   buildTerrascopeViewerUrl,
   findStacPreviewAsset,
   getStacAssetAccessLink,
-  isStacAssetAuthProtected,
-  resolveStacHref
+  resolveStacHref,
+  shouldForcePreviewForProtectedTerrascopeAsset
 } from "./stacAssetUtils";
 
 /**
@@ -329,12 +329,14 @@ class StacCollectionStratum extends LoadableStratum(
       this.catalogItem.url
     );
     if (previewAsset) {
+      const openPreviewImageText =
+        i18next.t("preview.openPreviewImage") || "Open preview image";
       info.push(
         createStratumInstance(InfoSectionTraits, {
           name: i18next.t("preview.dataPreview") || "Preview",
           content: [
             `![${this.collection.id}](${previewAsset.resolvedHref})`,
-            `[Open preview image](${previewAsset.resolvedHref})`
+            `[${openPreviewImageText}](${previewAsset.resolvedHref})`
           ].join("\n\n")
         })
       );
@@ -550,6 +552,9 @@ export default class StacCollectionCatalogItem extends UrlMixin(
     await this.createBboxDataSource(stratum);
 
     const cogAsset = this.findCogAsset(stratum);
+    const resolvedCogAssetHref = cogAsset
+      ? resolveStacHref(cogAsset.href, this.url) ?? cogAsset.href
+      : undefined;
     const firstItem = stratum.firstItem;
     const previewAsset = findStacPreviewAsset(
       firstItem?.assets ?? stratum.collection.assets,
@@ -561,6 +566,12 @@ export default class StacCollectionCatalogItem extends UrlMixin(
         : stratum.collection.extent?.spatial?.bbox?.[0];
     const hasRenderablePreview =
       !!previewAsset && !!previewBbox && previewBbox.length >= 4;
+    const shouldForcePreviewForCog =
+      shouldForcePreviewForProtectedTerrascopeAsset({
+        asset: cogAsset,
+        resolvedAssetHref: resolvedCogAssetHref,
+        catalogUrl: this.url
+      });
 
     if (!cogAsset && !hasRenderablePreview) {
       runInAction(() => {
@@ -570,10 +581,7 @@ export default class StacCollectionCatalogItem extends UrlMixin(
       return;
     }
 
-    if (
-      hasRenderablePreview &&
-      (!cogAsset || isStacAssetAuthProtected(cogAsset))
-    ) {
+    if (hasRenderablePreview && (!cogAsset || shouldForcePreviewForCog)) {
       try {
         const imageryProvider = await this.createPreviewImageryProvider(
           previewAsset!.resolvedHref,
@@ -591,7 +599,9 @@ export default class StacCollectionCatalogItem extends UrlMixin(
     if (!cogAsset) return;
 
     try {
-      const imageryProvider = await this.createImageryProvider(cogAsset.href);
+      const imageryProvider = await this.createImageryProvider(
+        resolvedCogAssetHref ?? cogAsset.href
+      );
       runInAction(() => {
         this._imageryProvider = imageryProvider;
       });
@@ -799,7 +809,8 @@ export default class StacCollectionCatalogItem extends UrlMixin(
       href,
       "auth:refs":
         item?.assets[key]?.["auth:refs"] ??
-        collection.item_assets?.[key]?.["auth:refs"]
+        collection.item_assets?.[key]?.["auth:refs"] ??
+        collection.assets?.[key]?.["auth:refs"]
     });
 
     if (!item) {
