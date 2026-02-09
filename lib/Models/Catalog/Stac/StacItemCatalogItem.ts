@@ -10,8 +10,10 @@ import {
   runInAction
 } from "mobx";
 import CesiumMath from "terriajs-cesium/Source/Core/Math";
+import Rectangle from "terriajs-cesium/Source/Core/Rectangle";
 import Color from "terriajs-cesium/Source/Core/Color";
 import GeoJsonDataSource from "terriajs-cesium/Source/DataSources/GeoJsonDataSource";
+import SingleTileImageryProvider from "terriajs-cesium/Source/Scene/SingleTileImageryProvider";
 import type TIFFImageryProvider from "terriajs-tiff-imagery-provider";
 import isDefined from "../../../Core/isDefined";
 import loadJson from "../../../Core/loadJson";
@@ -29,6 +31,13 @@ import StratumFromTraits from "../../Definition/StratumFromTraits";
 import StratumOrder from "../../Definition/StratumOrder";
 import Terria from "../../Terria";
 import proxyCatalogItemUrl from "../proxyCatalogItemUrl";
+import {
+  buildTerrascopeViewerUrl,
+  findStacPreviewAsset,
+  getStacAssetAccessLink,
+  isStacAssetAuthProtected,
+  resolveStacHref
+} from "./stacAssetUtils";
 
 /**
  * STAC Item JSON structure
@@ -68,6 +77,7 @@ interface StacItem {
       description?: string;
       type?: string;
       roles?: string[];
+      "auth:refs"?: string[];
       "proj:epsg"?: number;
       "raster:bands"?: Array<{
         data_type?: string;
@@ -94,17 +104,12 @@ class StacItemStratum extends LoadableStratum(StacItemCatalogItemTraits) {
   }
 
   duplicateLoadableStratum(model: BaseModel): this {
-    return new StacItemStratum(
-      model as StacItemCatalogItem,
-      this.item
-    ) as this;
+    return new StacItemStratum(model as StacItemCatalogItem, this.item) as this;
   }
 
   @computed
   get name(): string | undefined {
-    return (
-      this.item.properties?.title || this.item.id
-    );
+    return this.item.properties?.title || this.item.id;
   }
 
   @computed
@@ -156,6 +161,11 @@ class StacItemStratum extends LoadableStratum(StacItemCatalogItemTraits) {
   @computed
   get info(): StratumFromTraits<InfoSectionTraits>[] {
     const info: StratumFromTraits<InfoSectionTraits>[] = [];
+    const terrascopeViewerUrl = buildTerrascopeViewerUrl({
+      collectionId: this.item.collection,
+      bbox: this.item.bbox,
+      datetime: this.item.properties?.datetime
+    });
 
     if (this.item.collection) {
       info.push(
@@ -193,13 +203,59 @@ class StacItemStratum extends LoadableStratum(StacItemCatalogItemTraits) {
       );
     }
 
+    const previewAsset = findStacPreviewAsset(
+      this.item.assets,
+      this.catalogItem.url
+    );
+    if (previewAsset) {
+      info.push(
+        createStratumInstance(InfoSectionTraits, {
+          name: i18next.t("preview.dataPreview") || "Preview",
+          content: [
+            `![${this.item.id}](${previewAsset.resolvedHref})`,
+            `[Open preview image](${previewAsset.resolvedHref})`
+          ].join("\n\n")
+        })
+      );
+    }
+
     // List available assets
     const assetNames = Object.keys(this.item.assets);
     if (assetNames.length > 0) {
+      const assetRequiresLoginText =
+        i18next.t("preview.assetRequiresLogin") || "requires login";
+      const openAssetLinkText = i18next.t("preview.openAssetLink") || "Open";
+      const terrascopeLoginAndDownloadText =
+        i18next.t("preview.terrascopeLoginAndDownload") ||
+        "Login in Terrascope and download";
+
       const assetsContent = assetNames
         .map((key) => {
           const asset = this.item.assets[key];
-          return `- **${asset.title || key}**: ${asset.type || "unknown"}`;
+          const resolvedAssetHref = resolveStacHref(
+            asset.href,
+            this.catalogItem.url
+          );
+          const assetAccessLink = getStacAssetAccessLink({
+            asset,
+            resolvedAssetHref,
+            catalogUrl: this.catalogItem.url,
+            terrascopeViewerUrl
+          });
+
+          const authHint = assetAccessLink.requiresAuthentication
+            ? ` (${assetRequiresLoginText})`
+            : "";
+          const linkText = assetAccessLink.redirectsToTerrascopeLogin
+            ? terrascopeLoginAndDownloadText
+            : openAssetLinkText;
+          const link = assetAccessLink.href
+            ? ` - [${linkText}](${assetAccessLink.href})`
+            : "";
+
+          return `- **${asset.title || key}**${authHint}: ${
+            asset.type || "unknown"
+          }${link}`;
         })
         .join("\n");
       info.push(
@@ -213,7 +269,9 @@ class StacItemStratum extends LoadableStratum(StacItemCatalogItemTraits) {
     return info;
   }
 
-  static async load(catalogItem: StacItemCatalogItem): Promise<StacItemStratum> {
+  static async load(
+    catalogItem: StacItemCatalogItem
+  ): Promise<StacItemStratum> {
     if (!isDefined(catalogItem.url)) {
       throw new Error("STAC item URL is required");
     }
@@ -236,14 +294,12 @@ StratumOrder.addLoadStratum(StacItemStratum.stratumName);
  * Loads item metadata and renders COG assets.
  */
 export default class StacItemCatalogItem extends UrlMixin(
-  MappableMixin(
-    CatalogMemberMixin(CreateModel(StacItemCatalogItemTraits))
-  )
+  MappableMixin(CatalogMemberMixin(CreateModel(StacItemCatalogItemTraits)))
 ) {
   static readonly type = "stac-item";
 
   @observable
-  _imageryProvider: TIFFImageryProvider | undefined;
+  _imageryProvider: TIFFImageryProvider | SingleTileImageryProvider | undefined;
 
   @observable
   _stacStratum: StacItemStratum | undefined;
@@ -270,14 +326,23 @@ export default class StacItemCatalogItem extends UrlMixin(
     // Destroy the imageryProvider when `mapItems` is no longer consumed
     onBecomeUnobserved(this, "mapItems", () => {
       if (this._imageryProvider) {
-        this._imageryProvider.destroy();
+        const maybeDestroyable = this._imageryProvider as unknown as {
+          destroy?: () => void;
+        };
+        if (typeof maybeDestroyable.destroy === "function") {
+          maybeDestroyable.destroy();
+        }
         this._imageryProvider = undefined;
       }
     });
 
     // Re-create the imageryProvider if `mapItems` is consumed again
     onBecomeObserved(this, "mapItems", () => {
-      if (!this._imageryProvider && !this.isLoadingMapItems && !this._loadError) {
+      if (
+        !this._imageryProvider &&
+        !this.isLoadingMapItems &&
+        !this._loadError
+      ) {
         this.loadMapItems(true);
       }
     });
@@ -323,9 +388,12 @@ export default class StacItemCatalogItem extends UrlMixin(
     // Always create the geometry data source for the STAC Item footprint
     await this.createGeometryDataSource(stratum);
 
-    // Find a COG asset URL to render
-    const cogUrl = this.findCogAssetUrl(stratum);
-    if (!cogUrl) {
+    const cogAsset = this.findCogAsset(stratum);
+    const previewAsset = findStacPreviewAsset(stratum.item.assets, this.url);
+    const hasRenderablePreview =
+      !!previewAsset && !!stratum.item.bbox && stratum.item.bbox.length >= 4;
+
+    if (!cogAsset && !hasRenderablePreview) {
       runInAction(() => {
         this._loadError = i18next.t("models.stac.noCogAssetFound");
       });
@@ -333,12 +401,48 @@ export default class StacItemCatalogItem extends UrlMixin(
       return;
     }
 
+    if (
+      hasRenderablePreview &&
+      (!cogAsset || isStacAssetAuthProtected(cogAsset))
+    ) {
+      try {
+        const imageryProvider = await this.createPreviewImageryProvider(
+          previewAsset!.resolvedHref,
+          stratum.item.bbox!
+        );
+        runInAction(() => {
+          this._imageryProvider = imageryProvider;
+        });
+        return;
+      } catch (error) {
+        console.warn("Failed to load STAC preview image:", error);
+      }
+    }
+
+    if (!cogAsset) return;
+
     try {
-      const imageryProvider = await this.createImageryProvider(cogUrl);
+      const imageryProvider = await this.createImageryProvider(cogAsset.href);
       runInAction(() => {
         this._imageryProvider = imageryProvider;
       });
     } catch (error) {
+      if (hasRenderablePreview && this.isAuthenticationError(error)) {
+        try {
+          const imageryProvider = await this.createPreviewImageryProvider(
+            previewAsset!.resolvedHref,
+            stratum.item.bbox!
+          );
+          runInAction(() => {
+            this._imageryProvider = imageryProvider;
+            this._loadError = undefined;
+          });
+          return;
+        } catch (previewError) {
+          console.warn("Failed to load STAC preview image:", previewError);
+        }
+      }
+
       runInAction(() => {
         this._loadError =
           error instanceof Error ? error.message : String(error);
@@ -389,21 +493,31 @@ export default class StacItemCatalogItem extends UrlMixin(
   }
 
   /**
-   * Find the URL of a COG asset to render
+   * Find a COG asset to render
    */
-  private findCogAssetUrl(stratum: StacItemStratum): string | undefined {
+  private findCogAsset(stratum: StacItemStratum):
+    | {
+        key: string;
+        href: string;
+        "auth:refs"?: string[];
+      }
+    | undefined {
     const item = stratum.item;
 
     // Determine which asset to use
     const assetKey = this.asset?.assetKey;
 
-    if (assetKey && item.assets[assetKey]) {
-      return item.assets[assetKey].href;
+    if (assetKey && item.assets[assetKey]?.href) {
+      return {
+        key: assetKey,
+        href: item.assets[assetKey].href,
+        "auth:refs": item.assets[assetKey]["auth:refs"]
+      };
     }
 
     // Find first COG asset
-    const cogAsset = Object.values(item.assets).find(
-      (asset) =>
+    const cogAsset = Object.entries(item.assets).find(
+      ([, asset]) =>
         asset.type?.includes("geotiff") ||
         asset.type?.includes("tiff") ||
         asset.roles?.includes("data") ||
@@ -411,7 +525,13 @@ export default class StacItemCatalogItem extends UrlMixin(
         asset.href?.endsWith(".tiff")
     );
 
-    return cogAsset?.href;
+    if (!cogAsset) return undefined;
+
+    return {
+      key: cogAsset[0],
+      href: cogAsset[1].href,
+      "auth:refs": cogAsset[1]["auth:refs"]
+    };
   }
 
   /**
@@ -446,6 +566,29 @@ export default class StacItemCatalogItem extends UrlMixin(
     );
 
     return imageryProvider;
+  }
+
+  /**
+   * Create a SingleTileImageryProvider for a preview image
+   */
+  private async createPreviewImageryProvider(
+    previewUrl: string,
+    bbox: number[]
+  ): Promise<SingleTileImageryProvider> {
+    const [west, south, east, north] = bbox;
+
+    return SingleTileImageryProvider.fromUrl(
+      proxyCatalogItemUrl(this, previewUrl),
+      {
+        rectangle: Rectangle.fromDegrees(west, south, east, north),
+        credit: this.credit
+      }
+    );
+  }
+
+  private isAuthenticationError(error: unknown): boolean {
+    const message = error instanceof Error ? error.message : String(error);
+    return /(401|403|unauthori[sz]ed|forbidden)/i.test(message);
   }
 
   /**
@@ -513,7 +656,7 @@ export default class StacItemCatalogItem extends UrlMixin(
       result.push({
         show: this.show,
         alpha: this.opacity,
-        // @ts-expect-error - The return type of 'requestImage' method in our custom ImageryProvider can be ImageData
+        // @ts-expect-error - TIFFImageryProvider has a compatible runtime API but stricter TS typing than Cesium ImageryProvider
         imageryProvider,
         clippingRectangle: this.cesiumRectangle
       });
@@ -530,10 +673,15 @@ function reprojector(proj4: unknown) {
   return (code: number) => {
     if (![4326, 3857, 900913].includes(code)) {
       try {
-        const prj = (proj4 as (from: string, to: string) => {
-          forward: (coord: number[]) => number[];
-          inverse: (coord: number[]) => number[];
-        })("EPSG:4326", `EPSG:${code}`);
+        const prj = (
+          proj4 as (
+            from: string,
+            to: string
+          ) => {
+            forward: (coord: number[]) => number[];
+            inverse: (coord: number[]) => number[];
+          }
+        )("EPSG:4326", `EPSG:${code}`);
         if (prj)
           return {
             project: prj.forward,

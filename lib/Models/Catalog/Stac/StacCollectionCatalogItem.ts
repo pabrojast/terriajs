@@ -10,8 +10,10 @@ import {
   runInAction
 } from "mobx";
 import CesiumMath from "terriajs-cesium/Source/Core/Math";
+import Rectangle from "terriajs-cesium/Source/Core/Rectangle";
 import Color from "terriajs-cesium/Source/Core/Color";
 import GeoJsonDataSource from "terriajs-cesium/Source/DataSources/GeoJsonDataSource";
+import SingleTileImageryProvider from "terriajs-cesium/Source/Scene/SingleTileImageryProvider";
 import type TIFFImageryProvider from "terriajs-tiff-imagery-provider";
 import isDefined from "../../../Core/isDefined";
 import loadJson from "../../../Core/loadJson";
@@ -29,6 +31,13 @@ import StratumFromTraits from "../../Definition/StratumFromTraits";
 import StratumOrder from "../../Definition/StratumOrder";
 import Terria from "../../Terria";
 import proxyCatalogItemUrl from "../proxyCatalogItemUrl";
+import {
+  buildTerrascopeViewerUrl,
+  findStacPreviewAsset,
+  getStacAssetAccessLink,
+  isStacAssetAuthProtected,
+  resolveStacHref
+} from "./stacAssetUtils";
 
 /**
  * STAC Collection JSON structure
@@ -80,6 +89,7 @@ interface StacCollection {
       description?: string;
       type?: string;
       roles?: string[];
+      "auth:refs"?: string[];
     }
   >;
   item_assets?: Record<
@@ -89,6 +99,7 @@ interface StacCollection {
       title?: string;
       description?: string;
       roles?: string[];
+      "auth:refs"?: string[];
       bands?: Array<{ name: string }>;
     }
   >;
@@ -134,6 +145,7 @@ interface StacItem {
       description?: string;
       type?: string;
       roles?: string[];
+      "auth:refs"?: string[];
       "proj:epsg"?: number;
       "raster:bands"?: Array<{
         data_type?: string;
@@ -252,6 +264,19 @@ class StacCollectionStratum extends LoadableStratum(
   @computed
   get info(): StratumFromTraits<InfoSectionTraits>[] {
     const info: StratumFromTraits<InfoSectionTraits>[] = [];
+    const firstItem = this.firstItem;
+    const viewerBbox =
+      firstItem?.bbox && firstItem.bbox.length >= 4
+        ? firstItem.bbox
+        : this.collection.extent?.spatial?.bbox?.[0];
+    const viewerDate =
+      firstItem?.properties?.datetime ??
+      this.collection.extent?.temporal?.interval?.[0]?.[0];
+    const terrascopeViewerUrl = buildTerrascopeViewerUrl({
+      collectionId: this.collection.id,
+      bbox: viewerBbox,
+      datetime: viewerDate
+    });
 
     if (this.collection.license) {
       info.push(
@@ -295,6 +320,68 @@ class StacCollectionStratum extends LoadableStratum(
         createStratumInstance(InfoSectionTraits, {
           name: i18next.t("preview.temporalExtent") || "Temporal Extent",
           content: `${start} to ${end}`
+        })
+      );
+    }
+
+    const previewAsset = findStacPreviewAsset(
+      firstItem?.assets ?? this.collection.assets,
+      this.catalogItem.url
+    );
+    if (previewAsset) {
+      info.push(
+        createStratumInstance(InfoSectionTraits, {
+          name: i18next.t("preview.dataPreview") || "Preview",
+          content: [
+            `![${this.collection.id}](${previewAsset.resolvedHref})`,
+            `[Open preview image](${previewAsset.resolvedHref})`
+          ].join("\n\n")
+        })
+      );
+    }
+
+    const assets = firstItem?.assets ?? this.collection.assets;
+    if (assets && Object.keys(assets).length > 0) {
+      const assetRequiresLoginText =
+        i18next.t("preview.assetRequiresLogin") || "requires login";
+      const openAssetLinkText = i18next.t("preview.openAssetLink") || "Open";
+      const terrascopeLoginAndDownloadText =
+        i18next.t("preview.terrascopeLoginAndDownload") ||
+        "Login in Terrascope and download";
+
+      const assetsContent = Object.entries(assets)
+        .map(([key, asset]) => {
+          const resolvedAssetHref = resolveStacHref(
+            asset.href,
+            this.catalogItem.url
+          );
+          const assetAccessLink = getStacAssetAccessLink({
+            asset,
+            resolvedAssetHref,
+            catalogUrl: this.catalogItem.url,
+            terrascopeViewerUrl
+          });
+
+          const authHint = assetAccessLink.requiresAuthentication
+            ? ` (${assetRequiresLoginText})`
+            : "";
+          const linkText = assetAccessLink.redirectsToTerrascopeLogin
+            ? terrascopeLoginAndDownloadText
+            : openAssetLinkText;
+          const link = assetAccessLink.href
+            ? ` - [${linkText}](${assetAccessLink.href})`
+            : "";
+
+          return `- **${asset.title || key}**${authHint}: ${
+            asset.type || "unknown"
+          }${link}`;
+        })
+        .join("\n");
+
+      info.push(
+        createStratumInstance(InfoSectionTraits, {
+          name: i18next.t("preview.assets") || "Assets",
+          content: assetsContent
         })
       );
     }
@@ -373,7 +460,7 @@ export default class StacCollectionCatalogItem extends UrlMixin(
   static readonly type = "stac-collection";
 
   @observable
-  _imageryProvider: TIFFImageryProvider | undefined;
+  _imageryProvider: TIFFImageryProvider | SingleTileImageryProvider | undefined;
 
   @observable
   _stacStratum: StacCollectionStratum | undefined;
@@ -400,7 +487,12 @@ export default class StacCollectionCatalogItem extends UrlMixin(
     // Destroy the imageryProvider when `mapItems` is no longer consumed
     onBecomeUnobserved(this, "mapItems", () => {
       if (this._imageryProvider) {
-        this._imageryProvider.destroy();
+        const maybeDestroyable = this._imageryProvider as unknown as {
+          destroy?: () => void;
+        };
+        if (typeof maybeDestroyable.destroy === "function") {
+          maybeDestroyable.destroy();
+        }
         this._imageryProvider = undefined;
       }
     });
@@ -457,9 +549,20 @@ export default class StacCollectionCatalogItem extends UrlMixin(
     // Always create the geometry data source for the Collection bbox
     await this.createBboxDataSource(stratum);
 
-    // Find a COG asset URL to render
-    const cogUrl = this.findCogAssetUrl(stratum);
-    if (!cogUrl) {
+    const cogAsset = this.findCogAsset(stratum);
+    const firstItem = stratum.firstItem;
+    const previewAsset = findStacPreviewAsset(
+      firstItem?.assets ?? stratum.collection.assets,
+      this.url
+    );
+    const previewBbox =
+      firstItem?.bbox && firstItem.bbox.length >= 4
+        ? firstItem.bbox
+        : stratum.collection.extent?.spatial?.bbox?.[0];
+    const hasRenderablePreview =
+      !!previewAsset && !!previewBbox && previewBbox.length >= 4;
+
+    if (!cogAsset && !hasRenderablePreview) {
       runInAction(() => {
         this._loadError = i18next.t("models.stac.noCogAssetFound");
       });
@@ -467,12 +570,48 @@ export default class StacCollectionCatalogItem extends UrlMixin(
       return;
     }
 
+    if (
+      hasRenderablePreview &&
+      (!cogAsset || isStacAssetAuthProtected(cogAsset))
+    ) {
+      try {
+        const imageryProvider = await this.createPreviewImageryProvider(
+          previewAsset!.resolvedHref,
+          previewBbox!
+        );
+        runInAction(() => {
+          this._imageryProvider = imageryProvider;
+        });
+        return;
+      } catch (error) {
+        console.warn("Failed to load STAC preview image:", error);
+      }
+    }
+
+    if (!cogAsset) return;
+
     try {
-      const imageryProvider = await this.createImageryProvider(cogUrl);
+      const imageryProvider = await this.createImageryProvider(cogAsset.href);
       runInAction(() => {
         this._imageryProvider = imageryProvider;
       });
     } catch (error) {
+      if (hasRenderablePreview && this.isAuthenticationError(error)) {
+        try {
+          const imageryProvider = await this.createPreviewImageryProvider(
+            previewAsset!.resolvedHref,
+            previewBbox!
+          );
+          runInAction(() => {
+            this._imageryProvider = imageryProvider;
+            this._loadError = undefined;
+          });
+          return;
+        } catch (previewError) {
+          console.warn("Failed to load STAC preview image:", previewError);
+        }
+      }
+
       runInAction(() => {
         this._loadError =
           error instanceof Error ? error.message : String(error);
@@ -637,15 +776,33 @@ export default class StacCollectionCatalogItem extends UrlMixin(
   }
 
   /**
-   * Find the URL of a COG asset to render
+   * Find a COG asset to render
    */
-  private findCogAssetUrl(stratum: StacCollectionStratum): string | undefined {
+  private findCogAsset(stratum: StacCollectionStratum):
+    | {
+        key: string;
+        href: string;
+        "auth:refs"?: string[];
+      }
+    | undefined {
     const item = stratum.firstItem;
     const collection = stratum.collection;
+    const withAuthRefs = (
+      key: string,
+      href: string
+    ): {
+      key: string;
+      href: string;
+      "auth:refs"?: string[];
+    } => ({
+      key,
+      href,
+      "auth:refs":
+        item?.assets[key]?.["auth:refs"] ??
+        collection.item_assets?.[key]?.["auth:refs"]
+    });
 
     if (!item) {
-      // No items available, try collection-level assets
-      console.log(`STAC: No items available, checking collection assets`);
       if (collection.assets) {
         const cogAsset = Object.entries(collection.assets).find(
           ([, asset]) =>
@@ -654,26 +811,16 @@ export default class StacCollectionCatalogItem extends UrlMixin(
             asset.href?.endsWith(".tif") ||
             asset.href?.endsWith(".tiff")
         );
-        if (cogAsset) {
-          console.log(`STAC: Found collection asset: ${cogAsset[0]}`);
-          return cogAsset[1].href;
-        }
+        if (cogAsset) return withAuthRefs(cogAsset[0], cogAsset[1].href);
       }
-      console.log(`STAC: No COG assets found in collection`);
       return undefined;
     }
-
-    console.log(
-      `STAC: Item ${item.id} has assets:`,
-      Object.keys(item.assets).join(", ")
-    );
 
     // Determine which asset to use
     const assetKey = this.asset?.assetKey;
 
-    if (assetKey && item.assets[assetKey]) {
-      console.log(`STAC: Using configured asset: ${assetKey}`);
-      return item.assets[assetKey].href;
+    if (assetKey && item.assets[assetKey]?.href) {
+      return withAuthRefs(assetKey, item.assets[assetKey].href);
     }
 
     // Try to find asset from renders extension
@@ -681,9 +828,8 @@ export default class StacCollectionCatalogItem extends UrlMixin(
     if (renderKey && collection.renders?.[renderKey]) {
       const render = collection.renders[renderKey];
       const assetName = render.assets?.[0];
-      if (assetName && item.assets[assetName]) {
-        console.log(`STAC: Using render asset: ${assetName} from ${renderKey}`);
-        return item.assets[assetName].href;
+      if (assetName && item.assets[assetName]?.href) {
+        return withAuthRefs(assetName, item.assets[assetName].href);
       }
     }
 
@@ -691,13 +837,10 @@ export default class StacCollectionCatalogItem extends UrlMixin(
     if (collection.renders) {
       const firstRenderEntry = Object.entries(collection.renders)[0];
       if (firstRenderEntry) {
-        const [renderName, firstRender] = firstRenderEntry;
+        const [, firstRender] = firstRenderEntry;
         const assetName = firstRender?.assets?.[0];
-        if (assetName && item.assets[assetName]) {
-          console.log(
-            `STAC: Using first render asset: ${assetName} from ${renderName}`
-          );
-          return item.assets[assetName].href;
+        if (assetName && item.assets[assetName]?.href) {
+          return withAuthRefs(assetName, item.assets[assetName].href);
         }
       }
     }
@@ -712,13 +855,9 @@ export default class StacCollectionCatalogItem extends UrlMixin(
         asset.href?.endsWith(".tiff")
     );
 
-    if (cogAssetEntry) {
-      console.log(`STAC: Found COG asset: ${cogAssetEntry[0]}`);
-      return cogAssetEntry[1].href;
-    }
+    if (!cogAssetEntry) return undefined;
 
-    console.log(`STAC: No COG assets found in item`);
-    return undefined;
+    return withAuthRefs(cogAssetEntry[0], cogAssetEntry[1].href);
   }
 
   /**
@@ -767,6 +906,29 @@ export default class StacCollectionCatalogItem extends UrlMixin(
         }`
       );
     }
+  }
+
+  /**
+   * Create a SingleTileImageryProvider for a preview image
+   */
+  private async createPreviewImageryProvider(
+    previewUrl: string,
+    bbox: number[]
+  ): Promise<SingleTileImageryProvider> {
+    const [west, south, east, north] = bbox;
+
+    return SingleTileImageryProvider.fromUrl(
+      proxyCatalogItemUrl(this, previewUrl),
+      {
+        rectangle: Rectangle.fromDegrees(west, south, east, north),
+        credit: this.credit
+      }
+    );
+  }
+
+  private isAuthenticationError(error: unknown): boolean {
+    const message = error instanceof Error ? error.message : String(error);
+    return /(401|403|unauthori[sz]ed|forbidden)/i.test(message);
   }
 
   /**
@@ -895,7 +1057,7 @@ export default class StacCollectionCatalogItem extends UrlMixin(
       result.push({
         show: this.show,
         alpha: this.opacity,
-        // @ts-expect-error - The return type of 'requestImage' method in our custom ImageryProvider can be ImageData
+        // @ts-expect-error - TIFFImageryProvider has a compatible runtime API but stricter TS typing than Cesium ImageryProvider
         imageryProvider,
         clippingRectangle: this.cesiumRectangle
       });
