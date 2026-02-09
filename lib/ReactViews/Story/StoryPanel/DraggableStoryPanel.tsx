@@ -349,6 +349,7 @@ const DraggableStoryPanel = observer(
           if (!currentStory) return;
 
           const element = panelRef.current;
+          if (!element) return;
           const { x: currentX, y: currentY } = parseTranslate(
             element.style.transform
           );
