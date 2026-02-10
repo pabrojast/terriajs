@@ -5,10 +5,7 @@ import ModelTraits from "../ModelTraits";
 import { traitClass } from "../Trait";
 import mixTraits from "../mixTraits";
 import CatalogMemberTraits from "./CatalogMemberTraits";
-import {
-  CogRenderOptionsTraits,
-  SingleRenderOptionsTraits
-} from "./CogCatalogItemTraits";
+import { CogRenderOptionsTraits } from "./CogCatalogItemTraits";
 import ImageryProviderTraits from "./ImageryProviderTraits";
 import LayerOrderingTraits from "./LayerOrderingTraits";
 import LegendOwnerTraits from "./LegendOwnerTraits";
@@ -149,6 +146,22 @@ export default class StacCollectionCatalogItemTraits extends mixTraits(
       "Maximum number of STAC items to fetch for browsing. Default is 10."
   })
   maximumItems?: number;
+
+  @primitiveTrait({
+    type: "number",
+    name: "Preview Request Size Limit",
+    description:
+      "Maximum number of item preview images to request for rendering in a single load. Use this to control API/image requests when many STAC items overlap."
+  })
+  previewRequestSizeLimit = 6;
+
+  @primitiveTrait({
+    type: "number",
+    name: "Preview Request Number Limit",
+    description:
+      "Maximum number of preview image requests to perform in parallel. Lower this value to reduce concurrent load against the API."
+  })
+  previewRequestNumberLimit = 3;
 
   @primitiveTrait({
     type: "string",

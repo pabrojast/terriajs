@@ -976,24 +976,44 @@ export default class StacCollectionCatalogItem extends UrlMixin(
       deduplicatedByUrlAndBbox.set(key, candidate);
     });
 
-    return Array.from(deduplicatedByUrlAndBbox.values());
+    const candidates = Array.from(deduplicatedByUrlAndBbox.values());
+    const requestSizeLimit =
+      this.previewRequestSizeLimit && this.previewRequestSizeLimit > 0
+        ? Math.floor(this.previewRequestSizeLimit)
+        : candidates.length;
+
+    return candidates.slice(0, requestSizeLimit);
   }
 
   private async createPreviewImageryProviders(
     previewCandidates: Array<{ href: string; bbox: number[] }>
   ): Promise<SingleTileImageryProvider[]> {
     const imageryProviders: SingleTileImageryProvider[] = [];
-    for (const candidate of previewCandidates) {
-      try {
-        const provider = await this.createPreviewImageryProvider(
-          candidate.href,
-          candidate.bbox
-        );
-        imageryProviders.push(provider);
-      } catch (error) {
-        console.warn("Failed to load STAC preview image:", error);
-      }
+    const requestNumberLimit =
+      this.previewRequestNumberLimit && this.previewRequestNumberLimit > 0
+        ? Math.floor(this.previewRequestNumberLimit)
+        : 1;
+
+    for (let i = 0; i < previewCandidates.length; i += requestNumberLimit) {
+      const chunk = previewCandidates.slice(i, i + requestNumberLimit);
+      const chunkProviders = await Promise.all(
+        chunk.map(async (candidate) => {
+          try {
+            return await this.createPreviewImageryProvider(
+              candidate.href,
+              candidate.bbox
+            );
+          } catch (error) {
+            console.warn("Failed to load STAC preview image:", error);
+            return undefined;
+          }
+        })
+      );
+      chunkProviders.forEach((provider) => {
+        if (provider) imageryProviders.push(provider);
+      });
     }
+
     return imageryProviders;
   }
 

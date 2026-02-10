@@ -103,6 +103,16 @@ describe("StacCollectionCatalogItem", function () {
       expect(item.maximumItems).toBe(5);
     });
 
+    it("can set previewRequestSizeLimit trait", function () {
+      item.setTrait(CommonStrata.user, "previewRequestSizeLimit", 4);
+      expect(item.previewRequestSizeLimit).toBe(4);
+    });
+
+    it("can set previewRequestNumberLimit trait", function () {
+      item.setTrait(CommonStrata.user, "previewRequestNumberLimit", 2);
+      expect(item.previewRequestNumberLimit).toBe(2);
+    });
+
     it("can set dateTimeFilter trait", function () {
       item.setTrait(
         CommonStrata.user,
@@ -202,6 +212,47 @@ describe("StacCollectionCatalogItem", function () {
       expect(previewCandidates.length).toBe(2);
       expect(previewCandidates[0].href).toContain("quicklook-1.png");
       expect(previewCandidates[1].href).toContain("preview-2.png");
+    });
+
+    it("applies previewRequestSizeLimit when collecting preview candidates", function () {
+      item.setTrait(CommonStrata.user, "previewRequestSizeLimit", 1);
+
+      const stratum = {
+        items: [
+          {
+            bbox: [31, 48, 32, 49],
+            assets: {
+              QUICKLOOK: {
+                href: "https://services.terrascope.be/download/quicklook-1.png",
+                roles: ["thumbnail"],
+                type: "image/png"
+              }
+            }
+          },
+          {
+            bbox: [32, 48, 33, 49],
+            assets: {
+              preview: {
+                href: "https://titiler.terrascope.be/preview-2.png",
+                roles: ["thumbnail", "overview"],
+                type: "image/png"
+              }
+            }
+          }
+        ],
+        firstItem: undefined,
+        collection: {
+          assets: {},
+          extent: {
+            spatial: { bbox: [[0, 0, 1, 1]] }
+          }
+        }
+      } as any;
+
+      const previewCandidates = (item as any).getPreviewCandidates(stratum);
+
+      expect(previewCandidates.length).toBe(1);
+      expect(previewCandidates[0].href).toContain("quicklook-1.png");
     });
   });
 });
