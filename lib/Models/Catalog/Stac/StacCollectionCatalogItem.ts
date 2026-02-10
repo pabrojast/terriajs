@@ -934,20 +934,35 @@ export default class StacCollectionCatalogItem extends UrlMixin(
     bbox: number[]
   ): Promise<SingleTileImageryProvider> {
     const [west, south, east, north] = bbox;
+    const rectangle = Rectangle.fromDegrees(west, south, east, north);
+    const proxiedPreviewUrl = proxyCatalogItemUrl(this, previewUrl);
+    const candidateUrls =
+      proxiedPreviewUrl !== previewUrl
+        ? [previewUrl, proxiedPreviewUrl]
+        : [previewUrl];
 
-    const provider = await SingleTileImageryProvider.fromUrl(
-      proxyCatalogItemUrl(this, previewUrl),
-      {
-        rectangle: Rectangle.fromDegrees(west, south, east, north),
-        credit: this.credit
+    let lastError: unknown;
+    for (const candidateUrl of candidateUrls) {
+      try {
+        const provider = await SingleTileImageryProvider.fromUrl(candidateUrl, {
+          rectangle,
+          credit: this.credit
+        });
+        if (!this.hasValidImageryProviderRectangle(provider)) {
+          throw new Error(
+            `Preview imagery provider for ${candidateUrl} has an invalid rectangle.`
+          );
+        }
+        return provider;
+      } catch (error) {
+        lastError = error;
       }
-    );
-    if (!this.hasValidImageryProviderRectangle(provider)) {
-      throw new Error(
-        `Preview imagery provider for ${previewUrl} has an invalid rectangle.`
-      );
     }
-    return provider;
+
+    throw (
+      lastError ??
+      new Error(`Failed to load preview imagery provider for ${previewUrl}`)
+    );
   }
 
   private getPreviewCandidates(
