@@ -163,5 +163,45 @@ describe("StacCollectionCatalogItem", function () {
       expect(cogAsset?.key).toBe("CHL");
       expect(cogAsset?.["auth:refs"]).toEqual(["oidc"]);
     });
+
+    it("collects preview candidates from all items", function () {
+      const stratum = {
+        items: [
+          {
+            bbox: [31, 48, 32, 49],
+            assets: {
+              QUICKLOOK: {
+                href: "https://services.terrascope.be/download/quicklook-1.png",
+                roles: ["thumbnail"],
+                type: "image/png"
+              }
+            }
+          },
+          {
+            bbox: [32, 48, 33, 49],
+            assets: {
+              preview: {
+                href: "https://titiler.terrascope.be/preview-2.png",
+                roles: ["thumbnail", "overview"],
+                type: "image/png"
+              }
+            }
+          }
+        ],
+        firstItem: undefined,
+        collection: {
+          assets: {},
+          extent: {
+            spatial: { bbox: [[0, 0, 1, 1]] }
+          }
+        }
+      } as any;
+
+      const previewCandidates = (item as any).getPreviewCandidates(stratum);
+
+      expect(previewCandidates.length).toBe(2);
+      expect(previewCandidates[0].href).toContain("quicklook-1.png");
+      expect(previewCandidates[1].href).toContain("preview-2.png");
+    });
   });
 });

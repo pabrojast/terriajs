@@ -215,7 +215,7 @@ class StacCollectionStratum extends LoadableStratum(
   @computed
   get rectangle(): StratumFromTraits<RectangleTraits> | undefined {
     // First try to get rectangle from the imagery provider if available
-    const imageryRectangle = this.catalogItem._imageryProvider?.rectangle;
+    const imageryRectangle = this.catalogItem._imageryProviders[0]?.rectangle;
     if (imageryRectangle) {
       const { west, south, east, north } = imageryRectangle;
       return {
@@ -462,7 +462,8 @@ export default class StacCollectionCatalogItem extends UrlMixin(
   static readonly type = "stac-collection";
 
   @observable
-  _imageryProvider: TIFFImageryProvider | SingleTileImageryProvider | undefined;
+  _imageryProviders: Array<TIFFImageryProvider | SingleTileImageryProvider> =
+    [];
 
   @observable
   _stacStratum: StacCollectionStratum | undefined;
@@ -486,23 +487,23 @@ export default class StacCollectionCatalogItem extends UrlMixin(
     super(id, terria, sourceReference);
     makeObservable(this);
 
-    // Destroy the imageryProvider when `mapItems` is no longer consumed
+    // Destroy imagery providers when `mapItems` is no longer consumed
     onBecomeUnobserved(this, "mapItems", () => {
-      if (this._imageryProvider) {
-        const maybeDestroyable = this._imageryProvider as unknown as {
+      this._imageryProviders.forEach((provider) => {
+        const maybeDestroyable = provider as unknown as {
           destroy?: () => void;
         };
         if (typeof maybeDestroyable.destroy === "function") {
           maybeDestroyable.destroy();
         }
-        this._imageryProvider = undefined;
-      }
+      });
+      this._imageryProviders = [];
     });
 
-    // Re-create the imageryProvider if `mapItems` is consumed again
+    // Re-create imagery providers if `mapItems` is consumed again
     onBecomeObserved(this, "mapItems", () => {
       if (
-        !this._imageryProvider &&
+        this._imageryProviders.length === 0 &&
         !this.isLoadingMapItems &&
         !this._loadError
       ) {
@@ -542,6 +543,7 @@ export default class StacCollectionCatalogItem extends UrlMixin(
   protected async forceLoadMapItems(): Promise<void> {
     // Reset error state
     this._loadError = undefined;
+    this._imageryProviders = [];
 
     const stratum = this._stacStratum;
     if (!stratum) {
@@ -555,17 +557,8 @@ export default class StacCollectionCatalogItem extends UrlMixin(
     const resolvedCogAssetHref = cogAsset
       ? resolveStacHref(cogAsset.href, this.url) ?? cogAsset.href
       : undefined;
-    const firstItem = stratum.firstItem;
-    const previewAsset = findStacPreviewAsset(
-      firstItem?.assets ?? stratum.collection.assets,
-      this.url
-    );
-    const previewBbox =
-      firstItem?.bbox && firstItem.bbox.length >= 4
-        ? firstItem.bbox
-        : stratum.collection.extent?.spatial?.bbox?.[0];
-    const hasRenderablePreview =
-      !!previewAsset && !!previewBbox && previewBbox.length >= 4;
+    const previewCandidates = this.getPreviewCandidates(stratum);
+    const hasRenderablePreview = previewCandidates.length > 0;
     const shouldForcePreviewForCog =
       shouldForcePreviewForProtectedTerrascopeAsset({
         asset: cogAsset,
@@ -583,14 +576,15 @@ export default class StacCollectionCatalogItem extends UrlMixin(
 
     if (hasRenderablePreview && (!cogAsset || shouldForcePreviewForCog)) {
       try {
-        const imageryProvider = await this.createPreviewImageryProvider(
-          previewAsset!.resolvedHref,
-          previewBbox!
+        const imageryProviders = await this.createPreviewImageryProviders(
+          previewCandidates
         );
-        runInAction(() => {
-          this._imageryProvider = imageryProvider;
-        });
-        return;
+        if (imageryProviders.length > 0) {
+          runInAction(() => {
+            this._imageryProviders = imageryProviders;
+          });
+          return;
+        }
       } catch (error) {
         console.warn("Failed to load STAC preview image:", error);
       }
@@ -603,20 +597,21 @@ export default class StacCollectionCatalogItem extends UrlMixin(
         resolvedCogAssetHref ?? cogAsset.href
       );
       runInAction(() => {
-        this._imageryProvider = imageryProvider;
+        this._imageryProviders = [imageryProvider];
       });
     } catch (error) {
       if (hasRenderablePreview && this.isAuthenticationError(error)) {
         try {
-          const imageryProvider = await this.createPreviewImageryProvider(
-            previewAsset!.resolvedHref,
-            previewBbox!
+          const imageryProviders = await this.createPreviewImageryProviders(
+            previewCandidates
           );
-          runInAction(() => {
-            this._imageryProvider = imageryProvider;
-            this._loadError = undefined;
-          });
-          return;
+          if (imageryProviders.length > 0) {
+            runInAction(() => {
+              this._imageryProviders = imageryProviders;
+              this._loadError = undefined;
+            });
+            return;
+          }
         } catch (previewError) {
           console.warn("Failed to load STAC preview image:", previewError);
         }
@@ -937,6 +932,71 @@ export default class StacCollectionCatalogItem extends UrlMixin(
     );
   }
 
+  private getPreviewCandidates(
+    stratum: StacCollectionStratum
+  ): Array<{ href: string; bbox: number[] }> {
+    const previewCandidates: Array<{ href: string; bbox: number[] }> = [];
+
+    if (stratum.items.length > 0) {
+      stratum.items.forEach((item) => {
+        if (!item.bbox || item.bbox.length < 4) return;
+        const previewAsset = findStacPreviewAsset(item.assets, this.url);
+        if (!previewAsset) return;
+        previewCandidates.push({
+          href: previewAsset.resolvedHref,
+          bbox: item.bbox.slice(0, 4)
+        });
+      });
+    }
+
+    if (previewCandidates.length === 0) {
+      const firstItem = stratum.firstItem;
+      const previewAsset = findStacPreviewAsset(
+        firstItem?.assets ?? stratum.collection.assets,
+        this.url
+      );
+      const previewBbox =
+        firstItem?.bbox && firstItem.bbox.length >= 4
+          ? firstItem.bbox
+          : stratum.collection.extent?.spatial?.bbox?.[0];
+      if (previewAsset && previewBbox && previewBbox.length >= 4) {
+        previewCandidates.push({
+          href: previewAsset.resolvedHref,
+          bbox: previewBbox.slice(0, 4)
+        });
+      }
+    }
+
+    const deduplicatedByUrlAndBbox = new Map<
+      string,
+      { href: string; bbox: number[] }
+    >();
+    previewCandidates.forEach((candidate) => {
+      const key = `${candidate.href}|${candidate.bbox.join(",")}`;
+      deduplicatedByUrlAndBbox.set(key, candidate);
+    });
+
+    return Array.from(deduplicatedByUrlAndBbox.values());
+  }
+
+  private async createPreviewImageryProviders(
+    previewCandidates: Array<{ href: string; bbox: number[] }>
+  ): Promise<SingleTileImageryProvider[]> {
+    const imageryProviders: SingleTileImageryProvider[] = [];
+    for (const candidate of previewCandidates) {
+      try {
+        const provider = await this.createPreviewImageryProvider(
+          candidate.href,
+          candidate.bbox
+        );
+        imageryProviders.push(provider);
+      } catch (error) {
+        console.warn("Failed to load STAC preview image:", error);
+      }
+    }
+    return imageryProviders;
+  }
+
   private isAuthenticationError(error: unknown): boolean {
     const message = error instanceof Error ? error.message : String(error);
     return /(401|403|unauthori[sz]ed|forbidden)/i.test(message);
@@ -1062,17 +1122,17 @@ export default class StacCollectionCatalogItem extends UrlMixin(
       result.push(dataSource);
     }
 
-    // Add the imagery provider if available
-    const imageryProvider = this._imageryProvider;
-    if (imageryProvider) {
+    // Add imagery providers if available
+    this._imageryProviders.forEach((imageryProvider, index) => {
       result.push({
         show: this.show,
         alpha: this.opacity,
         // @ts-expect-error - TIFFImageryProvider has a compatible runtime API but stricter TS typing than Cesium ImageryProvider
         imageryProvider,
-        clippingRectangle: this.cesiumRectangle
+        clippingRectangle: this.cesiumRectangle,
+        keepOnTop: index > 0
       });
-    }
+    });
 
     return result;
   }
