@@ -2,6 +2,8 @@ import {
   buildTerrascopeViewerUrl,
   findStacPreviewAsset,
   getStacAssetAccessLink,
+  hasValidCesiumRectangle,
+  normalizeStacBbox,
   resolveStacHref,
   shouldForcePreviewForProtectedTerrascopeAsset
 } from "../../../../lib/Models/Catalog/Stac/stacAssetUtils";
@@ -57,6 +59,44 @@ describe("stacAssetUtils", function () {
     expect(parsed.searchParams.get("date")).toBe("2025-05-03");
     expect(parsed.searchParams.get("bbox")).toBe("31.3,48.9,33.7,49.7");
     expect(parsed.searchParams.get("layer")).toBe("terrascope-s2-rhow-v1_rhow");
+  });
+
+  it("normalizes 3D STAC bbox arrays to lon/lat values", function () {
+    const normalized = normalizeStacBbox([31.3, 48.9, 0, 33.7, 49.7, 1000]);
+    expect(normalized).toEqual([31.3, 48.9, 33.7, 49.7]);
+  });
+
+  it("builds Terrascope viewer URL using normalized 3D bbox values", function () {
+    const viewerUrl = buildTerrascopeViewerUrl({
+      collectionId: "terrascope-s2-chl-v1",
+      bbox: [31.3, 48.9, 0, 33.7, 49.7, 1000],
+      datetime: "2025-05-03T10:30:00Z"
+    });
+
+    expect(viewerUrl).toBeDefined();
+    const parsed = new URL(viewerUrl!);
+    expect(parsed.searchParams.get("bbox")).toBe("31.3,48.9,33.7,49.7");
+    expect(parsed.searchParams.get("layer")).toBe("terrascope-s2-chl-v1_chl");
+  });
+
+  it("validates Cesium rectangle-like objects", function () {
+    expect(
+      hasValidCesiumRectangle({
+        west: 0,
+        south: 0,
+        east: 1,
+        north: 1
+      })
+    ).toBe(true);
+    expect(
+      hasValidCesiumRectangle({
+        west: 0,
+        south: 0,
+        east: Number.NaN,
+        north: 1
+      })
+    ).toBe(false);
+    expect(hasValidCesiumRectangle(undefined)).toBe(false);
   });
 
   it("routes authenticated Terrascope asset links to the viewer", function () {

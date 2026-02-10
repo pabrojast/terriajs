@@ -35,6 +35,8 @@ import {
   buildTerrascopeViewerUrl,
   findStacPreviewAsset,
   getStacAssetAccessLink,
+  hasValidCesiumRectangle,
+  normalizeStacBbox,
   resolveStacHref,
   shouldForcePreviewForProtectedTerrascopeAsset
 } from "./stacAssetUtils";
@@ -215,8 +217,14 @@ class StacCollectionStratum extends LoadableStratum(
   @computed
   get rectangle(): StratumFromTraits<RectangleTraits> | undefined {
     // First try to get rectangle from the imagery provider if available
-    const imageryRectangle = this.catalogItem._imageryProviders[0]?.rectangle;
-    if (imageryRectangle) {
+    const imageryRectangle = this.catalogItem._imageryProviders
+      .map(
+        (provider) =>
+          (provider as unknown as { rectangle?: Rectangle | undefined })
+            .rectangle
+      )
+      .find((rectangle) => hasValidCesiumRectangle(rectangle));
+    if (hasValidCesiumRectangle(imageryRectangle)) {
       const { west, south, east, north } = imageryRectangle;
       return {
         west: CesiumMath.toDegrees(west),
@@ -227,8 +235,8 @@ class StacCollectionStratum extends LoadableStratum(
     }
 
     // Fall back to collection extent
-    const bbox = this.collection.extent?.spatial?.bbox?.[0];
-    if (bbox && bbox.length >= 4) {
+    const bbox = normalizeStacBbox(this.collection.extent?.spatial?.bbox?.[0]);
+    if (bbox) {
       return {
         west: bbox[0],
         south: bbox[1],
@@ -266,9 +274,8 @@ class StacCollectionStratum extends LoadableStratum(
     const info: StratumFromTraits<InfoSectionTraits>[] = [];
     const firstItem = this.firstItem;
     const viewerBbox =
-      firstItem?.bbox && firstItem.bbox.length >= 4
-        ? firstItem.bbox
-        : this.collection.extent?.spatial?.bbox?.[0];
+      normalizeStacBbox(firstItem?.bbox) ??
+      normalizeStacBbox(this.collection.extent?.spatial?.bbox?.[0]);
     const viewerDate =
       firstItem?.properties?.datetime ??
       this.collection.extent?.temporal?.interval?.[0]?.[0];
@@ -576,8 +583,8 @@ export default class StacCollectionCatalogItem extends UrlMixin(
 
     if (hasRenderablePreview && (!cogAsset || shouldForcePreviewForCog)) {
       try {
-        const imageryProviders = await this.createPreviewImageryProviders(
-          previewCandidates
+        const imageryProviders = this.filterValidImageryProviders(
+          await this.createPreviewImageryProviders(previewCandidates)
         );
         if (imageryProviders.length > 0) {
           runInAction(() => {
@@ -596,14 +603,19 @@ export default class StacCollectionCatalogItem extends UrlMixin(
       const imageryProvider = await this.createImageryProvider(
         resolvedCogAssetHref ?? cogAsset.href
       );
+      if (!this.hasValidImageryProviderRectangle(imageryProvider)) {
+        throw new Error(
+          "STAC imagery provider returned an invalid rectangle for COG rendering."
+        );
+      }
       runInAction(() => {
         this._imageryProviders = [imageryProvider];
       });
     } catch (error) {
       if (hasRenderablePreview && this.isAuthenticationError(error)) {
         try {
-          const imageryProviders = await this.createPreviewImageryProviders(
-            previewCandidates
+          const imageryProviders = this.filterValidImageryProviders(
+            await this.createPreviewImageryProviders(previewCandidates)
           );
           if (imageryProviders.length > 0) {
             runInAction(() => {
@@ -642,9 +654,8 @@ export default class StacCollectionCatalogItem extends UrlMixin(
     }
 
     // Fallback: show collection bbox
-    const bbox = collection.extent?.spatial?.bbox?.[0];
-
-    if (!bbox || bbox.length < 4) {
+    const bbox = normalizeStacBbox(collection.extent?.spatial?.bbox?.[0]);
+    if (!bbox) {
       return;
     }
 
@@ -725,8 +736,9 @@ export default class StacCollectionCatalogItem extends UrlMixin(
           if (!coords || coords.length < 4) return false;
 
           // Check for degenerate bbox
-          if (item.bbox && item.bbox.length >= 4) {
-            const [west, south, east, north] = item.bbox;
+          const bbox = normalizeStacBbox(item.bbox);
+          if (bbox) {
+            const [west, south, east, north] = bbox;
             if (
               Math.abs(west - east) < EPSILON ||
               Math.abs(north - south) < EPSILON
@@ -923,13 +935,19 @@ export default class StacCollectionCatalogItem extends UrlMixin(
   ): Promise<SingleTileImageryProvider> {
     const [west, south, east, north] = bbox;
 
-    return SingleTileImageryProvider.fromUrl(
+    const provider = await SingleTileImageryProvider.fromUrl(
       proxyCatalogItemUrl(this, previewUrl),
       {
         rectangle: Rectangle.fromDegrees(west, south, east, north),
         credit: this.credit
       }
     );
+    if (!this.hasValidImageryProviderRectangle(provider)) {
+      throw new Error(
+        `Preview imagery provider for ${previewUrl} has an invalid rectangle.`
+      );
+    }
+    return provider;
   }
 
   private getPreviewCandidates(
@@ -939,12 +957,13 @@ export default class StacCollectionCatalogItem extends UrlMixin(
 
     if (stratum.items.length > 0) {
       stratum.items.forEach((item) => {
-        if (!item.bbox || item.bbox.length < 4) return;
+        const bbox = normalizeStacBbox(item.bbox);
+        if (!bbox) return;
         const previewAsset = findStacPreviewAsset(item.assets, this.url);
         if (!previewAsset) return;
         previewCandidates.push({
           href: previewAsset.resolvedHref,
-          bbox: item.bbox.slice(0, 4)
+          bbox
         });
       });
     }
@@ -956,13 +975,12 @@ export default class StacCollectionCatalogItem extends UrlMixin(
         this.url
       );
       const previewBbox =
-        firstItem?.bbox && firstItem.bbox.length >= 4
-          ? firstItem.bbox
-          : stratum.collection.extent?.spatial?.bbox?.[0];
-      if (previewAsset && previewBbox && previewBbox.length >= 4) {
+        normalizeStacBbox(firstItem?.bbox) ??
+        normalizeStacBbox(stratum.collection.extent?.spatial?.bbox?.[0]);
+      if (previewAsset && previewBbox) {
         previewCandidates.push({
           href: previewAsset.resolvedHref,
-          bbox: previewBbox.slice(0, 4)
+          bbox: previewBbox
         });
       }
     }
@@ -1015,6 +1033,23 @@ export default class StacCollectionCatalogItem extends UrlMixin(
     }
 
     return imageryProviders;
+  }
+
+  private hasValidImageryProviderRectangle(
+    imageryProvider: TIFFImageryProvider | SingleTileImageryProvider
+  ): boolean {
+    return hasValidCesiumRectangle(
+      (imageryProvider as unknown as { rectangle?: Rectangle | undefined })
+        .rectangle
+    );
+  }
+
+  private filterValidImageryProviders(
+    imageryProviders: Array<TIFFImageryProvider | SingleTileImageryProvider>
+  ): Array<TIFFImageryProvider | SingleTileImageryProvider> {
+    return imageryProviders.filter((provider) =>
+      this.hasValidImageryProviderRectangle(provider)
+    );
   }
 
   private isAuthenticationError(error: unknown): boolean {
@@ -1144,6 +1179,10 @@ export default class StacCollectionCatalogItem extends UrlMixin(
 
     // Add imagery providers if available
     this._imageryProviders.forEach((imageryProvider) => {
+      if (!this.hasValidImageryProviderRectangle(imageryProvider)) {
+        return;
+      }
+
       const clippingRectangle =
         imageryProvider instanceof SingleTileImageryProvider
           ? undefined

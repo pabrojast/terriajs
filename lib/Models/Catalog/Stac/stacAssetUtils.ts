@@ -13,6 +13,8 @@ export interface StacPreviewAsset {
   resolvedHref: string;
 }
 
+export type StacLngLatBbox = [number, number, number, number];
+
 interface TerrascopeViewerUrlOptions {
   collectionId?: string;
   bbox?: number[];
@@ -98,6 +100,81 @@ export function findStacPreviewAsset(
   };
 }
 
+/**
+ * Normalize STAC bbox values into a 2D [west, south, east, north] tuple.
+ *
+ * STAC allows 2*n bbox arrays (eg 6 values in 3D): [xmin, ymin, zmin, xmax, ymax, zmax].
+ * For >2D bboxes we take min/max lon/lat from the first two dimensions.
+ */
+export function normalizeStacBbox(
+  bbox: number[] | undefined | null
+): StacLngLatBbox | undefined {
+  if (!Array.isArray(bbox) || bbox.length < 4) return undefined;
+
+  let west: number;
+  let south: number;
+  let east: number;
+  let north: number;
+
+  if (bbox.length === 4) {
+    [west, south, east, north] = bbox;
+  } else if (bbox.length % 2 === 0) {
+    const dimensions = bbox.length / 2;
+    west = bbox[0];
+    south = bbox[1];
+    east = bbox[dimensions];
+    north = bbox[dimensions + 1];
+  } else {
+    [west, south, east, north] = bbox;
+  }
+
+  if (![west, south, east, north].every(Number.isFinite)) return undefined;
+
+  // Sanity checks for geographic coordinates
+  if (
+    west < -180 ||
+    west > 180 ||
+    east < -180 ||
+    east > 180 ||
+    south < -90 ||
+    south > 90 ||
+    north < -90 ||
+    north > 90
+  ) {
+    return undefined;
+  }
+
+  // Degenerate bbox
+  if (south >= north || west === east) return undefined;
+
+  return [west, south, east, north];
+}
+
+export function hasValidCesiumRectangle(
+  rectangle:
+    | {
+        west?: number;
+        south?: number;
+        east?: number;
+        north?: number;
+      }
+    | undefined
+    | null
+): rectangle is {
+  west: number;
+  south: number;
+  east: number;
+  north: number;
+} {
+  if (!rectangle) return false;
+  return (
+    Number.isFinite(rectangle.west) &&
+    Number.isFinite(rectangle.south) &&
+    Number.isFinite(rectangle.east) &&
+    Number.isFinite(rectangle.north)
+  );
+}
+
 export function buildTerrascopeViewerUrl(
   options: TerrascopeViewerUrlOptions
 ): string | undefined {
@@ -108,8 +185,9 @@ export function buildTerrascopeViewerUrl(
   viewerUrl.searchParams.set("overlay", "true");
   viewerUrl.searchParams.set("bgLayer", "OSM");
 
-  if (options.bbox && options.bbox.length >= 4) {
-    viewerUrl.searchParams.set("bbox", options.bbox.slice(0, 4).join(","));
+  const bbox = normalizeStacBbox(options.bbox);
+  if (bbox) {
+    viewerUrl.searchParams.set("bbox", bbox.join(","));
   }
 
   const isoDate = toIsoDate(options.datetime);

@@ -35,6 +35,8 @@ import {
   buildTerrascopeViewerUrl,
   findStacPreviewAsset,
   getStacAssetAccessLink,
+  hasValidCesiumRectangle,
+  normalizeStacBbox,
   resolveStacHref,
   shouldForcePreviewForProtectedTerrascopeAsset
 } from "./stacAssetUtils";
@@ -121,7 +123,7 @@ class StacItemStratum extends LoadableStratum(StacItemCatalogItemTraits) {
   get rectangle(): StratumFromTraits<RectangleTraits> | undefined {
     // First try to get rectangle from the imagery provider if available
     const imageryRectangle = this.catalogItem._imageryProvider?.rectangle;
-    if (imageryRectangle) {
+    if (hasValidCesiumRectangle(imageryRectangle)) {
       const { west, south, east, north } = imageryRectangle;
       return {
         west: CesiumMath.toDegrees(west),
@@ -132,8 +134,8 @@ class StacItemStratum extends LoadableStratum(StacItemCatalogItemTraits) {
     }
 
     // Fall back to item bbox
-    const bbox = this.item.bbox;
-    if (bbox && bbox.length >= 4) {
+    const bbox = normalizeStacBbox(this.item.bbox);
+    if (bbox) {
       return {
         west: bbox[0],
         south: bbox[1],
@@ -163,7 +165,7 @@ class StacItemStratum extends LoadableStratum(StacItemCatalogItemTraits) {
     const info: StratumFromTraits<InfoSectionTraits>[] = [];
     const terrascopeViewerUrl = buildTerrascopeViewerUrl({
       collectionId: this.item.collection,
-      bbox: this.item.bbox,
+      bbox: normalizeStacBbox(this.item.bbox),
       datetime: this.item.properties?.datetime
     });
 
@@ -395,8 +397,8 @@ export default class StacItemCatalogItem extends UrlMixin(
       ? resolveStacHref(cogAsset.href, this.url) ?? cogAsset.href
       : undefined;
     const previewAsset = findStacPreviewAsset(stratum.item.assets, this.url);
-    const hasRenderablePreview =
-      !!previewAsset && !!stratum.item.bbox && stratum.item.bbox.length >= 4;
+    const previewBbox = normalizeStacBbox(stratum.item.bbox);
+    const hasRenderablePreview = !!previewAsset && !!previewBbox;
     const shouldForcePreviewForCog =
       shouldForcePreviewForProtectedTerrascopeAsset({
         asset: cogAsset,
@@ -416,7 +418,7 @@ export default class StacItemCatalogItem extends UrlMixin(
       try {
         const imageryProvider = await this.createPreviewImageryProvider(
           previewAsset!.resolvedHref,
-          stratum.item.bbox!
+          previewBbox!
         );
         runInAction(() => {
           this._imageryProvider = imageryProvider;
@@ -433,6 +435,11 @@ export default class StacItemCatalogItem extends UrlMixin(
       const imageryProvider = await this.createImageryProvider(
         resolvedCogAssetHref ?? cogAsset.href
       );
+      if (!this.hasValidImageryProviderRectangle(imageryProvider)) {
+        throw new Error(
+          "STAC imagery provider returned an invalid rectangle for COG rendering."
+        );
+      }
       runInAction(() => {
         this._imageryProvider = imageryProvider;
       });
@@ -441,7 +448,7 @@ export default class StacItemCatalogItem extends UrlMixin(
         try {
           const imageryProvider = await this.createPreviewImageryProvider(
             previewAsset!.resolvedHref,
-            stratum.item.bbox!
+            previewBbox!
           );
           runInAction(() => {
             this._imageryProvider = imageryProvider;
@@ -587,12 +594,27 @@ export default class StacItemCatalogItem extends UrlMixin(
   ): Promise<SingleTileImageryProvider> {
     const [west, south, east, north] = bbox;
 
-    return SingleTileImageryProvider.fromUrl(
+    const provider = await SingleTileImageryProvider.fromUrl(
       proxyCatalogItemUrl(this, previewUrl),
       {
         rectangle: Rectangle.fromDegrees(west, south, east, north),
         credit: this.credit
       }
+    );
+    if (!this.hasValidImageryProviderRectangle(provider)) {
+      throw new Error(
+        `Preview imagery provider for ${previewUrl} has an invalid rectangle.`
+      );
+    }
+    return provider;
+  }
+
+  private hasValidImageryProviderRectangle(
+    imageryProvider: TIFFImageryProvider | SingleTileImageryProvider
+  ): boolean {
+    return hasValidCesiumRectangle(
+      (imageryProvider as unknown as { rectangle?: Rectangle | undefined })
+        .rectangle
     );
   }
 
@@ -662,7 +684,10 @@ export default class StacItemCatalogItem extends UrlMixin(
 
     // Add the imagery provider if available
     const imageryProvider = this._imageryProvider;
-    if (imageryProvider) {
+    if (
+      imageryProvider &&
+      this.hasValidImageryProviderRectangle(imageryProvider)
+    ) {
       const clippingRectangle =
         imageryProvider instanceof SingleTileImageryProvider
           ? undefined

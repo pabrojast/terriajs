@@ -254,5 +254,40 @@ describe("StacCollectionCatalogItem", function () {
       expect(previewCandidates.length).toBe(1);
       expect(previewCandidates[0].href).toContain("quicklook-1.png");
     });
+
+    it("normalizes 3D item bbox values when collecting preview candidates", function () {
+      const stratum = {
+        items: [
+          {
+            bbox: [31, 48, 0, 32, 49, 1000],
+            assets: {
+              preview: {
+                href: "https://titiler.terrascope.be/preview-3d.png",
+                roles: ["thumbnail", "overview"],
+                type: "image/png"
+              }
+            }
+          }
+        ],
+        firstItem: undefined,
+        collection: {
+          assets: {},
+          extent: {
+            spatial: { bbox: [[0, 0, 1, 1]] }
+          }
+        }
+      } as any;
+
+      const previewCandidates = (item as any).getPreviewCandidates(stratum);
+      expect(previewCandidates.length).toBe(1);
+      expect(previewCandidates[0].bbox).toEqual([31, 48, 32, 49]);
+    });
+
+    it("skips invalid imagery providers when building mapItems", function () {
+      (item as any)._imageryProviders = [{ rectangle: undefined }];
+
+      const mapItems = item.mapItems;
+      expect(mapItems.length).toBe(0);
+    });
   });
 });
