@@ -1143,14 +1143,18 @@ export default class StacCollectionCatalogItem extends UrlMixin(
     }
 
     // Add imagery providers if available
-    this._imageryProviders.forEach((imageryProvider, index) => {
+    this._imageryProviders.forEach((imageryProvider) => {
+      const clippingRectangle =
+        imageryProvider instanceof SingleTileImageryProvider
+          ? undefined
+          : this.cesiumRectangle;
+
       result.push({
         show: this.show,
         alpha: this.opacity,
         // @ts-expect-error - TIFFImageryProvider has a compatible runtime API but stricter TS typing than Cesium ImageryProvider
         imageryProvider,
-        clippingRectangle: this.cesiumRectangle,
-        keepOnTop: index > 0
+        clippingRectangle
       });
     });
 

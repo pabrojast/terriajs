@@ -663,12 +663,17 @@ export default class StacItemCatalogItem extends UrlMixin(
     // Add the imagery provider if available
     const imageryProvider = this._imageryProvider;
     if (imageryProvider) {
+      const clippingRectangle =
+        imageryProvider instanceof SingleTileImageryProvider
+          ? undefined
+          : this.cesiumRectangle;
+
       result.push({
         show: this.show,
         alpha: this.opacity,
         // @ts-expect-error - TIFFImageryProvider has a compatible runtime API but stricter TS typing than Cesium ImageryProvider
         imageryProvider,
-        clippingRectangle: this.cesiumRectangle
+        clippingRectangle
       });
     }
 
