@@ -375,6 +375,27 @@ describe("StacCollectionCatalogItem", function () {
       expect(previewCandidates[0].bbox).toEqual([31, 48, 32, 49]);
     });
 
+    it("uses projected bbox metadata to improve preview alignment", async function () {
+      const candidate = {
+        hrefs: ["https://example.com/preview.png"],
+        bbox: [
+          5.81551011356698, 50.38212225093181, 7.450589699013681,
+          51.41589769639834
+        ],
+        projectedBbox: [699960.0, 5590200.0, 809760.0, 5700000.0],
+        projectedCode: "EPSG:32631"
+      };
+
+      const resolvedBbox = await (item as any).resolvePreviewCandidateBbox(
+        candidate
+      );
+
+      expect(resolvedBbox[0]).toBeCloseTo(5.8155, 3);
+      expect(resolvedBbox[1]).toBeCloseTo(50.4297, 3);
+      expect(resolvedBbox[2]).toBeCloseTo(7.4505, 3);
+      expect(resolvedBbox[3]).toBeCloseTo(51.3666, 3);
+    });
+
     it("skips invalid imagery providers when building mapItems", function () {
       (item as any)._imageryProviders = [{ rectangle: undefined }];
 

@@ -114,6 +114,36 @@ export function findStacPreviewAssets(
 export function normalizeStacBbox(
   bbox: number[] | undefined | null
 ): StacLngLatBbox | undefined {
+  const normalized = normalizeStacRawBbox(bbox);
+  if (!normalized) return undefined;
+
+  const [west, south, east, north] = normalized;
+
+  // Sanity checks for geographic coordinates
+  if (
+    west < -180 ||
+    west > 180 ||
+    east < -180 ||
+    east > 180 ||
+    south < -90 ||
+    south > 90 ||
+    north < -90 ||
+    north > 90
+  ) {
+    return undefined;
+  }
+
+  return normalized;
+}
+
+/**
+ * Normalize STAC bbox values into a 2D [west, south, east, north] tuple
+ * without enforcing geographic ranges. This is useful for projected bbox
+ * coordinates (for example `proj:bbox` in meters).
+ */
+export function normalizeStacRawBbox(
+  bbox: number[] | undefined | null
+): StacLngLatBbox | undefined {
   if (!Array.isArray(bbox) || bbox.length < 4) return undefined;
 
   let west: number;
@@ -134,20 +164,6 @@ export function normalizeStacBbox(
   }
 
   if (![west, south, east, north].every(Number.isFinite)) return undefined;
-
-  // Sanity checks for geographic coordinates
-  if (
-    west < -180 ||
-    west > 180 ||
-    east < -180 ||
-    east > 180 ||
-    south < -90 ||
-    south > 90 ||
-    north < -90 ||
-    north > 90
-  ) {
-    return undefined;
-  }
 
   // Degenerate bbox
   if (south >= north || west === east) return undefined;

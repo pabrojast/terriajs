@@ -7,7 +7,8 @@ import {
   onBecomeObserved,
   onBecomeUnobserved,
   override,
-  runInAction
+  runInAction,
+  untracked
 } from "mobx";
 import CesiumMath from "terriajs-cesium/Source/Core/Math";
 import Rectangle from "terriajs-cesium/Source/Core/Rectangle";
@@ -38,6 +39,7 @@ import {
   getStacAssetAccessLink,
   hasValidCesiumRectangle,
   normalizeStacBbox,
+  normalizeStacRawBbox,
   resolveStacHref,
   shouldForcePreviewForProtectedTerrascopeAsset
 } from "./stacAssetUtils";
@@ -315,6 +317,8 @@ export default class StacItemCatalogItem extends UrlMixin(
   @observable
   private _geoJsonDataSource: GeoJsonDataSource | undefined;
 
+  private _proj4Promise: Promise<any> | undefined;
+
   /**
    * The reprojector function to use for reprojecting non native projections
    */
@@ -397,9 +401,13 @@ export default class StacItemCatalogItem extends UrlMixin(
     const resolvedCogAssetHref = cogAsset
       ? resolveStacHref(cogAsset.href, this.url) ?? cogAsset.href
       : undefined;
+    const previewOptions = untracked(() => ({
+      credit: this.credit,
+      cacheDuration: this.cacheDuration
+    }));
     const previewAssets = findStacPreviewAssets(stratum.item.assets, this.url);
     const previewAsset = previewAssets[0];
-    const previewBbox = normalizeStacBbox(stratum.item.bbox);
+    const previewBbox = await this.resolveItemPreviewBbox(stratum.item);
     const hasRenderablePreview = !!previewAsset && !!previewBbox;
     const shouldForcePreviewForCog =
       shouldForcePreviewForProtectedTerrascopeAsset({
@@ -420,7 +428,9 @@ export default class StacItemCatalogItem extends UrlMixin(
       try {
         const imageryProvider = await this.createPreviewImageryProvider(
           previewAssets.map((asset) => asset.resolvedHref),
-          previewBbox!
+          previewBbox!,
+          previewOptions.credit,
+          previewOptions.cacheDuration
         );
         runInAction(() => {
           this._imageryProvider = imageryProvider;
@@ -450,7 +460,9 @@ export default class StacItemCatalogItem extends UrlMixin(
         try {
           const imageryProvider = await this.createPreviewImageryProvider(
             previewAssets.map((asset) => asset.resolvedHref),
-            previewBbox!
+            previewBbox!,
+            previewOptions.credit,
+            previewOptions.cacheDuration
           );
           runInAction(() => {
             this._imageryProvider = imageryProvider;
@@ -592,7 +604,9 @@ export default class StacItemCatalogItem extends UrlMixin(
    */
   private async createPreviewImageryProvider(
     previewUrls: string[],
-    bbox: number[]
+    bbox: number[],
+    credit: string | undefined,
+    cacheDuration: string | undefined
   ): Promise<SingleTileImageryProvider> {
     if (previewUrls.length === 0) {
       throw new Error("No preview URLs available for STAC preview rendering.");
@@ -600,11 +614,13 @@ export default class StacItemCatalogItem extends UrlMixin(
 
     const [west, south, east, north] = bbox;
     const rectangle = Rectangle.fromDegrees(west, south, east, north);
-    const credit = this.credit;
 
     let lastError: unknown;
     for (const previewUrl of previewUrls) {
-      const candidateUrls = this.getPreviewRequestUrls(previewUrl);
+      const candidateUrls = this.getPreviewRequestUrls(
+        previewUrl,
+        cacheDuration
+      );
 
       for (const candidateUrl of candidateUrls) {
         try {
@@ -637,14 +653,93 @@ export default class StacItemCatalogItem extends UrlMixin(
     );
   }
 
-  private getPreviewRequestUrls(previewUrl: string): string[] {
+  private async resolveItemPreviewBbox(
+    item: StacItem
+  ): Promise<number[] | undefined> {
+    const fallbackBbox = normalizeStacBbox(item.bbox);
+    const projectedBbox = normalizeStacRawBbox(
+      item.properties?.["proj:bbox"] as number[] | undefined
+    );
+    const projectedCode =
+      typeof item.properties?.["proj:code"] === "string"
+        ? item.properties["proj:code"]
+        : undefined;
+
+    if (!projectedBbox || !projectedCode) {
+      return fallbackBbox;
+    }
+
+    const transformedBbox = await this.transformProjectedBboxToWgs84(
+      projectedBbox,
+      projectedCode
+    );
+    return transformedBbox ?? fallbackBbox;
+  }
+
+  private async transformProjectedBboxToWgs84(
+    projectedBbox: number[],
+    projectionCode: string
+  ): Promise<number[] | undefined> {
+    const normalizedProjectionCode =
+      this.normalizeProjectionCode(projectionCode);
+    if (!normalizedProjectionCode) return undefined;
+
+    if (normalizedProjectionCode === "EPSG:4326") {
+      return normalizeStacBbox(projectedBbox);
+    }
+
+    try {
+      const proj4 = await this.getProj4();
+      const [west, south, east, north] = projectedBbox;
+      const southwest = proj4(normalizedProjectionCode, "EPSG:4326", [
+        west,
+        south
+      ]);
+      const northeast = proj4(normalizedProjectionCode, "EPSG:4326", [
+        east,
+        north
+      ]);
+      if (!Array.isArray(southwest) || !Array.isArray(northeast)) {
+        return undefined;
+      }
+      return normalizeStacBbox([
+        southwest[0],
+        southwest[1],
+        northeast[0],
+        northeast[1]
+      ]);
+    } catch {
+      return undefined;
+    }
+  }
+
+  private normalizeProjectionCode(projectionCode: string): string | undefined {
+    const trimmedCode = projectionCode.trim().toUpperCase();
+    if (/^EPSG:\d+$/.test(trimmedCode)) return trimmedCode;
+    if (/^\d+$/.test(trimmedCode)) return `EPSG:${trimmedCode}`;
+    return undefined;
+  }
+
+  private async getProj4(): Promise<any> {
+    if (!this._proj4Promise) {
+      this._proj4Promise = import("proj4-fully-loaded").then(
+        (module) => module.default
+      );
+    }
+    return this._proj4Promise;
+  }
+
+  private getPreviewRequestUrls(
+    previewUrl: string,
+    cacheDuration: string | undefined
+  ): string[] {
     const requestUrls = new Set<string>();
     requestUrls.add(proxyCatalogItemUrl(this, previewUrl));
 
     const corsProxy = this.terria.corsProxy;
     if (corsProxy) {
       try {
-        requestUrls.add(corsProxy.getURL(previewUrl, this.cacheDuration));
+        requestUrls.add(corsProxy.getURL(previewUrl, cacheDuration));
       } catch {
         // Ignore proxy URL generation errors and continue with remaining candidates.
       }

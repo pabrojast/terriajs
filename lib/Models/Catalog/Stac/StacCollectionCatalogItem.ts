@@ -39,6 +39,7 @@ import {
   getStacAssetAccessLink,
   hasValidCesiumRectangle,
   normalizeStacBbox,
+  normalizeStacRawBbox,
   resolveStacHref,
   shouldForcePreviewForProtectedTerrascopeAsset
 } from "./stacAssetUtils";
@@ -160,6 +161,13 @@ interface StacItem {
       }>;
     }
   >;
+}
+
+interface StacPreviewCandidate {
+  hrefs: string[];
+  bbox: number[];
+  projectedBbox?: number[];
+  projectedCode?: string;
 }
 
 /**
@@ -461,6 +469,8 @@ export default class StacCollectionCatalogItem extends UrlMixin(
   @observable
   private _geoJsonDataSource: GeoJsonDataSource | undefined;
 
+  private _proj4Promise: Promise<any> | undefined;
+
   /**
    * The reprojector function to use for reprojecting non native projections
    */
@@ -544,7 +554,21 @@ export default class StacCollectionCatalogItem extends UrlMixin(
     const resolvedCogAssetHref = cogAsset
       ? resolveStacHref(cogAsset.href, this.url) ?? cogAsset.href
       : undefined;
-    const previewCandidates = this.getPreviewCandidates(stratum);
+    const previewOptions = untracked(() => ({
+      previewRequestSizeLimit: this.previewRequestSizeLimit,
+      maximumItems: this.maximumItems,
+      previewRequestNumberLimit:
+        this.previewRequestNumberLimit && this.previewRequestNumberLimit > 0
+          ? Math.floor(this.previewRequestNumberLimit)
+          : 1,
+      credit: this.credit,
+      cacheDuration: this.cacheDuration
+    }));
+    const previewCandidates = this.getPreviewCandidates(
+      stratum,
+      previewOptions.previewRequestSizeLimit,
+      previewOptions.maximumItems
+    );
     const hasRenderablePreview = previewCandidates.length > 0;
     const shouldForcePreviewForCog =
       shouldForcePreviewForProtectedTerrascopeAsset({
@@ -564,7 +588,12 @@ export default class StacCollectionCatalogItem extends UrlMixin(
     if (hasRenderablePreview && (!cogAsset || shouldForcePreviewForCog)) {
       try {
         const imageryProviders = this.filterValidImageryProviders(
-          await this.createPreviewImageryProviders(previewCandidates)
+          await this.createPreviewImageryProviders(
+            previewCandidates,
+            previewOptions.previewRequestNumberLimit,
+            previewOptions.credit,
+            previewOptions.cacheDuration
+          )
         );
         if (imageryProviders.length > 0) {
           runInAction(() => {
@@ -595,7 +624,12 @@ export default class StacCollectionCatalogItem extends UrlMixin(
       if (hasRenderablePreview && this.isAuthenticationError(error)) {
         try {
           const imageryProviders = this.filterValidImageryProviders(
-            await this.createPreviewImageryProviders(previewCandidates)
+            await this.createPreviewImageryProviders(
+              previewCandidates,
+              previewOptions.previewRequestNumberLimit,
+              previewOptions.credit,
+              previewOptions.cacheDuration
+            )
           );
           if (imageryProviders.length > 0) {
             runInAction(() => {
@@ -911,7 +945,9 @@ export default class StacCollectionCatalogItem extends UrlMixin(
    */
   private async createPreviewImageryProvider(
     previewUrls: string[],
-    bbox: number[]
+    bbox: number[],
+    credit: string | undefined,
+    cacheDuration: string | undefined
   ): Promise<SingleTileImageryProvider> {
     if (previewUrls.length === 0) {
       throw new Error("No preview URLs available for STAC preview rendering.");
@@ -919,11 +955,13 @@ export default class StacCollectionCatalogItem extends UrlMixin(
 
     const [west, south, east, north] = bbox;
     const rectangle = Rectangle.fromDegrees(west, south, east, north);
-    const credit = this.credit;
 
     let lastError: unknown;
     for (const previewUrl of previewUrls) {
-      const candidateUrls = this.getPreviewRequestUrls(previewUrl);
+      const candidateUrls = this.getPreviewRequestUrls(
+        previewUrl,
+        cacheDuration
+      );
 
       for (const candidateUrl of candidateUrls) {
         try {
@@ -957,9 +995,11 @@ export default class StacCollectionCatalogItem extends UrlMixin(
   }
 
   private getPreviewCandidates(
-    stratum: StacCollectionStratum
-  ): Array<{ hrefs: string[]; bbox: number[] }> {
-    const previewCandidates: Array<{ hrefs: string[]; bbox: number[] }> = [];
+    stratum: StacCollectionStratum,
+    previewRequestSizeLimit: number | undefined = this.previewRequestSizeLimit,
+    maximumItems: number | undefined = this.maximumItems
+  ): StacPreviewCandidate[] {
+    const previewCandidates: StacPreviewCandidate[] = [];
 
     if (stratum.items.length > 0) {
       stratum.items.forEach((item) => {
@@ -973,9 +1013,20 @@ export default class StacCollectionCatalogItem extends UrlMixin(
           )
         );
         if (hrefs.length === 0) return;
+
+        const projectedBbox = normalizeStacRawBbox(
+          item.properties?.["proj:bbox"] as number[] | undefined
+        );
+        const projectedCode =
+          typeof item.properties?.["proj:code"] === "string"
+            ? item.properties["proj:code"]
+            : undefined;
+
         previewCandidates.push({
           hrefs,
-          bbox
+          bbox,
+          projectedBbox,
+          projectedCode
         });
       });
     }
@@ -997,44 +1048,50 @@ export default class StacCollectionCatalogItem extends UrlMixin(
       }
     }
 
-    const deduplicatedByUrlAndBbox = new Map<
-      string,
-      { hrefs: string[]; bbox: number[] }
-    >();
+    const deduplicatedByUrlAndBbox = new Map<string, StacPreviewCandidate>();
     previewCandidates.forEach((candidate) => {
-      const key = `${candidate.hrefs.join("|")}|${candidate.bbox.join(",")}`;
+      const projectedKey =
+        candidate.projectedBbox && candidate.projectedCode
+          ? `|${candidate.projectedCode}|${candidate.projectedBbox.join(",")}`
+          : "";
+      const key = `${candidate.hrefs.join("|")}|${candidate.bbox.join(
+        ","
+      )}${projectedKey}`;
       deduplicatedByUrlAndBbox.set(key, candidate);
     });
 
     const candidates = Array.from(deduplicatedByUrlAndBbox.values());
     const requestSizeLimit =
-      this.previewRequestSizeLimit !== undefined &&
-      this.previewRequestSizeLimit > 0
-        ? Math.floor(this.previewRequestSizeLimit)
-        : this.maximumItems !== undefined && this.maximumItems > 0
-        ? Math.floor(this.maximumItems)
+      previewRequestSizeLimit !== undefined && previewRequestSizeLimit > 0
+        ? Math.floor(previewRequestSizeLimit)
+        : maximumItems !== undefined && maximumItems > 0
+        ? Math.floor(maximumItems)
         : candidates.length;
 
     return candidates.slice(0, requestSizeLimit);
   }
 
   private async createPreviewImageryProviders(
-    previewCandidates: Array<{ hrefs: string[]; bbox: number[] }>
+    previewCandidates: StacPreviewCandidate[],
+    requestNumberLimit: number,
+    credit: string | undefined,
+    cacheDuration: string | undefined
   ): Promise<SingleTileImageryProvider[]> {
     const imageryProviders: SingleTileImageryProvider[] = [];
-    const requestNumberLimit =
-      this.previewRequestNumberLimit && this.previewRequestNumberLimit > 0
-        ? Math.floor(this.previewRequestNumberLimit)
-        : 1;
 
     for (let i = 0; i < previewCandidates.length; i += requestNumberLimit) {
       const chunk = previewCandidates.slice(i, i + requestNumberLimit);
       const chunkProviders = await Promise.all(
         chunk.map(async (candidate) => {
           try {
+            const candidateBbox = await this.resolvePreviewCandidateBbox(
+              candidate
+            );
             return await this.createPreviewImageryProvider(
               candidate.hrefs,
-              candidate.bbox
+              candidateBbox,
+              credit,
+              cacheDuration
             );
           } catch (error) {
             console.warn("Failed to load STAC preview image:", error);
@@ -1050,14 +1107,85 @@ export default class StacCollectionCatalogItem extends UrlMixin(
     return imageryProviders;
   }
 
-  private getPreviewRequestUrls(previewUrl: string): string[] {
+  private async resolvePreviewCandidateBbox(
+    candidate: StacPreviewCandidate
+  ): Promise<number[]> {
+    if (!candidate.projectedBbox || !candidate.projectedCode) {
+      return candidate.bbox;
+    }
+
+    const transformedBbox = await this.transformProjectedBboxToWgs84(
+      candidate.projectedBbox,
+      candidate.projectedCode
+    );
+
+    return transformedBbox ?? candidate.bbox;
+  }
+
+  private async transformProjectedBboxToWgs84(
+    projectedBbox: number[],
+    projectionCode: string
+  ): Promise<number[] | undefined> {
+    const normalizedProjectionCode =
+      this.normalizeProjectionCode(projectionCode);
+    if (!normalizedProjectionCode) return undefined;
+
+    if (normalizedProjectionCode === "EPSG:4326") {
+      return normalizeStacBbox(projectedBbox);
+    }
+
+    try {
+      const proj4 = await this.getProj4();
+      const [west, south, east, north] = projectedBbox;
+      const southwest = proj4(normalizedProjectionCode, "EPSG:4326", [
+        west,
+        south
+      ]);
+      const northeast = proj4(normalizedProjectionCode, "EPSG:4326", [
+        east,
+        north
+      ]);
+      if (!Array.isArray(southwest) || !Array.isArray(northeast)) {
+        return undefined;
+      }
+      return normalizeStacBbox([
+        southwest[0],
+        southwest[1],
+        northeast[0],
+        northeast[1]
+      ]);
+    } catch {
+      return undefined;
+    }
+  }
+
+  private normalizeProjectionCode(projectionCode: string): string | undefined {
+    const trimmedCode = projectionCode.trim().toUpperCase();
+    if (/^EPSG:\d+$/.test(trimmedCode)) return trimmedCode;
+    if (/^\d+$/.test(trimmedCode)) return `EPSG:${trimmedCode}`;
+    return undefined;
+  }
+
+  private async getProj4(): Promise<any> {
+    if (!this._proj4Promise) {
+      this._proj4Promise = import("proj4-fully-loaded").then(
+        (module) => module.default
+      );
+    }
+    return this._proj4Promise;
+  }
+
+  private getPreviewRequestUrls(
+    previewUrl: string,
+    cacheDuration: string | undefined
+  ): string[] {
     const requestUrls = new Set<string>();
     requestUrls.add(proxyCatalogItemUrl(this, previewUrl));
 
     const corsProxy = this.terria.corsProxy;
     if (corsProxy) {
       try {
-        requestUrls.add(corsProxy.getURL(previewUrl, this.cacheDuration));
+        requestUrls.add(corsProxy.getURL(previewUrl, cacheDuration));
       } catch {
         // Ignore proxy URL generation errors and continue with remaining candidates.
       }

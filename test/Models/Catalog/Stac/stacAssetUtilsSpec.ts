@@ -5,6 +5,7 @@ import {
   getStacAssetAccessLink,
   hasValidCesiumRectangle,
   normalizeStacBbox,
+  normalizeStacRawBbox,
   resolveStacHref,
   shouldForcePreviewForProtectedTerrascopeAsset
 } from "../../../../lib/Models/Catalog/Stac/stacAssetUtils";
@@ -113,6 +114,13 @@ describe("stacAssetUtils", function () {
   it("normalizes 3D STAC bbox arrays to lon/lat values", function () {
     const normalized = normalizeStacBbox([31.3, 48.9, 0, 33.7, 49.7, 1000]);
     expect(normalized).toEqual([31.3, 48.9, 33.7, 49.7]);
+  });
+
+  it("normalizes projected 3D bbox arrays without geographic range checks", function () {
+    const normalized = normalizeStacRawBbox([
+      699960.0, 5590200.0, 0, 809760.0, 5700000.0, 0
+    ]);
+    expect(normalized).toEqual([699960.0, 5590200.0, 809760.0, 5700000.0]);
   });
 
   it("builds Terrascope viewer URL using normalized 3D bbox values", function () {
