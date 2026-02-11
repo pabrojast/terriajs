@@ -65,7 +65,15 @@ export function findStacPreviewAsset(
   assets: Record<string, StacAssetLike> | undefined,
   baseUrl: string | undefined
 ): StacPreviewAsset | undefined {
-  if (!assets) return undefined;
+  const previewAssets = findStacPreviewAssets(assets, baseUrl);
+  return previewAssets[0];
+}
+
+export function findStacPreviewAssets(
+  assets: Record<string, StacAssetLike> | undefined,
+  baseUrl: string | undefined
+): StacPreviewAsset[] {
+  if (!assets) return [];
 
   const previewAssets = Object.entries(assets)
     .map(([key, asset]) => {
@@ -90,14 +98,11 @@ export function findStacPreviewAsset(
     )
     .sort((a, b) => b.score - a.score);
 
-  const previewAsset = previewAssets[0];
-  if (!previewAsset) return undefined;
-
-  return {
+  return previewAssets.map((previewAsset) => ({
     key: previewAsset.key,
     asset: previewAsset.asset,
     resolvedHref: previewAsset.resolvedHref
-  };
+  }));
 }
 
 /**
@@ -256,7 +261,13 @@ function previewAssetScore(key: string, asset: StacAssetLike): number {
   if (keyLower.includes("thumbnail")) score += 3;
   if (keyLower.includes("quicklook")) score += 2;
 
-  if (typeLower?.startsWith("image/")) score += 1;
+  if (
+    typeLower?.startsWith("image/") &&
+    !typeLower.includes("tiff") &&
+    !typeLower.includes("geotiff")
+  ) {
+    score += 1;
+  }
 
   return score;
 }

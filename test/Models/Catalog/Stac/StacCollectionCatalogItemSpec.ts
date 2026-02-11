@@ -266,8 +266,8 @@ describe("StacCollectionCatalogItem", function () {
       const previewCandidates = (item as any).getPreviewCandidates(stratum);
 
       expect(previewCandidates.length).toBe(2);
-      expect(previewCandidates[0].href).toContain("quicklook-1.png");
-      expect(previewCandidates[1].href).toContain("preview-2.png");
+      expect(previewCandidates[0].hrefs[0]).toContain("quicklook-1.png");
+      expect(previewCandidates[1].hrefs[0]).toContain("preview-2.png");
     });
 
     it("applies previewRequestSizeLimit when collecting preview candidates", function () {
@@ -308,7 +308,43 @@ describe("StacCollectionCatalogItem", function () {
       const previewCandidates = (item as any).getPreviewCandidates(stratum);
 
       expect(previewCandidates.length).toBe(1);
-      expect(previewCandidates[0].href).toContain("quicklook-1.png");
+      expect(previewCandidates[0].hrefs[0]).toContain("quicklook-1.png");
+    });
+
+    it("keeps fallback preview URLs per item when available", function () {
+      const stratum = {
+        items: [
+          {
+            bbox: [31, 48, 32, 49],
+            assets: {
+              QUICKLOOK: {
+                href: "https://services.terrascope.be/download/quicklook-1.png",
+                roles: ["thumbnail"],
+                type: "image/png"
+              },
+              preview: {
+                href: "https://titiler.terrascope.be/preview-1.png",
+                roles: ["thumbnail", "overview"],
+                type: "image/png"
+              }
+            }
+          }
+        ],
+        firstItem: undefined,
+        collection: {
+          assets: {},
+          extent: {
+            spatial: { bbox: [[0, 0, 1, 1]] }
+          }
+        }
+      } as any;
+
+      const previewCandidates = (item as any).getPreviewCandidates(stratum);
+
+      expect(previewCandidates.length).toBe(1);
+      expect(previewCandidates[0].hrefs.length).toBe(2);
+      expect(previewCandidates[0].hrefs[0]).toContain("preview-1.png");
+      expect(previewCandidates[0].hrefs[1]).toContain("quicklook-1.png");
     });
 
     it("normalizes 3D item bbox values when collecting preview candidates", function () {

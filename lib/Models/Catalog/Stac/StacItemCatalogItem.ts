@@ -34,6 +34,7 @@ import proxyCatalogItemUrl from "../proxyCatalogItemUrl";
 import {
   buildTerrascopeViewerUrl,
   findStacPreviewAsset,
+  findStacPreviewAssets,
   getStacAssetAccessLink,
   hasValidCesiumRectangle,
   normalizeStacBbox,
@@ -396,7 +397,8 @@ export default class StacItemCatalogItem extends UrlMixin(
     const resolvedCogAssetHref = cogAsset
       ? resolveStacHref(cogAsset.href, this.url) ?? cogAsset.href
       : undefined;
-    const previewAsset = findStacPreviewAsset(stratum.item.assets, this.url);
+    const previewAssets = findStacPreviewAssets(stratum.item.assets, this.url);
+    const previewAsset = previewAssets[0];
     const previewBbox = normalizeStacBbox(stratum.item.bbox);
     const hasRenderablePreview = !!previewAsset && !!previewBbox;
     const shouldForcePreviewForCog =
@@ -417,7 +419,7 @@ export default class StacItemCatalogItem extends UrlMixin(
     if (hasRenderablePreview && (!cogAsset || shouldForcePreviewForCog)) {
       try {
         const imageryProvider = await this.createPreviewImageryProvider(
-          previewAsset!.resolvedHref,
+          previewAssets.map((asset) => asset.resolvedHref),
           previewBbox!
         );
         runInAction(() => {
@@ -447,7 +449,7 @@ export default class StacItemCatalogItem extends UrlMixin(
       if (hasRenderablePreview && this.isAuthenticationError(error)) {
         try {
           const imageryProvider = await this.createPreviewImageryProvider(
-            previewAsset!.resolvedHref,
+            previewAssets.map((asset) => asset.resolvedHref),
             previewBbox!
           );
           runInAction(() => {
@@ -589,39 +591,68 @@ export default class StacItemCatalogItem extends UrlMixin(
    * Create a SingleTileImageryProvider for a preview image
    */
   private async createPreviewImageryProvider(
-    previewUrl: string,
+    previewUrls: string[],
     bbox: number[]
   ): Promise<SingleTileImageryProvider> {
+    if (previewUrls.length === 0) {
+      throw new Error("No preview URLs available for STAC preview rendering.");
+    }
+
     const [west, south, east, north] = bbox;
     const rectangle = Rectangle.fromDegrees(west, south, east, north);
-    const proxiedPreviewUrl = proxyCatalogItemUrl(this, previewUrl);
-    const candidateUrls =
-      proxiedPreviewUrl !== previewUrl
-        ? [previewUrl, proxiedPreviewUrl]
-        : [previewUrl];
+    const credit = this.credit;
 
     let lastError: unknown;
-    for (const candidateUrl of candidateUrls) {
-      try {
-        const provider = await SingleTileImageryProvider.fromUrl(candidateUrl, {
-          rectangle,
-          credit: this.credit
-        });
-        if (!this.hasValidImageryProviderRectangle(provider)) {
-          throw new Error(
-            `Preview imagery provider for ${candidateUrl} has an invalid rectangle.`
+    for (const previewUrl of previewUrls) {
+      const candidateUrls = this.getPreviewRequestUrls(previewUrl);
+
+      for (const candidateUrl of candidateUrls) {
+        try {
+          const provider = await SingleTileImageryProvider.fromUrl(
+            candidateUrl,
+            {
+              rectangle,
+              credit
+            }
           );
+          if (!this.hasValidImageryProviderRectangle(provider)) {
+            throw new Error(
+              `Preview imagery provider for ${candidateUrl} has an invalid rectangle.`
+            );
+          }
+          return provider;
+        } catch (error) {
+          lastError = error;
         }
-        return provider;
-      } catch (error) {
-        lastError = error;
       }
     }
 
     throw (
       lastError ??
-      new Error(`Failed to load preview imagery provider for ${previewUrl}`)
+      new Error(
+        `Failed to load preview imagery provider for candidates: ${previewUrls.join(
+          ", "
+        )}`
+      )
     );
+  }
+
+  private getPreviewRequestUrls(previewUrl: string): string[] {
+    const requestUrls = new Set<string>();
+    requestUrls.add(proxyCatalogItemUrl(this, previewUrl));
+
+    const corsProxy = this.terria.corsProxy;
+    if (corsProxy) {
+      try {
+        requestUrls.add(corsProxy.getURL(previewUrl, this.cacheDuration));
+      } catch {
+        // Ignore proxy URL generation errors and continue with remaining candidates.
+      }
+    }
+
+    requestUrls.add(previewUrl);
+
+    return Array.from(requestUrls);
   }
 
   private hasValidImageryProviderRectangle(

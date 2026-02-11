@@ -7,7 +7,8 @@ import {
   onBecomeObserved,
   onBecomeUnobserved,
   override,
-  runInAction
+  runInAction,
+  untracked
 } from "mobx";
 import CesiumMath from "terriajs-cesium/Source/Core/Math";
 import Rectangle from "terriajs-cesium/Source/Core/Rectangle";
@@ -34,6 +35,7 @@ import proxyCatalogItemUrl from "../proxyCatalogItemUrl";
 import {
   buildTerrascopeViewerUrl,
   findStacPreviewAsset,
+  findStacPreviewAssets,
   getStacAssetAccessLink,
   hasValidCesiumRectangle,
   normalizeStacBbox,
@@ -401,9 +403,7 @@ class StacCollectionStratum extends LoadableStratum(
     // Try to fetch items to get COG URLs for rendering and item geometries
     let items: StacItem[] = [];
     try {
-      const loadedItems = await loadStacItems(catalogItem, {
-        collection,
-        collectionUrl: catalogItem.url,
+      const requestOptions = untracked(() => ({
         maximumItems: catalogItem.maximumItems,
         itemsPageSize: catalogItem.itemsPageSize,
         itemsPageLimit: catalogItem.itemsPageLimit,
@@ -418,6 +418,11 @@ class StacCollectionStratum extends LoadableStratum(
         requestTimeoutSeconds: catalogItem.requestTimeoutSeconds,
         requestRetryAttempts: catalogItem.requestRetryAttempts,
         requestRetryDelaySeconds: catalogItem.requestRetryDelaySeconds
+      }));
+      const loadedItems = await loadStacItems(catalogItem, {
+        collection,
+        collectionUrl: catalogItem.url,
+        ...requestOptions
       });
       if (loadedItems.length > 0) {
         items = loadedItems as StacItem[];
@@ -905,54 +910,71 @@ export default class StacCollectionCatalogItem extends UrlMixin(
    * Create a SingleTileImageryProvider for a preview image
    */
   private async createPreviewImageryProvider(
-    previewUrl: string,
+    previewUrls: string[],
     bbox: number[]
   ): Promise<SingleTileImageryProvider> {
+    if (previewUrls.length === 0) {
+      throw new Error("No preview URLs available for STAC preview rendering.");
+    }
+
     const [west, south, east, north] = bbox;
     const rectangle = Rectangle.fromDegrees(west, south, east, north);
-    const proxiedPreviewUrl = proxyCatalogItemUrl(this, previewUrl);
-    const candidateUrls =
-      proxiedPreviewUrl !== previewUrl
-        ? [previewUrl, proxiedPreviewUrl]
-        : [previewUrl];
+    const credit = this.credit;
 
     let lastError: unknown;
-    for (const candidateUrl of candidateUrls) {
-      try {
-        const provider = await SingleTileImageryProvider.fromUrl(candidateUrl, {
-          rectangle,
-          credit: this.credit
-        });
-        if (!this.hasValidImageryProviderRectangle(provider)) {
-          throw new Error(
-            `Preview imagery provider for ${candidateUrl} has an invalid rectangle.`
+    for (const previewUrl of previewUrls) {
+      const candidateUrls = this.getPreviewRequestUrls(previewUrl);
+
+      for (const candidateUrl of candidateUrls) {
+        try {
+          const provider = await SingleTileImageryProvider.fromUrl(
+            candidateUrl,
+            {
+              rectangle,
+              credit
+            }
           );
+          if (!this.hasValidImageryProviderRectangle(provider)) {
+            throw new Error(
+              `Preview imagery provider for ${candidateUrl} has an invalid rectangle.`
+            );
+          }
+          return provider;
+        } catch (error) {
+          lastError = error;
         }
-        return provider;
-      } catch (error) {
-        lastError = error;
       }
     }
 
     throw (
       lastError ??
-      new Error(`Failed to load preview imagery provider for ${previewUrl}`)
+      new Error(
+        `Failed to load preview imagery provider for candidates: ${previewUrls.join(
+          ", "
+        )}`
+      )
     );
   }
 
   private getPreviewCandidates(
     stratum: StacCollectionStratum
-  ): Array<{ href: string; bbox: number[] }> {
-    const previewCandidates: Array<{ href: string; bbox: number[] }> = [];
+  ): Array<{ hrefs: string[]; bbox: number[] }> {
+    const previewCandidates: Array<{ hrefs: string[]; bbox: number[] }> = [];
 
     if (stratum.items.length > 0) {
       stratum.items.forEach((item) => {
         const bbox = normalizeStacBbox(item.bbox);
         if (!bbox) return;
-        const previewAsset = findStacPreviewAsset(item.assets, this.url);
-        if (!previewAsset) return;
+        const previewAssets = findStacPreviewAssets(item.assets, this.url);
+        if (previewAssets.length === 0) return;
+        const hrefs = Array.from(
+          new Set(
+            previewAssets.map((previewAsset) => previewAsset.resolvedHref)
+          )
+        );
+        if (hrefs.length === 0) return;
         previewCandidates.push({
-          href: previewAsset.resolvedHref,
+          hrefs,
           bbox
         });
       });
@@ -969,7 +991,7 @@ export default class StacCollectionCatalogItem extends UrlMixin(
         normalizeStacBbox(stratum.collection.extent?.spatial?.bbox?.[0]);
       if (previewAsset && previewBbox) {
         previewCandidates.push({
-          href: previewAsset.resolvedHref,
+          hrefs: [previewAsset.resolvedHref],
           bbox: previewBbox
         });
       }
@@ -977,24 +999,27 @@ export default class StacCollectionCatalogItem extends UrlMixin(
 
     const deduplicatedByUrlAndBbox = new Map<
       string,
-      { href: string; bbox: number[] }
+      { hrefs: string[]; bbox: number[] }
     >();
     previewCandidates.forEach((candidate) => {
-      const key = `${candidate.href}|${candidate.bbox.join(",")}`;
+      const key = `${candidate.hrefs.join("|")}|${candidate.bbox.join(",")}`;
       deduplicatedByUrlAndBbox.set(key, candidate);
     });
 
     const candidates = Array.from(deduplicatedByUrlAndBbox.values());
     const requestSizeLimit =
-      this.previewRequestSizeLimit && this.previewRequestSizeLimit > 0
+      this.previewRequestSizeLimit !== undefined &&
+      this.previewRequestSizeLimit > 0
         ? Math.floor(this.previewRequestSizeLimit)
+        : this.maximumItems !== undefined && this.maximumItems > 0
+        ? Math.floor(this.maximumItems)
         : candidates.length;
 
     return candidates.slice(0, requestSizeLimit);
   }
 
   private async createPreviewImageryProviders(
-    previewCandidates: Array<{ href: string; bbox: number[] }>
+    previewCandidates: Array<{ hrefs: string[]; bbox: number[] }>
   ): Promise<SingleTileImageryProvider[]> {
     const imageryProviders: SingleTileImageryProvider[] = [];
     const requestNumberLimit =
@@ -1008,7 +1033,7 @@ export default class StacCollectionCatalogItem extends UrlMixin(
         chunk.map(async (candidate) => {
           try {
             return await this.createPreviewImageryProvider(
-              candidate.href,
+              candidate.hrefs,
               candidate.bbox
             );
           } catch (error) {
@@ -1023,6 +1048,24 @@ export default class StacCollectionCatalogItem extends UrlMixin(
     }
 
     return imageryProviders;
+  }
+
+  private getPreviewRequestUrls(previewUrl: string): string[] {
+    const requestUrls = new Set<string>();
+    requestUrls.add(proxyCatalogItemUrl(this, previewUrl));
+
+    const corsProxy = this.terria.corsProxy;
+    if (corsProxy) {
+      try {
+        requestUrls.add(corsProxy.getURL(previewUrl, this.cacheDuration));
+      } catch {
+        // Ignore proxy URL generation errors and continue with remaining candidates.
+      }
+    }
+
+    requestUrls.add(previewUrl);
+
+    return Array.from(requestUrls);
   }
 
   private hasValidImageryProviderRectangle(

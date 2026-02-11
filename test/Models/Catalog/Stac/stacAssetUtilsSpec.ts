@@ -1,6 +1,7 @@
 import {
   buildTerrascopeViewerUrl,
   findStacPreviewAsset,
+  findStacPreviewAssets,
   getStacAssetAccessLink,
   hasValidCesiumRectangle,
   normalizeStacBbox,
@@ -44,6 +45,33 @@ describe("stacAssetUtils", function () {
 
     expect(previewAsset?.key).toBe("preview");
     expect(previewAsset?.resolvedHref).toBe("https://example.com/preview.png");
+  });
+
+  it("returns preview assets sorted by preference", function () {
+    const previewAssets = findStacPreviewAssets(
+      {
+        B04: {
+          href: "https://example.com/b04.tif",
+          type: "image/tiff",
+          roles: ["data"]
+        },
+        QUICKLOOK: {
+          href: "https://example.com/quicklook.png",
+          type: "image/png",
+          roles: ["thumbnail"]
+        },
+        preview: {
+          href: "https://example.com/preview.png",
+          type: "image/png",
+          roles: ["thumbnail", "overview"]
+        }
+      },
+      "https://example.com/collection"
+    );
+
+    expect(previewAssets.length).toBe(2);
+    expect(previewAssets[0].key).toBe("preview");
+    expect(previewAssets[1].key).toBe("QUICKLOOK");
   });
 
   it("prefers titiler preview over quicklook for Terrascope catalogs", function () {

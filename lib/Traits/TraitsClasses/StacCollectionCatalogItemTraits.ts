@@ -155,7 +155,7 @@ export default class StacCollectionCatalogItemTraits extends mixTraits(
     description:
       "Maximum number of item preview images to request for rendering in a single load. Use this to control API/image requests when many STAC items overlap."
   })
-  previewRequestSizeLimit = 6;
+  previewRequestSizeLimit = 10;
 
   @primitiveTrait({
     type: "number",
