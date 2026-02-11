@@ -1,3 +1,5 @@
+import { JsonObject } from "../../Core/Json";
+import anyTrait from "../Decorators/anyTrait";
 import objectTrait from "../Decorators/objectTrait";
 import primitiveTrait from "../Decorators/primitiveTrait";
 import primitiveArrayTrait from "../Decorators/primitiveArrayTrait";
@@ -178,4 +180,87 @@ export default class StacCollectionCatalogItemTraits extends mixTraits(
       "A bounding box filter [west, south, east, north] to apply when fetching STAC items."
   })
   bboxFilter?: number[];
+
+  @primitiveTrait({
+    type: "string",
+    name: "Items Query Mode",
+    description:
+      "How to query STAC items: `auto`, `items`, or `search`. `auto` uses `search` when filter/intersects controls are set, otherwise `items`."
+  })
+  itemsQueryMode?: string;
+
+  @primitiveTrait({
+    type: "number",
+    name: "Items Page Size",
+    description:
+      "Maximum number of items requested per API page. If not set, the current load limit is used."
+  })
+  itemsPageSize?: number;
+
+  @primitiveTrait({
+    type: "number",
+    name: "Items Page Limit",
+    description:
+      "Maximum number of API pages to request per load. Increase this to page through more results while controlling request volume."
+  })
+  itemsPageLimit = 1;
+
+  @primitiveTrait({
+    type: "string",
+    name: "Sort By",
+    description:
+      "STAC `sortby` parameter passed to item queries, for example `-datetime`."
+  })
+  sortBy?: string;
+
+  @primitiveTrait({
+    type: "string",
+    name: "Filter Expression",
+    description: "STAC filter expression (`filter`) for APIs supporting CQL2."
+  })
+  filterExpression?: string;
+
+  @primitiveTrait({
+    type: "string",
+    name: "Filter Language",
+    description:
+      "STAC filter language (`filter-lang`), for example `cql2-text` or `cql2-json`."
+  })
+  filterLanguage?: string;
+
+  @anyTrait({
+    name: "Intersects Geometry",
+    description:
+      "GeoJSON geometry sent as `intersects` when querying STAC search endpoint."
+  })
+  intersectsGeometry?: JsonObject;
+
+  @anyTrait({
+    name: "Additional Query Parameters",
+    description:
+      "Additional parameters merged into STAC item requests. In GET mode they are sent as query parameters; in search mode they are added to the POST body."
+  })
+  additionalQueryParameters?: JsonObject;
+
+  @primitiveTrait({
+    type: "number",
+    name: "Request Timeout Seconds",
+    description: "Timeout in seconds for STAC item API requests."
+  })
+  requestTimeoutSeconds = 30;
+
+  @primitiveTrait({
+    type: "number",
+    name: "Request Retry Attempts",
+    description:
+      "Number of retry attempts for transient STAC item API request failures."
+  })
+  requestRetryAttempts = 0;
+
+  @primitiveTrait({
+    type: "number",
+    name: "Request Retry Delay Seconds",
+    description: "Delay between retry attempts for STAC item API requests."
+  })
+  requestRetryDelaySeconds = 1;
 }

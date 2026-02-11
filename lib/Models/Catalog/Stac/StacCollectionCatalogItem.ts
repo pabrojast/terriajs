@@ -40,6 +40,7 @@ import {
   resolveStacHref,
   shouldForcePreviewForProtectedTerrascopeAsset
 } from "./stacAssetUtils";
+import { loadStacItems } from "./stacItemsLoader";
 
 /**
  * STAC Collection JSON structure
@@ -157,21 +158,6 @@ interface StacItem {
       }>;
     }
   >;
-}
-
-/**
- * STAC Items response (FeatureCollection)
- */
-interface StacItemsResponse {
-  type: "FeatureCollection";
-  features: StacItem[];
-  links?: Array<{
-    rel: string;
-    href: string;
-    type?: string;
-  }>;
-  numberMatched?: number;
-  numberReturned?: number;
 }
 
 /**
@@ -414,41 +400,30 @@ class StacCollectionStratum extends LoadableStratum(
 
     // Try to fetch items to get COG URLs for rendering and item geometries
     let items: StacItem[] = [];
-    const itemsLink = collection.links.find((link) => link.rel === "items");
-
-    if (itemsLink) {
-      try {
-        const itemsUrl = new URL(itemsLink.href, catalogItem.url).href;
-        const limit = catalogItem.maximumItems ?? 10;
-        const itemsUrlWithParams = new URL(itemsUrl);
-        itemsUrlWithParams.searchParams.set("limit", String(limit));
-
-        // Add datetime filter if specified
-        if (catalogItem.dateTimeFilter) {
-          itemsUrlWithParams.searchParams.set(
-            "datetime",
-            catalogItem.dateTimeFilter
-          );
-        }
-
-        // Add bbox filter if specified
-        if (catalogItem.bboxFilter && catalogItem.bboxFilter.length >= 4) {
-          itemsUrlWithParams.searchParams.set(
-            "bbox",
-            catalogItem.bboxFilter.join(",")
-          );
-        }
-
-        const itemsResponse = (await loadJson(
-          proxyCatalogItemUrl(catalogItem, itemsUrlWithParams.href)
-        )) as StacItemsResponse;
-
-        if (itemsResponse.features && itemsResponse.features.length > 0) {
-          items = itemsResponse.features;
-        }
-      } catch (e) {
-        console.warn("Failed to fetch STAC items:", e);
+    try {
+      const loadedItems = await loadStacItems(catalogItem, {
+        collection,
+        collectionUrl: catalogItem.url,
+        maximumItems: catalogItem.maximumItems,
+        itemsPageSize: catalogItem.itemsPageSize,
+        itemsPageLimit: catalogItem.itemsPageLimit,
+        dateTimeFilter: catalogItem.dateTimeFilter,
+        bboxFilter: catalogItem.bboxFilter,
+        sortBy: catalogItem.sortBy,
+        filterExpression: catalogItem.filterExpression,
+        filterLanguage: catalogItem.filterLanguage,
+        intersectsGeometry: catalogItem.intersectsGeometry,
+        additionalQueryParameters: catalogItem.additionalQueryParameters,
+        itemsQueryMode: catalogItem.itemsQueryMode,
+        requestTimeoutSeconds: catalogItem.requestTimeoutSeconds,
+        requestRetryAttempts: catalogItem.requestRetryAttempts,
+        requestRetryDelaySeconds: catalogItem.requestRetryDelaySeconds
+      });
+      if (loadedItems.length > 0) {
+        items = loadedItems as StacItem[];
       }
+    } catch (e) {
+      console.warn("Failed to fetch STAC items:", e);
     }
 
     return new StacCollectionStratum(catalogItem, collection, items);

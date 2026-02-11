@@ -127,6 +127,62 @@ describe("StacCollectionCatalogItem", function () {
       expect(item.bboxFilter).toEqual([-10, -10, 10, 10]);
     });
 
+    it("can set itemsQueryMode trait", function () {
+      item.setTrait(CommonStrata.user, "itemsQueryMode", "search");
+      expect(item.itemsQueryMode).toBe("search");
+    });
+
+    it("can set itemsPageSize trait", function () {
+      item.setTrait(CommonStrata.user, "itemsPageSize", 25);
+      expect(item.itemsPageSize).toBe(25);
+    });
+
+    it("can set itemsPageLimit trait", function () {
+      item.setTrait(CommonStrata.user, "itemsPageLimit", 4);
+      expect(item.itemsPageLimit).toBe(4);
+    });
+
+    it("can set sortBy trait", function () {
+      item.setTrait(CommonStrata.user, "sortBy", "-datetime");
+      expect(item.sortBy).toBe("-datetime");
+    });
+
+    it("can set filterExpression and filterLanguage traits", function () {
+      item.setTrait(
+        CommonStrata.user,
+        "filterExpression",
+        "eo:cloud_cover < 20"
+      );
+      item.setTrait(CommonStrata.user, "filterLanguage", "cql2-text");
+      expect(item.filterExpression).toBe("eo:cloud_cover < 20");
+      expect(item.filterLanguage).toBe("cql2-text");
+    });
+
+    it("can set intersectsGeometry trait", function () {
+      item.setTrait(CommonStrata.user, "intersectsGeometry", {
+        type: "Point",
+        coordinates: [4.4, 50.9]
+      });
+      expect(item.intersectsGeometry?.type).toBe("Point");
+    });
+
+    it("can set additionalQueryParameters trait", function () {
+      item.setTrait(CommonStrata.user, "additionalQueryParameters", {
+        foo: "bar",
+        limit: 999
+      });
+      expect(item.additionalQueryParameters?.foo).toBe("bar");
+    });
+
+    it("can set request controls traits", function () {
+      item.setTrait(CommonStrata.user, "requestTimeoutSeconds", 45);
+      item.setTrait(CommonStrata.user, "requestRetryAttempts", 2);
+      item.setTrait(CommonStrata.user, "requestRetryDelaySeconds", 1.5);
+      expect(item.requestTimeoutSeconds).toBe(45);
+      expect(item.requestRetryAttempts).toBe(2);
+      expect(item.requestRetryDelaySeconds).toBe(1.5);
+    });
+
     it("can set asset configuration", function () {
       item.setTrait(CommonStrata.user, "asset", {
         assetKey: "CHL",
