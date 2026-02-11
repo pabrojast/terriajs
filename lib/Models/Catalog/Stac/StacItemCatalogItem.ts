@@ -706,7 +706,9 @@ export default class StacItemCatalogItem extends UrlMixin(
       const clippingRectangle =
         imageryProvider instanceof SingleTileImageryProvider
           ? undefined
-          : this.cesiumRectangle;
+          : hasValidCesiumRectangle(this.cesiumRectangle)
+          ? this.cesiumRectangle
+          : undefined;
 
       result.push({
         show: this.show,

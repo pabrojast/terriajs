@@ -46,6 +46,27 @@ describe("stacAssetUtils", function () {
     expect(previewAsset?.resolvedHref).toBe("https://example.com/preview.png");
   });
 
+  it("prefers titiler preview over quicklook for Terrascope catalogs", function () {
+    const previewAsset = findStacPreviewAsset(
+      {
+        preview: {
+          href: "https://titiler.terrascope.be/collections/terrascope-s2-rhow-v1/items/S2A_ITEM/preview?assets=B04&assets=B03&assets=B02&format=png",
+          type: "image/png",
+          roles: ["thumbnail", "overview"]
+        },
+        QUICKLOOK: {
+          href: "https://services.terrascope.be/download/Sentinel2/RHOW_V1/2026/02/09/S2A_ITEM/S2A_ITEM_QUICKLOOK_V121.png",
+          type: "image/png",
+          roles: ["thumbnail"]
+        }
+      },
+      "https://stac.terrascope.be/collections/terrascope-s2-rhow-v1"
+    );
+
+    expect(previewAsset?.key).toBe("preview");
+    expect(previewAsset?.resolvedHref).toContain("titiler.terrascope.be");
+  });
+
   it("builds a Terrascope viewer URL from collection and item metadata", function () {
     const viewerUrl = buildTerrascopeViewerUrl({
       collectionId: "terrascope-s2-rhow-v1",
