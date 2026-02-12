@@ -75,6 +75,29 @@ describe("stacAssetUtils", function () {
     expect(previewAssets[1].key).toBe("QUICKLOOK");
   });
 
+  it("ignores non-image assets even if keys look like previews", function () {
+    const previewAsset = findStacPreviewAsset(
+      {
+        thumbnail_json: {
+          href: "https://example.com/thumbnail.json",
+          type: "application/json",
+          roles: ["thumbnail"]
+        },
+        QUICKLOOK: {
+          href: "https://example.com/quicklook.png",
+          type: "image/png",
+          roles: ["thumbnail"]
+        }
+      },
+      "https://example.com/collection"
+    );
+
+    expect(previewAsset?.key).toBe("QUICKLOOK");
+    expect(previewAsset?.resolvedHref).toBe(
+      "https://example.com/quicklook.png"
+    );
+  });
+
   it("prefers titiler preview over quicklook for Terrascope catalogs", function () {
     const previewAsset = findStacPreviewAsset(
       {

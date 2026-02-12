@@ -23,6 +23,7 @@ import SatelliteImageryTimeFilterSection from "./SatelliteImageryTimeFilterSecti
 import { ScaleWorkbenchInfo } from "./ScaleWorkbenchInfo";
 import DimensionSelectorSection from "./SelectableDimensionSection";
 import ShortReport from "./ShortReport";
+import StacCollectionSection from "./StacCollectionSection";
 import TimerSection from "./TimerSection";
 import ViewingControls from "./ViewingControls";
 
@@ -40,6 +41,7 @@ type WorkbenchControls = {
   colorScaleRange?: boolean;
   shortReport?: boolean;
   legend?: boolean;
+  stac?: boolean;
 };
 
 type WorkbenchItemControlsProps = {
@@ -62,7 +64,8 @@ export const defaultControls: Complete<WorkbenchControls> = {
   selectableDimensions: true,
   colorScaleRange: true,
   shortReport: true,
-  legend: true
+  legend: true,
+  stac: true
 };
 
 export const hideAllControls: Complete<WorkbenchControls> = {
@@ -78,7 +81,8 @@ export const hideAllControls: Complete<WorkbenchControls> = {
   selectableDimensions: false,
   colorScaleRange: false,
   shortReport: false,
-  legend: false
+  legend: false,
+  stac: false
 };
 
 const WorkbenchItemControls: FC<WorkbenchItemControlsProps> = observer(
@@ -139,6 +143,7 @@ const WorkbenchItemControls: FC<WorkbenchItemControlsProps> = observer(
           )}
         {controls?.shortReport ? <ShortReport item={item} /> : null}
         {controls?.legend ? <Legend item={item} /> : null}
+        {controls?.stac ? <StacCollectionSection item={item} /> : null}
         {controls?.selectableDimensions ? (
           <DimensionSelectorSection item={item} placement={"belowLegend"} />
         ) : null}

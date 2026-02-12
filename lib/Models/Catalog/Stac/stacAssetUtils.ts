@@ -264,6 +264,8 @@ export function shouldForcePreviewForProtectedTerrascopeAsset(
 }
 
 function previewAssetScore(key: string, asset: StacAssetLike): number {
+  if (!isLikelyImageAsset(key, asset)) return 0;
+
   const roles = asset.roles?.map((role) => role.toLowerCase()) ?? [];
   const keyLower = key.toLowerCase();
   const typeLower = asset.type?.toLowerCase();
@@ -286,6 +288,32 @@ function previewAssetScore(key: string, asset: StacAssetLike): number {
   }
 
   return score;
+}
+
+function isLikelyImageAsset(key: string, asset: StacAssetLike): boolean {
+  const typeLower = asset.type?.toLowerCase();
+  if (typeLower?.startsWith("image/")) {
+    return true;
+  }
+
+  const href = asset.href?.toLowerCase();
+  const keyLower = key.toLowerCase();
+  if (
+    keyLower.includes("preview") ||
+    keyLower.includes("thumbnail") ||
+    keyLower.includes("quicklook")
+  ) {
+    return true;
+  }
+
+  if (!href) return false;
+
+  return (
+    /\.(png|jpe?g|gif|webp|bmp|tiff?|jp2)(\?|$)/.test(href) ||
+    href.includes("/preview") ||
+    href.includes("quicklook") ||
+    href.includes("thumbnail")
+  );
 }
 
 function toIsoDate(datetime: string | null | undefined): string | undefined {

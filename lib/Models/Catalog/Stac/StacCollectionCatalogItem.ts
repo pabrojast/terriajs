@@ -43,7 +43,11 @@ import {
   resolveStacHref,
   shouldForcePreviewForProtectedTerrascopeAsset
 } from "./stacAssetUtils";
-import { loadStacItems } from "./stacItemsLoader";
+import {
+  loadStacItems,
+  resolveStacItemsQueryMode,
+  resolveStacSearchUrl
+} from "./stacItemsLoader";
 
 /**
  * STAC Collection JSON structure
@@ -517,6 +521,47 @@ export default class StacCollectionCatalogItem extends UrlMixin(
     return i18next.t("models.stac.collectionName") || "STAC Collection";
   }
 
+  @computed
+  get stacCollectionId(): string | undefined {
+    return this._stacStratum?.collection.id ?? this.collectionId;
+  }
+
+  @computed
+  get stacLoadedItemCount(): number {
+    return this._stacStratum?.items.length ?? 0;
+  }
+
+  @computed
+  get stacSupportsSearch(): boolean {
+    if (!this._stacStratum || !this.url) return false;
+    return (
+      resolveStacSearchUrl(this._stacStratum.collection, this.url) !== undefined
+    );
+  }
+
+  @computed
+  get stacEffectiveItemsQueryMode() {
+    return resolveStacItemsQueryMode({
+      itemsQueryMode: this.itemsQueryMode,
+      filterExpression: this.filterExpression,
+      intersectsGeometry: this.intersectsGeometry
+    });
+  }
+
+  @action
+  async refreshStacDataFromTraits(): Promise<void> {
+    const stratum = await StacCollectionStratum.load(this);
+
+    runInAction(() => {
+      this._stacStratum = stratum;
+      this.strata.set(StacCollectionStratum.stratumName, stratum);
+      this._loadError = undefined;
+    });
+
+    (await this.loadMapItems(true)).throwIfError();
+    this.terria.currentViewer.notifyRepaintRequired();
+  }
+
   @override
   get shortReport(): string | undefined {
     if (this._loadError) {
@@ -953,7 +998,16 @@ export default class StacCollectionCatalogItem extends UrlMixin(
       throw new Error("No preview URLs available for STAC preview rendering.");
     }
 
-    const [west, south, east, north] = bbox;
+    const validPreviewBbox = normalizeStacBbox(bbox);
+    if (!validPreviewBbox || validPreviewBbox[2] <= validPreviewBbox[0]) {
+      throw new Error(
+        `Invalid STAC preview bbox: ${JSON.stringify(
+          bbox
+        )}. Expected west < east in WGS84 degrees.`
+      );
+    }
+
+    const [west, south, east, north] = validPreviewBbox;
     const rectangle = Rectangle.fromDegrees(west, south, east, north);
 
     let lastError: unknown;
@@ -972,9 +1026,9 @@ export default class StacCollectionCatalogItem extends UrlMixin(
               credit
             }
           );
-          if (!this.hasValidImageryProviderRectangle(provider)) {
+          if (!this.hasValidPreviewImageryProvider(provider)) {
             throw new Error(
-              `Preview imagery provider for ${candidateUrl} has an invalid rectangle.`
+              `Preview imagery provider for ${candidateUrl} has invalid dimensions or rectangle.`
             );
           }
           return provider;
@@ -1194,6 +1248,23 @@ export default class StacCollectionCatalogItem extends UrlMixin(
     requestUrls.add(previewUrl);
 
     return Array.from(requestUrls);
+  }
+
+  private hasValidPreviewImageryProvider(
+    imageryProvider: SingleTileImageryProvider
+  ): boolean {
+    const providerWithDimensions = imageryProvider as unknown as {
+      tileWidth?: number;
+      tileHeight?: number;
+    };
+
+    return (
+      this.hasValidImageryProviderRectangle(imageryProvider) &&
+      Number.isFinite(providerWithDimensions.tileWidth) &&
+      Number.isFinite(providerWithDimensions.tileHeight) &&
+      (providerWithDimensions.tileWidth ?? 0) > 0 &&
+      (providerWithDimensions.tileHeight ?? 0) > 0
+    );
   }
 
   private hasValidImageryProviderRectangle(
