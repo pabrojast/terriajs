@@ -48,6 +48,15 @@ const StacCollectionSection: FC<{ item: BaseModel }> = observer(({ item }) => {
   const [isApplying, setIsApplying] = useState(false);
   const [drawingMode, setDrawingMode] = useState<"polygon" | "rectangle">();
   const [errorMessage, setErrorMessage] = useState<string | undefined>();
+  const loadedDateTimes = item.stacLoadedDateTimes;
+  const selectedDateTimeIndex = useMemo(
+    () => getSelectedDateTimeIndex(loadedDateTimes, form.dateTimeFilter),
+    [loadedDateTimes, form.dateTimeFilter]
+  );
+  const selectedDateTime =
+    selectedDateTimeIndex >= 0
+      ? loadedDateTimes[selectedDateTimeIndex]
+      : undefined;
 
   useEffect(() => {
     setForm(initialState);
@@ -349,6 +358,34 @@ const StacCollectionSection: FC<{ item: BaseModel }> = observer(({ item }) => {
     setErrorMessage(undefined);
   };
 
+  const applyLoadedDateTime = (dateTime: string) => {
+    updateField("dateTimeFilter", createExactDateTimeRange(dateTime));
+    setErrorMessage(undefined);
+  };
+
+  const selectPreviousDateTime = () => {
+    if (loadedDateTimes.length === 0) return;
+    const nextIndex =
+      selectedDateTimeIndex >= 0
+        ? Math.max(0, selectedDateTimeIndex - 1)
+        : loadedDateTimes.length - 1;
+    applyLoadedDateTime(loadedDateTimes[nextIndex]);
+  };
+
+  const selectNextDateTime = () => {
+    if (loadedDateTimes.length === 0) return;
+    const nextIndex =
+      selectedDateTimeIndex >= 0
+        ? Math.min(loadedDateTimes.length - 1, selectedDateTimeIndex + 1)
+        : 0;
+    applyLoadedDateTime(loadedDateTimes[nextIndex]);
+  };
+
+  const selectLatestDateTime = () => {
+    if (loadedDateTimes.length === 0) return;
+    applyLoadedDateTime(loadedDateTimes[loadedDateTimes.length - 1]);
+  };
+
   return (
     <Box paddedHorizontally={3} paddedVertically={2} column>
       <Text medium textLight>
@@ -411,6 +448,32 @@ const StacCollectionSection: FC<{ item: BaseModel }> = observer(({ item }) => {
         value={form.dateTimeFilter}
         onChange={(event) => updateField("dateTimeFilter", event.target.value)}
       />
+      <Spacing bottom={1} />
+      <Text small textLightDimmed>
+        Loaded timestamps: {loadedDateTimes.length}
+        {selectedDateTime ? ` | Selected: ${selectedDateTime}` : ""}
+      </Text>
+      <Spacing bottom={1} />
+      <ActionRow>
+        <ActionButton
+          disabled={isApplying || loadedDateTimes.length === 0}
+          onClick={selectPreviousDateTime}
+        >
+          Previous time
+        </ActionButton>
+        <ActionButton
+          disabled={isApplying || loadedDateTimes.length === 0}
+          onClick={selectNextDateTime}
+        >
+          Next time
+        </ActionButton>
+        <ActionButton
+          disabled={isApplying || loadedDateTimes.length === 0}
+          onClick={selectLatestDateTime}
+        >
+          Latest loaded
+        </ActionButton>
+      </ActionRow>
 
       <FieldLabel>BBOX filter</FieldLabel>
       <Input
@@ -665,6 +728,62 @@ function stringifyOptionalJson(value: unknown): string {
 }
 
 function normalizeString(value: string): string | undefined {
+  const trimmedValue = value.trim();
+  return trimmedValue.length > 0 ? trimmedValue : undefined;
+}
+
+function createExactDateTimeRange(dateTime: string): string {
+  return `${dateTime}/${dateTime}`;
+}
+
+function getSelectedDateTimeIndex(
+  loadedDateTimes: string[],
+  dateTimeFilter: string
+): number {
+  if (loadedDateTimes.length === 0) return -1;
+
+  const selectedDateTime = parseSelectedDateTime(dateTimeFilter);
+  if (!selectedDateTime) return -1;
+
+  const exactIndex = loadedDateTimes.indexOf(selectedDateTime);
+  if (exactIndex >= 0) return exactIndex;
+
+  const selectedDate = new Date(selectedDateTime);
+  const selectedTime = selectedDate.getTime();
+  if (!Number.isFinite(selectedTime)) return -1;
+
+  let closestIndex = -1;
+  let closestDistance = Number.POSITIVE_INFINITY;
+  for (let i = 0; i < loadedDateTimes.length; i++) {
+    const candidateDate = new Date(loadedDateTimes[i]);
+    const candidateTime = candidateDate.getTime();
+    if (!Number.isFinite(candidateTime)) continue;
+
+    const distance = Math.abs(candidateTime - selectedTime);
+    if (distance < closestDistance) {
+      closestDistance = distance;
+      closestIndex = i;
+    }
+  }
+
+  return closestIndex;
+}
+
+function parseSelectedDateTime(dateTimeFilter: string): string | undefined {
+  const trimmedFilter = dateTimeFilter.trim();
+  if (trimmedFilter.length === 0) return undefined;
+
+  const parts = trimmedFilter.split("/");
+  if (parts.length === 1) return normalizeDateTime(parts[0]);
+
+  const start = normalizeDateTime(parts[0]);
+  const end = normalizeDateTime(parts[1]);
+  if (start && end && start === end) return start;
+  return start ?? undefined;
+}
+
+function normalizeDateTime(value: string | undefined): string | undefined {
+  if (value === undefined) return undefined;
   const trimmedValue = value.trim();
   return trimmedValue.length > 0 ? trimmedValue : undefined;
 }

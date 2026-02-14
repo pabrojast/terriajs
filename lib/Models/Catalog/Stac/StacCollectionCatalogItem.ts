@@ -532,6 +532,20 @@ export default class StacCollectionCatalogItem extends UrlMixin(
   }
 
   @computed
+  get stacLoadedDateTimes(): string[] {
+    const items = this._stacStratum?.items;
+    if (!items || items.length === 0) return [];
+
+    const uniqueDateTimes = new Set<string>();
+    items.forEach((item) => {
+      const dateTime = this.getItemDateTime(item);
+      if (dateTime) uniqueDateTimes.add(dateTime);
+    });
+
+    return Array.from(uniqueDateTimes).sort();
+  }
+
+  @computed
   get stacSupportsSearch(): boolean {
     if (!this._stacStratum || !this.url) return false;
     return (
@@ -1248,6 +1262,22 @@ export default class StacCollectionCatalogItem extends UrlMixin(
     requestUrls.add(previewUrl);
 
     return Array.from(requestUrls);
+  }
+
+  private getItemDateTime(item: StacItem): string | undefined {
+    const dateTime =
+      typeof item.properties?.datetime === "string"
+        ? item.properties.datetime
+        : typeof item.properties?.start_datetime === "string"
+        ? item.properties.start_datetime
+        : typeof item.properties?.end_datetime === "string"
+        ? item.properties.end_datetime
+        : undefined;
+
+    const normalizedDateTime = dateTime?.trim();
+    return normalizedDateTime && normalizedDateTime.length > 0
+      ? normalizedDateTime
+      : undefined;
   }
 
   private hasValidPreviewImageryProvider(
