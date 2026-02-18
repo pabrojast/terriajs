@@ -94,17 +94,12 @@ class StacItemStratum extends LoadableStratum(StacItemCatalogItemTraits) {
   }
 
   duplicateLoadableStratum(model: BaseModel): this {
-    return new StacItemStratum(
-      model as StacItemCatalogItem,
-      this.item
-    ) as this;
+    return new StacItemStratum(model as StacItemCatalogItem, this.item) as this;
   }
 
   @computed
   get name(): string | undefined {
-    return (
-      this.item.properties?.title || this.item.id
-    );
+    return this.item.properties?.title || this.item.id;
   }
 
   @computed
@@ -213,7 +208,9 @@ class StacItemStratum extends LoadableStratum(StacItemCatalogItemTraits) {
     return info;
   }
 
-  static async load(catalogItem: StacItemCatalogItem): Promise<StacItemStratum> {
+  static async load(
+    catalogItem: StacItemCatalogItem
+  ): Promise<StacItemStratum> {
     if (!isDefined(catalogItem.url)) {
       throw new Error("STAC item URL is required");
     }
@@ -236,9 +233,7 @@ StratumOrder.addLoadStratum(StacItemStratum.stratumName);
  * Loads item metadata and renders COG assets.
  */
 export default class StacItemCatalogItem extends UrlMixin(
-  MappableMixin(
-    CatalogMemberMixin(CreateModel(StacItemCatalogItemTraits))
-  )
+  MappableMixin(CatalogMemberMixin(CreateModel(StacItemCatalogItemTraits)))
 ) {
   static readonly type = "stac-item";
 
@@ -277,7 +272,11 @@ export default class StacItemCatalogItem extends UrlMixin(
 
     // Re-create the imageryProvider if `mapItems` is consumed again
     onBecomeObserved(this, "mapItems", () => {
-      if (!this._imageryProvider && !this.isLoadingMapItems && !this._loadError) {
+      if (
+        !this._imageryProvider &&
+        !this.isLoadingMapItems &&
+        !this._loadError
+      ) {
         this.loadMapItems(true);
       }
     });
@@ -530,10 +529,15 @@ function reprojector(proj4: unknown) {
   return (code: number) => {
     if (![4326, 3857, 900913].includes(code)) {
       try {
-        const prj = (proj4 as (from: string, to: string) => {
-          forward: (coord: number[]) => number[];
-          inverse: (coord: number[]) => number[];
-        })("EPSG:4326", `EPSG:${code}`);
+        const prj = (
+          proj4 as (
+            from: string,
+            to: string
+          ) => {
+            forward: (coord: number[]) => number[];
+            inverse: (coord: number[]) => number[];
+          }
+        )("EPSG:4326", `EPSG:${code}`);
         if (prj)
           return {
             project: prj.forward,

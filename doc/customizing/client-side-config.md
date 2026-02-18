@@ -294,3 +294,22 @@ Templates support double-curly tokens such as `{{longitude}}`, `{{latitude}}`, `
 
 By default the request expects JSON and will automatically build a feature info table from the JSON
 properties returned by the service.
+
+`featureInfoRequest` also works with other xcube endpoints such as:
+
+- `/timeseries/{datasetId}/{varName}` (POST with point geometry)
+- `/statistics/{datasetId}/{varName}` (GET/POST with point geometry)
+
+If your xcube deployment supports the unified calculations envelope, add
+`responseFormat=contract` to the endpoint query string.
+
+For generated xcube catalogs, use:
+
+```bash
+node buildprocess/generateXcubeWmtsCatalog.js \
+  --base-url https://data.dev-wins.com/xcube \
+  --dataset-id ukraine_lwq300_pyramid \
+  --mode both \
+  --response-format contract \
+  --output wwwroot/test/init/xcube-wmts-generated.json
+```

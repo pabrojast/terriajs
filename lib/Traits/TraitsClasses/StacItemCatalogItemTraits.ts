@@ -4,9 +4,7 @@ import ModelTraits from "../ModelTraits";
 import { traitClass } from "../Trait";
 import mixTraits from "../mixTraits";
 import CatalogMemberTraits from "./CatalogMemberTraits";
-import {
-  CogRenderOptionsTraits
-} from "./CogCatalogItemTraits";
+import { CogRenderOptionsTraits } from "./CogCatalogItemTraits";
 import ImageryProviderTraits from "./ImageryProviderTraits";
 import LayerOrderingTraits from "./LayerOrderingTraits";
 import LegendOwnerTraits from "./LegendOwnerTraits";

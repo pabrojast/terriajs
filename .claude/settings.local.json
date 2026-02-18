@@ -28,8 +28,6 @@
       "mcp__ide__getDiagnostics"
     ],
     "deny": [],
-    "additionalDirectories": [
-      "C:\\Users\\Lenovo\\Proyectos\\TerriaMap"
-    ]
+    "additionalDirectories": ["C:\\Users\\Lenovo\\Proyectos\\TerriaMap"]
   }
 }

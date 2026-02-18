@@ -1,0 +1,142 @@
+{
+  "catalog": [
+    {
+      "name": "xcube WMTS Generated",
+      "type": "group",
+      "members": [
+        {
+          "name": "ukraine_lwq300_pyramid",
+          "type": "group",
+          "members": [
+            {
+              "name": "ukraine_lwq300_pyramid - Time Series",
+              "type": "group",
+              "members": [
+                {
+                  "name": "chla_mean (Time Series)",
+                  "type": "wmts",
+                  "url": "https://data.dev-wins.com/xcube/wmts/1.0.0/WMTSCapabilities.xml",
+                  "layer": "ukraine_lwq300_pyramid/chla_mean",
+                  "featureInfoRequest": {
+                    "url": "https://data.dev-wins.com/xcube/timeseries/{{layerPath}}?aggMethods=mean,min,max&maxValids=250&responseFormat=contract",
+                    "method": "POST",
+                    "body": "{ \"type\": \"Point\", \"coordinates\": [{{longitude}}, {{latitude}}] }",
+                    "headers": {
+                      "Content-Type": "application/json"
+                    },
+                    "responseType": "json"
+                  },
+                  "featureInfoTemplate": {
+                    "name": "{{layerTitle}} - Time Series",
+                    "template": "<h3>{{layerTitle}} - Time Series</h3><p><strong>Location:</strong> {{terria.coords.latitude}} deg, {{terria.coords.longitude}} deg</p>{{#terria.timeSeries.hasData}}{{terria.timeSeries.chart}}{{/terria.timeSeries.hasData}}{{^terria.timeSeries.hasData}}<p>{{terria.timeSeries.message}}</p>{{/terria.timeSeries.hasData}}"
+                  }
+                },
+                {
+                  "name": "tsm_mean (Time Series)",
+                  "type": "wmts",
+                  "url": "https://data.dev-wins.com/xcube/wmts/1.0.0/WMTSCapabilities.xml",
+                  "layer": "ukraine_lwq300_pyramid/tsm_mean",
+                  "featureInfoRequest": {
+                    "url": "https://data.dev-wins.com/xcube/timeseries/{{layerPath}}?aggMethods=mean,min,max&maxValids=250&responseFormat=contract",
+                    "method": "POST",
+                    "body": "{ \"type\": \"Point\", \"coordinates\": [{{longitude}}, {{latitude}}] }",
+                    "headers": {
+                      "Content-Type": "application/json"
+                    },
+                    "responseType": "json"
+                  },
+                  "featureInfoTemplate": {
+                    "name": "{{layerTitle}} - Time Series",
+                    "template": "<h3>{{layerTitle}} - Time Series</h3><p><strong>Location:</strong> {{terria.coords.latitude}} deg, {{terria.coords.longitude}} deg</p>{{#terria.timeSeries.hasData}}{{terria.timeSeries.chart}}{{/terria.timeSeries.hasData}}{{^terria.timeSeries.hasData}}<p>{{terria.timeSeries.message}}</p>{{/terria.timeSeries.hasData}}"
+                  }
+                },
+                {
+                  "name": "turbidity_mean (Time Series)",
+                  "type": "wmts",
+                  "url": "https://data.dev-wins.com/xcube/wmts/1.0.0/WMTSCapabilities.xml",
+                  "layer": "ukraine_lwq300_pyramid/turbidity_mean",
+                  "featureInfoRequest": {
+                    "url": "https://data.dev-wins.com/xcube/timeseries/{{layerPath}}?aggMethods=mean,min,max&maxValids=250&responseFormat=contract",
+                    "method": "POST",
+                    "body": "{ \"type\": \"Point\", \"coordinates\": [{{longitude}}, {{latitude}}] }",
+                    "headers": {
+                      "Content-Type": "application/json"
+                    },
+                    "responseType": "json"
+                  },
+                  "featureInfoTemplate": {
+                    "name": "{{layerTitle}} - Time Series",
+                    "template": "<h3>{{layerTitle}} - Time Series</h3><p><strong>Location:</strong> {{terria.coords.latitude}} deg, {{terria.coords.longitude}} deg</p>{{#terria.timeSeries.hasData}}{{terria.timeSeries.chart}}{{/terria.timeSeries.hasData}}{{^terria.timeSeries.hasData}}<p>{{terria.timeSeries.message}}</p>{{/terria.timeSeries.hasData}}"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "ukraine_lwq300_pyramid - Point Statistics",
+              "type": "group",
+              "members": [
+                {
+                  "name": "chla_mean (Point Statistics)",
+                  "type": "wmts",
+                  "url": "https://data.dev-wins.com/xcube/wmts/1.0.0/WMTSCapabilities.xml",
+                  "layer": "ukraine_lwq300_pyramid/chla_mean",
+                  "featureInfoRequest": {
+                    "url": "https://data.dev-wins.com/xcube/statistics/{{layerPath}}?time={{time}}&responseFormat=contract",
+                    "method": "POST",
+                    "body": "{ \"type\": \"Point\", \"coordinates\": [{{longitude}}, {{latitude}}] }",
+                    "headers": {
+                      "Content-Type": "application/json"
+                    },
+                    "responseType": "json"
+                  },
+                  "featureInfoTemplate": {
+                    "name": "{{layerTitle}} - Point Statistics",
+                    "template": "<h3>{{layerTitle}} - Point Statistics</h3><p><strong>Location:</strong> {{terria.coords.latitude}} deg, {{terria.coords.longitude}} deg</p>{{#terria.timeSeries.hasData}}<table class='feature-info'><tr><th>Count</th><td>{{result.count}}</td></tr><tr><th>Minimum</th><td>{{result.minimum}}</td></tr><tr><th>Maximum</th><td>{{result.maximum}}</td></tr><tr><th>Mean</th><td>{{result.mean}}</td></tr><tr><th>Std Dev</th><td>{{result.deviation}}</td></tr></table>{{/terria.timeSeries.hasData}}{{^terria.timeSeries.hasData}}<p>No data available for this point/time.</p>{{/terria.timeSeries.hasData}}"
+                  }
+                },
+                {
+                  "name": "tsm_mean (Point Statistics)",
+                  "type": "wmts",
+                  "url": "https://data.dev-wins.com/xcube/wmts/1.0.0/WMTSCapabilities.xml",
+                  "layer": "ukraine_lwq300_pyramid/tsm_mean",
+                  "featureInfoRequest": {
+                    "url": "https://data.dev-wins.com/xcube/statistics/{{layerPath}}?time={{time}}&responseFormat=contract",
+                    "method": "POST",
+                    "body": "{ \"type\": \"Point\", \"coordinates\": [{{longitude}}, {{latitude}}] }",
+                    "headers": {
+                      "Content-Type": "application/json"
+                    },
+                    "responseType": "json"
+                  },
+                  "featureInfoTemplate": {
+                    "name": "{{layerTitle}} - Point Statistics",
+                    "template": "<h3>{{layerTitle}} - Point Statistics</h3><p><strong>Location:</strong> {{terria.coords.latitude}} deg, {{terria.coords.longitude}} deg</p>{{#terria.timeSeries.hasData}}<table class='feature-info'><tr><th>Count</th><td>{{result.count}}</td></tr><tr><th>Minimum</th><td>{{result.minimum}}</td></tr><tr><th>Maximum</th><td>{{result.maximum}}</td></tr><tr><th>Mean</th><td>{{result.mean}}</td></tr><tr><th>Std Dev</th><td>{{result.deviation}}</td></tr></table>{{/terria.timeSeries.hasData}}{{^terria.timeSeries.hasData}}<p>No data available for this point/time.</p>{{/terria.timeSeries.hasData}}"
+                  }
+                },
+                {
+                  "name": "turbidity_mean (Point Statistics)",
+                  "type": "wmts",
+                  "url": "https://data.dev-wins.com/xcube/wmts/1.0.0/WMTSCapabilities.xml",
+                  "layer": "ukraine_lwq300_pyramid/turbidity_mean",
+                  "featureInfoRequest": {
+                    "url": "https://data.dev-wins.com/xcube/statistics/{{layerPath}}?time={{time}}&responseFormat=contract",
+                    "method": "POST",
+                    "body": "{ \"type\": \"Point\", \"coordinates\": [{{longitude}}, {{latitude}}] }",
+                    "headers": {
+                      "Content-Type": "application/json"
+                    },
+                    "responseType": "json"
+                  },
+                  "featureInfoTemplate": {
+                    "name": "{{layerTitle}} - Point Statistics",
+                    "template": "<h3>{{layerTitle}} - Point Statistics</h3><p><strong>Location:</strong> {{terria.coords.latitude}} deg, {{terria.coords.longitude}} deg</p>{{#terria.timeSeries.hasData}}<table class='feature-info'><tr><th>Count</th><td>{{result.count}}</td></tr><tr><th>Minimum</th><td>{{result.minimum}}</td></tr><tr><th>Maximum</th><td>{{result.maximum}}</td></tr><tr><th>Mean</th><td>{{result.mean}}</td></tr><tr><th>Std Dev</th><td>{{result.deviation}}</td></tr></table>{{/terria.timeSeries.hasData}}{{^terria.timeSeries.hasData}}<p>No data available for this point/time.</p>{{/terria.timeSeries.hasData}}"
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

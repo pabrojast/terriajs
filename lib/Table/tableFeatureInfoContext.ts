@@ -24,6 +24,14 @@ export interface TimeSeriesContext extends JsonObject {
   data?: string;
   /** Chart HTML */
   chart?: string;
+  /** True when the payload contains usable data points or values. */
+  hasData?: boolean;
+  /** True when payload looks like time-series data and can be charted. */
+  isTimeSeries?: boolean;
+  /** Comma-separated y-columns used by json-chart. */
+  yColumns?: string;
+  /** Optional message for templates when no data is available. */
+  message?: string;
 }
 
 /** Adds timeseries chart to feature info context (on terria.timeSeries property).
@@ -51,7 +59,7 @@ export const tableFeatureInfoContext: (
     // Corresponding row IDs for the selected feature are stored in TerriaFeatureData
     // See createLongitudeLatitudeFeaturePerId, createLongitudeLatitudeFeaturePerRow and createRegionMappedImageryProvider
     const rowIds = isTerriaFeatureData(feature.data)
-      ? (feature.data.rowIds ?? [])
+      ? feature.data.rowIds ?? []
       : [];
 
     if (!style.timeColumn || !style.colorColumn || rowIds.length < 2) return {};
@@ -180,6 +188,11 @@ export const jsonFeatureInfoContext: (
       // Get layerTitle from the catalog item name (for WMTS items)
       const layerTitle = getName(catalogItem);
 
+      const hasData = payloadHasData(jsonData);
+      const timeSeriesInfo = extractTimeSeriesInfo(jsonData);
+      const isTimeSeries = timeSeriesInfo.isTimeSeries;
+      const yColumns = timeSeriesInfo.yColumns.join(",");
+
       // Convert JSON object to JSON string for the template
       // Use a safe stringify that handles circular references
       let jsonString: string;
@@ -210,10 +223,23 @@ export const jsonFeatureInfoContext: (
             title,
             id: featureId,
             data: jsonString,
-            // Provide a pre-formatted chart element
-            chart: `<json-chart ${'identifier="' + featureId + '" '} ${
-              title ? `title="${title}"` : ""
-            } x-column="time" y-columns="mean">${jsonString}</json-chart>`
+            hasData,
+            isTimeSeries,
+            yColumns: yColumns || "mean",
+            message: hasData
+              ? undefined
+              : isTimeSeries
+              ? "No time-series data available for this location."
+              : "No data available for this location.",
+            // Provide a pre-formatted chart element only for time-series payloads.
+            chart:
+              isTimeSeries && hasData
+                ? `<json-chart ${'identifier="' + featureId + '" '} ${
+                    title ? `title="${title}"` : ""
+                  } x-column="time" y-columns="${
+                    yColumns || "mean"
+                  }">${jsonString}</json-chart>`
+                : ""
           }
         }
       };
@@ -222,3 +248,84 @@ export const jsonFeatureInfoContext: (
       return {};
     }
   };
+
+function payloadHasData(value: any): boolean {
+  if (value === null || value === undefined) {
+    return false;
+  }
+
+  if (Array.isArray(value)) {
+    return value.length > 0;
+  }
+
+  if (typeof value === "object") {
+    if (typeof value.count === "number") {
+      return value.count > 0;
+    }
+
+    if ("result" in value) {
+      return payloadHasData(value.result);
+    }
+    if ("data" in value) {
+      return payloadHasData(value.data);
+    }
+    if ("values" in value) {
+      return payloadHasData(value.values);
+    }
+
+    return Object.keys(value).length > 0;
+  }
+
+  return true;
+}
+
+function extractTimeSeriesInfo(value: any): {
+  isTimeSeries: boolean;
+  yColumns: string[];
+} {
+  const rows = getRowArray(value);
+  const isTimeSeries = rows !== undefined;
+
+  if (!rows || rows.length === 0) {
+    return {
+      isTimeSeries,
+      yColumns: []
+    };
+  }
+
+  const firstRow = rows[0];
+  if (!firstRow || typeof firstRow !== "object") {
+    return {
+      isTimeSeries,
+      yColumns: []
+    };
+  }
+
+  const yColumns = Object.keys(firstRow).filter(
+    (key) => key !== "time" && key !== "count_tot"
+  );
+
+  return {
+    isTimeSeries,
+    yColumns
+  };
+}
+
+function getRowArray(value: any): any[] | undefined {
+  if (Array.isArray(value)) {
+    return value;
+  }
+  if (!value || typeof value !== "object") {
+    return undefined;
+  }
+  if (Array.isArray(value.result)) {
+    return value.result;
+  }
+  if (Array.isArray(value.data)) {
+    return value.data;
+  }
+  if (Array.isArray(value.values)) {
+    return value.values;
+  }
+  return undefined;
+}

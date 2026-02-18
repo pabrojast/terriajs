@@ -53,13 +53,10 @@ class CogLoadableStratum extends LoadableStratum(CogCatalogItemTraits) {
       ? // Warn for 2D mode
         i18next.t("models.commonModelErrors.3dTypeIn2dMode", this)
       : this.model._imageryProvider?.tilingScheme &&
-          // Show warning for experimental reprojection feature if not using EPSG 3857 or 4326
-          isCustomTilingScheme(this.model._imageryProvider?.tilingScheme)
-        ? i18next.t(
-            "models.cogCatalogItem.experimentalReprojectionWarning",
-            this
-          )
-        : undefined;
+        // Show warning for experimental reprojection feature if not using EPSG 3857 or 4326
+        isCustomTilingScheme(this.model._imageryProvider?.tilingScheme)
+      ? i18next.t("models.cogCatalogItem.experimentalReprojectionWarning", this)
+      : undefined;
   }
 
   @computed
@@ -314,7 +311,10 @@ export default class CogCatalogItem extends MappableMixin(
       renderOptions.single = singleRenderOptions;
     }
 
-    console.log("COG renderOptions being passed:", JSON.stringify(renderOptions, null, 2));
+    console.log(
+      "COG renderOptions being passed:",
+      JSON.stringify(renderOptions, null, 2)
+    );
 
     if (this.renderOptions.nodata !== undefined) {
       renderOptions.nodata = this.renderOptions.nodata;
@@ -492,8 +492,8 @@ export default class CogCatalogItem extends MappableMixin(
             isNoDataValue(band[i], imageryProvider.noData)
           )
         : singleBandData
-          ? isNoDataValue(singleBandData[i], imageryProvider.noData)
-          : false;
+        ? isNoDataValue(singleBandData[i], imageryProvider.noData)
+        : false;
 
       if (isNoDataPixel) {
         setPixelColor(buffer, i, color);
