@@ -745,13 +745,13 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
       }
 
       const formatCandidates = forceArray(layer.Format).map((item: any) =>
-        typeof item === "string" ? item : (item?.toString?.() ?? "")
+        typeof item === "string" ? item : item?.toString?.() ?? ""
       );
       const format = formatCandidates.includes("image/png")
         ? "image/png"
         : formatCandidates.includes("image/jpeg")
-          ? "image/jpeg"
-          : "image/png";
+        ? "image/jpeg"
+        : "image/png";
 
       const resourceUrl: ResourceUrl | ResourceUrl[] | undefined =
         layer.ResourceURL;
@@ -1819,7 +1819,155 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
     return tokens;
   }
 
+  /**
+   * Extends template tokens with precomputed-specific tokens from featureInfoRequest traits.
+   */
+  private addPrecomputedTokens(
+    tokens: TemplateTokens,
+    request: FeatureInfoRequestTraits
+  ): TemplateTokens {
+    const extendedTokens = { ...tokens };
+
+    // Add productKey if defined
+    if (request.productKey) {
+      extendedTokens.productKey = request.productKey;
+    }
+
+    // Add areaId if defined
+    if (request.areaId) {
+      extendedTokens.areaId = request.areaId;
+    }
+
+    // Extract date range from time dimensions or current time
+    // Try to extract from available time dimension values
+    const timeDimension = this.discreteTimes;
+    if (timeDimension && timeDimension.length > 0) {
+      // Get first and last times for date range (time is ISO string)
+      const times = timeDimension
+        .map((t) => t.time)
+        .filter((t) => t !== undefined) as string[];
+      const sortedTimes = times.sort();
+      const startDate = sortedTimes[0]?.split("T")[0]; // Extract YYYY-MM-DD
+      const endDate = sortedTimes[sortedTimes.length - 1]?.split("T")[0];
+
+      if (startDate) {
+        extendedTokens.startDate = startDate;
+      }
+      if (endDate) {
+        extendedTokens.endDate = endDate;
+      }
+    }
+
+    // Fallback: use current time tag if no time dimension available
+    if (!extendedTokens.startDate && tokens.time) {
+      const timeStr = tokens.time;
+      // Try to parse ISO date from time tag
+      const dateMatch = timeStr.match(/(\d{4}-\d{2}-\d{2})/);
+      if (dateMatch) {
+        extendedTokens.startDate = dateMatch[1];
+        extendedTokens.endDate = dateMatch[1];
+      }
+    }
+
+    return extendedTokens;
+  }
+
   private pickFeaturesWithCustomRequest(
+    request: FeatureInfoRequestTraits,
+    tokens: TemplateTokens,
+    type: FeatureInfoFormatType,
+    format: string
+  ): Promise<ImageryLayerFeatureInfo[] | undefined> | undefined {
+    // Check if precomputed fallback is enabled
+    if (request.usePrecomputed === true && isDefined(request.precomputedUrl)) {
+      // Extend tokens with precomputed-specific values
+      const precomputedTokens = this.addPrecomputedTokens(tokens, request);
+
+      // Try precomputed request first, then fallback to live query
+      return this.tryPrecomputedRequest(
+        request,
+        precomputedTokens,
+        type,
+        format
+      ).then((precomputedResult) => {
+        if (precomputedResult !== undefined) {
+          return precomputedResult;
+        }
+        // Fallback to live query
+        return this.executeCustomRequest(request, tokens, type, format);
+      });
+    }
+
+    // Normal flow without precomputed fallback
+    return this.executeCustomRequest(request, tokens, type, format);
+  }
+
+  /**
+   * Attempts to fetch precomputed results.
+   * Returns undefined if precomputed data is not available (404 or error).
+   */
+  private async tryPrecomputedRequest(
+    request: FeatureInfoRequestTraits,
+    tokens: TemplateTokens,
+    type: FeatureInfoFormatType,
+    format: string
+  ): Promise<ImageryLayerFeatureInfo[] | undefined> {
+    const precomputedUrl = applyTemplate(request.precomputedUrl, tokens);
+    if (!isDefined(precomputedUrl)) {
+      console.warn(
+        "Precomputed URL template could not be resolved with available tokens"
+      );
+      return undefined;
+    }
+
+    try {
+      const proxiedUrl = proxyCatalogItemUrl(this, precomputedUrl);
+      const resource = new Resource({ url: proxiedUrl });
+
+      // Always use GET for precomputed resources
+      const data = await resource.fetchJson();
+
+      if (!isDefined(data)) {
+        return undefined;
+      }
+
+      // Parse the precomputed result using the same parser as live queries
+      const features = parseFeatureInfoResponse(data, type, format);
+      if (!features) {
+        return undefined;
+      }
+
+      // Configure description from properties if needed
+      if (type === "json") {
+        features.forEach((feature) => {
+          if (
+            !feature.description &&
+            feature.properties &&
+            typeof feature.configureDescriptionFromProperties === "function"
+          ) {
+            feature.configureDescriptionFromProperties(feature.properties);
+          }
+        });
+      }
+
+      return features;
+    } catch (error: any) {
+      // If it's a 404, silently return undefined to trigger fallback
+      if (error?.statusCode === 404 || error?.response?.status === 404) {
+        console.log("Precomputed data not found, falling back to live query");
+        return undefined;
+      }
+
+      // For other errors, log warning and return undefined to trigger fallback
+      console.warn("Failed to fetch precomputed data, falling back:", error);
+      return undefined;
+    }
+  }
+
+  /**
+   * Executes the actual custom feature info request (live query).
+   */
+  private executeCustomRequest(
     request: FeatureInfoRequestTraits,
     tokens: TemplateTokens,
     type: FeatureInfoFormatType,
@@ -2993,8 +3141,8 @@ function parseFeatureInfoResponse(
     const features = Array.isArray(data.features)
       ? data.features
       : Array.isArray(data)
-        ? data
-        : [data];
+      ? data
+      : [data];
     return features.map((feature: any) => {
       const info = new ImageryLayerFeatureInfo();
       info.data = feature;

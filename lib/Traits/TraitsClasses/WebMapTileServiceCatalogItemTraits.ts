@@ -187,6 +187,38 @@ export class FeatureInfoRequestTraits extends ModelTraits {
       "Optional override for the expected response type (json, text, html, xml). Defaults to the GetFeatureInfo format."
   })
   responseType?: "json" | "text" | "html" | "xml";
+
+  @primitiveTrait({
+    type: "boolean",
+    name: "Use precomputed results",
+    description:
+      "When true, attempts to fetch precomputed results first before falling back to live queries. Requires precomputedUrl to be set."
+  })
+  usePrecomputed?: boolean;
+
+  @primitiveTrait({
+    type: "string",
+    name: "Precomputed URL template",
+    description:
+      "URL template for precomputed results. Supports tokens like {{productKey}}, {{areaId}}, {{startDate}}, {{endDate}} in addition to standard tokens."
+  })
+  precomputedUrl?: string;
+
+  @primitiveTrait({
+    type: "string",
+    name: "Product key",
+    description:
+      "Product key for precomputed filename convention (e.g., 'ua_chl'). Used in precomputed URL template."
+  })
+  productKey?: string;
+
+  @primitiveTrait({
+    type: "string",
+    name: "Area ID",
+    description:
+      "Area identifier for precomputed filename convention (e.g., 'kyiv_reservoir'). Used in precomputed URL template."
+  })
+  areaId?: string;
 }
 
 @traitClass({

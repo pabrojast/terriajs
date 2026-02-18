@@ -1,0 +1,92 @@
+{
+  "catalog": [
+    {
+      "name": "WMTS with Precomputed Fallback",
+      "type": "group",
+      "description": "Examples demonstrating precomputed result caching with automatic fallback to live queries",
+      "members": [
+        {
+          "name": "Ukraine CHL - Kyiv Reservoir (with precomputed)",
+          "type": "wmts",
+          "url": "https://data.dev-wins.com/xcube/wmts/1.0.0/WMTSCapabilities.xml",
+          "layer": "ukraine_lwq100_pyramid/chla_mean",
+          "description": "This layer tries precomputed results first, then falls back to live xcube queries if not found.",
+          "featureInfoRequest": {
+            "url": "https://data.dev-wins.com/xcube/timeseries/{{layerPath}}?aggMethods=mean,min,max&maxValids=200&responseFormat=contract",
+            "method": "POST",
+            "body": "{ \"type\": \"Point\", \"coordinates\": [{{longitude}}, {{latitude}}] }",
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "responseType": "json",
+            "usePrecomputed": true,
+            "precomputedUrl": "https://data.dev-wins.com/xcube/precomputed/{{productKey}}/{{productKey}}__{{areaId}}__{{startDate}}_{{endDate}}.json",
+            "productKey": "ua_chl",
+            "areaId": "kyiv_reservoir"
+          },
+          "featureInfoTemplate": {
+            "name": "{{layerTitle}} - Time Series (Precomputed)",
+            "template": "<h3>{{layerTitle}} - Time Series</h3><p><strong>Location:</strong> {{terria.coords.latitude}} deg, {{terria.coords.longitude}} deg</p><p><em>Using precomputed cache with fallback to live queries</em></p>{{#terria.timeSeries.hasData}}{{terria.timeSeries.chart}}{{/terria.timeSeries.hasData}}{{^terria.timeSeries.hasData}}<p>{{terria.timeSeries.message}}</p>{{/terria.timeSeries.hasData}}"
+          }
+        },
+        {
+          "name": "Ukraine CHL - Kremenchuk Reservoir (with precomputed)",
+          "type": "wmts",
+          "url": "https://data.dev-wins.com/xcube/wmts/1.0.0/WMTSCapabilities.xml",
+          "layer": "ukraine_lwq100_pyramid/chla_mean",
+          "description": "Another example using different area ID for precomputed results.",
+          "featureInfoRequest": {
+            "url": "https://data.dev-wins.com/xcube/timeseries/{{layerPath}}?aggMethods=mean,min,max&maxValids=200&responseFormat=contract",
+            "method": "POST",
+            "body": "{ \"type\": \"Point\", \"coordinates\": [{{longitude}}, {{latitude}}] }",
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "responseType": "json",
+            "usePrecomputed": true,
+            "precomputedUrl": "https://data.dev-wins.com/xcube/precomputed/{{productKey}}/{{productKey}}__{{areaId}}__{{startDate}}_{{endDate}}.json",
+            "productKey": "ua_chl",
+            "areaId": "kremenchuk_reservoir"
+          },
+          "featureInfoTemplate": {
+            "name": "{{layerTitle}} - Time Series (Precomputed)",
+            "template": "<h3>{{layerTitle}} - Time Series</h3><p><strong>Location:</strong> {{terria.coords.latitude}} deg, {{terria.coords.longitude}} deg</p><p><em>Using precomputed cache with fallback to live queries</em></p>{{#terria.timeSeries.hasData}}{{terria.timeSeries.chart}}{{/terria.timeSeries.hasData}}{{^terria.timeSeries.hasData}}<p>{{terria.timeSeries.message}}</p>{{/terria.timeSeries.hasData}}"
+          }
+        },
+        {
+          "name": "Ukraine CHL - Standard (no precomputed)",
+          "type": "wmts",
+          "url": "https://data.dev-wins.com/xcube/wmts/1.0.0/WMTSCapabilities.xml",
+          "layer": "ukraine_lwq100_pyramid/chla_mean",
+          "description": "Control example without precomputed fallback - always uses live queries.",
+          "featureInfoRequest": {
+            "url": "https://data.dev-wins.com/xcube/timeseries/{{layerPath}}?aggMethods=mean,min,max&maxValids=200&responseFormat=contract",
+            "method": "POST",
+            "body": "{ \"type\": \"Point\", \"coordinates\": [{{longitude}}, {{latitude}}] }",
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "responseType": "json"
+          },
+          "featureInfoTemplate": {
+            "name": "{{layerTitle}} - Time Series (Live Only)",
+            "template": "<h3>{{layerTitle}} - Time Series</h3><p><strong>Location:</strong> {{terria.coords.latitude}} deg, {{terria.coords.longitude}} deg</p><p><em>Always uses live queries (no precomputed cache)</em></p>{{#terria.timeSeries.hasData}}{{terria.timeSeries.chart}}{{/terria.timeSeries.hasData}}{{^terria.timeSeries.hasData}}<p>{{terria.timeSeries.message}}</p>{{/terria.timeSeries.hasData}}"
+          }
+        }
+      ]
+    }
+  ],
+  "workbench": [],
+  "homeCamera": {
+    "west": 22.0,
+    "south": 44.0,
+    "east": 40.0,
+    "north": 52.0
+  },
+  "initialCamera": {
+    "west": 30.0,
+    "south": 49.5,
+    "east": 31.5,
+    "north": 51.0
+  }
+}
