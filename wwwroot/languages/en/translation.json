@@ -2145,6 +2145,13 @@
       "band": "Band",
       "clampLow": "Clamp Low Values",
       "clampHigh": "Clamp High Values"
+    },
+    "cogTimeSeries": {
+      "loadTimeEntriesErrorTitle": "Error loading COG Time Series",
+      "loadTimeEntriesErrorMessage": "Failed to load time series definition from {{url}}.",
+      "loadImageryErrorTitle": "Error loading COG imagery",
+      "loadImageryErrorMessage": "Failed to load one or more COG files for the current time step.",
+      "noTimeEntries": "No time entries available for this dataset."
     }
   },
   "searchProvider": {

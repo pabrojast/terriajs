@@ -65,6 +65,7 @@ import WebProcessingServiceCatalogGroup from "./Ows/WebProcessingServiceCatalogG
 import SdmxJsonCatalogGroup from "./SdmxJson/SdmxJsonCatalogGroup";
 import SdmxJsonCatalogItem from "./SdmxJson/SdmxJsonCatalogItem";
 import CogCatalogItem from "./CatalogItems/CogCatalogItem";
+import CogTimeSeriesCatalogItem from "./CatalogItems/CogTimeSeriesCatalogItem";
 import StacCollectionCatalogItem from "./Stac/StacCollectionCatalogItem";
 import StacCatalogGroup from "./Stac/StacCatalogGroup";
 import StacItemCatalogItem from "./Stac/StacItemCatalogItem";
@@ -246,6 +247,10 @@ export default function registerCatalogMembers() {
   );
   CatalogMemberFactory.register(AssImpCatalogItem.type, AssImpCatalogItem);
   CatalogMemberFactory.register(CogCatalogItem.type, CogCatalogItem);
+  CatalogMemberFactory.register(
+    CogTimeSeriesCatalogItem.type,
+    CogTimeSeriesCatalogItem
+  );
   CatalogMemberFactory.register(
     StacCollectionCatalogItem.type,
     StacCollectionCatalogItem
