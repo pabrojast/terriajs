@@ -24,6 +24,7 @@ import UrlMixin from "../../../ModelMixins/UrlMixin";
 import { InfoSectionTraits } from "../../../Traits/TraitsClasses/CatalogMemberTraits";
 import StacItemCatalogItemTraits from "../../../Traits/TraitsClasses/StacItemCatalogItemTraits";
 import { RectangleTraits } from "../../../Traits/TraitsClasses/MappableTraits";
+import Icon from "../../../Styled/Icon";
 import CreateModel from "../../Definition/CreateModel";
 import createStratumInstance from "../../Definition/createStratumInstance";
 import LoadableStratum from "../../Definition/LoadableStratum";
@@ -31,6 +32,9 @@ import { BaseModel } from "../../Definition/Model";
 import StratumFromTraits from "../../Definition/StratumFromTraits";
 import StratumOrder from "../../Definition/StratumOrder";
 import Terria from "../../Terria";
+import { ViewingControl } from "../../ViewingControls";
+import { runWorkflow } from "../../Workflows/SelectableDimensionWorkflow";
+import TerrascopeAuthWorkflow from "../../Workflows/TerrascopeAuthWorkflow";
 import proxyCatalogItemUrl from "../proxyCatalogItemUrl";
 import {
   buildTerrascopeViewerUrl,
@@ -43,6 +47,13 @@ import {
   resolveStacHref,
   shouldForcePreviewForProtectedTerrascopeAsset
 } from "./stacAssetUtils";
+import {
+  canUseTerrascopeAuth,
+  getDefaultTerrascopeAuthConfig,
+  getTerrascopeAuthHeaders,
+  getTerrascopeAuthSession,
+  type TerrascopeAuthConfig
+} from "./TerrascopeAuth";
 
 /**
  * STAC Item JSON structure
@@ -247,7 +258,11 @@ class StacItemStratum extends LoadableStratum(StacItemCatalogItemTraits) {
             asset,
             resolvedAssetHref,
             catalogUrl: this.catalogItem.url,
-            terrascopeViewerUrl
+            terrascopeViewerUrl,
+            hasAuthenticatedSession:
+              this.catalogItem.hasAuthenticatedTerrascopeSession(
+                resolvedAssetHref
+              )
           });
 
           const authHint = assetAccessLink.requiresAuthentication
@@ -283,8 +298,13 @@ class StacItemStratum extends LoadableStratum(StacItemCatalogItemTraits) {
       throw new Error("STAC item URL is required");
     }
 
+    const itemHeaders = await getTerrascopeAuthHeaders(
+      catalogItem.terria,
+      catalogItem.url,
+      catalogItem.authConfig
+    );
     const itemUrl = proxyCatalogItemUrl(catalogItem, catalogItem.url);
-    const item = (await loadJson(itemUrl)) as StacItem;
+    const item = (await loadJson(itemUrl, itemHeaders)) as StacItem;
 
     if (item.type !== "Feature") {
       throw new Error("Invalid STAC item: type must be 'Feature'");
@@ -366,6 +386,62 @@ export default class StacItemCatalogItem extends UrlMixin(
   }
 
   @override
+  get viewingControls(): ViewingControl[] {
+    const controls = [...super.viewingControls];
+    if (!this.supportsTerrascopeAuthentication) {
+      return controls;
+    }
+
+    controls.push({
+      id: TerrascopeAuthWorkflow.type,
+      name: "Terrascope Login",
+      icon: { glyph: Icon.GLYPHS.lock },
+      onClick: (viewState) => {
+        const session = getTerrascopeAuthSession(
+          this.terria,
+          this.url,
+          this.authConfig
+        );
+        if (!session) return;
+
+        runWorkflow(
+          viewState,
+          new TerrascopeAuthWorkflow(this, {
+            connect: async ({ username, password }) => {
+              await session.loginWithPassword(username, password);
+              await this.refreshAfterAuthChange();
+            },
+            clear: async () => {
+              session.clear();
+              await this.refreshAfterAuthChange();
+            },
+            isAuthenticated: () => session.isAuthenticated,
+            getCurrentUsername: () => session.currentUsername
+          })
+        );
+      }
+    });
+
+    return controls;
+  }
+
+  @computed
+  get authConfig(): TerrascopeAuthConfig | undefined {
+    return getDefaultTerrascopeAuthConfig(this.url, {
+      mode: this.auth?.mode,
+      tokenUrl: this.auth?.tokenUrl,
+      clientId: this.auth?.clientId,
+      scope: this.auth?.scope,
+      tokenPersistence: this.auth?.tokenPersistence?.mode
+    });
+  }
+
+  @computed
+  get supportsTerrascopeAuthentication(): boolean {
+    return canUseTerrascopeAuth(this.url, this.authConfig);
+  }
+
+  @override
   get shortReport(): string | undefined {
     if (this._loadError) {
       return i18next.t("models.stac.loadError", { message: this._loadError });
@@ -384,10 +460,32 @@ export default class StacItemCatalogItem extends UrlMixin(
     });
   }
 
+  async refreshAfterAuthChange(): Promise<void> {
+    const stratum = await StacItemStratum.load(this);
+    runInAction(() => {
+      const existingProvider = this._imageryProvider as
+        | { destroy?: () => void }
+        | undefined;
+      existingProvider?.destroy?.();
+      this._imageryProvider = undefined;
+      this._stacStratum = stratum;
+      this.strata.set(StacItemStratum.stratumName, stratum);
+      this._loadError = undefined;
+    });
+
+    (await this.loadMapItems(true)).throwIfError();
+    this.terria.currentViewer.notifyRepaintRequired();
+  }
+
   @action
   protected async forceLoadMapItems(): Promise<void> {
     // Reset error state
     this._loadError = undefined;
+    const existingProvider = this._imageryProvider as
+      | { destroy?: () => void }
+      | undefined;
+    existingProvider?.destroy?.();
+    this._imageryProvider = undefined;
 
     const stratum = this._stacStratum;
     if (!stratum) {
@@ -413,7 +511,9 @@ export default class StacItemCatalogItem extends UrlMixin(
       shouldForcePreviewForProtectedTerrascopeAsset({
         asset: cogAsset,
         resolvedAssetHref: resolvedCogAssetHref,
-        catalogUrl: this.url
+        catalogUrl: this.url,
+        hasAuthenticatedSession:
+          this.hasAuthenticatedTerrascopeSession(resolvedCogAssetHref)
       });
 
     if (!cogAsset && !hasRenderablePreview) {
@@ -578,9 +678,12 @@ export default class StacItemCatalogItem extends UrlMixin(
       ]);
 
     const proxiedUrl = proxyCatalogItemUrl(this, url);
-
-    // Build render options from traits
     const renderOptions = this.buildRenderOptions();
+    const authHeaders = await getTerrascopeAuthHeaders(
+      this.terria,
+      url,
+      this.authConfig
+    );
 
     const imageryProvider = await runInAction(() =>
       TIFFImageryProvider.fromUrl(proxiedUrl, {
@@ -592,7 +695,12 @@ export default class StacItemCatalogItem extends UrlMixin(
         hasAlphaChannel: this.hasAlphaChannel,
         projFunc: this.reprojector(proj4),
         renderOptions:
-          Object.keys(renderOptions).length > 0 ? renderOptions : undefined
+          Object.keys(renderOptions).length > 0 ? renderOptions : undefined,
+        requestOptions: authHeaders
+          ? {
+              headers: authHeaders
+            }
+          : undefined
       })
     );
 
@@ -814,6 +922,11 @@ export default class StacItemCatalogItem extends UrlMixin(
     return options;
   }
 
+  hasAuthenticatedTerrascopeSession(url: string | undefined): boolean {
+    const session = getTerrascopeAuthSession(this.terria, url, this.authConfig);
+    return session?.isAuthenticated === true;
+  }
+
   @computed get mapItems(): MapItem[] {
     const result: MapItem[] = [];
 
@@ -839,8 +952,7 @@ export default class StacItemCatalogItem extends UrlMixin(
       result.push({
         show: this.show,
         alpha: this.opacity,
-        // @ts-expect-error - TIFFImageryProvider has a compatible runtime API but stricter TS typing than Cesium ImageryProvider
-        imageryProvider,
+        imageryProvider: imageryProvider as any,
         clippingRectangle
       });
     }

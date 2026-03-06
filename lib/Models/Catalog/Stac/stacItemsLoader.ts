@@ -38,6 +38,7 @@ interface StacItemsLoadOptions {
   requestTimeoutSeconds?: number;
   requestRetryAttempts?: number;
   requestRetryDelaySeconds?: number;
+  requestHeaders?: Record<string, string>;
 }
 
 type StacItemsQueryMode = "items" | "search";
@@ -144,10 +145,13 @@ export async function loadStacItems(
         request.method === "POST"
           ? loadJson(
               proxyCatalogItemUrl(catalogItem, request.url),
-              undefined,
+              options.requestHeaders,
               request.body
             )
-          : loadJson(proxyCatalogItemUrl(catalogItem, request.url)),
+          : loadJson(
+              proxyCatalogItemUrl(catalogItem, request.url),
+              options.requestHeaders
+            ),
       {
         retryAttempts,
         retryDelayMs,

@@ -179,7 +179,7 @@ describe("stacAssetUtils", function () {
     expect(hasValidCesiumRectangle(undefined)).toBe(false);
   });
 
-  it("routes authenticated Terrascope asset links to the viewer", function () {
+  it("routes unauthenticated protected Terrascope asset links to the viewer", function () {
     const accessLink = getStacAssetAccessLink({
       asset: {
         href: "https://services.terrascope.be/download/secure-data.tif",
@@ -197,6 +197,29 @@ describe("stacAssetUtils", function () {
     expect(accessLink.href).toBe("https://viewer.terrascope.be/?layer=test");
     expect(accessLink.requiresAuthentication).toBe(true);
     expect(accessLink.redirectsToTerrascopeLogin).toBe(true);
+  });
+
+  it("keeps direct protected Terrascope asset links when a session is already authenticated", function () {
+    const accessLink = getStacAssetAccessLink({
+      asset: {
+        href: "https://services.terrascope.be/download/secure-data.tif",
+        type: "image/tiff",
+        roles: ["data"],
+        "auth:refs": ["oidc"]
+      },
+      resolvedAssetHref:
+        "https://services.terrascope.be/download/secure-data.tif",
+      catalogUrl:
+        "https://stac.terrascope.be/collections/terrascope-s2-rhow-v1",
+      terrascopeViewerUrl: "https://viewer.terrascope.be/?layer=test",
+      hasAuthenticatedSession: true
+    });
+
+    expect(accessLink.href).toBe(
+      "https://services.terrascope.be/download/secure-data.tif"
+    );
+    expect(accessLink.requiresAuthentication).toBe(true);
+    expect(accessLink.redirectsToTerrascopeLogin).toBe(false);
   });
 
   it("keeps direct links for public assets", function () {
@@ -227,6 +250,21 @@ describe("stacAssetUtils", function () {
     });
 
     expect(shouldForcePreview).toBe(true);
+  });
+
+  it("does not force preview for protected Terrascope assets with an authenticated session", function () {
+    const shouldForcePreview = shouldForcePreviewForProtectedTerrascopeAsset({
+      asset: {
+        href: "https://services.terrascope.be/download/secure-data.tif",
+        "auth:refs": ["oidc"]
+      },
+      resolvedAssetHref:
+        "https://services.terrascope.be/download/secure-data.tif",
+      catalogUrl: "https://stac.terrascope.be/collections/terrascope-s2-chl-v1",
+      hasAuthenticatedSession: true
+    });
+
+    expect(shouldForcePreview).toBe(false);
   });
 
   it("does not force preview for protected non-Terrascope assets", function () {

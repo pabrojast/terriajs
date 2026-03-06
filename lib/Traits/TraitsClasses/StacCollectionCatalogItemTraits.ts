@@ -8,10 +8,12 @@ import { traitClass } from "../Trait";
 import mixTraits from "../mixTraits";
 import CatalogMemberTraits from "./CatalogMemberTraits";
 import { CogRenderOptionsTraits } from "./CogCatalogItemTraits";
+import DiscretelyTimeVaryingTraits from "./DiscretelyTimeVaryingTraits";
 import ImageryProviderTraits from "./ImageryProviderTraits";
 import LayerOrderingTraits from "./LayerOrderingTraits";
 import LegendOwnerTraits from "./LegendOwnerTraits";
 import MappableTraits from "./MappableTraits";
+import OidcAuthenticationTraits from "./OidcAuthenticationTraits";
 import UrlTraits from "./UrlTraits";
 
 /**
@@ -64,6 +66,40 @@ export class StacRenderTraits extends ModelTraits {
   rescale?: number[];
 }
 
+export class StacTimeSeriesTraits extends ModelTraits {
+  @primitiveTrait({
+    type: "boolean",
+    name: "Enable Time Series",
+    description:
+      "If true, load STAC items as a discrete time series and switch imagery by the active timeline date."
+  })
+  enabled = false;
+
+  @primitiveTrait({
+    type: "boolean",
+    name: "Enable Time Series Chart",
+    description:
+      "If true, clicking the map samples the active point across all STAC time steps and exposes `terria.timeSeries` in feature info."
+  })
+  chartEnabled = true;
+
+  @primitiveTrait({
+    type: "number",
+    name: "Provider Cache Size",
+    description:
+      "Number of recently used time-step imagery provider sets to keep cached."
+  })
+  providerCacheSize = 3;
+
+  @primitiveTrait({
+    type: "number",
+    name: "Value Band",
+    description:
+      "Optional 1-based band to use for feature-info time series values. Defaults to the active render band or the first returned sample."
+  })
+  valueBand?: number;
+}
+
 @traitClass({
   description:
     "Creates a catalog item from a STAC Collection. Supports rendering COG assets from STAC items.",
@@ -74,6 +110,7 @@ export class StacRenderTraits extends ModelTraits {
   }
 })
 export default class StacCollectionCatalogItemTraits extends mixTraits(
+  DiscretelyTimeVaryingTraits,
   ImageryProviderTraits,
   LayerOrderingTraits,
   UrlTraits,
@@ -111,6 +148,22 @@ export default class StacCollectionCatalogItemTraits extends mixTraits(
       "Configuration for rendering, can use STAC render extension or custom settings."
   })
   render?: StacRenderTraits;
+
+  @objectTrait({
+    type: OidcAuthenticationTraits,
+    name: "Authentication",
+    description:
+      "Authentication settings for protected STAC assets such as Terrascope downloads."
+  })
+  auth?: OidcAuthenticationTraits;
+
+  @objectTrait({
+    type: StacTimeSeriesTraits,
+    name: "Time Series",
+    description:
+      "Controls discrete time-series rendering and point sampling for STAC item stacks."
+  })
+  timeSeries?: StacTimeSeriesTraits;
 
   @objectTrait({
     type: CogRenderOptionsTraits,

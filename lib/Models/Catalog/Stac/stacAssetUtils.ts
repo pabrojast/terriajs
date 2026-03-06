@@ -26,12 +26,14 @@ interface StacAssetAccessLinkOptions {
   resolvedAssetHref?: string;
   catalogUrl?: string;
   terrascopeViewerUrl?: string;
+  hasAuthenticatedSession?: boolean;
 }
 
 interface StacPreviewPreferenceOptions {
   asset?: StacAssetLike;
   resolvedAssetHref?: string;
   catalogUrl?: string;
+  hasAuthenticatedSession?: boolean;
 }
 
 export function resolveStacHref(
@@ -240,7 +242,8 @@ export function getStacAssetAccessLink(options: StacAssetAccessLinkOptions): {
     shouldForcePreviewForProtectedTerrascopeAsset({
       asset: options.asset,
       resolvedAssetHref,
-      catalogUrl: options.catalogUrl
+      catalogUrl: options.catalogUrl,
+      hasAuthenticatedSession: options.hasAuthenticatedSession
     });
 
   return {
@@ -256,6 +259,7 @@ export function shouldForcePreviewForProtectedTerrascopeAsset(
   options: StacPreviewPreferenceOptions
 ): boolean {
   if (!isStacAssetAuthProtected(options.asset)) return false;
+  if (options.hasAuthenticatedSession) return false;
 
   return (
     isTerrascopeUrl(options.catalogUrl) ||

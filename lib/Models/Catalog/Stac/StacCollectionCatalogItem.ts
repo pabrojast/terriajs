@@ -7,6 +7,7 @@ import {
   onBecomeObserved,
   onBecomeUnobserved,
   override,
+  reaction,
   runInAction,
   untracked
 } from "mobx";
@@ -14,16 +15,23 @@ import CesiumMath from "terriajs-cesium/Source/Core/Math";
 import Rectangle from "terriajs-cesium/Source/Core/Rectangle";
 import Color from "terriajs-cesium/Source/Core/Color";
 import GeoJsonDataSource from "terriajs-cesium/Source/DataSources/GeoJsonDataSource";
+import ImageryLayerFeatureInfo from "terriajs-cesium/Source/Scene/ImageryLayerFeatureInfo";
 import SingleTileImageryProvider from "terriajs-cesium/Source/Scene/SingleTileImageryProvider";
 import type TIFFImageryProvider from "terriajs-tiff-imagery-provider";
 import isDefined from "../../../Core/isDefined";
 import loadJson from "../../../Core/loadJson";
 import CatalogMemberMixin from "../../../ModelMixins/CatalogMemberMixin";
+import DiscretelyTimeVaryingMixin, {
+  DiscreteTimeAsJS
+} from "../../../ModelMixins/DiscretelyTimeVaryingMixin";
 import MappableMixin, { MapItem } from "../../../ModelMixins/MappableMixin";
 import UrlMixin from "../../../ModelMixins/UrlMixin";
 import { InfoSectionTraits } from "../../../Traits/TraitsClasses/CatalogMemberTraits";
+import { FeatureInfoTemplateTraits } from "../../../Traits/TraitsClasses/FeatureInfoTraits";
 import StacCollectionCatalogItemTraits from "../../../Traits/TraitsClasses/StacCollectionCatalogItemTraits";
 import { RectangleTraits } from "../../../Traits/TraitsClasses/MappableTraits";
+import { csvFeatureInfoContext } from "../../../Table/tableFeatureInfoContext";
+import Icon from "../../../Styled/Icon";
 import CreateModel from "../../Definition/CreateModel";
 import createStratumInstance from "../../Definition/createStratumInstance";
 import LoadableStratum from "../../Definition/LoadableStratum";
@@ -31,6 +39,9 @@ import { BaseModel } from "../../Definition/Model";
 import StratumFromTraits from "../../Definition/StratumFromTraits";
 import StratumOrder from "../../Definition/StratumOrder";
 import Terria from "../../Terria";
+import { ViewingControl } from "../../ViewingControls";
+import { runWorkflow } from "../../Workflows/SelectableDimensionWorkflow";
+import TerrascopeAuthWorkflow from "../../Workflows/TerrascopeAuthWorkflow";
 import proxyCatalogItemUrl from "../proxyCatalogItemUrl";
 import {
   buildTerrascopeViewerUrl,
@@ -38,11 +49,19 @@ import {
   findStacPreviewAssets,
   getStacAssetAccessLink,
   hasValidCesiumRectangle,
+  isStacAssetAuthProtected,
   normalizeStacBbox,
   normalizeStacRawBbox,
   resolveStacHref,
   shouldForcePreviewForProtectedTerrascopeAsset
 } from "./stacAssetUtils";
+import {
+  canUseTerrascopeAuth,
+  getDefaultTerrascopeAuthConfig,
+  getTerrascopeAuthHeaders,
+  getTerrascopeAuthSession,
+  type TerrascopeAuthConfig
+} from "./TerrascopeAuth";
 import {
   loadStacItems,
   resolveStacItemsQueryMode,
@@ -173,6 +192,23 @@ interface StacPreviewCandidate {
   projectedBbox?: number[];
   projectedCode?: string;
 }
+
+interface StacTimeSeriesEntry {
+  time: string;
+  tag: string;
+  cogs: string[];
+  requiresAuthentication: boolean;
+}
+
+interface CachedProviderSet {
+  timeKey: string;
+  providers: TIFFImageryProvider[];
+  lastAccess: number;
+}
+
+const STAC_TIME_SERIES_PICK_FLAG = Symbol("stacTimeSeriesPickFlag");
+const STAC_TIME_SERIES_PICKER_FLAG = Symbol("stacTimeSeriesPickerFlag");
+const STAC_TIME_SERIES_ORIGINAL_PICK = Symbol("stacTimeSeriesOriginalPick");
 
 /**
  * Loadable stratum for STAC Collection
@@ -368,7 +404,11 @@ class StacCollectionStratum extends LoadableStratum(
             asset,
             resolvedAssetHref,
             catalogUrl: this.catalogItem.url,
-            terrascopeViewerUrl
+            terrascopeViewerUrl,
+            hasAuthenticatedSession:
+              this.catalogItem.hasAuthenticatedTerrascopeSession(
+                resolvedAssetHref
+              )
           });
 
           const authHint = assetAccessLink.requiresAuthentication
@@ -398,6 +438,22 @@ class StacCollectionStratum extends LoadableStratum(
     return info;
   }
 
+  @computed
+  get featureInfoTemplate():
+    | StratumFromTraits<FeatureInfoTemplateTraits>
+    | undefined {
+    if (!this.catalogItem.canUseTimeSeriesFeatureInfo) {
+      return undefined;
+    }
+
+    return createStratumInstance(FeatureInfoTemplateTraits, {
+      name: "{{name}}",
+      template:
+        "<h3>{{terria.timeSeries.title}}</h3>{{terria.timeSeries.chart}}",
+      showFeatureInfoDownloadWithTemplate: true
+    });
+  }
+
   static async load(
     catalogItem: StacCollectionCatalogItem
   ): Promise<StacCollectionStratum> {
@@ -405,8 +461,16 @@ class StacCollectionStratum extends LoadableStratum(
       throw new Error("STAC collection URL is required");
     }
 
+    const requestHeaders = await getTerrascopeAuthHeaders(
+      catalogItem.terria,
+      catalogItem.url,
+      catalogItem.authConfig
+    );
     const collectionUrl = proxyCatalogItemUrl(catalogItem, catalogItem.url);
-    const collection = (await loadJson(collectionUrl)) as StacCollection;
+    const collection = (await loadJson(
+      collectionUrl,
+      requestHeaders
+    )) as StacCollection;
 
     if (collection.type !== "Collection") {
       throw new Error("Invalid STAC collection: type must be 'Collection'");
@@ -429,7 +493,8 @@ class StacCollectionStratum extends LoadableStratum(
         itemsQueryMode: catalogItem.itemsQueryMode,
         requestTimeoutSeconds: catalogItem.requestTimeoutSeconds,
         requestRetryAttempts: catalogItem.requestRetryAttempts,
-        requestRetryDelaySeconds: catalogItem.requestRetryDelaySeconds
+        requestRetryDelaySeconds: catalogItem.requestRetryDelaySeconds,
+        requestHeaders
       }));
       const loadedItems = await loadStacItems(catalogItem, {
         collection,
@@ -454,8 +519,10 @@ StratumOrder.addLoadStratum(StacCollectionStratum.stratumName);
  * Loads collection metadata and renders COG assets from STAC items.
  */
 export default class StacCollectionCatalogItem extends UrlMixin(
-  MappableMixin(
-    CatalogMemberMixin(CreateModel(StacCollectionCatalogItemTraits))
+  DiscretelyTimeVaryingMixin(
+    MappableMixin(
+      CatalogMemberMixin(CreateModel(StacCollectionCatalogItemTraits))
+    )
   )
 ) {
   static readonly type = "stac-collection";
@@ -474,6 +541,7 @@ export default class StacCollectionCatalogItem extends UrlMixin(
   private _geoJsonDataSource: GeoJsonDataSource | undefined;
 
   private _proj4Promise: Promise<any> | undefined;
+  private _timeSeriesProviderCache: CachedProviderSet[] = [];
 
   /**
    * The reprojector function to use for reprojecting non native projections
@@ -490,15 +558,7 @@ export default class StacCollectionCatalogItem extends UrlMixin(
 
     // Destroy imagery providers when `mapItems` is no longer consumed
     onBecomeUnobserved(this, "mapItems", () => {
-      this._imageryProviders.forEach((provider) => {
-        const maybeDestroyable = provider as unknown as {
-          destroy?: () => void;
-        };
-        if (typeof maybeDestroyable.destroy === "function") {
-          maybeDestroyable.destroy();
-        }
-      });
-      this._imageryProviders = [];
+      this.destroyAllProviders();
     });
 
     // Re-create imagery providers if `mapItems` is consumed again
@@ -511,6 +571,19 @@ export default class StacCollectionCatalogItem extends UrlMixin(
         this.loadMapItems(true);
       }
     });
+
+    reaction(
+      () => this.currentDiscreteTimeTag,
+      () => {
+        if (
+          this.canUseTimeSeriesRendering &&
+          !this.isLoadingMapItems &&
+          this._stacStratum
+        ) {
+          void this.updateProvidersForCurrentTime();
+        }
+      }
+    );
   }
 
   get type() {
@@ -519,6 +592,141 @@ export default class StacCollectionCatalogItem extends UrlMixin(
 
   get typeName() {
     return i18next.t("models.stac.collectionName") || "STAC Collection";
+  }
+
+  @override
+  get viewingControls(): ViewingControl[] {
+    const controls = [...super.viewingControls];
+    if (!this.supportsTerrascopeAuthentication) {
+      return controls;
+    }
+
+    controls.push({
+      id: TerrascopeAuthWorkflow.type,
+      name: "Terrascope Login",
+      icon: { glyph: Icon.GLYPHS.lock },
+      onClick: (viewState) => {
+        const session = getTerrascopeAuthSession(
+          this.terria,
+          this.url,
+          this.authConfig
+        );
+        if (!session) return;
+
+        runWorkflow(
+          viewState,
+          new TerrascopeAuthWorkflow(this, {
+            connect: async ({ username, password }) => {
+              await session.loginWithPassword(username, password);
+              await this.refreshStacDataFromTraits();
+            },
+            clear: async () => {
+              session.clear();
+              await this.refreshStacDataFromTraits();
+            },
+            isAuthenticated: () => session.isAuthenticated,
+            getCurrentUsername: () => session.currentUsername
+          })
+        );
+      }
+    });
+
+    return controls;
+  }
+
+  @computed
+  get authConfig(): TerrascopeAuthConfig | undefined {
+    return getDefaultTerrascopeAuthConfig(this.url, {
+      mode: this.auth?.mode,
+      tokenUrl: this.auth?.tokenUrl,
+      clientId: this.auth?.clientId,
+      scope: this.auth?.scope,
+      tokenPersistence: this.auth?.tokenPersistence?.mode
+    });
+  }
+
+  @computed
+  get supportsTerrascopeAuthentication(): boolean {
+    return canUseTerrascopeAuth(this.url, this.authConfig);
+  }
+
+  @computed
+  get isTimeSeriesEnabled(): boolean {
+    return this.timeSeries?.enabled === true;
+  }
+
+  @computed
+  get timeSeriesEntries(): StacTimeSeriesEntry[] {
+    const stratum = this._stacStratum;
+    if (!stratum || stratum.items.length === 0) return [];
+
+    const grouped = new Map<string, StacTimeSeriesEntry>();
+    stratum.items.forEach((item) => {
+      const dateTime = this.getItemDateTime(item);
+      if (!dateTime) return;
+
+      const cogAsset = this.findCogAssetForItem(item, stratum.collection);
+      if (!cogAsset) return;
+
+      const resolvedHref =
+        resolveStacHref(cogAsset.href, this.url) ?? cogAsset.href;
+      const existing = grouped.get(dateTime);
+      if (existing) {
+        if (!existing.cogs.includes(resolvedHref)) {
+          existing.cogs.push(resolvedHref);
+        }
+        existing.requiresAuthentication =
+          existing.requiresAuthentication || isStacAssetAuthProtected(cogAsset);
+        return;
+      }
+
+      grouped.set(dateTime, {
+        time: dateTime,
+        tag: dateTime,
+        cogs: [resolvedHref],
+        requiresAuthentication: isStacAssetAuthProtected(cogAsset)
+      });
+    });
+
+    return Array.from(grouped.values()).sort((left, right) =>
+      left.time.localeCompare(right.time)
+    );
+  }
+
+  @override
+  @computed
+  get discreteTimes(): DiscreteTimeAsJS[] | undefined {
+    if (!this.canUseTimeSeriesRendering) return undefined;
+    if (this.timeSeriesEntries.length === 0) return undefined;
+    return this.timeSeriesEntries.map((entry) => ({
+      time: entry.time,
+      tag: entry.tag
+    }));
+  }
+
+  @computed
+  get hasProtectedTimeSeriesAssets(): boolean {
+    return this.timeSeriesEntries.some((entry) => entry.requiresAuthentication);
+  }
+
+  @computed
+  get canUseTimeSeriesRendering(): boolean {
+    if (!this.isTimeSeriesEnabled) return false;
+    if (this.timeSeriesEntries.length === 0) return false;
+    if (!this.hasProtectedTimeSeriesAssets) return true;
+
+    return this.timeSeriesEntries.some((entry) =>
+      entry.cogs.some((url) => this.hasAuthenticatedTerrascopeSession(url))
+    );
+  }
+
+  @computed
+  get canUseTimeSeriesFeatureInfo(): boolean {
+    return (
+      this.canUseTimeSeriesRendering &&
+      this.timeSeries?.chartEnabled !== false &&
+      this.allowFeaturePicking
+    );
   }
 
   @computed
@@ -533,6 +741,10 @@ export default class StacCollectionCatalogItem extends UrlMixin(
 
   @computed
   get stacLoadedDateTimes(): string[] {
+    if (this.timeSeriesEntries.length > 0) {
+      return this.timeSeriesEntries.map((entry) => entry.time);
+    }
+
     const items = this._stacStratum?.items;
     if (!items || items.length === 0) return [];
 
@@ -567,6 +779,7 @@ export default class StacCollectionCatalogItem extends UrlMixin(
     const stratum = await StacCollectionStratum.load(this);
 
     runInAction(() => {
+      this.destroyAllProviders();
       this._stacStratum = stratum;
       this.strata.set(StacCollectionStratum.stratumName, stratum);
       this._loadError = undefined;
@@ -599,7 +812,7 @@ export default class StacCollectionCatalogItem extends UrlMixin(
   protected async forceLoadMapItems(): Promise<void> {
     // Reset error state
     this._loadError = undefined;
-    this._imageryProviders = [];
+    this.destroyAllProviders();
 
     const stratum = this._stacStratum;
     if (!stratum) {
@@ -608,6 +821,18 @@ export default class StacCollectionCatalogItem extends UrlMixin(
 
     // Always create the geometry data source for the Collection bbox
     await this.createBboxDataSource(stratum);
+
+    if (this.canUseTimeSeriesRendering) {
+      try {
+        await this.updateProvidersForCurrentTime();
+        return;
+      } catch (error) {
+        runInAction(() => {
+          this._loadError =
+            error instanceof Error ? error.message : String(error);
+        });
+      }
+    }
 
     const cogAsset = this.findCogAsset(stratum);
     const resolvedCogAssetHref = cogAsset
@@ -633,7 +858,9 @@ export default class StacCollectionCatalogItem extends UrlMixin(
       shouldForcePreviewForProtectedTerrascopeAsset({
         asset: cogAsset,
         resolvedAssetHref: resolvedCogAssetHref,
-        catalogUrl: this.url
+        catalogUrl: this.url,
+        hasAuthenticatedSession:
+          this.hasAuthenticatedTerrascopeSession(resolvedCogAssetHref)
       });
 
     if (!cogAsset && !hasRenderablePreview) {
@@ -745,9 +972,6 @@ export default class StacCollectionCatalogItem extends UrlMixin(
     const bboxWidth = Math.abs(east - west);
     const bboxHeight = Math.abs(north - south);
     if (bboxWidth > 300 || bboxHeight > 150) {
-      console.log(
-        `Skipping bbox display for ${collection.id}: extent too large (${bboxWidth}° x ${bboxHeight}°)`
-      );
       return;
     }
 
@@ -856,10 +1080,6 @@ export default class StacCollectionCatalogItem extends UrlMixin(
       runInAction(() => {
         this._geoJsonDataSource = dataSource;
       });
-
-      console.log(
-        `Loaded ${features.length} item geometries for ${collection.id}`
-      );
     } catch (error) {
       console.warn("Failed to load STAC items geometry:", error);
     }
@@ -907,14 +1127,40 @@ export default class StacCollectionCatalogItem extends UrlMixin(
       return undefined;
     }
 
-    // Determine which asset to use
+    return this.findCogAssetForItem(item, collection, withAuthRefs);
+  }
+
+  private findCogAssetForItem(
+    item: StacItem,
+    collection: StacCollection,
+    withAuthRefs: (
+      key: string,
+      href: string
+    ) => {
+      key: string;
+      href: string;
+      "auth:refs"?: string[];
+    } = (key, href) => ({
+      key,
+      href,
+      "auth:refs":
+        item.assets[key]?.["auth:refs"] ??
+        collection.item_assets?.[key]?.["auth:refs"] ??
+        collection.assets?.[key]?.["auth:refs"]
+    })
+  ):
+    | {
+        key: string;
+        href: string;
+        "auth:refs"?: string[];
+      }
+    | undefined {
     const assetKey = this.asset?.assetKey;
 
     if (assetKey && item.assets[assetKey]?.href) {
       return withAuthRefs(assetKey, item.assets[assetKey].href);
     }
 
-    // Try to find asset from renders extension
     const renderKey = this.render?.renderKey;
     if (renderKey && collection.renders?.[renderKey]) {
       const render = collection.renders[renderKey];
@@ -924,7 +1170,6 @@ export default class StacCollectionCatalogItem extends UrlMixin(
       }
     }
 
-    // Try first render if available
     if (collection.renders) {
       const firstRenderEntry = Object.entries(collection.renders)[0];
       if (firstRenderEntry) {
@@ -936,7 +1181,6 @@ export default class StacCollectionCatalogItem extends UrlMixin(
       }
     }
 
-    // Find first COG asset
     const cogAssetEntry = Object.entries(item.assets).find(
       ([, asset]) =>
         asset.type?.includes("geotiff") ||
@@ -957,8 +1201,6 @@ export default class StacCollectionCatalogItem extends UrlMixin(
   private async createImageryProvider(
     url: string
   ): Promise<TIFFImageryProvider> {
-    console.log(`STAC: Loading COG from: ${url}`);
-
     const [{ default: TIFFImageryProvider }, { default: proj4 }] =
       await Promise.all([
         import("terriajs-tiff-imagery-provider"),
@@ -966,37 +1208,253 @@ export default class StacCollectionCatalogItem extends UrlMixin(
       ]);
 
     const proxiedUrl = proxyCatalogItemUrl(this, url);
-    console.log(`STAC: Proxied URL: ${proxiedUrl}`);
-
-    // Build render options from traits
     const renderOptions = this.buildRenderOptions();
-    console.log(`STAC: Render options:`, renderOptions);
+    const authHeaders = await getTerrascopeAuthHeaders(
+      this.terria,
+      url,
+      this.authConfig
+    );
 
-    try {
-      const imageryProvider = await runInAction(() =>
-        TIFFImageryProvider.fromUrl(proxiedUrl, {
-          credit: this.credit,
-          tileSize: this.tileSize,
-          maximumLevel: this.maximumLevel,
-          minimumLevel: this.minimumLevel,
-          enablePickFeatures: this.allowFeaturePicking,
-          hasAlphaChannel: this.hasAlphaChannel,
-          projFunc: this.reprojector(proj4),
-          renderOptions:
-            Object.keys(renderOptions).length > 0 ? renderOptions : undefined
-        })
-      );
+    return runInAction(() =>
+      TIFFImageryProvider.fromUrl(proxiedUrl, {
+        credit: this.credit,
+        tileSize: this.tileSize,
+        maximumLevel: this.maximumLevel,
+        minimumLevel: this.minimumLevel,
+        enablePickFeatures: this.allowFeaturePicking,
+        hasAlphaChannel: this.hasAlphaChannel,
+        projFunc: this.reprojector(proj4),
+        renderOptions:
+          Object.keys(renderOptions).length > 0 ? renderOptions : undefined,
+        requestOptions: authHeaders
+          ? {
+              headers: authHeaders
+            }
+          : undefined
+      })
+    );
+  }
 
-      console.log(`STAC: COG loaded successfully`);
-      return imageryProvider;
-    } catch (error) {
-      console.error(`STAC: Failed to load COG from ${url}:`, error);
-      throw new Error(
-        `Failed to load STAC imagery: ${
-          error instanceof Error ? error.message : String(error)
-        }`
-      );
+  private async updateProvidersForCurrentTime(): Promise<void> {
+    const currentTime = this.currentDiscreteTimeTag;
+    if (!currentTime) {
+      runInAction(() => {
+        this._imageryProviders = [];
+      });
+      return;
     }
+
+    const providers = await this.getProvidersForTime(currentTime);
+    const validProviders = providers.filter((provider) =>
+      this.hasValidImageryProviderRectangle(provider)
+    );
+    this.decorateTimeSeriesProviders(validProviders);
+    runInAction(() => {
+      this._imageryProviders = validProviders;
+    });
+  }
+
+  private async getProvidersForTime(
+    timeKey: string
+  ): Promise<TIFFImageryProvider[]> {
+    const cached = this._timeSeriesProviderCache.find(
+      (entry) => entry.timeKey === timeKey
+    );
+    if (cached) {
+      cached.lastAccess = Date.now();
+      return cached.providers;
+    }
+
+    const entry = this.timeSeriesEntries.find(
+      (candidate) => candidate.time === timeKey || candidate.tag === timeKey
+    );
+    if (!entry) return [];
+
+    const providers = await Promise.all(
+      entry.cogs.map((url) => this.createImageryProvider(url))
+    );
+    const validProviders = providers.filter((provider) =>
+      this.hasValidImageryProviderRectangle(provider)
+    );
+    this._timeSeriesProviderCache.push({
+      timeKey,
+      providers: validProviders,
+      lastAccess: Date.now()
+    });
+    this.trimTimeSeriesProviderCache();
+    return validProviders;
+  }
+
+  private trimTimeSeriesProviderCache(): void {
+    const maxSize = Math.max(1, this.timeSeries?.providerCacheSize ?? 3);
+    if (this._timeSeriesProviderCache.length <= maxSize) {
+      return;
+    }
+
+    this._timeSeriesProviderCache.sort(
+      (left, right) => left.lastAccess - right.lastAccess
+    );
+
+    while (this._timeSeriesProviderCache.length > maxSize) {
+      const removed = this._timeSeriesProviderCache.shift();
+      removed?.providers.forEach((provider) => provider.destroy());
+    }
+  }
+
+  private decorateTimeSeriesProviders(providers: TIFFImageryProvider[]): void {
+    providers.forEach((provider, index) => {
+      const providerWithFlags = provider as unknown as {
+        [STAC_TIME_SERIES_PICK_FLAG]?: boolean;
+        [STAC_TIME_SERIES_PICKER_FLAG]?: boolean;
+        [STAC_TIME_SERIES_ORIGINAL_PICK]?:
+          | TIFFImageryProvider["pickFeatures"]
+          | undefined;
+      };
+
+      providerWithFlags[STAC_TIME_SERIES_PICKER_FLAG] = index === 0;
+      if (providerWithFlags[STAC_TIME_SERIES_PICK_FLAG]) return;
+      providerWithFlags[STAC_TIME_SERIES_PICK_FLAG] = true;
+
+      const originalPickFeatures = provider.pickFeatures?.bind(provider);
+      if (!originalPickFeatures) return;
+      providerWithFlags[STAC_TIME_SERIES_ORIGINAL_PICK] = originalPickFeatures;
+
+      provider.pickFeatures = async (
+        x: number,
+        y: number,
+        level: number,
+        longitude: number,
+        latitude: number
+      ): Promise<ImageryLayerFeatureInfo[]> => {
+        if (!(provider as any)[STAC_TIME_SERIES_PICKER_FLAG]) {
+          return [];
+        }
+
+        const features =
+          (await originalPickFeatures(x, y, level, longitude, latitude)) ?? [];
+
+        if (!this.canUseTimeSeriesFeatureInfo) {
+          return features;
+        }
+
+        try {
+          const csv = await this.buildPointTimeSeriesCsv(
+            x,
+            y,
+            level,
+            longitude,
+            latitude
+          );
+          if (!csv) return features;
+
+          const feature = features[0] ?? new ImageryLayerFeatureInfo();
+          feature.name =
+            this.name ?? this.stacCollectionId ?? "STAC Collection";
+          feature.data = csv;
+          feature.properties = {
+            ...(feature.properties ?? {}),
+            currentTime: this.currentDiscreteTimeTag
+          } as any;
+
+          return [feature];
+        } catch {
+          return features;
+        }
+      };
+    });
+  }
+
+  private async buildPointTimeSeriesCsv(
+    x: number,
+    y: number,
+    level: number,
+    longitude: number,
+    latitude: number
+  ): Promise<string | undefined> {
+    const rows = ["time,value"];
+
+    for (const entry of this.timeSeriesEntries) {
+      const providers = await this.getProvidersForTime(entry.time);
+      const sample = await this.sampleProvidersAtLocation(
+        providers,
+        x,
+        y,
+        level,
+        longitude,
+        latitude
+      );
+      if (sample !== undefined) {
+        rows.push(`${entry.time},${sample}`);
+      }
+    }
+
+    return rows.length > 1 ? rows.join("\n") : undefined;
+  }
+
+  private async sampleProvidersAtLocation(
+    providers: TIFFImageryProvider[],
+    x: number,
+    y: number,
+    level: number,
+    longitude: number,
+    latitude: number
+  ): Promise<number | undefined> {
+    for (const provider of providers) {
+      const rawPickFeatures = (provider as any)[
+        STAC_TIME_SERIES_ORIGINAL_PICK
+      ] as TIFFImageryProvider["pickFeatures"] | undefined;
+      const features = await rawPickFeatures?.(
+        x,
+        y,
+        level,
+        longitude,
+        latitude
+      );
+      const value = this.extractValueFromPickedFeatures(provider, features);
+      if (value !== undefined) {
+        return value;
+      }
+    }
+    return undefined;
+  }
+
+  private extractValueFromPickedFeatures(
+    provider: TIFFImageryProvider,
+    features: ImageryLayerFeatureInfo[] | undefined
+  ): number | undefined {
+    const data = features?.[0]?.data;
+    if (!data || typeof data !== "object") return undefined;
+
+    const valueBand =
+      this.timeSeries?.valueBand ?? this.renderOptions?.single?.band;
+    if (typeof valueBand === "number") {
+      const sampleIndex = this.getSampleIndexForBand(provider, valueBand);
+      const candidate = (data as Record<string, unknown>)[String(sampleIndex)];
+      if (typeof candidate === "number" && !Number.isNaN(candidate)) {
+        return candidate;
+      }
+    }
+
+    for (const value of Object.values(data as Record<string, unknown>)) {
+      if (typeof value === "number" && !Number.isNaN(value)) {
+        return value;
+      }
+    }
+
+    return undefined;
+  }
+
+  private getSampleIndexForBand(
+    provider: TIFFImageryProvider,
+    band?: number
+  ): number {
+    const samples = (provider as any).readSamples;
+    const zeroBased = (band ?? 1) - 1;
+    if (Array.isArray(samples)) {
+      const index = samples.indexOf(zeroBased);
+      if (index >= 0) return index;
+    }
+    return 0;
   }
 
   /**
@@ -1149,27 +1607,30 @@ export default class StacCollectionCatalogItem extends UrlMixin(
 
     for (let i = 0; i < previewCandidates.length; i += requestNumberLimit) {
       const chunk = previewCandidates.slice(i, i + requestNumberLimit);
-      const chunkProviders = await Promise.all(
-        chunk.map(async (candidate) => {
-          try {
-            const candidateBbox = await this.resolvePreviewCandidateBbox(
-              candidate
-            );
-            return await this.createPreviewImageryProvider(
-              candidate.hrefs,
-              candidateBbox,
-              credit,
-              cacheDuration
-            );
-          } catch (error) {
-            console.warn("Failed to load STAC preview image:", error);
-            return undefined;
-          }
-        })
+      const chunkProviders: Array<SingleTileImageryProvider | undefined> =
+        await Promise.all(
+          chunk.map(async (candidate) => {
+            try {
+              const candidateBbox = await this.resolvePreviewCandidateBbox(
+                candidate
+              );
+              return await this.createPreviewImageryProvider(
+                candidate.hrefs,
+                candidateBbox,
+                credit,
+                cacheDuration
+              );
+            } catch (error) {
+              console.warn("Failed to load STAC preview image:", error);
+              return undefined;
+            }
+          })
+        );
+      chunkProviders.forEach(
+        (provider: SingleTileImageryProvider | undefined) => {
+          if (provider) imageryProviders.push(provider);
+        }
       );
-      chunkProviders.forEach((provider) => {
-        if (provider) imageryProviders.push(provider);
-      });
     }
 
     return imageryProviders;
@@ -1430,6 +1891,39 @@ export default class StacCollectionCatalogItem extends UrlMixin(
     return mappings[name.toLowerCase()] || name;
   }
 
+  @computed
+  get featureInfoContext() {
+    return this.canUseTimeSeriesFeatureInfo
+      ? csvFeatureInfoContext(this)
+      : () => ({});
+  }
+
+  hasAuthenticatedTerrascopeSession(url: string | undefined): boolean {
+    const session = getTerrascopeAuthSession(this.terria, url, this.authConfig);
+    return session?.isAuthenticated === true;
+  }
+
+  private destroyAllProviders(): void {
+    const allProviders = new Set<
+      TIFFImageryProvider | SingleTileImageryProvider
+    >();
+    this._imageryProviders.forEach((provider) => allProviders.add(provider));
+    this._timeSeriesProviderCache.forEach((entry) =>
+      entry.providers.forEach((provider) => allProviders.add(provider))
+    );
+
+    allProviders.forEach((provider) => {
+      const maybeDestroyable = provider as unknown as {
+        destroy?: () => void;
+      };
+      if (typeof maybeDestroyable.destroy === "function") {
+        maybeDestroyable.destroy();
+      }
+    });
+    this._imageryProviders = [];
+    this._timeSeriesProviderCache = [];
+  }
+
   @computed get mapItems(): MapItem[] {
     const result: MapItem[] = [];
 
@@ -1455,8 +1949,7 @@ export default class StacCollectionCatalogItem extends UrlMixin(
       result.push({
         show: this.show,
         alpha: this.opacity,
-        // @ts-expect-error - TIFFImageryProvider has a compatible runtime API but stricter TS typing than Cesium ImageryProvider
-        imageryProvider,
+        imageryProvider: imageryProvider as any,
         clippingRectangle
       });
     });

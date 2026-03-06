@@ -4,13 +4,12 @@ import ModelTraits from "../ModelTraits";
 import { traitClass } from "../Trait";
 import mixTraits from "../mixTraits";
 import CatalogMemberTraits from "./CatalogMemberTraits";
-import {
-  CogRenderOptionsTraits
-} from "./CogCatalogItemTraits";
+import { CogRenderOptionsTraits } from "./CogCatalogItemTraits";
 import ImageryProviderTraits from "./ImageryProviderTraits";
 import LayerOrderingTraits from "./LayerOrderingTraits";
 import LegendOwnerTraits from "./LegendOwnerTraits";
 import MappableTraits from "./MappableTraits";
+import OidcAuthenticationTraits from "./OidcAuthenticationTraits";
 import UrlTraits from "./UrlTraits";
 
 /**
@@ -73,6 +72,14 @@ export default class StacItemCatalogItemTraits extends mixTraits(
       "Render options for the underlying COG imagery provider. These settings are passed directly to the COG renderer."
   })
   renderOptions?: CogRenderOptionsTraits;
+
+  @objectTrait({
+    type: OidcAuthenticationTraits,
+    name: "Authentication",
+    description:
+      "Authentication settings for protected STAC assets such as Terrascope downloads."
+  })
+  auth?: OidcAuthenticationTraits;
 
   @primitiveTrait({
     type: "string",

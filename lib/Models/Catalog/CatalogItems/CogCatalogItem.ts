@@ -53,13 +53,10 @@ class CogLoadableStratum extends LoadableStratum(CogCatalogItemTraits) {
       ? // Warn for 2D mode
         i18next.t("models.commonModelErrors.3dTypeIn2dMode", this)
       : this.model._imageryProvider?.tilingScheme &&
-          // Show warning for experimental reprojection feature if not using EPSG 3857 or 4326
-          isCustomTilingScheme(this.model._imageryProvider?.tilingScheme)
-        ? i18next.t(
-            "models.cogCatalogItem.experimentalReprojectionWarning",
-            this
-          )
-        : undefined;
+        // Show warning for experimental reprojection feature if not using EPSG 3857 or 4326
+        isCustomTilingScheme(this.model._imageryProvider?.tilingScheme)
+      ? i18next.t("models.cogCatalogItem.experimentalReprojectionWarning", this)
+      : undefined;
   }
 
   @computed
@@ -226,12 +223,7 @@ export default class CogCatalogItem extends MappableMixin(
       {
         show: this.show,
         alpha: this.opacity,
-        // The 'requestImage' method in Cesium's ImageryProvider has a return type that is stricter than necessary.
-        // In our custom ImageryProvider, we return ImageData, which is also a valid return type.
-        // However, since the current Cesium type definitions do not reflect this flexibility, we use a TypeScript ignore comment ('@ts-ignore')
-        // to suppress the type checking error. This is a temporary solution until the type definitions in Cesium are updated to accommodate ImageData.
-        // @ts-expect-error - The return type of 'requestImage' method in our custom ImageryProvider can be ImageData, which is not currently allowed in Cesium's type definitions, but is fine.
-        imageryProvider,
+        imageryProvider: imageryProvider as any,
         clippingRectangle: this.cesiumRectangle
       }
     ];
@@ -313,8 +305,6 @@ export default class CogCatalogItem extends MappableMixin(
     if (Object.keys(singleRenderOptions).length > 0) {
       renderOptions.single = singleRenderOptions;
     }
-
-    console.log("COG renderOptions being passed:", JSON.stringify(renderOptions, null, 2));
 
     if (this.renderOptions.nodata !== undefined) {
       renderOptions.nodata = this.renderOptions.nodata;
@@ -492,8 +482,8 @@ export default class CogCatalogItem extends MappableMixin(
             isNoDataValue(band[i], imageryProvider.noData)
           )
         : singleBandData
-          ? isNoDataValue(singleBandData[i], imageryProvider.noData)
-          : false;
+        ? isNoDataValue(singleBandData[i], imageryProvider.noData)
+        : false;
 
       if (isNoDataPixel) {
         setPixelColor(buffer, i, color);

@@ -10,6 +10,7 @@ export const SelectableDimensionText: FC<{
 }> = ({ id, dim }) => {
   return (
     <Input
+      type={dim.inputType ?? "text"}
       styledHeight={"34px"}
       light
       border

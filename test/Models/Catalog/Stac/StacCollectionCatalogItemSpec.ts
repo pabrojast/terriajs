@@ -1,6 +1,7 @@
 import Terria from "../../../../lib/Models/Terria";
 import StacCollectionCatalogItem from "../../../../lib/Models/Catalog/Stac/StacCollectionCatalogItem";
 import CommonStrata from "../../../../lib/Models/Definition/CommonStrata";
+import { getTerrascopeAuthSession } from "../../../../lib/Models/Catalog/Stac/TerrascopeAuth";
 
 // Sample STAC Collection JSON for testing
 const _SAMPLE_STAC_COLLECTION = {
@@ -199,6 +200,30 @@ describe("StacCollectionCatalogItem", function () {
       });
       expect(item.render?.renderKey).toBe("chl");
       expect(item.render?.colormapName).toBe("viridis");
+    });
+
+    it("can set auth configuration", function () {
+      item.setTrait(CommonStrata.user, "auth", {
+        mode: "oidc_password",
+        tokenUrl: "https://sso.example.com/token",
+        clientId: "public"
+      });
+      expect(item.auth?.mode).toBe("oidc_password");
+      expect(item.auth?.tokenUrl).toBe("https://sso.example.com/token");
+      expect(item.auth?.clientId).toBe("public");
+    });
+
+    it("can set timeSeries configuration", function () {
+      item.setTrait(CommonStrata.user, "timeSeries", {
+        enabled: true,
+        chartEnabled: true,
+        providerCacheSize: 5,
+        valueBand: 2
+      });
+      expect(item.timeSeries?.enabled).toBe(true);
+      expect(item.timeSeries?.chartEnabled).toBe(true);
+      expect(item.timeSeries?.providerCacheSize).toBe(5);
+      expect(item.timeSeries?.valueBand).toBe(2);
     });
   });
 
@@ -401,6 +426,179 @@ describe("StacCollectionCatalogItem", function () {
 
       const mapItems = item.mapItems;
       expect(mapItems.length).toBe(0);
+    });
+
+    it("groups STAC items into discrete time-series steps", function () {
+      item.setTrait(
+        CommonStrata.user,
+        "url",
+        "https://example.com/collections/test-collection"
+      );
+      item.setTrait(CommonStrata.user, "timeSeries", {
+        enabled: true,
+        chartEnabled: true
+      });
+
+      (item as any)._stacStratum = {
+        collection: _SAMPLE_STAC_COLLECTION,
+        items: [
+          {
+            id: "item-1",
+            properties: { datetime: "2026-01-01T00:00:00Z" },
+            assets: {
+              data: {
+                href: "https://example.com/a-1.tif",
+                type: "image/tiff",
+                roles: ["data"]
+              },
+              preview: {
+                href: "https://example.com/a-1.png",
+                type: "image/png",
+                roles: ["thumbnail"]
+              }
+            }
+          },
+          {
+            id: "item-2",
+            properties: { datetime: "2026-01-01T00:00:00Z" },
+            assets: {
+              data: {
+                href: "https://example.com/a-2.tif",
+                type: "image/tiff",
+                roles: ["data"]
+              }
+            }
+          },
+          {
+            id: "item-3",
+            properties: { datetime: "2026-01-02T00:00:00Z" },
+            assets: {
+              data: {
+                href: "https://example.com/b-1.tif",
+                type: "image/tiff",
+                roles: ["data"]
+              }
+            }
+          }
+        ]
+      } as any;
+
+      expect(item.timeSeriesEntries).toEqual([
+        {
+          time: "2026-01-01T00:00:00Z",
+          tag: "2026-01-01T00:00:00Z",
+          cogs: ["https://example.com/a-1.tif", "https://example.com/a-2.tif"],
+          requiresAuthentication: false
+        },
+        {
+          time: "2026-01-02T00:00:00Z",
+          tag: "2026-01-02T00:00:00Z",
+          cogs: ["https://example.com/b-1.tif"],
+          requiresAuthentication: false
+        }
+      ]);
+      expect(item.discreteTimes).toEqual([
+        {
+          time: "2026-01-01T00:00:00Z",
+          tag: "2026-01-01T00:00:00Z"
+        },
+        {
+          time: "2026-01-02T00:00:00Z",
+          tag: "2026-01-02T00:00:00Z"
+        }
+      ]);
+      expect(item.canUseTimeSeriesRendering).toBe(true);
+    });
+
+    it("requires an authenticated Terrascope session before enabling protected time-series rendering", function () {
+      const terrascopeUrl =
+        "https://stac.terrascope.be/collections/terrascope-s2-chl-v1";
+      item.setTrait(CommonStrata.user, "url", terrascopeUrl);
+      item.setTrait(CommonStrata.user, "timeSeries", {
+        enabled: true,
+        chartEnabled: true
+      });
+      (item as any)._stacStratum = {
+        collection: _SAMPLE_STAC_COLLECTION,
+        items: [
+          {
+            id: "protected-item",
+            properties: { datetime: "2026-01-01T00:00:00Z" },
+            assets: {
+              data: {
+                href: "https://services.terrascope.be/download/protected.tif",
+                type: "image/tiff",
+                roles: ["data"],
+                "auth:refs": ["oidc"]
+              }
+            }
+          }
+        ]
+      } as any;
+
+      expect(item.canUseTimeSeriesRendering).toBe(false);
+      expect(item.discreteTimes).toBeUndefined();
+
+      const session = getTerrascopeAuthSession(
+        terria,
+        "https://services.terrascope.be/download/protected.tif",
+        item.authConfig
+      )!;
+      (session as any).accessToken = "test-access-token";
+      session.headers.Authorization = "Bearer test-access-token";
+
+      const authenticatedItem = new StacCollectionCatalogItem(
+        "test-stac-authenticated",
+        terria
+      );
+      authenticatedItem.setTrait(CommonStrata.user, "url", terrascopeUrl);
+      authenticatedItem.setTrait(CommonStrata.user, "timeSeries", {
+        enabled: true,
+        chartEnabled: true
+      });
+      (authenticatedItem as any)._stacStratum = (item as any)._stacStratum;
+
+      expect(authenticatedItem.canUseTimeSeriesRendering).toBe(true);
+      expect(authenticatedItem.discreteTimes?.length).toBe(1);
+
+      session.clear();
+    });
+
+    it("builds time-series feature info context from CSV data", function () {
+      item.setTrait(
+        CommonStrata.user,
+        "url",
+        "https://example.com/collections/test-collection"
+      );
+      item.setTrait(CommonStrata.user, "timeSeries", {
+        enabled: true,
+        chartEnabled: true
+      });
+      (item as any)._stacStratum = {
+        collection: _SAMPLE_STAC_COLLECTION,
+        items: [
+          {
+            id: "item-1",
+            properties: { datetime: "2026-01-01T00:00:00Z" },
+            assets: {
+              data: {
+                href: "https://example.com/a-1.tif",
+                type: "image/tiff",
+                roles: ["data"]
+              }
+            }
+          }
+        ]
+      } as any;
+
+      const context = item.featureInfoContext({
+        id: "feature-1",
+        data: "time,value\n2026-01-01T00:00:00Z,1"
+      } as any);
+
+      expect(context.terria?.timeSeries?.data).toBe(
+        "time,value\n2026-01-01T00:00:00Z,1"
+      );
     });
   });
 });

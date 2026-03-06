@@ -44,6 +44,7 @@ export interface NumericalDimension extends Dimension {
 export interface TextDimension extends Dimension {
   readonly value?: string;
   readonly allowUndefined?: boolean;
+  readonly inputType?: "text" | "password";
 }
 
 export interface ColorDimension extends Dimension {
