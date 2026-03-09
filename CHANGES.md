@@ -3,6 +3,7 @@
 #### next release (8.9.6)
 
 - **Breaking changes:**
+
   - Update `protomaps-leafet` package to 5.0.1 which only support protomaps basempap tileset >v4.0
     - See [protomaps leaflet CHANGELOG](https://github.com/protomaps/protomaps-leaflet/blob/main/CHANGELOG.md#500).
   - Update react and react-dom to version 18
@@ -12,6 +13,7 @@
 - Add support for **STAC (SpatioTemporal Asset Catalog)** with two new catalog types:
   - `stac-collection`: Load and visualize individual STAC Collections with COG assets as imagery layers. Supports the STAC render extension for styling, temporal and spatial filtering, and automatic metadata extraction.
   - `stac-catalog`: Browse STAC Catalogs and APIs, listing all available collections as navigable children.
+- Fix STAC `sortBy` handling: automatically route to the `/search` endpoint when sorting is configured (the STAC Sort Extension is not supported on `/items` by many servers), and use the correct STAC Sort Extension array format in POST requests instead of a plain string.
 - Fix a bug where `.pmtiles` urls with a query string at the end was not being rendered as PMTILES.
 - Add `MapboxSearchProvider` for geocoding using Mapbox.
 - Upgrade yarn to 1.22.22
@@ -90,6 +92,7 @@
 
 - **Breaking changes:**
 - Major changes to UI
+
   - Changed workbench and bottom dock to absolute positioned over map with transparent background
   - Generally increase padding and font sizes to improve readability
   - Generally use a darker default theme
@@ -204,6 +207,7 @@
 #### 8.7.7 - 2024-10-01
 
 - **Breaking changes:**
+
   - Remove RollbarErrorServiceProvder
   - Error services now instantiated externally to terriajs
 

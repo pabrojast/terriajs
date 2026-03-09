@@ -1,6 +1,7 @@
 import {
   buildStacItemsGetUrl,
   buildStacSearchBody,
+  parseSortByString,
   resolveStacItemsQueryMode,
   resolveStacSearchUrl
 } from "../../../../lib/Models/Catalog/Stac/stacItemsLoader";
@@ -24,6 +25,21 @@ describe("stacItemsLoader", function () {
       itemsQueryMode: "search"
     });
     expect(mode).toBe("search");
+  });
+
+  it("uses search mode when sortBy is set in auto mode", function () {
+    const mode = resolveStacItemsQueryMode({
+      sortBy: "-datetime"
+    });
+    expect(mode).toBe("search");
+  });
+
+  it("uses explicit items mode even when sortBy is set", function () {
+    const mode = resolveStacItemsQueryMode({
+      itemsQueryMode: "items",
+      sortBy: "-datetime"
+    });
+    expect(mode).toBe("items");
   });
 
   it("builds items GET URL with filters and additional params", function () {
@@ -59,6 +75,62 @@ describe("stacItemsLoader", function () {
     expect(body.filter).toBe("eo:cloud_cover < 20");
     expect(body["filter-lang"]).toBe("cql2-text");
     expect(body.bbox).toEqual([4.0, 50.0, 5.0, 51.0]);
+  });
+
+  it("builds search body with sortby in STAC Sort Extension format", function () {
+    const body = buildStacSearchBody({
+      collectionId: "terrascope-s2-chl-v1",
+      limit: 12,
+      sortBy: "-datetime"
+    });
+
+    expect(body.sortby).toEqual([
+      { field: "properties.datetime", direction: "desc" }
+    ]);
+  });
+
+  it("builds search body with multiple sortby fields", function () {
+    const body = buildStacSearchBody({
+      collectionId: "test",
+      limit: 10,
+      sortBy: "-datetime,+eo:cloud_cover"
+    });
+
+    expect(body.sortby).toEqual([
+      { field: "properties.datetime", direction: "desc" },
+      { field: "properties.eo:cloud_cover", direction: "asc" }
+    ]);
+  });
+
+  it("parseSortByString handles descending shorthand", function () {
+    expect(parseSortByString("-datetime")).toEqual([
+      { field: "properties.datetime", direction: "desc" }
+    ]);
+  });
+
+  it("parseSortByString handles ascending shorthand", function () {
+    expect(parseSortByString("+datetime")).toEqual([
+      { field: "properties.datetime", direction: "asc" }
+    ]);
+  });
+
+  it("parseSortByString defaults to ascending", function () {
+    expect(parseSortByString("datetime")).toEqual([
+      { field: "properties.datetime", direction: "asc" }
+    ]);
+  });
+
+  it("parseSortByString preserves top-level STAC fields without prefix", function () {
+    expect(parseSortByString("-id,+collection")).toEqual([
+      { field: "id", direction: "desc" },
+      { field: "collection", direction: "asc" }
+    ]);
+  });
+
+  it("parseSortByString preserves existing properties. prefix", function () {
+    expect(parseSortByString("-properties.datetime")).toEqual([
+      { field: "properties.datetime", direction: "desc" }
+    ]);
   });
 
   it("resolves STAC search URL from collection links", function () {

@@ -77,7 +77,8 @@ export async function loadStacItems(
   const queryMode = resolveStacItemsQueryMode({
     itemsQueryMode: options.itemsQueryMode,
     filterExpression: options.filterExpression,
-    intersectsGeometry: options.intersectsGeometry
+    intersectsGeometry: options.intersectsGeometry,
+    sortBy: options.sortBy
   });
 
   const itemsLink = options.collection.links.find(
@@ -179,12 +180,19 @@ export function resolveStacItemsQueryMode(options: {
   itemsQueryMode?: string;
   filterExpression?: string;
   intersectsGeometry?: JsonObject;
+  sortBy?: string;
 }): StacItemsQueryMode {
   const mode = (options.itemsQueryMode ?? "auto").toLowerCase();
   if (mode === "items" || mode === "search") return mode;
 
-  // Prefer search endpoint when using CQL/intersects constraints.
-  if (options.filterExpression || options.intersectsGeometry) {
+  // Prefer search endpoint when using CQL/intersects constraints or sorting,
+  // because the STAC Sort Extension is defined for the /search endpoint and
+  // many servers (e.g. Terrascope) do not support sortby on /items.
+  if (
+    options.filterExpression ||
+    options.intersectsGeometry ||
+    options.sortBy
+  ) {
     return "search";
   }
 
@@ -247,7 +255,7 @@ export function buildStacSearchBody(options: {
     body.bbox = [...options.bboxFilter];
   }
   if (options.sortBy) {
-    body.sortby = options.sortBy;
+    body.sortby = parseSortByString(options.sortBy);
   }
   if (options.filterExpression) {
     body.filter = options.filterExpression;
@@ -261,6 +269,53 @@ export function buildStacSearchBody(options: {
 
   appendAdditionalBodyParameters(body, options.additionalQueryParameters);
   return body;
+}
+
+// Top-level fields of a STAC Item that do NOT need a "properties." prefix.
+const STAC_ITEM_TOP_LEVEL_FIELDS = new Set([
+  "id",
+  "collection",
+  "geometry",
+  "bbox",
+  "type",
+  "stac_version",
+  "stac_extensions",
+  "links",
+  "assets"
+]);
+
+/**
+ * Parse a shorthand sortBy string (e.g. "-datetime,+eo:cloud_cover") into the
+ * STAC Sort Extension array format required by the POST /search endpoint.
+ *
+ * Each entry becomes `{ field, direction }` where `field` is prefixed with
+ * "properties." when it is not a top-level STAC Item field.
+ */
+export function parseSortByString(
+  sortBy: string
+): Array<{ field: string; direction: "asc" | "desc" }> {
+  return sortBy
+    .split(",")
+    .map((token) => token.trim())
+    .filter((token) => token.length > 0)
+    .map((token) => {
+      let direction: "asc" | "desc" = "asc";
+      let rawField = token;
+      if (token.startsWith("-")) {
+        direction = "desc";
+        rawField = token.slice(1);
+      } else if (token.startsWith("+")) {
+        rawField = token.slice(1);
+      }
+
+      const field =
+        rawField.startsWith("properties.") ||
+        STAC_ITEM_TOP_LEVEL_FIELDS.has(rawField)
+          ? rawField
+          : `properties.${rawField}`;
+
+      return { field, direction };
+    });
 }
 
 export function resolveStacSearchUrl(
