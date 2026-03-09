@@ -10,6 +10,7 @@ import {
   runInAction
 } from "mobx";
 import CesiumMath from "terriajs-cesium/Source/Core/Math";
+import Rectangle from "terriajs-cesium/Source/Core/Rectangle";
 import type TIFFImageryProvider from "terriajs-tiff-imagery-provider";
 import CatalogMemberMixin from "../../../ModelMixins/CatalogMemberMixin";
 import DiscretelyTimeVaryingMixin, {
@@ -328,6 +329,8 @@ export default class CogTimeSeriesCatalogItem extends DiscretelyTimeVaryingMixin
   /**
    * Returns map items (imagery layers) for the current time step.
    * Each COG in the time step becomes a separate ImageryParts entry (mosaic support).
+   * Each provider uses its own rectangle as clipping rectangle to avoid
+   * Cesium rendering crashes when mosaic tiles cover different geographic areas.
    */
   @computed
   get mapItems(): MapItem[] {
@@ -335,12 +338,14 @@ export default class CogTimeSeriesCatalogItem extends DiscretelyTimeVaryingMixin
       return [];
     }
 
-    return this._currentProviders.map((provider) => ({
-      show: this.show,
-      alpha: this.opacity,
-      imageryProvider: provider as any,
-      clippingRectangle: this.cesiumRectangle
-    }));
+    return this._currentProviders
+      .filter((provider) => provider.rectangle !== undefined)
+      .map((provider) => ({
+        show: this.show,
+        alpha: this.opacity,
+        imageryProvider: provider as any,
+        clippingRectangle: provider.rectangle
+      }));
   }
 
   // ──────────────────────────────────────────────
@@ -584,22 +589,31 @@ export default class CogTimeSeriesCatalogItem extends DiscretelyTimeVaryingMixin
   }
 
   /**
-   * Update the rectangle from the first provider's bounds.
+   * Update the rectangle from the union of all providers' bounds.
    */
   private _updateRectangleFromProviders(
     providers: TIFFImageryProvider[]
   ): void {
     if (providers.length === 0) return;
 
-    const rectangle = providers[0].rectangle;
-    if (!rectangle) return;
+    let unionRect: Rectangle | undefined;
+    for (const provider of providers) {
+      const rect = provider.rectangle;
+      if (!rect) continue;
+      if (!unionRect) {
+        unionRect = Rectangle.clone(rect);
+      } else {
+        Rectangle.union(unionRect, rect, unionRect);
+      }
+    }
 
-    const { west, south, east, north } = rectangle;
+    if (!unionRect) return;
+
     this._stratum.setRectangle({
-      west: CesiumMath.toDegrees(west),
-      south: CesiumMath.toDegrees(south),
-      east: CesiumMath.toDegrees(east),
-      north: CesiumMath.toDegrees(north)
+      west: CesiumMath.toDegrees(unionRect.west),
+      south: CesiumMath.toDegrees(unionRect.south),
+      east: CesiumMath.toDegrees(unionRect.east),
+      north: CesiumMath.toDegrees(unionRect.north)
     });
   }
 
