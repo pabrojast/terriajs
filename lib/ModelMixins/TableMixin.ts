@@ -400,7 +400,9 @@ function TableMixin<T extends AbstractConstructor<BaseType>>(Base: T) {
             points.push({ x, y });
           }
 
-          if (points.length <= 1) return;
+          const chartType = this.chartType ?? "line";
+          const minimumPointCount = chartType === "line" ? 2 : 1;
+          if (points.length < minimumPointCount) return;
 
           const colorId = `color-${this.uniqueId}-${this.name}-${yColumn.name}`;
 
@@ -410,7 +412,7 @@ function TableMixin<T extends AbstractConstructor<BaseType>>(Base: T) {
             name: line.name ?? yColumn.title,
             categoryName: this.name,
             key: `key${this.uniqueId}-${this.name}-${yColumn.name}`,
-            type: this.chartType ?? "line",
+            type: chartType,
             units: yColumn.units,
             glyphStyle: this.chartGlyphStyle ?? "circle",
             xAxis,

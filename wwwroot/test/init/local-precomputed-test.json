@@ -6,13 +6,13 @@
       "description": "Testing precomputed fallback with local xcube server (port 8080)",
       "members": [
         {
-          "name": "Ukraine CHL - Kyiv Reservoir (WITH precomputed)",
+          "name": "Ukraine CHL Monthly - Kyiv Reservoir (WITH precomputed)",
           "type": "wmts",
           "url": "http://localhost:8080/wmts/1.0.0/WMTSCapabilities.xml",
-          "layer": "ua_chl_virtual_stations/CHL",
-          "description": "Should load from precomputed: /precomputed/ua_chl/ua_chl__kyiv_reservoir__2024-01-01_2024-02-01.json",
+          "layer": "ua_chl_monthly.CHL",
+          "description": "Monthly composite layer. Should load from precomputed cache.",
           "featureInfoRequest": {
-            "url": "http://localhost:8080/timeseries/{{layerPath}}?aggMethods=mean&maxValids=200&responseFormat=contract&startDate=2024-01-01&endDate=2024-02-01",
+            "url": "http://localhost:8080/timeseries/ua_chl_monthly/CHL?aggMethods=mean&maxValids=200&responseFormat=contract&startDate=2024-01-01&endDate=2024-02-01",
             "method": "POST",
             "body": "{ \"type\": \"Point\", \"coordinates\": [{{longitude}}, {{latitude}}] }",
             "headers": {
@@ -20,7 +20,7 @@
             },
             "responseType": "json",
             "usePrecomputed": true,
-            "precomputedUrl": "http://localhost:8080/precomputed/{{productKey}}/{{productKey}}__{{areaId}}__{{startDate}}_{{endDate}}.json",
+            "precomputedUrl": "http://localhost:8080/precomputed/ua_chl/ua_chl__{{areaId}}__{{startDate}}_{{endDate}}.json",
             "productKey": "ua_chl",
             "areaId": "kyiv_reservoir"
           },
@@ -30,13 +30,13 @@
           }
         },
         {
-          "name": "Ukraine CHL - Non-existing Area (FALLBACK test)",
+          "name": "Ukraine CHL Instantaneous - Kyiv Reservoir (WITH precomputed)",
           "type": "wmts",
           "url": "http://localhost:8080/wmts/1.0.0/WMTSCapabilities.xml",
-          "layer": "ua_chl_virtual_stations/CHL",
-          "description": "Should fallback to live query: POST /timeseries/... (404 from precomputed)",
+          "layer": "ua_chl_virtual_stations.CHL",
+          "description": "Instantaneous (daily) layer. Should load from precomputed cache.",
           "featureInfoRequest": {
-            "url": "http://localhost:8080/timeseries/{{layerPath}}?aggMethods=mean&maxValids=200&responseFormat=contract&startDate=2024-01-01&endDate=2024-02-01",
+            "url": "http://localhost:8080/timeseries/ua_chl_virtual_stations/CHL?aggMethods=mean&maxValids=200&responseFormat=contract&startDate=2024-01-01&endDate=2024-02-01",
             "method": "POST",
             "body": "{ \"type\": \"Point\", \"coordinates\": [{{longitude}}, {{latitude}}] }",
             "headers": {
@@ -44,7 +44,31 @@
             },
             "responseType": "json",
             "usePrecomputed": true,
-            "precomputedUrl": "http://localhost:8080/precomputed/{{productKey}}/{{productKey}}__{{areaId}}__{{startDate}}_{{endDate}}.json",
+            "precomputedUrl": "http://localhost:8080/precomputed/ua_chl/ua_chl__{{areaId}}__{{startDate}}_{{endDate}}.json",
+            "productKey": "ua_chl",
+            "areaId": "kyiv_reservoir"
+          },
+          "featureInfoTemplate": {
+            "name": "{{layerTitle}} - Precomputed Test",
+            "template": "<h3>{{layerTitle}} - Time Series</h3><p><strong>Location:</strong> {{terria.coords.latitude}}°, {{terria.coords.longitude}}°</p><p style='background: #e8f5e9; padding: 10px; border-left: 4px solid #4caf50;'><strong>✓ Using precomputed cache</strong><br/>Source: /precomputed/ua_chl/ua_chl__kyiv_reservoir__2024-01-01_2024-02-01.json</p>{{#terria.timeSeries.hasData}}{{terria.timeSeries.chart}}{{/terria.timeSeries.hasData}}{{^terria.timeSeries.hasData}}<p>{{terria.timeSeries.message}}</p>{{/terria.timeSeries.hasData}}"
+          }
+        },
+        {
+          "name": "Ukraine CHL Monthly - Non-existing Area (FALLBACK test)",
+          "type": "wmts",
+          "url": "http://localhost:8080/wmts/1.0.0/WMTSCapabilities.xml",
+          "layer": "ua_chl_monthly.CHL",
+          "description": "Should fallback to live query: POST /timeseries/... (404 from precomputed)",
+          "featureInfoRequest": {
+            "url": "http://localhost:8080/timeseries/ua_chl_monthly/CHL?aggMethods=mean&maxValids=200&responseFormat=contract&startDate=2024-01-01&endDate=2024-02-01",
+            "method": "POST",
+            "body": "{ \"type\": \"Point\", \"coordinates\": [{{longitude}}, {{latitude}}] }",
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "responseType": "json",
+            "usePrecomputed": true,
+            "precomputedUrl": "http://localhost:8080/precomputed/ua_chl/ua_chl__{{areaId}}__{{startDate}}_{{endDate}}.json",
             "productKey": "ua_chl",
             "areaId": "non_existing_area"
           },
@@ -54,13 +78,13 @@
           }
         },
         {
-          "name": "Ukraine CHL - No Precomputed (control)",
+          "name": "Ukraine CHL Monthly - No Precomputed (control)",
           "type": "wmts",
           "url": "http://localhost:8080/wmts/1.0.0/WMTSCapabilities.xml",
-          "layer": "ua_chl_virtual_stations/CHL",
+          "layer": "ua_chl_monthly.CHL",
           "description": "Control: always uses live query (no precomputed)",
           "featureInfoRequest": {
-            "url": "http://localhost:8080/timeseries/{{layerPath}}?aggMethods=mean&maxValids=200&responseFormat=contract&startDate=2024-01-01&endDate=2024-02-01",
+            "url": "http://localhost:8080/timeseries/ua_chl_monthly/CHL?aggMethods=mean&maxValids=200&responseFormat=contract&startDate=2024-01-01&endDate=2024-02-01",
             "method": "POST",
             "body": "{ \"type\": \"Point\", \"coordinates\": [{{longitude}}, {{latitude}}] }",
             "headers": {
@@ -71,6 +95,26 @@
           "featureInfoTemplate": {
             "name": "{{layerTitle}} - Live Only",
             "template": "<h3>{{layerTitle}} - Time Series</h3><p><strong>Location:</strong> {{terria.coords.latitude}}°, {{terria.coords.longitude}}°</p><p style='background: #e3f2fd; padding: 10px; border-left: 4px solid #2196f3;'><strong>→ Always live query</strong><br/>No precomputed cache (original behavior)</p>{{#terria.timeSeries.hasData}}{{terria.timeSeries.chart}}{{/terria.timeSeries.hasData}}{{^terria.timeSeries.hasData}}<p>{{terria.timeSeries.message}}</p>{{/terria.timeSeries.hasData}}"
+          }
+        },
+        {
+          "name": "Ukraine CHL Instantaneous - No Precomputed (control)",
+          "type": "wmts",
+          "url": "http://localhost:8080/wmts/1.0.0/WMTSCapabilities.xml",
+          "layer": "ua_chl_virtual_stations.CHL",
+          "description": "Control: instantaneous layer, always uses live query",
+          "featureInfoRequest": {
+            "url": "http://localhost:8080/timeseries/ua_chl_virtual_stations/CHL?aggMethods=mean&maxValids=200&responseFormat=contract&startDate=2024-01-01&endDate=2024-02-01",
+            "method": "POST",
+            "body": "{ \"type\": \"Point\", \"coordinates\": [{{longitude}}, {{latitude}}] }",
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "responseType": "json"
+          },
+          "featureInfoTemplate": {
+            "name": "{{layerTitle}} - Live Only",
+            "template": "<h3>{{layerTitle}} - Time Series</h3><p><strong>Location:</strong> {{terria.coords.latitude}}°, {{terria.coords.longitude}}°</p><p style='background: #e3f2fd; padding: 10px; border-left: 4px solid #2196f3;'><strong>→ Always live query (instantaneous)</strong><br/>No precomputed cache (original behavior)</p>{{#terria.timeSeries.hasData}}{{terria.timeSeries.chart}}{{/terria.timeSeries.hasData}}{{^terria.timeSeries.hasData}}<p>{{terria.timeSeries.message}}</p>{{/terria.timeSeries.hasData}}"
           }
         }
       ]

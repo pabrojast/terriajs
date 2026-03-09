@@ -30,6 +30,7 @@ describe("jsonFeatureInfoContext", function () {
     expect(timeSeries?.isTimeSeries).toBe(true);
     expect(timeSeries?.yColumns).toContain("mean");
     expect(timeSeries?.chart).toContain("json-chart");
+    expect(timeSeries?.chart).toContain('chart-type="lineAndPoint"');
   });
 
   it("marks empty timeseries payload as no-data", function () {

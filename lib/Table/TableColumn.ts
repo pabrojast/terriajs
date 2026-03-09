@@ -299,43 +299,142 @@ export default class TableColumn {
     const centuryFix = (y: number) =>
       y < 50 ? 2000 + y : y < 100 ? 1900 + y : y;
 
+    const parseTimeParts = (
+      timeString: string
+    ): { hours: number; minutes: number; seconds: number } | null => {
+      const trimmed = timeString.trim();
+      if (trimmed.length === 0) {
+        return { hours: 0, minutes: 0, seconds: 0 };
+      }
+
+      const match = trimmed.match(
+        /^(\d{1,2})(?::(\d{1,2}))?(?::(\d{1,2}))?(?:\s*([AaPp][Mm]))?$/
+      );
+      if (!match) {
+        return null;
+      }
+
+      let hours = Number(match[1]);
+      const minutes = Number(match[2] ?? "0");
+      const seconds = Number(match[3] ?? "0");
+      const meridiem = match[4]?.toLowerCase();
+
+      if (
+        !Number.isInteger(hours) ||
+        !Number.isInteger(minutes) ||
+        !Number.isInteger(seconds) ||
+        minutes > 59 ||
+        seconds > 59
+      ) {
+        return null;
+      }
+
+      if (meridiem) {
+        if (hours < 1 || hours > 12) {
+          return null;
+        }
+        if (meridiem === "pm" && hours !== 12) {
+          hours += 12;
+        } else if (meridiem === "am" && hours === 12) {
+          hours = 0;
+        }
+      } else if (hours > 23) {
+        return null;
+      }
+
+      return { hours, minutes, seconds };
+    };
+
+    const parseDateParts = (
+      value: string,
+      separator: string,
+      order: "dmy" | "mdy"
+    ): {
+      day: number;
+      month: number;
+      year: number;
+      hours: number;
+      minutes: number;
+      seconds: number;
+    } | null => {
+      const sep1 = value.indexOf(separator);
+      if (sep1 === -1) return null;
+      const sep2 = value.indexOf(separator, sep1 + 1);
+      if (sep2 === -1) return null;
+
+      const firstString = value.slice(0, sep1).trim();
+      const secondString = value.slice(sep1 + 1, sep2).trim();
+      const remainder = value.slice(sep2 + 1).trim();
+      if (remainder.length === 0) {
+        return null;
+      }
+
+      const remainderMatch = remainder.match(/^(\d{1,4})(?:[ T](.+))?$/);
+      if (!remainderMatch) {
+        return null;
+      }
+
+      const yearString = remainderMatch[1];
+      const timeString = remainderMatch[2] ?? "";
+      const first = Number(firstString);
+      const second = Number(secondString);
+      const year = Number(yearString);
+
+      if (
+        !Number.isInteger(first) ||
+        !Number.isInteger(second) ||
+        !Number.isInteger(year)
+      ) {
+        return null;
+      }
+
+      const timeParts = parseTimeParts(timeString);
+      if (!timeParts) {
+        return null;
+      }
+
+      return order === "dmy"
+        ? {
+            day: first,
+            month: second,
+            year,
+            ...timeParts
+          }
+        : {
+            day: second,
+            month: first,
+            year,
+            ...timeParts
+          };
+    };
+
     const ddmmyyyy: StringToDateFunction = (value) => {
       // Try dd/mm/yyyy and watch out for failures that would also cross out mm/dd/yyyy
       for (const separator of separators) {
-        const sep1 = value.indexOf(separator);
-        if (sep1 === -1) continue; // Try next separator
-        const sep2 = value.indexOf(separator, sep1 + 1);
-        if (sep2 === -1) {
+        const parts = parseDateParts(value, separator, "dmy");
+        if (!parts) {
+          continue;
+        }
+
+        if (parts.day > 31 || parts.year > 9999) {
           // Neither ddmmyyyy nor mmddyyyy
           parsingFailed = true;
           skipMmddyyyy = true;
           return null;
         }
-        const dayString = value.slice(0, sep1);
-        const monthString = value.slice(sep1 + 1, sep2);
-        const yearString = value.slice(sep2 + 1);
-        const d = +dayString;
-        const m = +monthString;
-        const y = +yearString;
-        if (Number.isInteger(d) && Number.isInteger(m) && Number.isInteger(y)) {
-          if (d > 31 || y > 9999) {
-            // Neither ddmmyyyy nor mmddyyyy
-            parsingFailed = true;
-            skipMmddyyyy = true;
-            return null;
-          }
-          if (m > 12) {
-            // Probably mmddyyyy
-            parsingFailed = true;
-            return null;
-          }
-          return new Date(centuryFix(y), m - 1, d);
-        } else {
-          // Neither ddmmyyyy nor mmddyyyy
+        if (parts.month > 12) {
+          // Probably mmddyyyy
           parsingFailed = true;
-          skipMmddyyyy = true;
           return null;
         }
+        return new Date(
+          centuryFix(parts.year),
+          parts.month - 1,
+          parts.day,
+          parts.hours,
+          parts.minutes,
+          parts.seconds
+        );
       }
       // Neither ddmmyyyy nor mmddyyyy
       parsingFailed = true;
@@ -346,33 +445,23 @@ export default class TableColumn {
     const mmddyyyy: StringToDateFunction = (value) => {
       // This function only exists to allow mm-dd-yyyy dates
       // mm/dd/yyyy dates could be picked up by `new Date`
-      const separator = "-";
-      const sep1 = value.indexOf(separator);
-      if (sep1 === -1) {
+      const parts = parseDateParts(value, "-", "mdy");
+      if (!parts) {
         parsingFailed = true;
         return null;
       }
-      const sep2 = value.indexOf(separator, sep1 + 1);
-      if (sep2 === -1) {
+      if (parts.day > 31 || parts.month > 12 || parts.year > 9999) {
         parsingFailed = true;
         return null;
       }
-      const monthString = value.slice(0, sep1);
-      const dayString = value.slice(sep1 + 1, sep2);
-      const yearString = value.slice(sep2 + 1);
-      const d = +dayString;
-      const m = +monthString;
-      const y = +yearString;
-      if (Number.isInteger(d) && Number.isInteger(m) && Number.isInteger(y)) {
-        if (d > 31 || m > 12 || y > 9999) {
-          parsingFailed = true;
-          return null;
-        }
-        return new Date(centuryFix(y), m - 1, d);
-      } else {
-        parsingFailed = true;
-        return null;
-      }
+      return new Date(
+        centuryFix(parts.year),
+        parts.month - 1,
+        parts.day,
+        parts.hours,
+        parts.minutes,
+        parts.seconds
+      );
     };
 
     const yyyyQQ: StringToDateFunction = (value) => {

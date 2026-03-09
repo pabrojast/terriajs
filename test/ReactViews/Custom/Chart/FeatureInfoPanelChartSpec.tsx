@@ -109,6 +109,18 @@ describe("FeatureInfoPanelChart", function () {
 
     expect(screen.getAllByText("life-time")[1]).toBeVisible();
   });
+
+  it("renders a single-point chart when chart-type is lineAndPoint", async function () {
+    renderChart(
+      `<chart chart-type="lineAndPoint">time,mean
+2024-01-09T08:52:00Z,10</chart>`,
+      context
+    );
+
+    await waitForElementToBeRemoved(() => screen.queryByText("chart.noData"));
+
+    expect(screen.getByText("Mean x time")).toBeVisible();
+  });
 });
 
 /**

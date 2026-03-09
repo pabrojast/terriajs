@@ -8,6 +8,7 @@ import { useTranslation } from "react-i18next";
 import styled from "styled-components";
 import ChartableMixin, { ChartItem } from "../../../ModelMixins/ChartableMixin";
 import MappableMixin from "../../../ModelMixins/MappableMixin";
+import LineAndPointChart from "./LineAndPointChart";
 import LineChart from "./LineChart";
 import Styles from "./chart-preview.scss";
 
@@ -227,12 +228,22 @@ const Chart: FC<ChartPropsType> = observer(
               dy: "0"
             })}
           />
-          <LineChart
-            id={`featureInfoPanelChart-${chartItem.name}`}
-            chartItem={chartItem}
-            scales={scales}
-            color={baseColor}
-          />
+          {chartItem.type === "lineAndPoint" ? (
+            <LineAndPointChart
+              id={`featureInfoPanelChart-${chartItem.name}`}
+              chartItem={chartItem}
+              scales={scales}
+              color={baseColor}
+              glyph={chartItem.glyphStyle}
+            />
+          ) : (
+            <LineChart
+              id={`featureInfoPanelChart-${chartItem.name}`}
+              chartItem={chartItem}
+              scales={scales}
+              color={baseColor}
+            />
+          )}
         </Group>
       </svg>
     );

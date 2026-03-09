@@ -393,6 +393,23 @@ describe("TableColumn", function () {
       );
     });
 
+    it("defaults to dd/mm/yyyy when the value also includes time", async function () {
+      tableModel.setTrait(
+        CommonStrata.user,
+        "csvString",
+        "date\n09/01/2024 8:52\n10/01/2024 18:05\n"
+      );
+      await tableModel.loadMapItems();
+      const tableColumn1 = new TableColumn(tableModel, 0);
+      expect(
+        tableColumn1.valuesAsDates.values.map((d) => d && d.toISOString())
+      ).toEqual(
+        [new Date(2024, 0, 9, 8, 52, 0), new Date(2024, 0, 10, 18, 5, 0)].map(
+          (d) => d.toISOString()
+        )
+      );
+    });
+
     it("converts all dates to mm/dd/yyyy in a column if one doesn't fit dd/mm/yyyy", async function () {
       tableModel.setTrait(
         CommonStrata.user,

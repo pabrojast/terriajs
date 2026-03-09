@@ -91,6 +91,23 @@ describe("TableMixin", function () {
     jasmine.Ajax.uninstall();
   });
 
+  describe("chart items", function () {
+    it("keeps a single point when the chart type can render points", async function () {
+      item.setTrait(
+        CommonStrata.user,
+        "csvString",
+        "time,mean\n2024-01-09T08:52:00Z,10\n"
+      );
+      item.setTrait(CommonStrata.user, "chartType", "lineAndPoint");
+
+      (await item.loadMapItems()).throwIfError();
+
+      expect(item.chartItems.length).toBe(1);
+      expect(item.chartItems[0].type).toBe("lineAndPoint");
+      expect(item.chartItems[0].points.length).toBe(1);
+    });
+  });
+
   describe("when the table has time, lat/lon and id columns", function () {
     let dataSource: CustomDataSource;
     beforeEach(async function () {

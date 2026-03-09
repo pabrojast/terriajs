@@ -192,6 +192,8 @@ export const jsonFeatureInfoContext: (
       const timeSeriesInfo = extractTimeSeriesInfo(jsonData);
       const isTimeSeries = timeSeriesInfo.isTimeSeries;
       const yColumns = timeSeriesInfo.yColumns.join(",");
+      const singlePointChartType =
+        timeSeriesInfo.rows.length === 1 ? ' chart-type="lineAndPoint"' : "";
 
       // Convert JSON object to JSON string for the template
       // Use a safe stringify that handles circular references
@@ -236,7 +238,7 @@ export const jsonFeatureInfoContext: (
               isTimeSeries && hasData
                 ? `<json-chart ${'identifier="' + featureId + '" '} ${
                     title ? `title="${title}"` : ""
-                  } x-column="time" y-columns="${
+                  }${singlePointChartType} x-column="time" y-columns="${
                     yColumns || "mean"
                   }">${jsonString}</json-chart>`
                 : ""
@@ -282,6 +284,7 @@ function payloadHasData(value: any): boolean {
 function extractTimeSeriesInfo(value: any): {
   isTimeSeries: boolean;
   yColumns: string[];
+  rows: any[];
 } {
   const rows = getRowArray(value);
   const isTimeSeries = rows !== undefined;
@@ -289,7 +292,8 @@ function extractTimeSeriesInfo(value: any): {
   if (!rows || rows.length === 0) {
     return {
       isTimeSeries,
-      yColumns: []
+      yColumns: [],
+      rows: []
     };
   }
 
@@ -297,7 +301,8 @@ function extractTimeSeriesInfo(value: any): {
   if (!firstRow || typeof firstRow !== "object") {
     return {
       isTimeSeries,
-      yColumns: []
+      yColumns: [],
+      rows
     };
   }
 
@@ -307,7 +312,8 @@ function extractTimeSeriesInfo(value: any): {
 
   return {
     isTimeSeries,
-    yColumns
+    yColumns,
+    rows
   };
 }
 
