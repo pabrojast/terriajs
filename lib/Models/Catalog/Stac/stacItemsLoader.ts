@@ -330,7 +330,7 @@ export function resolveStacSearchUrl(
   try {
     const parsedCollectionUrl = new URL(collectionUrl);
     const collectionPathMatch = parsedCollectionUrl.pathname.match(
-      /^(.+)\/collections\/[^/]+\/?$/i
+      /^(.*)\/collections\/[^/]+\/?$/i
     );
     if (collectionPathMatch?.[1]) {
       return new URL(
