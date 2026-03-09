@@ -11,6 +11,7 @@ import {
 import PedestrianMode, {
   PEDESTRIAN_MODE_ID
 } from "../../Tools/PedestrianMode/PedestrianMode";
+import { COG_CALCULATION_TOOL_ID } from "../../Tools/CogCalculation/CogCalculationTool";
 import { ToolButtonController } from "../../Tools/Tool";
 import {
   AR_TOOL_ID,
@@ -170,6 +171,26 @@ export const registerMapNavigations = (viewState: ViewState) => {
     ),
     order: 1,
     noExpand: true
+  });
+
+  // COG Zonal Calculation Tool
+  const cogCalculationToolController = new ToolButtonController({
+    toolName: COG_CALCULATION_TOOL_ID,
+    viewState: viewState,
+    getToolComponent: () =>
+      import("../../Tools/CogCalculation/CogCalculationTool").then(
+        (m) => m.default as any
+      ),
+    icon: GLYPHS.lineChart
+  });
+  mapNavigationModel.addItem({
+    id: COG_CALCULATION_TOOL_ID,
+    name: "Cálculo Zonal COG",
+    title: "Calcular estadísticas zonales sobre capas COG",
+    location: "TOP",
+    screenSize: "medium",
+    controller: cogCalculationToolController,
+    order: 7
   });
 
   const feedbackController = new FeedbackButtonController(viewState);
