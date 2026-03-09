@@ -20,7 +20,9 @@ describe("StacItemCatalogItem", function () {
     item.setTrait(CommonStrata.user, "auth", {
       mode: "oidc_password",
       tokenUrl: "https://sso.example.com/token",
-      clientId: "public"
+      clientId: "public",
+      scope: undefined,
+      tokenPersistence: undefined
     });
 
     expect(item.auth?.mode).toBe("oidc_password");

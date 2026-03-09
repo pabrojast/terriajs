@@ -206,7 +206,9 @@ describe("StacCollectionCatalogItem", function () {
       item.setTrait(CommonStrata.user, "auth", {
         mode: "oidc_password",
         tokenUrl: "https://sso.example.com/token",
-        clientId: "public"
+        clientId: "public",
+        scope: undefined,
+        tokenPersistence: undefined
       });
       expect(item.auth?.mode).toBe("oidc_password");
       expect(item.auth?.tokenUrl).toBe("https://sso.example.com/token");
@@ -436,7 +438,9 @@ describe("StacCollectionCatalogItem", function () {
       );
       item.setTrait(CommonStrata.user, "timeSeries", {
         enabled: true,
-        chartEnabled: true
+        chartEnabled: true,
+        providerCacheSize: undefined,
+        valueBand: undefined
       });
 
       (item as any)._stacStratum = {
@@ -516,7 +520,9 @@ describe("StacCollectionCatalogItem", function () {
       item.setTrait(CommonStrata.user, "url", terrascopeUrl);
       item.setTrait(CommonStrata.user, "timeSeries", {
         enabled: true,
-        chartEnabled: true
+        chartEnabled: true,
+        providerCacheSize: undefined,
+        valueBand: undefined
       });
       (item as any)._stacStratum = {
         collection: _SAMPLE_STAC_COLLECTION,
@@ -554,7 +560,9 @@ describe("StacCollectionCatalogItem", function () {
       authenticatedItem.setTrait(CommonStrata.user, "url", terrascopeUrl);
       authenticatedItem.setTrait(CommonStrata.user, "timeSeries", {
         enabled: true,
-        chartEnabled: true
+        chartEnabled: true,
+        providerCacheSize: undefined,
+        valueBand: undefined
       });
       (authenticatedItem as any)._stacStratum = (item as any)._stacStratum;
 
@@ -572,7 +580,9 @@ describe("StacCollectionCatalogItem", function () {
       );
       item.setTrait(CommonStrata.user, "timeSeries", {
         enabled: true,
-        chartEnabled: true
+        chartEnabled: true,
+        providerCacheSize: undefined,
+        valueBand: undefined
       });
       (item as any)._stacStratum = {
         collection: _SAMPLE_STAC_COLLECTION,
@@ -594,7 +604,7 @@ describe("StacCollectionCatalogItem", function () {
       const context = item.featureInfoContext({
         id: "feature-1",
         data: "time,value\n2026-01-01T00:00:00Z,1"
-      } as any);
+      } as any) as any;
 
       expect(context.terria?.timeSeries?.data).toBe(
         "time,value\n2026-01-01T00:00:00Z,1"
