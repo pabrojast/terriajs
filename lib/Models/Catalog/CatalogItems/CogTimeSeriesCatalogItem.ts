@@ -157,7 +157,6 @@ class CogTimeSeriesStratum extends LoadableStratum(
    */
   @computed
   get featureInfoTemplate(): StratumFromTraits<FeatureInfoTemplateTraits> {
-    console.log("[COG-TS] featureInfoTemplate getter called");
     return createStratumInstance(FeatureInfoTemplateTraits, {
       template:
         '<div style="min-height:80px">' +
@@ -540,16 +539,8 @@ export default class CogTimeSeriesCatalogItem extends DiscretelyTimeVaryingMixin
     feature: TerriaFeature
   ) => TimeSeriesFeatureInfoContext {
     return (feature: TerriaFeature): TimeSeriesFeatureInfoContext => {
-      console.log(
-        "[COG-TS] featureInfoContext called, feature name:",
-        (feature as any).name
-      );
       const latLon = this._extractLatLonFromFeature(feature);
-      if (!latLon) {
-        console.log("[COG-TS] Could not extract lat/lon from feature");
-        return {};
-      }
-      console.log("[COG-TS] Extracted lat/lon:", latLon);
+      if (!latLon) return {};
 
       const key = `${latLon.lat.toFixed(6)},${latLon.lon.toFixed(6)}`;
       const cached = this._pointTimeSeriesCache.get(key);
@@ -669,6 +660,7 @@ export default class CogTimeSeriesCatalogItem extends DiscretelyTimeVaryingMixin
 
     const band = this.renderOptions?.single?.band ?? 1;
     const nodata = this.renderOptions?.nodata;
+    const extraNoData = this.noDataValues ? [...this.noDataValues] : undefined;
 
     await mapWithConcurrency(
       tasks,
@@ -683,7 +675,8 @@ export default class CogTimeSeriesCatalogItem extends DiscretelyTimeVaryingMixin
             lat,
             lon,
             band,
-            nodata
+            nodata,
+            extraNoData
           );
           return value !== undefined
             ? { time: task.time, tag: task.tag, value }
@@ -714,16 +707,33 @@ export default class CogTimeSeriesCatalogItem extends DiscretelyTimeVaryingMixin
   }
 
   /**
+   * Common sentinel/fill values used by various raster datasets.
+   * These are checked in addition to TIFF metadata nodata and user-configured values.
+   */
+  private static readonly COMMON_NODATA = new Set([
+    -999, -9999, -99999, -3.4e38, -3.4028235e38, -1e10, -1e38, 9999, 99999,
+    1e10, 3.4028235e38, 255, 65535
+  ]);
+
+  /**
    * Read a single pixel value from a COG at the given WGS84 lat/lon.
    * Uses geotiff.js with HTTP range requests — only transfers the
    * TIFF header + the one tile containing the pixel.
+   *
+   * NoData filtering order:
+   * 1. renderOptions.nodata (user-configured)
+   * 2. TIFF GDAL metadata nodata
+   * 3. noDataValues trait (extra user-configured values)
+   * 4. Common sentinel values (-999, -9999, etc.)
+   * 5. NaN / Infinity
    */
   private async _readPixelFromCog(
     cogUrl: string,
     lat: number,
     lon: number,
     band: number = 1,
-    nodata?: number
+    nodata?: number,
+    extraNoData?: number[]
   ): Promise<number | undefined> {
     const proxiedUrl = proxyCatalogItemUrl(this, cogUrl);
 
@@ -771,9 +781,28 @@ export default class CogTimeSeriesCatalogItem extends DiscretelyTimeVaryingMixin
     });
 
     const val = (rasters[0] as ArrayLike<number>)[0];
-    const nd = nodata ?? image.getGDALNoData() ?? undefined;
-    if (nd !== undefined && val === nd) return undefined;
-    if (isNaN(val)) return undefined;
+
+    // Filter nodata / sentinel values
+    if (!isFinite(val)) return undefined;
+
+    // Check explicit nodata from renderOptions
+    if (nodata !== undefined && val === nodata) return undefined;
+
+    // Check TIFF metadata nodata
+    const gdalNoData = image.getGDALNoData();
+    if (gdalNoData !== null && gdalNoData !== undefined && val === gdalNoData) {
+      return undefined;
+    }
+
+    // Check user-configured extra nodata values
+    if (extraNoData && extraNoData.length > 0 && extraNoData.includes(val)) {
+      return undefined;
+    }
+
+    // Check common sentinel values
+    if (CogTimeSeriesCatalogItem.COMMON_NODATA.has(val)) {
+      return undefined;
+    }
 
     return val;
   }

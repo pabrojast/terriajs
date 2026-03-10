@@ -20,14 +20,14 @@ interface Props {
 }
 
 const STAT_LABELS: Record<string, string> = {
-  mean: "Promedio",
-  min: "Mínimo",
-  max: "Máximo",
-  sum: "Suma",
-  count: "Píxeles válidos",
-  noDataCount: "Píxeles NoData",
-  median: "Mediana",
-  stddev: "Desv. estándar"
+  mean: "Mean",
+  min: "Minimum",
+  max: "Maximum",
+  sum: "Sum",
+  count: "Valid pixels",
+  noDataCount: "NoData pixels",
+  median: "Median",
+  stddev: "Std. deviation"
 };
 
 function formatValue(value: number): string {
@@ -42,13 +42,13 @@ const CogCalculationResultsPanel: React.FC<Props> = observer(({ vm }) => {
     return (
       <Container>
         <Text medium bold>
-          Resultados del Cálculo Zonal
+          Zonal Statistics Results
         </Text>
         <Spacing bottom={0.5} />
         <Text small textLight>
-          Overview level: {vm.singleResult.overviewLevel} | Resolución:{" "}
+          Overview level: {vm.singleResult.overviewLevel} | Resolution:{" "}
           {vm.singleResult.pixelResolution.map((r) => r.toFixed(1)).join(" × ")}{" "}
-          unidades/px
+          units/px
         </Text>
         <Spacing bottom={1} />
 
@@ -70,14 +70,14 @@ const CogCalculationResultsPanel: React.FC<Props> = observer(({ vm }) => {
             onClick={() => vm.startDrawing()}
             textProps={{ small: true }}
           >
-            Nuevo cálculo
+            New calculation
           </Button>
           <Button
             secondary
             onClick={() => vm.editPolygon()}
             textProps={{ small: true }}
           >
-            Redibujar polígono
+            Redraw polygon
           </Button>
         </Box>
       </Container>
@@ -89,12 +89,12 @@ const CogCalculationResultsPanel: React.FC<Props> = observer(({ vm }) => {
     return (
       <Container>
         <Text medium bold>
-          Serie de Tiempo —{" "}
+          Time Series —{" "}
           {STAT_LABELS[vm.selectedStatistic] || vm.selectedStatistic}
         </Text>
         <Spacing bottom={0.5} />
         <Text small textLight>
-          {vm.timeSeriesResults.length} pasos temporales procesados
+          {vm.timeSeriesResults.length} time steps processed
         </Text>
         <Spacing bottom={1} />
 
@@ -110,7 +110,7 @@ const CogCalculationResultsPanel: React.FC<Props> = observer(({ vm }) => {
         <details>
           <summary>
             <Text as="span" small bold>
-              Ver tabla de valores ({vm.timeSeriesResults.length} filas)
+              View values table ({vm.timeSeriesResults.length} rows)
             </Text>
           </summary>
           <Spacing bottom={0.5} />
@@ -118,11 +118,11 @@ const CogCalculationResultsPanel: React.FC<Props> = observer(({ vm }) => {
             <table>
               <thead>
                 <tr>
-                  <th>Fecha</th>
+                  <th>Date</th>
                   <th>
                     {STAT_LABELS[vm.selectedStatistic] || vm.selectedStatistic}
                   </th>
-                  <th>Píxeles</th>
+                  <th>Pixels</th>
                 </tr>
               </thead>
               <tbody>
@@ -147,14 +147,14 @@ const CogCalculationResultsPanel: React.FC<Props> = observer(({ vm }) => {
             onClick={() => vm.exportCsv()}
             textProps={{ small: true }}
           >
-            Exportar CSV
+            Export CSV
           </Button>
           <Button
             secondary
             onClick={() => vm.startDrawing()}
             textProps={{ small: true }}
           >
-            Nuevo cálculo
+            New calculation
           </Button>
         </Box>
       </Container>
@@ -164,7 +164,7 @@ const CogCalculationResultsPanel: React.FC<Props> = observer(({ vm }) => {
   return (
     <Container>
       <Text small textLight>
-        No hay resultados para mostrar.
+        No results to display.
       </Text>
     </Container>
   );
@@ -235,7 +235,7 @@ const TimeSeriesChart: React.FC<ChartProps> = observer(
     if (!chartData) {
       return (
         <Text small textLight>
-          No hay valores válidos para graficar.
+          No valid values to chart.
         </Text>
       );
     }

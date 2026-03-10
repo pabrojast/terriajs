@@ -15,13 +15,13 @@ import Spacing from "../../../Styled/Spacing";
 import Text from "../../../Styled/Text";
 
 const STATISTIC_OPTIONS = [
-  { value: "mean", label: "Promedio (mean)" },
-  { value: "min", label: "Mínimo" },
-  { value: "max", label: "Máximo" },
-  { value: "sum", label: "Suma" },
-  { value: "count", label: "Conteo de píxeles" },
-  { value: "median", label: "Mediana" },
-  { value: "stddev", label: "Desviación estándar" }
+  { value: "mean", label: "Mean" },
+  { value: "min", label: "Minimum" },
+  { value: "max", label: "Maximum" },
+  { value: "sum", label: "Sum" },
+  { value: "count", label: "Pixel count" },
+  { value: "median", label: "Median" },
+  { value: "stddev", label: "Standard deviation" }
 ];
 
 interface Props {
@@ -40,13 +40,13 @@ const CogCalculationConfigPanel: React.FC<Props> = observer(({ vm }) => {
   return (
     <Container>
       <Text medium bold>
-        Configuración del Cálculo
+        Calculation Settings
       </Text>
       <Spacing bottom={1} />
 
       {/* Layer Selector */}
       <FieldGroup>
-        <Label>Capa COG:</Label>
+        <Label>COG Layer:</Label>
         <Select
           value={vm.selectedItem ? (vm.selectedItem as any).uniqueId : ""}
           onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
@@ -63,7 +63,7 @@ const CogCalculationConfigPanel: React.FC<Props> = observer(({ vm }) => {
 
       {/* Band Selector */}
       <FieldGroup>
-        <Label>Banda:</Label>
+        <Label>Band:</Label>
         <NumberInput
           type="number"
           min={1}
@@ -77,7 +77,7 @@ const CogCalculationConfigPanel: React.FC<Props> = observer(({ vm }) => {
 
       {/* Statistic Selector */}
       <FieldGroup>
-        <Label>Estadística:</Label>
+        <Label>Statistic:</Label>
         <Select
           value={vm.selectedStatistic}
           onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
@@ -97,12 +97,12 @@ const CogCalculationConfigPanel: React.FC<Props> = observer(({ vm }) => {
         <>
           <Spacing bottom={1} />
           <Text small bold>
-            Opciones de Serie de Tiempo
+            Time Series Options
           </Text>
           <Spacing bottom={0.5} />
 
           <FieldGroup>
-            <Label>Fecha inicio:</Label>
+            <Label>Start date:</Label>
             <DateInput
               type="date"
               value={vm.startDate || ""}
@@ -113,7 +113,7 @@ const CogCalculationConfigPanel: React.FC<Props> = observer(({ vm }) => {
           </FieldGroup>
 
           <FieldGroup>
-            <Label>Fecha fin:</Label>
+            <Label>End date:</Label>
             <DateInput
               type="date"
               value={vm.endDate || ""}
@@ -124,7 +124,7 @@ const CogCalculationConfigPanel: React.FC<Props> = observer(({ vm }) => {
           </FieldGroup>
 
           <FieldGroup>
-            <Label>Cada N pasos:</Label>
+            <Label>Every N steps:</Label>
             <NumberInput
               type="number"
               min={1}
@@ -140,18 +140,18 @@ const CogCalculationConfigPanel: React.FC<Props> = observer(({ vm }) => {
           <Spacing bottom={0.5} />
           <EstimateBox>
             <Text small>
-              Se procesarán{" "}
+              Will process{" "}
               <Text as="span" bold>
-                {vm.estimatedWork.timeSteps} pasos temporales
+                {vm.estimatedWork.timeSteps} time steps
               </Text>{" "}
-              ({vm.estimatedWork.totalCogs} COGs en total)
+              ({vm.estimatedWork.totalCogs} COGs total)
             </Text>
             {vm.estimatedWork.timeSteps > 30 && (
               <>
                 <Spacing bottom={0.3} />
                 <WarningText small>
-                  ⚠️ Más de 30 pasos puede demorar significativamente. Considera
-                  reducir el rango de fechas o aumentar el subsampling.
+                  ⚠️ More than 30 steps may take a while. Consider narrowing the
+                  date range or increasing the subsampling step.
                 </WarningText>
               </>
             )}
@@ -163,7 +163,7 @@ const CogCalculationConfigPanel: React.FC<Props> = observer(({ vm }) => {
       <Spacing bottom={1} />
       <Box gap>
         <Text small textLight>
-          ✓ Polígono dibujado ({vm.drawnPoints.length} vértices)
+          ✓ Polygon drawn ({vm.drawnPoints.length} vertices)
         </Text>
         <Button
           secondary
@@ -171,7 +171,7 @@ const CogCalculationConfigPanel: React.FC<Props> = observer(({ vm }) => {
           onClick={handleEditPolygon}
           textProps={{ small: true }}
         >
-          Redibujar
+          Redraw
         </Button>
       </Box>
 
@@ -185,7 +185,7 @@ const CogCalculationConfigPanel: React.FC<Props> = observer(({ vm }) => {
           textProps={{ medium: true }}
           disabled={!vm.selectedItem || !vm.polygon}
         >
-          Calcular
+          Calculate
         </Button>
       </Box>
     </Container>

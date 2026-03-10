@@ -215,4 +215,14 @@ export default class CogTimeSeriesCatalogItemTraits extends mixTraits(
       "Number of TIFFImageryProvider instances to keep cached for recently-viewed time steps. Default is 3."
   })
   providerCacheSize?: number;
+
+  @primitiveArrayTrait({
+    type: "number",
+    name: "NoData Values",
+    description:
+      "Additional pixel values to treat as NoData when extracting time series on click. " +
+      "Common sentinel values like -999, -9999, etc. The TIFF metadata nodata and " +
+      "renderOptions.nodata are always checked automatically."
+  })
+  noDataValues?: number[];
 }

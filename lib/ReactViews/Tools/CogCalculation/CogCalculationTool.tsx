@@ -48,29 +48,28 @@ const CogCalculationTool: React.FC<Props> = observer(({ viewState }) => {
   return (
     <WorkflowPanel
       viewState={viewState}
-      title="Cálculo Zonal COG"
+      title="COG Zonal Statistics"
       icon={GLYPHS.lineChart}
       onClose={handleClose}
     >
       <PanelContent>
         {!vm.hasCogItems && (
           <EmptyState>
-            <Text medium>No hay capas COG en el workbench.</Text>
+            <Text medium>No COG layers on the workbench.</Text>
             <Spacing bottom={1} />
             <Text small textLight>
-              Agrega una capa COG o COG Time Series al mapa para usar esta
-              herramienta.
+              Add a COG or COG Time Series layer to the map to use this tool.
             </Text>
           </EmptyState>
         )}
 
         {vm.phase === "drawing" && vm.hasCogItems && (
           <DrawingState>
-            <Text medium>Dibuja un polígono en el mapa</Text>
+            <Text medium>Draw a polygon on the map</Text>
             <Spacing bottom={1} />
             <Text small textLight>
-              Haz clic en el mapa para agregar vértices. Haz clic en el primer
-              punto para cerrar el polígono.
+              Click on the map to add vertices. Click the first point to close
+              the polygon.
             </Text>
           </DrawingState>
         )}
@@ -79,7 +78,7 @@ const CogCalculationTool: React.FC<Props> = observer(({ viewState }) => {
 
         {vm.phase === "calculating" && (
           <CalculatingState>
-            <Text medium>Calculando...</Text>
+            <Text medium>Calculating…</Text>
             <Spacing bottom={1} />
             {vm.progress && (
               <>
@@ -90,8 +89,7 @@ const CogCalculationTool: React.FC<Props> = observer(({ viewState }) => {
                 </ProgressBar>
                 <Spacing bottom={0.5} />
                 <Text small textLight>
-                  {vm.progress.completed} / {vm.progress.total} pasos
-                  completados
+                  {vm.progress.completed} / {vm.progress.total} steps completed
                   {vm.progress.currentTime && ` — ${vm.progress.currentTime}`}
                 </Text>
               </>
@@ -102,7 +100,7 @@ const CogCalculationTool: React.FC<Props> = observer(({ viewState }) => {
               onClick={() => vm.cancelCalculation()}
               textProps={{ small: true }}
             >
-              Cancelar
+              Cancel
             </Button>
           </CalculatingState>
         )}
@@ -120,7 +118,7 @@ const CogCalculationTool: React.FC<Props> = observer(({ viewState }) => {
               onClick={() => vm.startDrawing()}
               textProps={{ small: true }}
             >
-              Intentar de nuevo
+              Try again
             </Button>
           </ErrorState>
         )}

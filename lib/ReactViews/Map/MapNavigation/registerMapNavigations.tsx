@@ -185,8 +185,8 @@ export const registerMapNavigations = (viewState: ViewState) => {
   });
   mapNavigationModel.addItem({
     id: COG_CALCULATION_TOOL_ID,
-    name: "Cálculo Zonal COG",
-    title: "Calcular estadísticas zonales sobre capas COG",
+    name: "COG Zonal Statistics",
+    title: "Calculate zonal statistics on COG layers",
     location: "TOP",
     screenSize: "medium",
     controller: cogCalculationToolController,

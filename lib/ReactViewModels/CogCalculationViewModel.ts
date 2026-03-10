@@ -155,7 +155,7 @@ export default class CogCalculationViewModel {
 
     this._userDrawing = new UserDrawing({
       terria: this.terria,
-      messageHeader: "Cálculo Zonal COG",
+      messageHeader: "COG Zonal Statistics",
       allowPolygon: true,
       onPointClicked: () => {},
       onPointMoved: () => {},

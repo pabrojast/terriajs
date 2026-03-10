@@ -126,14 +126,14 @@ const ItemAreaPanel: React.FC<ItemAreaPanelProps> = observer(
             {/* Calculate button — always visible */}
             <ButtonRow>
               <CalculateButton onClick={openCalculationTool}>
-                📐 Calcular área en serie de tiempo
+                📐 Calculate area time series
               </CalculateButton>
             </ButtonRow>
 
             {/* Current time value badges (only if precalculated values exist) */}
             {hasAreaCalcs && currentResults.length > 0 && (
               <>
-                <SectionLabel>Valores precalculados:</SectionLabel>
+                <SectionLabel>Precalculated values:</SectionLabel>
                 <BadgeRow>
                   {currentResults.map((r) => (
                     <ValueBadge
@@ -170,16 +170,16 @@ const ItemAreaPanel: React.FC<ItemAreaPanelProps> = observer(
                   <details>
                     <summary style={{ padding: "0 12px", cursor: "pointer" }}>
                       <Text as="span" mini textLight>
-                        Ver tabla ({allSeries[activeCalcName].length} fechas)
+                        View table ({allSeries[activeCalcName].length} dates)
                       </Text>
                     </summary>
                     <ValuesTable>
                       <thead>
                         <tr>
-                          <th>Fecha</th>
+                          <th>Date</th>
                           <th>
                             {areaCalcs.find((c) => c.name === activeCalcName)
-                              ?.statistic ?? "Valor"}
+                              ?.statistic ?? "Value"}
                           </th>
                         </tr>
                       </thead>
@@ -276,7 +276,7 @@ const MiniTimeSeriesChart: React.FC<MiniChartProps> = observer(
     if (!chartData) {
       return (
         <Text mini textLight>
-          Datos insuficientes para graficar.
+          Insufficient data to chart.
         </Text>
       );
     }
