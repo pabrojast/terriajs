@@ -157,6 +157,7 @@ class CogTimeSeriesStratum extends LoadableStratum(
    */
   @computed
   get featureInfoTemplate(): StratumFromTraits<FeatureInfoTemplateTraits> {
+    console.log("[COG-TS] featureInfoTemplate getter called");
     return createStratumInstance(FeatureInfoTemplateTraits, {
       template:
         '<div style="min-height:80px">' +
@@ -539,8 +540,16 @@ export default class CogTimeSeriesCatalogItem extends DiscretelyTimeVaryingMixin
     feature: TerriaFeature
   ) => TimeSeriesFeatureInfoContext {
     return (feature: TerriaFeature): TimeSeriesFeatureInfoContext => {
+      console.log(
+        "[COG-TS] featureInfoContext called, feature name:",
+        (feature as any).name
+      );
       const latLon = this._extractLatLonFromFeature(feature);
-      if (!latLon) return {};
+      if (!latLon) {
+        console.log("[COG-TS] Could not extract lat/lon from feature");
+        return {};
+      }
+      console.log("[COG-TS] Extracted lat/lon:", latLon);
 
       const key = `${latLon.lat.toFixed(6)},${latLon.lon.toFixed(6)}`;
       const cached = this._pointTimeSeriesCache.get(key);
