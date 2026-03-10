@@ -10,6 +10,7 @@ import {
   runInAction
 } from "mobx";
 import CesiumMath from "terriajs-cesium/Source/Core/Math";
+import JulianDate from "terriajs-cesium/Source/Core/JulianDate";
 import Rectangle from "terriajs-cesium/Source/Core/Rectangle";
 import type TIFFImageryProvider from "terriajs-tiff-imagery-provider";
 import CatalogMemberMixin from "../../../ModelMixins/CatalogMemberMixin";
@@ -374,10 +375,26 @@ export default class CogTimeSeriesCatalogItem extends DiscretelyTimeVaryingMixin
       return results;
     }
 
-    const currentTime = this.currentDiscreteTimeTag;
-    if (!currentTime) {
+    const currentJulian = this.currentDiscreteJulianDate;
+    if (!currentJulian) {
       return results;
     }
+    const currentTimeIso = JulianDate.toIso8601(currentJulian);
+
+    // Helper to match time strings — compare both raw strings and parsed JulianDates
+    // to handle format differences (e.g., "2024-01-01T00:00:00Z" vs "2024-01-01T00:00:00.000Z")
+    const timeMatches = (valueTime: string | undefined): boolean => {
+      if (!valueTime) return false;
+      if (valueTime === currentTimeIso) return true;
+      try {
+        return JulianDate.equals(
+          JulianDate.fromIso8601(valueTime),
+          currentJulian
+        );
+      } catch {
+        return false;
+      }
+    };
 
     for (const calc of areaCalcs) {
       if (!calc.name) continue;
@@ -386,7 +403,7 @@ export default class CogTimeSeriesCatalogItem extends DiscretelyTimeVaryingMixin
 
       // Check inline values first
       if (calc.values && calc.values.length > 0) {
-        const match = calc.values.find((v) => v.time === currentTime);
+        const match = calc.values.find((v) => timeMatches(v.time));
         value = match?.value;
       }
 
@@ -394,7 +411,7 @@ export default class CogTimeSeriesCatalogItem extends DiscretelyTimeVaryingMixin
       if (value === undefined) {
         const loadedValues = this._stratum.getAreaValues(calc.name);
         if (loadedValues) {
-          const match = loadedValues.find((v) => v.time === currentTime);
+          const match = loadedValues.find((v) => timeMatches(v.time));
           value = match?.value;
         }
       }
