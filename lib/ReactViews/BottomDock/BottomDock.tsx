@@ -61,7 +61,10 @@ class BottomDock extends Component<PropsType & MeasureElementProps> {
         `}
       >
         <div id="TJS-BottomDockFirstPortal" />
-        <CogAreaCalculationPanel terria={terria} />
+        <CogAreaCalculationPanel
+          terria={terria}
+          viewState={this.props.viewState}
+        />
         {!this.props.viewState.useSmallScreenInterface && (
           <>
             <ChartDisclaimer terria={terria} viewState={this.props.viewState} />

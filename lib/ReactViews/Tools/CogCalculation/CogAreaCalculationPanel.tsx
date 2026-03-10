@@ -1,26 +1,30 @@
 /**
  * CogAreaCalculationPanel — Shows precalculated area statistics for
  * CogTimeSeriesCatalogItem items that have `areaCalculations` with
- * inline or remote values.
+ * inline or remote values.  Also shows a prominent "Calculate area"
+ * button for any cog-time-series item on the workbench so users
+ * can easily launch the zonal calculation tool.
  *
  * Renders in the BottomDock when a qualifying item is on the workbench.
  * Displays: current-time value badges + mini SVG line chart per calculation.
  */
 
-import { computed } from "mobx";
 import { observer } from "mobx-react";
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import styled from "styled-components";
 import CogTimeSeriesCatalogItem from "../../../Models/Catalog/CatalogItems/CogTimeSeriesCatalogItem";
 import Terria from "../../../Models/Terria";
+import ViewState from "../../../ReactViewModels/ViewState";
 import Box from "../../../Styled/Box";
 import Button from "../../../Styled/Button";
-import Icon from "../../../Styled/Icon";
+import { GLYPHS } from "../../../Styled/Icon";
 import Spacing from "../../../Styled/Spacing";
 import Text from "../../../Styled/Text";
+import { COG_CALCULATION_TOOL_ID } from "./CogCalculationTool";
 
 interface Props {
   terria: Terria;
+  viewState: ViewState;
 }
 
 function formatValue(value: number): string {
@@ -32,33 +36,34 @@ function formatValue(value: number): string {
 }
 
 /**
- * Find CogTimeSeriesCatalogItem instances on the workbench that have
- * area calculations with values.
+ * Find CogTimeSeriesCatalogItem instances on the workbench.
  */
-function getItemsWithAreaCalcs(terria: Terria): CogTimeSeriesCatalogItem[] {
+function getCogTimeSeriesItems(terria: Terria): CogTimeSeriesCatalogItem[] {
   return terria.workbench.items.filter(
     (item): item is CogTimeSeriesCatalogItem =>
       item.type === "cog-time-series" &&
-      item instanceof CogTimeSeriesCatalogItem &&
-      (item.areaCalculations ?? []).length > 0 &&
-      (item.areaCalculations ?? []).some(
-        (calc) => calc.values && calc.values.length > 0
-      )
+      item instanceof CogTimeSeriesCatalogItem
   );
 }
 
-const CogAreaCalculationPanel: React.FC<Props> = observer(({ terria }) => {
-  const items = getItemsWithAreaCalcs(terria);
-  if (items.length === 0) return null;
+const CogAreaCalculationPanel: React.FC<Props> = observer(
+  ({ terria, viewState }) => {
+    const items = getCogTimeSeriesItems(terria);
+    if (items.length === 0) return null;
 
-  return (
-    <PanelContainer>
-      {items.map((item) => (
-        <ItemAreaPanel key={item.uniqueId} item={item} />
-      ))}
-    </PanelContainer>
-  );
-});
+    return (
+      <PanelContainer>
+        {items.map((item) => (
+          <ItemAreaPanel
+            key={item.uniqueId}
+            item={item}
+            viewState={viewState}
+          />
+        ))}
+      </PanelContainer>
+    );
+  }
+);
 
 export default CogAreaCalculationPanel;
 
@@ -66,115 +71,141 @@ export default CogAreaCalculationPanel;
 
 interface ItemAreaPanelProps {
   item: CogTimeSeriesCatalogItem;
+  viewState: ViewState;
 }
 
-const ItemAreaPanel: React.FC<ItemAreaPanelProps> = observer(({ item }) => {
-  const [expanded, setExpanded] = useState(true);
-  const [selectedCalc, setSelectedCalc] = useState<string | undefined>(
-    undefined
-  );
+const ItemAreaPanel: React.FC<ItemAreaPanelProps> = observer(
+  ({ item, viewState }) => {
+    const [expanded, setExpanded] = useState(true);
+    const [selectedCalc, setSelectedCalc] = useState<string | undefined>(
+      undefined
+    );
 
-  const currentResults = item.currentAreaCalculationResults;
-  const areaCalcs = item.areaCalculations ?? [];
+    const currentResults = item.currentAreaCalculationResults;
+    const areaCalcs = item.areaCalculations ?? [];
+    const hasAreaCalcs =
+      areaCalcs.length > 0 &&
+      areaCalcs.some((c) => c.values && c.values.length > 0);
 
-  // Default to first calc
-  const activeCalcName = selectedCalc ?? areaCalcs[0]?.name;
+    // Default to first calc
+    const activeCalcName = selectedCalc ?? areaCalcs[0]?.name;
 
-  const allSeries = useMemo(() => {
-    const map: Record<string, Array<{ time: string; value: number }>> = {};
-    for (const calc of areaCalcs) {
-      if (!calc.name) continue;
-      const series = item.getAreaCalculationTimeSeries(calc.name);
-      if (series) map[calc.name] = series;
-    }
-    return map;
-  }, [areaCalcs, item]);
+    const allSeries = useMemo(() => {
+      const map: Record<string, Array<{ time: string; value: number }>> = {};
+      for (const calc of areaCalcs) {
+        if (!calc.name) continue;
+        const series = item.getAreaCalculationTimeSeries(calc.name);
+        if (series) map[calc.name] = series;
+      }
+      return map;
+    }, [areaCalcs, item]);
 
-  if (areaCalcs.length === 0) return null;
+    const openCalculationTool = useCallback(() => {
+      viewState.openTool({
+        toolName: COG_CALCULATION_TOOL_ID,
+        getToolComponent: () =>
+          import("./CogCalculationTool").then((m) => m.default as any),
+        params: {}
+      });
+    }, [viewState]);
 
-  return (
-    <ItemContainer>
-      <HeaderRow onClick={() => setExpanded(!expanded)}>
-        <Box verticalCenter gap>
-          <ChartIcon>📊</ChartIcon>
-          <Text semiBold small>
-            {item.name ?? "COG Time Series"}
-          </Text>
-        </Box>
-        <CollapseButton>{expanded ? "▼" : "▶"}</CollapseButton>
-      </HeaderRow>
+    return (
+      <ItemContainer>
+        <HeaderRow onClick={() => setExpanded(!expanded)}>
+          <Box verticalCenter gap>
+            <ChartIcon>📊</ChartIcon>
+            <Text semiBold small>
+              {item.name ?? "COG Time Series"}
+            </Text>
+          </Box>
+          <CollapseButton>{expanded ? "▼" : "▶"}</CollapseButton>
+        </HeaderRow>
 
-      {expanded && (
-        <>
-          {/* Current time value badges */}
-          <BadgeRow>
-            {currentResults.map((r) => (
-              <ValueBadge
-                key={r.name}
-                active={r.name === activeCalcName}
-                onClick={() => setSelectedCalc(r.name)}
-              >
-                <BadgeLabel>{r.name}</BadgeLabel>
-                <BadgeValue>
-                  {r.value !== undefined ? formatValue(r.value) : "—"}
-                  {r.unit ? ` ${r.unit}` : ""}
-                </BadgeValue>
-              </ValueBadge>
-            ))}
-          </BadgeRow>
+        {expanded && (
+          <>
+            {/* Calculate button — always visible */}
+            <ButtonRow>
+              <CalculateButton onClick={openCalculationTool}>
+                📐 Calcular área en serie de tiempo
+              </CalculateButton>
+            </ButtonRow>
 
-          {/* Chart for selected calculation */}
-          {activeCalcName && allSeries[activeCalcName] && (
-            <ChartSection>
-              <MiniTimeSeriesChart
-                data={allSeries[activeCalcName]}
-                currentTime={item.currentDiscreteTimeTag}
-                unit={
-                  areaCalcs.find((c) => c.name === activeCalcName)?.unit ?? ""
-                }
-                label={activeCalcName}
-              />
-            </ChartSection>
-          )}
-
-          {/* Values table (collapsible) */}
-          {activeCalcName && allSeries[activeCalcName] && (
-            <details>
-              <summary>
-                <Text as="span" mini textLight>
-                  Ver tabla ({allSeries[activeCalcName].length} fechas)
-                </Text>
-              </summary>
-              <ValuesTable>
-                <thead>
-                  <tr>
-                    <th>Fecha</th>
-                    <th>
-                      {areaCalcs.find((c) => c.name === activeCalcName)
-                        ?.statistic ?? "Valor"}
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {allSeries[activeCalcName].map((v, i) => (
-                    <tr key={i}>
-                      <td>{v.time.slice(0, 10)}</td>
-                      <td>
-                        {formatValue(v.value)}{" "}
-                        {areaCalcs.find((c) => c.name === activeCalcName)
-                          ?.unit ?? ""}
-                      </td>
-                    </tr>
+            {/* Current time value badges (only if precalculated values exist) */}
+            {hasAreaCalcs && currentResults.length > 0 && (
+              <>
+                <SectionLabel>Valores precalculados:</SectionLabel>
+                <BadgeRow>
+                  {currentResults.map((r) => (
+                    <ValueBadge
+                      key={r.name}
+                      active={r.name === activeCalcName}
+                      onClick={() => setSelectedCalc(r.name)}
+                    >
+                      <BadgeLabel>{r.name}</BadgeLabel>
+                      <BadgeValue>
+                        {r.value !== undefined ? formatValue(r.value) : "—"}
+                        {r.unit ? ` ${r.unit}` : ""}
+                      </BadgeValue>
+                    </ValueBadge>
                   ))}
-                </tbody>
-              </ValuesTable>
-            </details>
-          )}
-        </>
-      )}
-    </ItemContainer>
-  );
-});
+                </BadgeRow>
+
+                {/* Chart for selected calculation */}
+                {activeCalcName && allSeries[activeCalcName] && (
+                  <ChartSection>
+                    <MiniTimeSeriesChart
+                      data={allSeries[activeCalcName]}
+                      currentTime={item.currentDiscreteTimeTag}
+                      unit={
+                        areaCalcs.find((c) => c.name === activeCalcName)
+                          ?.unit ?? ""
+                      }
+                      label={activeCalcName}
+                    />
+                  </ChartSection>
+                )}
+
+                {/* Values table (collapsible) */}
+                {activeCalcName && allSeries[activeCalcName] && (
+                  <details>
+                    <summary style={{ padding: "0 12px", cursor: "pointer" }}>
+                      <Text as="span" mini textLight>
+                        Ver tabla ({allSeries[activeCalcName].length} fechas)
+                      </Text>
+                    </summary>
+                    <ValuesTable>
+                      <thead>
+                        <tr>
+                          <th>Fecha</th>
+                          <th>
+                            {areaCalcs.find((c) => c.name === activeCalcName)
+                              ?.statistic ?? "Valor"}
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {allSeries[activeCalcName].map((v, i) => (
+                          <tr key={i}>
+                            <td>{v.time.slice(0, 10)}</td>
+                            <td>
+                              {formatValue(v.value)}{" "}
+                              {areaCalcs.find((c) => c.name === activeCalcName)
+                                ?.unit ?? ""}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </ValuesTable>
+                  </details>
+                )}
+              </>
+            )}
+          </>
+        )}
+      </ItemContainer>
+    );
+  }
+);
 
 // ─── Mini SVG Chart ─────────────────────────────────────────────
 
@@ -391,6 +422,36 @@ const ChartIcon = styled.span`
 const CollapseButton = styled.span`
   font-size: 10px;
   color: ${(p) => p.theme.textLight};
+`;
+
+const ButtonRow = styled.div`
+  padding: 4px 12px 8px;
+`;
+
+const CalculateButton = styled.button`
+  width: 100%;
+  padding: 10px 14px;
+  border: 2px dashed rgba(74, 157, 248, 0.5);
+  border-radius: 6px;
+  background: rgba(74, 157, 248, 0.08);
+  color: #4a9df8;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  &:hover {
+    background: rgba(74, 157, 248, 0.18);
+    border-color: rgba(74, 157, 248, 0.8);
+  }
+`;
+
+const SectionLabel = styled.div`
+  padding: 0 12px 4px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: ${(p) => p.theme.textLight};
+  opacity: 0.7;
 `;
 
 const BadgeRow = styled.div`
