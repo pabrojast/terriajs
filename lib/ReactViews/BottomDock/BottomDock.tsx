@@ -6,6 +6,7 @@ import ViewState from "../../ReactViewModels/ViewState";
 import ChartPanel from "../Custom/Chart/ChartPanel";
 import measureElement, { MeasureElementProps } from "../HOCs/measureElement";
 import withControlledVisibility from "../HOCs/withControlledVisibility";
+import CogAreaCalculationPanel from "../Tools/CogCalculation/CogAreaCalculationPanel";
 import ChartDisclaimer from "./ChartDisclaimer";
 import Timeline from "./Timeline/Timeline";
 import { DefaultTheme, withTheme } from "styled-components";
@@ -60,6 +61,7 @@ class BottomDock extends Component<PropsType & MeasureElementProps> {
         `}
       >
         <div id="TJS-BottomDockFirstPortal" />
+        <CogAreaCalculationPanel terria={terria} />
         {!this.props.viewState.useSmallScreenInterface && (
           <>
             <ChartDisclaimer terria={terria} viewState={this.props.viewState} />
