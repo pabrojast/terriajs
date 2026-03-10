@@ -20,6 +20,7 @@ import DiscretelyTimeVaryingMixin, {
 import MappableMixin, { MapItem } from "../../../ModelMixins/MappableMixin";
 import CogTimeSeriesCatalogItemTraits from "../../../Traits/TraitsClasses/CogTimeSeriesCatalogItemTraits";
 import { RectangleTraits } from "../../../Traits/TraitsClasses/MappableTraits";
+import { FeatureInfoTemplateTraits } from "../../../Traits/TraitsClasses/FeatureInfoTraits";
 import CreateModel from "../../Definition/CreateModel";
 import createStratumInstance from "../../Definition/createStratumInstance";
 import LoadableStratum from "../../Definition/LoadableStratum";
@@ -31,6 +32,11 @@ import proxyCatalogItemUrl from "../proxyCatalogItemUrl";
 import loadJson from "../../../Core/loadJson";
 import TerriaError from "../../../Core/TerriaError";
 import { CogTimeEntryTraits } from "../../../Traits/TraitsClasses/CogTimeSeriesCatalogItemTraits";
+import TerriaFeature from "../../Feature/Feature";
+import {
+  TimeSeriesFeatureInfoContext,
+  TimeSeriesContext
+} from "../../../Table/tableFeatureInfoContext";
 
 /**
  * Cached imagery provider entry for a specific time step.
@@ -63,6 +69,48 @@ interface PrecalculatedValuesJson {
     time: string;
     value: number;
   }>;
+}
+
+/**
+ * State for a point-based time series extracted on click.
+ */
+interface PointTimeSeriesState {
+  loading: boolean;
+  totalSteps: number;
+  loadedSteps: number;
+  data: Array<{ time: string; tag?: string; value: number }>;
+}
+
+/** Max concurrent COG pixel reads for time series extraction */
+const POINT_TS_CONCURRENCY = 8;
+
+/**
+ * Run async tasks with a concurrency limit, calling onResult for each completed item.
+ */
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  concurrency: number,
+  fn: (item: T, index: number) => Promise<R>,
+  onResult?: (result: R, index: number) => void
+): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let nextIndex = 0;
+
+  async function worker() {
+    while (nextIndex < items.length) {
+      const idx = nextIndex++;
+      const result = await fn(items[idx], idx);
+      results[idx] = result;
+      onResult?.(result, idx);
+    }
+  }
+
+  const workers = Array.from(
+    { length: Math.min(concurrency, items.length) },
+    () => worker()
+  );
+  await Promise.all(workers);
+  return results;
 }
 
 /**
@@ -101,6 +149,25 @@ class CogTimeSeriesStratum extends LoadableStratum(
       return i18next.t("models.commonModelErrors.3dTypeIn2dMode", this);
     }
     return undefined;
+  }
+
+  /**
+   * Default feature info template that renders a time series chart
+   * when the user clicks on the map.
+   */
+  @computed
+  get featureInfoTemplate(): StratumFromTraits<FeatureInfoTemplateTraits> {
+    return createStratumInstance(FeatureInfoTemplateTraits, {
+      template:
+        '<div style="min-height:80px">' +
+        "{{#terria.timeSeries.chart}}" +
+        "{{{terria.timeSeries.chart}}}" +
+        "{{/terria.timeSeries.chart}}" +
+        "{{^terria.timeSeries.chart}}" +
+        "<p><em>Click to load time series…</em></p>" +
+        "{{/terria.timeSeries.chart}}" +
+        "</div>"
+    });
   }
 
   @computed
@@ -218,6 +285,16 @@ export default class CogTimeSeriesCatalogItem extends DiscretelyTimeVaryingMixin
 
   /** The stratum handling data loading */
   private _stratum: CogTimeSeriesStratum;
+
+  /**
+   * Observable cache for point-click time series extraction.
+   * Key: "lat,lon" rounded to 6 decimals.
+   */
+  @observable.shallow
+  private _pointTimeSeriesCache = new Map<string, PointTimeSeriesState>();
+
+  /** Track which point load is in progress so we can ignore stale results */
+  private _activePointLoadKey: string | undefined;
 
   /** Reprojector function (same as CogCatalogItem) */
   reprojector = reprojector;
@@ -446,6 +523,250 @@ export default class CogTimeSeriesCatalogItem extends DiscretelyTimeVaryingMixin
 
     // Fall back to loaded values
     return this._stratum.getAreaValues(calculationName);
+  }
+
+  // ──────────────────────────────────────────────
+  // Feature Info — click to extract time series
+  // ──────────────────────────────────────────────
+
+  /**
+   * Implements FeatureInfoContext.
+   * When the user clicks on the map, reads the pixel value at that point
+   * from every time step and returns a chart with the time series.
+   */
+  @computed
+  get featureInfoContext(): (
+    feature: TerriaFeature
+  ) => TimeSeriesFeatureInfoContext {
+    return (feature: TerriaFeature): TimeSeriesFeatureInfoContext => {
+      const latLon = this._extractLatLonFromFeature(feature);
+      if (!latLon) return {};
+
+      const key = `${latLon.lat.toFixed(6)},${latLon.lon.toFixed(6)}`;
+      const cached = this._pointTimeSeriesCache.get(key);
+
+      if (!cached) {
+        // Schedule loading outside the MobX computed derivation
+        queueMicrotask(() =>
+          this._loadPointTimeSeries(latLon.lat, latLon.lon, key)
+        );
+        return this._buildLoadingContext("Loading…");
+      }
+
+      if (cached.data.length === 0 && cached.loading) {
+        return this._buildLoadingContext(`Loading… (0/${cached.totalSteps})`);
+      }
+
+      // Build CSV from collected data
+      const sorted = [...cached.data].sort((a, b) =>
+        a.time.localeCompare(b.time)
+      );
+      const csvLines = [
+        "time,value",
+        ...sorted.map((d) => `${d.tag || d.time},${d.value.toFixed(4)}`)
+      ];
+      const csvData = csvLines.join("\n");
+      const title = this.name || "Time Series";
+      const featureId = `cog-ts-${key}`;
+      const progress = cached.loading
+        ? ` (${cached.loadedSteps}/${cached.totalSteps})`
+        : "";
+
+      const chartTitle = title + progress;
+
+      const timeSeries: TimeSeriesContext = {
+        title: chartTitle,
+        xName: "time",
+        yName: "value",
+        id: featureId,
+        data: csvData,
+        chart: `<chart identifier="${featureId}" title="${chartTitle}">${csvData}</chart>`
+      };
+
+      return { terria: { timeSeries } };
+    };
+  }
+
+  /**
+   * Build a loading placeholder context for the feature info template.
+   */
+  private _buildLoadingContext(message: string): TimeSeriesFeatureInfoContext {
+    return {
+      terria: {
+        timeSeries: {
+          title: message,
+          data: "",
+          chart: ""
+        }
+      }
+    };
+  }
+
+  /**
+   * Extract lat/lon in degrees from the picked feature.
+   * TIFFImageryProvider sets feature.name to "lon:X.XXXXXX, lat:Y.YYYYYY".
+   */
+  private _extractLatLonFromFeature(
+    feature: TerriaFeature
+  ): { lat: number; lon: number } | undefined {
+    // Entity.name typing varies across Cesium versions
+    const name = (feature as any).name as string | undefined;
+    if (!name) return undefined;
+
+    const match = name.match(/lon:\s*([-\d.]+),\s*lat:\s*([-\d.]+)/);
+    if (match) {
+      return { lon: parseFloat(match[1]), lat: parseFloat(match[2]) };
+    }
+    return undefined;
+  }
+
+  /**
+   * Load pixel values from all time step COGs at the given lat/lon.
+   * Updates `_pointTimeSeriesCache` progressively so the chart refreshes.
+   */
+  private async _loadPointTimeSeries(
+    lat: number,
+    lon: number,
+    key: string
+  ): Promise<void> {
+    const entries = this.timeEntries;
+    if (!entries || entries.length === 0) return;
+
+    // Mark this as the active load
+    this._activePointLoadKey = key;
+
+    // Initialize state
+    const state: PointTimeSeriesState = {
+      loading: true,
+      totalSteps: entries.length,
+      loadedSteps: 0,
+      data: []
+    };
+
+    runInAction(() => {
+      // Keep only this key in cache to avoid memory bloat
+      this._pointTimeSeriesCache.clear();
+      this._pointTimeSeriesCache.set(key, state);
+    });
+
+    // Build task list: one item per time entry, first COG in each mosaic
+    const tasks = entries
+      .filter((e) => e.time && e.cogs && e.cogs.length > 0)
+      .map((e) => ({
+        time: e.time!,
+        tag: e.tag,
+        cogUrl: e.cogs![0]
+      }));
+
+    const band = this.renderOptions?.single?.band ?? 1;
+    const nodata = this.renderOptions?.nodata;
+
+    await mapWithConcurrency(
+      tasks,
+      POINT_TS_CONCURRENCY,
+      async (task) => {
+        // Abort if a newer load started
+        if (this._activePointLoadKey !== key) return undefined;
+
+        try {
+          const value = await this._readPixelFromCog(
+            task.cogUrl,
+            lat,
+            lon,
+            band,
+            nodata
+          );
+          return value !== undefined
+            ? { time: task.time, tag: task.tag, value }
+            : undefined;
+        } catch {
+          return undefined;
+        }
+      },
+      (result) => {
+        if (this._activePointLoadKey !== key) return;
+        runInAction(() => {
+          state.loadedSteps++;
+          if (result !== undefined) {
+            state.data.push(result);
+          }
+          // Replace entry to trigger MobX shallow observation
+          this._pointTimeSeriesCache.set(key, { ...state });
+        });
+      }
+    );
+
+    if (this._activePointLoadKey !== key) return;
+
+    runInAction(() => {
+      state.loading = false;
+      this._pointTimeSeriesCache.set(key, { ...state });
+    });
+  }
+
+  /**
+   * Read a single pixel value from a COG at the given WGS84 lat/lon.
+   * Uses geotiff.js with HTTP range requests — only transfers the
+   * TIFF header + the one tile containing the pixel.
+   */
+  private async _readPixelFromCog(
+    cogUrl: string,
+    lat: number,
+    lon: number,
+    band: number = 1,
+    nodata?: number
+  ): Promise<number | undefined> {
+    const proxiedUrl = proxyCatalogItemUrl(this, cogUrl);
+
+    const [{ fromUrl }, proj4Module] = await Promise.all([
+      import("geotiff"),
+      import("proj4-fully-loaded")
+    ]);
+    const proj4 = proj4Module.default;
+
+    const tiff = await fromUrl(proxiedUrl, { allowFullFile: true });
+    const image = await tiff.getImage(0);
+
+    // Determine CRS
+    const geoKeys = image.getGeoKeys();
+    const epsg =
+      geoKeys.ProjectedCSTypeGeoKey ?? geoKeys.GeographicTypeGeoKey ?? 4326;
+
+    // Reproject click point from WGS84 to COG CRS
+    let geoX = lon;
+    let geoY = lat;
+    if (epsg !== 4326) {
+      try {
+        const projector = proj4("EPSG:4326", `EPSG:${epsg}`);
+        [geoX, geoY] = projector.forward([lon, lat]);
+      } catch {
+        return undefined;
+      }
+    }
+
+    // Geo transform
+    const origin = image.getOrigin();
+    const resolution = image.getResolution();
+    const px = Math.floor((geoX - origin[0]) / resolution[0]);
+    const py = Math.floor((geoY - origin[1]) / resolution[1]);
+
+    const width = image.getWidth();
+    const height = image.getHeight();
+    if (px < 0 || px >= width || py < 0 || py >= height) {
+      return undefined;
+    }
+
+    const rasters = await image.readRasters({
+      window: [px, py, px + 1, py + 1],
+      samples: [band - 1]
+    });
+
+    const val = (rasters[0] as ArrayLike<number>)[0];
+    const nd = nodata ?? image.getGDALNoData() ?? undefined;
+    if (nd !== undefined && val === nd) return undefined;
+    if (isNaN(val)) return undefined;
+
+    return val;
   }
 
   // ──────────────────────────────────────────────
