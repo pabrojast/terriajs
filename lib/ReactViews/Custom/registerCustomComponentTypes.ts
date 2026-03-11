@@ -10,6 +10,7 @@ import FeedbackLinkCustomComponent from "./FeedbackLinkCustomComponent";
 import JsonChartCustomComponent from "./JsonChartCustomComponent";
 import LegendCustomComponent from "./LegendCustomComponent";
 import SOSChartCustomComponent from "./SOSChartCustomComponent";
+import SettingsPanelLinkCustomComponent from "./SettingsPanelLinkCustomComponent";
 import TerriaTooltipCustomComponent from "./TerriaTooltip";
 
 /**
@@ -26,6 +27,7 @@ export default function registerCustomComponentTypes(terria?: Terria) {
   CustomComponent.register(new ApiTableChartCustomComponent());
   CustomComponent.register(new CollapsibleCustomComponent());
   CustomComponent.register(new FeedbackLinkCustomComponent());
+  CustomComponent.register(new SettingsPanelLinkCustomComponent());
   CustomComponent.register(new TerriaTooltipCustomComponent());
   CustomComponent.register(new LegendCustomComponent());
 

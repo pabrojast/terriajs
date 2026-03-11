@@ -277,6 +277,7 @@ class StoryEditor extends Component {
             </Text>
             <Suspense fallback={<div>Loading...</div>}>
               <Editor
+                language={this.props.i18n.language}
                 html={this.state.text}
                 onChange={(_newValue, editor) => {
                   // TODO: This makes StoryEditor tightly coupled to Editor. How to reduce coupling?

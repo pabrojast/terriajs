@@ -1,6 +1,79 @@
 # Change Log
 
-#### next release (8.9.6)
+#### next release (8.11.4)
+
+- Capture default timeline state in share links including current time,
+  playback etc.
+- Added support for draping imagery on 3D tilesets. This can be enabled per-tileset by setting the [drapeImagery](https://github.com/TerriaJS/terriajs/blob/23a2bb2b9c1058e1c7141b5e678de51af58da82b/lib/Traits/TraitsClasses/Cesium3dTilesTraits.ts#L195-L201) trait to `true`. Then from the workbench, drag the imagery layers that need to be draped, above the tileset item.
+- Underline text buttons
+- Replace node-fetch with node native fetch.
+- Refactor tests to use @testing-library/react instead of react-test-renderer and react-shallow-testutils, and remove deprecated libraries. (#7755, #7763)
+- TSify most of `lib/Core`. [#7417](https://github.com/TerriaJS/terriajs/pull/7417/)
+- Update gulpfile.js to gulp V4 syntax, which provides task descriptions in `yarn gulp --tasks`.
+- Fix splitter failing for local file catalog items by storing file data as blob URLs in the `url` trait instead of private instance fields, ensuring `duplicateModel()` preserves the data. [#7762](https://github.com/TerriaJS/terriajs/pull/7762)
+- Replace react-uid with react useId hook for generating unique ids.
+- Remove ts-essentials dependency and replace with custom type utility.
+- Remove fs-extra dependency and replace with native fs.
+- Convert test `done` callbacks to async/await for modern test patterns.
+- Update Checkbox component icon and remove unused indeterminate prop.
+- Story Panel and Share Panel UX improvements:
+  - Update Share Panel layout
+  - Remove light theme variant of Clipboard
+  - Simplify Clipboard component and add success message.
+  - Add Story Builder instructions behind a config parameter.
+- Fix Scene capture popup z-index appearing underneath the workbench.
+- [The next improvement]
+
+#### 8.11.3 - 2026-02-02
+
+- Change to OIDC publishing to npm
+
+#### 8.11.2 - 2026-01-15
+
+- Add `token` to `ArcGisMapServerCatalogItem`, `ArcGisMapServerCatalogGroup`, `ArcGisFeatureServerCatalogItem`, `ArcGisFeatureServerCatalogGroup`, `ArcGisImageServerCatalogItem`, `I3SCatalogItem` and `ArcGisCatalogGroup` - if defined, it will be added to the `token` parameter for all ArcGIS Rest API requests.
+  - Added `tokenUrl` to `ArcGisImageServerCatalogItem`, and tweaked behaviour in `ArcGisMapServerCatalogItem` and `ArcGisImageServerCatalogItem` so that if both `token` and `tokenUrl` are defined, then `tokenUrl` will be used. This allows the token to be refreshed if needed.
+- WMTS read URL from operations metadata #7371
+- Add `workbenchControlFlags` trait to all catalog members for enabling or disabling workbench controls.
+- Add `<settingspanel>` custom component to open Map settings panel from template code (like short report, feature info etc).
+- Add UI to show toast messages.
+- Fix "Add data" button width for some languages #7726.
+- Make `<StoryPanel>` draggable
+
+#### 8.11.1 - 2025-12-04
+
+- ##### Security fixes
+  - Upgrades terriajs-server to v4.0.3. See [terriajs-server changes](https://github.com/TerriaJS/terriajs-server/blob/master/CHANGES.md#security-fixes).
+- Fix translations key typo "zoomCotrol".
+- Update docs for Client-side config: change `searchBar` parameter to `searchBarConfig`
+- Fix to show preview map when used outside the explorer panel.
+- Update `csv-geo-au` support to include the latest Australian Government regions.
+- Add `backgroundColor` trait to base maps for changing the map container background in 2D/Leaflet mode ([7718](https://github.com/TerriaJS/terriajs/pull/7718))
+- Keep camera steady when switching between viewer modes.
+- Fix sharing when using initfile.
+- Fix a bug where some georeferenced tiles where incorrectly positioned in Terria.
+
+#### 8.11.0 - 2025-10-09
+
+- **Breaking changes:**
+
+  - Replace unmaintained `svg-sprite-loader` with custom implementation of SvgSprite plugin based on `svg-sprite` package.
+    - New implementation consists of svg sprite loader that loads svgs and svg webpack plugin that compiles them into a single sprite file.
+
+- Fix app crash when switching back and forth between 3D and 2D mode with clipping box enabled.
+- Fix app crash when encountering unsupported WPS input types.
+- Warn the user when the story causes shareData size exceed the limit set on the server as `shareMaxRequestSize`. #7636
+- Adds new `TileMapServiceCatalogItem` for loading Tile Map Service (TMS) imagery tilesets.
+- Add coordinate position to MapboxSearchProvider results when using reverse geocoder functionality (configurable).
+- Removes webpack-dev-server from dependencies as it is no longer used.
+- Upgrade babel to the latest version 7.27/7.28
+- Fix analytics tracking for the MapboxSearchProvider.
+- Remove unmaintained @mapbox/geojson-merge dependency and replace it with a simple merge function.
+- Upgrade Typescript to `^5.9.2`. Also switched the `target` in `tsconfig.json` to `esnext`.
+- Upgrade `mobx` to version `^6.13.7`.
+- Upgraded `terriajs-cesium` to `21.0.0` and `terriajs-cesium-widgets` to `13.2.0`.
+- Fix zooming by mouse wheel in charts #7654
+
+#### 8.10.0 - 2025-07-08
 
 - **Breaking changes:**
 
@@ -15,6 +88,7 @@
   - `stac-catalog`: Browse STAC Catalogs and APIs, listing all available collections as navigable children.
 - Fix STAC `sortBy` handling: automatically route to the `/search` endpoint when sorting is configured (the STAC Sort Extension is not supported on `/items` by many servers), and use the correct STAC Sort Extension array format in POST requests instead of a plain string.
 - Fix a bug where `.pmtiles` urls with a query string at the end was not being rendered as PMTILES.
+- Add internationalization support to tinymce editor used in story editor
 - Add `MapboxSearchProvider` for geocoding using Mapbox.
 - Upgrade yarn to 1.22.22
 - Fix `ApiTableCatalogItem` to add `queryParameters` and `updateQueryParameters` to the API requests. These were previously being ignored.
@@ -27,6 +101,7 @@
 - Improve continuous legend color interpolation for COG items by using d3-scale-chromatic interpolation functions where available (greys, greens, ylgnbu, ylorrd, rdbu, cool, warm) and Lab color space interpolation for other scales, resulting in perceptually uniform and more visually accurate color gradients that better match the rendered imagery.
 - **Continuous COG legends now display as horizontal SVG gradients** instead of stacked colored blocks, providing a true continuous color scale visualization similar to professional GIS applications. The gradient is generated dynamically with 50 interpolated color stops and displays min/max values. Discrete legends remain unchanged with categorical ranges.
 - Add `featureInfoRequest` support for WMTS items to configure custom (e.g. POST) feature info requests, including templated coordinates and access to layer identifiers for services without native GetFeatureInfo.
+- Apply clipping rectangle for `ArcGisFeatureServerCatalogItem` reducing the number of requests made to server in tiled mode.
 
 #### 8.9.5 - 2025-06-03
 
@@ -239,6 +314,7 @@
 
 #### 8.7.5 - 2024-06-26
 
+- Add clustering trait to GeoJson (and consequently to WFS, ...) using Cesium as viewer.
 - TSify some `js` and `jsx` files and provide `.d.ts` ambient type files for a few others. This is so that running `tsc` on an external project that imports Terria code will typecheck successfully.
 - Upgraded a bunch of d3 dependencies for fixing security errors.
 - Show rectangle selector for WPS bounding box parameter

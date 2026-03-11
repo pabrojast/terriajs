@@ -283,7 +283,7 @@ describe("Terria", function () {
     });
 
     describe("via loadMagdaConfig", function () {
-      it("should dereference uniqueId to `/`", function (done) {
+      it("should dereference uniqueId to `/`", async function () {
         expect(terria.catalog.group.uniqueId).toEqual("/");
 
         jasmine.Ajax.stubRequest(/.*api\/v0\/registry.*/).andReturn({
@@ -293,21 +293,15 @@ describe("Terria", function () {
         // no init sources before starting
         expect(terria.initSources.length).toEqual(0);
 
-        terria
-          .start({
-            configUrl: "test/Magda/map-config-basic.json",
-            i18nOptions
-          })
-          .then(function () {
-            expect(terria.catalog.group.uniqueId).toEqual("/");
-            done();
-          })
-          .catch((error) => {
-            done.fail(error);
-          });
+        await terria.start({
+          configUrl: "test/Magda/map-config-basic.json",
+          i18nOptions
+        });
+
+        expect(terria.catalog.group.uniqueId).toEqual("/");
       });
 
-      it("works with basic initializationUrls", function (done) {
+      it("works with basic initializationUrls", async function () {
         jasmine.Ajax.stubRequest(/.*api\/v0\/registry.*/).andReturn({
           // terria's "Magda derived url"
           responseJSON: mapConfigBasicJson
@@ -315,27 +309,20 @@ describe("Terria", function () {
         // no init sources before starting
         expect(terria.initSources.length).toEqual(0);
 
-        terria
-          .start({
-            configUrl: "test/Magda/map-config-basic.json",
-            i18nOptions
-          })
-          .then(function () {
-            expect(terria.initSources.length).toEqual(1);
-            expect(isInitFromUrl(terria.initSources[0])).toEqual(true);
-            if (isInitFromUrl(terria.initSources[0])) {
-              expect(terria.initSources[0].initUrl).toEqual(
-                mapConfigBasicJson.aspects["terria-config"]
-                  .initializationUrls[0]
-              );
-            } else {
-              throw "not init source";
-            }
-            done();
-          })
-          .catch((error) => {
-            done.fail(error);
-          });
+        await terria.start({
+          configUrl: "test/Magda/map-config-basic.json",
+          i18nOptions
+        });
+
+        expect(terria.initSources.length).toEqual(1);
+        expect(isInitFromUrl(terria.initSources[0])).toEqual(true);
+        if (isInitFromUrl(terria.initSources[0])) {
+          expect(terria.initSources[0].initUrl).toEqual(
+            mapConfigBasicJson.aspects["terria-config"].initializationUrls[0]
+          );
+        } else {
+          throw "not init source";
+        }
       });
 
       it("works with v7initializationUrls", async function () {
@@ -410,37 +397,30 @@ describe("Terria", function () {
           throw "not init source";
         }
       });
-      it("parses dereferenced group aspect", async function (done) {
+      it("parses dereferenced group aspect", async function () {
         expect(terria.catalog.group.uniqueId).toEqual("/");
         // dereferenced res
         jasmine.Ajax.stubRequest(/.*api\/v0\/registry.*/).andReturn({
           responseJSON: mapConfigDereferencedJson
         });
-        await terria
-          .start({
-            configUrl: "test/Magda/map-config-dereferenced.json",
-            i18nOptions
-          })
-          .then(function () {
-            const groupAspect = mapConfigDereferencedJson.aspects["group"];
-            const ids = groupAspect.members.map((member: any) => member.id);
-            expect(terria.catalog.group.uniqueId).toEqual("/");
-            // ensure user added data co-exists with dereferenced magda members
-            expect(terria.catalog.group.members.length).toEqual(3);
-            expect(terria.catalog.userAddedDataGroup).toBeDefined();
-            ids.forEach((id: string) => {
-              const model = terria.getModelById(MagdaReference, id);
-              if (!model) {
-                throw "no record id.";
-              }
-              expect(terria.modelIds).toContain(id);
-              expect(model.recordId).toEqual(id);
-            });
-            done();
-          })
-          .catch((error) => {
-            done.fail(error);
-          });
+        await terria.start({
+          configUrl: "test/Magda/map-config-dereferenced.json",
+          i18nOptions
+        });
+        const groupAspect = mapConfigDereferencedJson.aspects["group"];
+        const ids = groupAspect.members.map((member: any) => member.id);
+        expect(terria.catalog.group.uniqueId).toEqual("/");
+        // ensure user added data co-exists with dereferenced magda members
+        expect(terria.catalog.group.members.length).toEqual(3);
+        expect(terria.catalog.userAddedDataGroup).toBeDefined();
+        ids.forEach((id: string) => {
+          const model = terria.getModelById(MagdaReference, id);
+          if (!model) {
+            throw "no record id.";
+          }
+          expect(terria.modelIds).toContain(id);
+          expect(model.recordId).toEqual(id);
+        });
       });
     });
 
@@ -1116,23 +1096,17 @@ describe("Terria", function () {
       jasmine.Ajax.uninstall();
     });
 
-    it("initializes proxy with parameters from config file", function (done) {
-      terria
-        .start({
-          configUrl: "test/init/configProxy.json",
-          i18nOptions
-        })
-        .then(function () {
-          expect(terria.corsProxy.baseProxyUrl).toBe("/myproxy/");
-          expect(terria.corsProxy.proxyDomains).toEqual([
-            "example.com",
-            "csiro.au"
-          ]);
-          done();
-        })
-        .catch((_error) => {
-          done.fail();
-        });
+    it("initializes proxy with parameters from config file", async function () {
+      await terria.start({
+        configUrl: "test/init/configProxy.json",
+        i18nOptions
+      });
+
+      expect(terria.corsProxy.baseProxyUrl).toBe("/myproxy/");
+      expect(terria.corsProxy.proxyDomains).toEqual([
+        "example.com",
+        "csiro.au"
+      ]);
     });
   });
 
@@ -1515,7 +1489,7 @@ describe("Terria", function () {
         configUrl: "",
         applicationUrl: location
       });
-      await terria.loadPersistedMapSettings();
+      terria.loadPersistedMapSettings();
       expect(terria.mainViewer.viewerMode).toBe(ViewerMode.Leaflet);
       expect(getLocalPropertySpy).not.toHaveBeenCalledWith("viewermode");
     });
@@ -1526,7 +1500,7 @@ describe("Terria", function () {
         "getLocalProperty"
       ).and.returnValue("2d");
       await terria.start({ configUrl: "" });
-      await terria.loadPersistedMapSettings();
+      terria.loadPersistedMapSettings();
       expect(terria.mainViewer.viewerMode).toBe(ViewerMode.Leaflet);
       expect(getLocalPropertySpy).toHaveBeenCalledWith("viewermode");
     });
@@ -1543,7 +1517,7 @@ describe("Terria", function () {
         configUrl: "",
         applicationUrl: location
       });
-      await terria.loadPersistedMapSettings();
+      terria.loadPersistedMapSettings();
       expect(terria.mainViewer.viewerMode).toBe(ViewerMode.Cesium);
       expect(terria.mainViewer.viewerOptions.useTerrain).toBe(false);
       expect(getLocalPropertySpy).toHaveBeenCalledWith("viewermode");
@@ -1599,45 +1573,45 @@ describe("Terria", function () {
 
     it("correctly loads the base maps", async function () {
       await terria.start({ configUrl: "" });
-      terria.applyInitData({
-        initData: {
-          baseMaps: {
-            items: [
-              {
-                item: {
-                  id: "basemap-natural-earth-II",
-                  name: "Natural Earth II",
-                  type: "url-template-imagery",
-                  url: "https://storage.googleapis.com/terria-datasets-public/basemaps/natural-earth-tiles/{z}/{x}/{reverseY}.png",
-                  attribution:
-                    "<a href='https://www.naturalearthdata.com/downloads/10m-raster-data/10m-natural-earth-2/'>Natural Earth II</a> - From Natural Earth. <a href='https://www.naturalearthdata.com/about/terms-of-use/'>Public Domain</a>.",
-                  maximumLevel: 7,
-                  opacity: 1.0
+      await (
+        await terria._applyInitData({
+          initData: {
+            settings: { baseMapId: "basemap-2" },
+            baseMaps: {
+              items: [
+                {
+                  item: {
+                    id: "basemap-natural-earth-II",
+                    name: "Natural Earth II",
+                    type: "url-template-imagery",
+                    url: "https://storage.googleapis.com/terria-datasets-public/basemaps/natural-earth-tiles/{z}/{x}/{reverseY}.png",
+                    attribution:
+                      "<a href='https://www.naturalearthdata.com/downloads/10m-raster-data/10m-natural-earth-2/'>Natural Earth II</a> - From Natural Earth. <a href='https://www.naturalearthdata.com/about/terms-of-use/'>Public Domain</a>.",
+                    maximumLevel: 7,
+                    opacity: 1.0
+                  },
+                  image: "build/TerriaJS/images/natural-earth.png",
+                  contrastColor: "#000000"
                 },
-                image: "build/TerriaJS/images/natural-earth.png",
-                contrastColor: "#000000"
-              },
-              {
-                item: {
-                  id: "basemap-darkmatter1",
-                  name: "Dark Matter",
-                  type: "open-street-map",
-                  url: "https://basemaps.cartocdn.com/dark_all/",
-                  attribution:
-                    "© <a href='https://www.openstreetmap.org/copyright'>OpenStreetMap</a>, © <a href='https://carto.com/about-carto/'>CARTO</a>",
-                  subdomains: ["a", "b", "c", "d"],
-                  opacity: 1.0
+                {
+                  item: {
+                    id: "basemap-2",
+                    name: "Base map 2",
+                    type: "url-template-imagery",
+                    url: "https://example.com"
+                  }
                 }
-              }
-            ]
+              ]
+            }
           }
-        }
-      });
+        })
+      ).baseMapPromise;
       const _defaultBaseMaps = defaultBaseMaps(terria);
       expect(terria.baseMapsModel).toBeDefined();
       expect(terria.baseMapsModel.baseMapItems.length).toEqual(
         _defaultBaseMaps.length + 1
       );
+      expect(terria.mainViewer.baseMap?.uniqueId).toBe("basemap-2");
     });
   });
 

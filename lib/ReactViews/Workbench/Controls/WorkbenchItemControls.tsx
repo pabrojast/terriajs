@@ -1,10 +1,11 @@
 import { observer } from "mobx-react";
 import { FC } from "react";
+import { isJsonObject } from "../../../Core/Json";
 import TerriaError from "../../../Core/TerriaError";
-import { Complete } from "../../../Core/TypeModifiers";
+import CatalogMemberMixin from "../../../ModelMixins/CatalogMemberMixin";
 import DiscretelyTimeVaryingMixin from "../../../ModelMixins/DiscretelyTimeVaryingMixin";
-import hasTraits from "../../../Models/Definition/hasTraits";
 import { BaseModel } from "../../../Models/Definition/Model";
+import hasTraits from "../../../Models/Definition/hasTraits";
 import {
   DEFAULT_PLACEMENT,
   SelectableDimension
@@ -47,9 +48,10 @@ type WorkbenchControls = {
 type WorkbenchItemControlsProps = {
   item: BaseModel;
   viewState: ViewState;
-  /** Flag to show each control - defaults to all true */
-  controls?: WorkbenchControls;
-};
+  /**
+   * Disable viewing controls menua
+   */
+  disableViewingControlsMenu?: boolean;
 
 export const defaultControls: Complete<WorkbenchControls> = {
   viewingControls: true,
@@ -86,9 +88,24 @@ export const hideAllControls: Complete<WorkbenchControls> = {
 };
 
 const WorkbenchItemControls: FC<WorkbenchItemControlsProps> = observer(
-  ({ item, viewState, controls: controlsWithoutDefaults }) => {
-    // Apply controls from props on top of defaultControls
-    const controls = { ...defaultControls, ...controlsWithoutDefaults };
+  ({
+    item,
+    viewState,
+    controls: propsControls = {},
+    disableViewingControlsMenu
+  }) => {
+    const itemControls =
+      CatalogMemberMixin.isMixedInto(item) &&
+      isJsonObject(item.workbenchControlFlags)
+        ? (item.workbenchControlFlags as Partial<WorkbenchControls>)
+        : undefined;
+
+    // disable/enable all controls, props controls overrides item controls
+    const disableAll = !!(propsControls.disableAll ?? itemControls?.disableAll);
+    const controls = disableAll
+      ? { ...disableAllControls, ...itemControls, ...propsControls, disableAll }
+      : { ...enableAllControls, ...itemControls, ...propsControls, disableAll };
+
     const { generatedControls, error } = generateControls(viewState, item);
 
     if (error) {
@@ -97,22 +114,26 @@ const WorkbenchItemControls: FC<WorkbenchItemControlsProps> = observer(
 
     return (
       <>
-        {controls?.viewingControls ? (
-          <ViewingControls item={item} viewState={viewState} />
-        ) : null}
-        {controls?.opacity ? <OpacitySection item={item} /> : null}
-        {controls?.scaleWorkbench ? <ScaleWorkbenchInfo item={item} /> : null}
-        {controls?.timer ? <TimerSection item={item} /> : null}
-        {controls?.splitter ? <LeftRightSection item={item as any} /> : null}
-        {controls?.chartItems ? <ChartItemSelector item={item} /> : null}
-        {controls?.filter ? <FilterSection item={item} /> : null}
-        {controls?.dateTime && DiscretelyTimeVaryingMixin.isMixedInto(item) ? (
+        {disableViewingControlsMenu ? null : (
+          <ViewingControls
+            item={item}
+            viewState={viewState}
+            controls={controls}
+          />
+        )}
+        {controls.opacity ? <OpacitySection item={item} /> : null}
+        {controls.scaleWorkbench ? <ScaleWorkbenchInfo item={item} /> : null}
+        {controls.timer ? <TimerSection item={item} /> : null}
+        {controls.compare ? <LeftRightSection item={item as any} /> : null}
+        {controls.chartItems ? <ChartItemSelector item={item} /> : null}
+        {controls.filter ? <FilterSection item={item} /> : null}
+        {controls.dateTime && DiscretelyTimeVaryingMixin.isMixedInto(item) ? (
           <DateTimeSelectorSection item={item} />
         ) : null}
-        {controls?.timeFilter ? (
+        {controls.timeFilter ? (
           <SatelliteImageryTimeFilterSection item={item} />
         ) : null}
-        {controls?.selectableDimensions ? (
+        {controls.selectableDimensions ? (
           <DimensionSelectorSection item={item} placement={DEFAULT_PLACEMENT} />
         ) : null}
         {
@@ -124,7 +145,7 @@ const WorkbenchItemControls: FC<WorkbenchItemControlsProps> = observer(
         }
         {/* TODO: remove min max props and move the checks to
       ColorScaleRangeSection to keep this component simple. */}
-        {controls?.colorScaleRange &&
+        {controls.colorScaleRange &&
           hasTraits(
             item,
             WebMapServiceCatalogItemTraits,

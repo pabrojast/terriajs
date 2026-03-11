@@ -1,6 +1,7 @@
 import i18next from "i18next";
-import { computed, runInAction, makeObservable, override } from "mobx";
+import { computed, makeObservable, override, runInAction } from "mobx";
 import defined from "terriajs-cesium/Source/Core/defined";
+import GeographicTilingScheme from "terriajs-cesium/Source/Core/GeographicTilingScheme";
 import WebMercatorTilingScheme from "terriajs-cesium/Source/Core/WebMercatorTilingScheme";
 import GeographicTilingScheme from "terriajs-cesium/Source/Core/GeographicTilingScheme";
 import Rectangle from "terriajs-cesium/Source/Core/Rectangle";
@@ -20,6 +21,7 @@ import createDiscreteTimesFromIsoSegments from "../../../Core/createDiscreteTime
 import createTransformerAllowUndefined from "../../../Core/createTransformerAllowUndefined";
 import filterOutUndefined from "../../../Core/filterOutUndefined";
 import isDefined from "../../../Core/isDefined";
+import isReadOnlyArray from "../../../Core/isReadOnlyArray";
 import TerriaError from "../../../Core/TerriaError";
 import CatalogMemberMixin from "../../../ModelMixins/CatalogMemberMixin";
 import DiscretelyTimeVaryingMixin from "../../../ModelMixins/DiscretelyTimeVaryingMixin";
@@ -38,7 +40,6 @@ import WebMapTileServiceCatalogItemTraits, {
   WebMapTileServiceAvailableLayerDimensionsTraits,
   WebMapTileServiceAvailableLayerStylesTraits
 } from "../../../Traits/TraitsClasses/WebMapTileServiceCatalogItemTraits";
-import isReadOnlyArray from "../../../Core/isReadOnlyArray";
 import CreateModel from "../../Definition/CreateModel";
 import createStratumInstance from "../../Definition/createStratumInstance";
 import LoadableStratum from "../../Definition/LoadableStratum";
@@ -74,6 +75,9 @@ type ExtendedImageryProvider = (
     latitude: number
   ) => Promise<ImageryLayerFeatureInfo[] | undefined> | undefined;
 };
+
+export const SUPPORTED_CRS_3857 = [/EPSG.*3857/, /EPSG.*900913/];
+export const SUPPORTED_CRS_4326 = [/EPSG.*4326/, /CRS.*84/, /EPSG.*4283/];
 
 interface UsableTileMatrixSets {
   identifiers: string[];
@@ -969,6 +973,59 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
       return imageryProvider;
     }
   );
+
+  getTileUrl(
+    layer: WmtsLayer,
+    capabilities: WebMapTileServiceCapabilities,
+    format: string
+  ) {
+    let url: string | undefined = undefined;
+    if (
+      capabilities.OperationsMetadata &&
+      "GetTile" in capabilities.OperationsMetadata
+    ) {
+      const gets = capabilities.OperationsMetadata.GetTile["Get"];
+
+      for (let i = 0; i < gets.length; i++) {
+        let constraints = gets[i].Constraint;
+        if (constraints) {
+          constraints = Array.isArray(constraints)
+            ? constraints
+            : [constraints];
+          const getEncodingConstraint = constraints.find(
+            (element) => element.name === "GetEncoding"
+          );
+
+          const encodings = getEncodingConstraint?.AllowedValues?.Value;
+          if (encodings?.includes("KVP")) {
+            url = gets[i]["xlink:href"];
+          }
+        } else if (gets[i]["xlink:href"]) {
+          url = gets[i]["xlink:href"];
+        }
+      }
+    }
+
+    const resourceUrls: ResourceUrl[] | undefined =
+      !layer.ResourceURL || Array.isArray(layer.ResourceURL)
+        ? layer.ResourceURL
+        : [layer.ResourceURL];
+
+    if (resourceUrls && (this.requestEncoding === "RESTful" || !url)) {
+      for (let i = 0; i < resourceUrls.length; i++) {
+        const resourceUrl: ResourceUrl = resourceUrls[i];
+        if (
+          (resourceUrl.resourceType === "tile" &&
+            resourceUrl.format.indexOf(format) !== -1) ||
+          resourceUrl.format.indexOf("png") !== -1
+        ) {
+          url = resourceUrl.template;
+        }
+      }
+    }
+
+    return url ?? new URI(this.url).search("").toString();
+  }
 
   @computed
   get tileMatrixSet():

@@ -21,15 +21,15 @@ import {
 import Clipboard from "../../../../Clipboard";
 import { buildShareLink, buildShortShareLink } from "../BuildShareLink";
 import { ShareUrlWarning } from "./ShareUrlWarning";
+import TerriaError, {
+  TerriaErrorSeverity
+} from "../../../../../Core/TerriaError";
 
 interface IShareUrlProps {
   terria: Terria;
   viewState: ViewState;
   includeStories: boolean;
   shouldShorten: boolean;
-  theme: "light" | "dark";
-  inputTheme?: "light" | "dark";
-  rounded?: boolean;
   callback?: () => void;
 }
 
@@ -42,17 +42,7 @@ export const ShareUrl = forwardRef<
   IShareUrlRef,
   PropsWithChildren<IShareUrlProps>
 >(function ShareUrl(
-  {
-    terria,
-    viewState,
-    includeStories,
-    shouldShorten,
-    children,
-    theme,
-    inputTheme,
-    rounded,
-    callback
-  },
+  { terria, viewState, includeStories, shouldShorten, children, callback },
   forwardRef
 ) {
   const { t } = useTranslation();
@@ -72,21 +62,41 @@ export const ShareUrl = forwardRef<
   );
 
   useEffect(() => {
+    let cancelled = false;
     if (shouldShorten) {
       setPlaceholder(t("share.shortLinkShortening"));
       setShorteningInProgress(true);
-      buildShortShareLink(terria, viewState, {
-        includeStories
-      })
-        .then((shareUrl) => setShareUrl(shareUrl))
-        .catch(() => {
-          setShareUrl(
-            buildShareLink(terria, viewState, {
-              includeStories
-            })
-          );
+      buildShortShareLink(terria, viewState, { includeStories })
+        .then((shareUrl) => {
+          if (!cancelled) setShareUrl(shareUrl);
         })
-        .finally(() => setShorteningInProgress(false));
+        .catch((error) => {
+          let userMessage = t("models.shareData.generateErrorMessage");
+          if (error instanceof TerriaError) {
+            const highestImportanceError = error.highestImportanceError;
+            const highestImportanceOriginalErrorMessage =
+              highestImportanceError.originalError?.[0].message;
+            if (highestImportanceOriginalErrorMessage?.includes("413")) {
+              userMessage = t(
+                "models.shareData.generateErrorDataExceedsLimitMessage"
+              );
+              terria.raiseErrorToUser(
+                TerriaError.from(error, {
+                  message: userMessage
+                }),
+                {
+                  severity: TerriaErrorSeverity.Error
+                }
+              );
+            }
+          }
+          if (!cancelled) {
+            setShareUrl(userMessage);
+          }
+        })
+        .finally(() => {
+          if (!cancelled) setShorteningInProgress(false);
+        });
     } else {
       setShareUrl(
         buildShareLink(terria, viewState, {
@@ -94,21 +104,24 @@ export const ShareUrl = forwardRef<
         })
       );
     }
+    return () => {
+      cancelled = true;
+    };
     /* eslint-disable-next-line react-hooks/exhaustive-deps */
   }, [terria, viewState, shouldShorten, includeStories]);
 
   return (
     <>
-      <Explanation textDark={theme === "light"}>
-        {t("clipboard.shareExplanation")}
-      </Explanation>
+      <Explanation>{t("clipboard.shareExplanation")}</Explanation>
       <Spacing bottom={1} />
       <Clipboard
-        theme={theme}
         text={shareUrl}
         inputPlaceholder={placeholder}
-        inputTheme={inputTheme}
-        rounded={rounded}
+        createdMessage={
+          includeStories && terria.stories && terria.stories.length > 0
+            ? t("share.storyLinkCreated")
+            : t("share.shareLinkCreated")
+        }
         onCopy={(text) =>
           terria.analytics?.logEvent(
             Category.share,
@@ -118,7 +131,6 @@ export const ShareUrl = forwardRef<
         }
       />
       {children}
-      <Spacing bottom={2} />
       <ShareUrlWarning
         terria={terria}
         viewState={viewState}

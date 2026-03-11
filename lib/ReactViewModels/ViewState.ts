@@ -379,6 +379,8 @@ export default class ViewState {
    */
   @observable retainSharePanel: boolean = false; // The large share panel accessed via Share/Print button
 
+  @observable settingsPanelIsVisible: boolean = false;
+
   /**
    * The currently open tool
    */
@@ -621,6 +623,14 @@ export default class ViewState {
     this.openAddData();
     this.searchState.catalogSearchText = query;
     this.searchState.searchCatalog();
+  }
+
+  /**
+   * Open settings panel
+   */
+  @action
+  openSettingsPanel(): void {
+    this.settingsPanelIsVisible = true;
   }
 
   @action
