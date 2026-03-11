@@ -14,7 +14,7 @@ import LegendOwnerTraits from "../../Traits/TraitsClasses/LegendOwnerTraits";
 import { withViewState } from "../Context";
 
 // Lazy load the Editor component as the tinyMCE library is large
-const Editor = lazy(() => import("../Generic/Editor.jsx"));
+const Editor = lazy(() => import("../Generic/Editor.tsx"));
 const LEGEND_TAG = "terria-legend";
 const LEGEND_EDITOR_STYLE = `
   ${LEGEND_TAG} {

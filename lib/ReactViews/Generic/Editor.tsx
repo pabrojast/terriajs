@@ -1,6 +1,5 @@
 import { useRef } from "react";
 import { Editor } from "@tinymce/tinymce-react";
-import PropTypes from "prop-types";
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import tinymce from "tinymce"; // must import despite being unused
 import type { Editor as TinyMCEEditor } from "tinymce";
@@ -9,8 +8,8 @@ import "tinymce/icons/default";
 import "tinymce/themes/silver";
 import "tinymce/models/dom";
 /* Import a skin (can be a custom skin instead of the default) */
-import "!!style-loader!css-loader!tinymce/skins/ui/oxide/skin.min.css";
-import "!!style-loader!css-loader!./editor.skin.min.css"; // Custom borderless skin overrides
+// import "!!style-loader!css-loader!tinymce/skins/ui/oxide/skin.min.css";
+import "!!style-loader!css-loader!./editor.skin.min.css"; // Custom borderless skin
 
 /* Import TinyMCE plugins */
 import "tinymce/plugins/media";
@@ -24,23 +23,44 @@ import "tinymce/plugins/autolink";
 import contentCss from "tinymce/skins/content/default/content.min.css";
 import contentUiCss from "tinymce/skins/ui/oxide/content.min.css";
 
-export default function TinyEditor(props) {
-  const editorRef = useRef(null);
+interface ITinyEditorProps {
+  html: string;
+  onChange: (html: string, editor: TinyMCEEditor) => void;
+  language?: string;
+  baseUrl?: string;
+  toolbarItems?: string;
+  setup?: (editor: TinyMCEEditor) => void;
+  customElements?: string;
+  extendedValidElements?: string;
+  contentStyle?: string;
+}
+
+export default function TinyEditor({
+  html,
+  onChange,
+  language,
+  toolbarItems,
+  setup: setupFn,
+  customElements,
+  extendedValidElements,
+  contentStyle
+}: ITinyEditorProps) {
+  const editorRef = useRef<TinyMCEEditor | null>(null);
   const defaultToolbar =
     "blocks | bold italic forecolor | align |" +
     " bullist numlist table |" +
     "image media link |" +
     "undo redo | removeformat";
-  const toolbar = props.toolbarItems
-    ? `${defaultToolbar} | ${props.toolbarItems}`
+  const toolbar = toolbarItems
+    ? `${defaultToolbar} | ${toolbarItems}`
     : defaultToolbar;
   const contentStyles = [contentCss, contentUiCss];
-  if (props.contentStyle) {
-    contentStyles.push(props.contentStyle);
+  if (contentStyle) {
+    contentStyles.push(contentStyle);
   }
-  const setup = (editor) => {
-    if (props.setup) {
-      props.setup(editor);
+  const setup = (editor: TinyMCEEditor) => {
+    if (setupFn) {
+      setupFn(editor);
     }
   };
 
@@ -51,7 +71,9 @@ export default function TinyEditor(props) {
       value={html}
       onEditorChange={onChange}
       init={{
-        license_key: "gpl",
+        ...(language
+          ? { language, language_url: `languages/tinymce/${language}.js` }
+          : {}),
         height: 450,
         skin: false,
         menubar: false,
@@ -63,25 +85,11 @@ export default function TinyEditor(props) {
         content_style: contentStyles.join("\n"),
         image_dimensions: false,
         setup,
-        ...(props.customElements
-          ? { custom_elements: props.customElements }
-          : {}),
-        ...(props.extendedValidElements
-          ? { extended_valid_elements: props.extendedValidElements }
+        ...(customElements ? { custom_elements: customElements } : {}),
+        ...(extendedValidElements
+          ? { extended_valid_elements: extendedValidElements }
           : {})
       }}
     />
   );
 }
-
-TinyEditor.propTypes = {
-  html: PropTypes.string,
-  onChange: PropTypes.func.isRequired,
-  actions: PropTypes.array,
-  terria: PropTypes.object,
-  toolbarItems: PropTypes.string,
-  setup: PropTypes.func,
-  customElements: PropTypes.string,
-  extendedValidElements: PropTypes.string,
-  contentStyle: PropTypes.string
-};
