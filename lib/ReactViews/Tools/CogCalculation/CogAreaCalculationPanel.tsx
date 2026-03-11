@@ -167,12 +167,12 @@ const ItemAreaPanel: React.FC<ItemAreaPanelProps> = observer(
 
                 {/* Values table (collapsible) */}
                 {activeCalcName && allSeries[activeCalcName] && (
-                  <details>
-                    <summary style={{ padding: "0 12px", cursor: "pointer" }}>
+                  <StyledDetails>
+                    <StyledSummary style={{ padding: "0 12px" }}>
                       <Text as="span" mini textLight>
                         View table ({allSeries[activeCalcName].length} dates)
                       </Text>
-                    </summary>
+                    </StyledSummary>
                     <ValuesTable>
                       <thead>
                         <tr>
@@ -196,7 +196,7 @@ const ItemAreaPanel: React.FC<ItemAreaPanelProps> = observer(
                         ))}
                       </tbody>
                     </ValuesTable>
-                  </details>
+                  </StyledDetails>
                 )}
               </>
             )}
@@ -510,6 +510,22 @@ const ChartLabel = styled.div`
   color: ${(p) => p.theme.textLight};
   margin-top: -2px;
   padding-bottom: 2px;
+`;
+
+const StyledDetails = styled.details`
+  color: ${(p) => p.theme.textLight};
+`;
+
+const StyledSummary = styled.summary`
+  cursor: pointer;
+  padding: 4px 0;
+  color: ${(p) => p.theme.textLight};
+  &:hover {
+    opacity: 0.85;
+  }
+  &::marker {
+    color: ${(p) => p.theme.textLight};
+  }
 `;
 
 const ValuesTable = styled.table`

@@ -107,12 +107,12 @@ const CogCalculationResultsPanel: React.FC<Props> = observer(({ vm }) => {
         <Spacing bottom={1} />
 
         {/* Values Table (collapsible) */}
-        <details>
-          <summary>
+        <StyledDetails>
+          <StyledSummary>
             <Text as="span" small bold>
               View values table ({vm.timeSeriesResults.length} rows)
             </Text>
-          </summary>
+          </StyledSummary>
           <Spacing bottom={0.5} />
           <ScrollableTable>
             <table>
@@ -138,7 +138,7 @@ const CogCalculationResultsPanel: React.FC<Props> = observer(({ vm }) => {
               </tbody>
             </table>
           </ScrollableTable>
-        </details>
+        </StyledDetails>
 
         <Spacing bottom={1.5} />
         <Box gap>
@@ -332,7 +332,9 @@ const TimeSeriesChart: React.FC<ChartProps> = observer(
 
 // ─── Styled Components ──────────────────────────────────────────
 
-const Container = styled.div``;
+const Container = styled.div`
+  color: ${(p) => p.theme.textLight};
+`;
 
 const StatsTable = styled.table`
   width: 100%;
@@ -353,6 +355,22 @@ const StatValue = styled.td`
   text-align: right;
   color: ${(p) => p.theme.textLight};
   border-bottom: 1px solid ${(p) => p.theme.darkLighter};
+`;
+
+const StyledDetails = styled.details`
+  color: ${(p) => p.theme.textLight};
+`;
+
+const StyledSummary = styled.summary`
+  cursor: pointer;
+  padding: 4px 0;
+  color: ${(p) => p.theme.textLight};
+  &:hover {
+    opacity: 0.85;
+  }
+  &::marker {
+    color: ${(p) => p.theme.textLight};
+  }
 `;
 
 const ScrollableTable = styled.div`
@@ -386,4 +404,8 @@ const ChartContainer = styled.div`
   border-radius: 4px;
   padding: 5px;
   overflow: hidden;
+
+  text {
+    fill: ${(p) => p.theme.textLight};
+  }
 `;

@@ -153,16 +153,27 @@ class CogTimeSeriesStratum extends LoadableStratum(
 
   /**
    * Default feature info template that renders a time series chart
-   * when the user clicks on the map.
+   * when the user clicks on the map, with the current time step value.
    */
   @computed
   get featureInfoTemplate(): StratumFromTraits<FeatureInfoTemplateTraits> {
     return createStratumInstance(FeatureInfoTemplateTraits, {
       template:
         '<div style="min-height:80px">' +
+        // Current value header
+        "{{#terria.timeSeries.currentValue}}" +
+        '<div style="display:flex;align-items:baseline;gap:8px;margin-bottom:6px">' +
+        '<span style="font-size:22px;font-weight:700;color:#4a9df8">{{terria.timeSeries.currentValue}}</span>' +
+        "{{#terria.timeSeries.currentDate}}" +
+        '<span style="font-size:12px;opacity:0.7">{{terria.timeSeries.currentDate}}</span>' +
+        "{{/terria.timeSeries.currentDate}}" +
+        "</div>" +
+        "{{/terria.timeSeries.currentValue}}" +
+        // Chart
         "{{#terria.timeSeries.chart}}" +
         "{{{terria.timeSeries.chart}}}" +
         "{{/terria.timeSeries.chart}}" +
+        // Loading placeholder
         "{{^terria.timeSeries.chart}}" +
         "<p><em>Click to load time series…</em></p>" +
         "{{/terria.timeSeries.chart}}" +
@@ -574,13 +585,37 @@ export default class CogTimeSeriesCatalogItem extends DiscretelyTimeVaryingMixin
 
       const chartTitle = title + progress;
 
-      const timeSeries: TimeSeriesContext = {
+      // Find value for the current time step
+      const currentTag = this.currentDiscreteTimeTag;
+      let currentValue: string | undefined;
+      let currentDate: string | undefined;
+      if (currentTag && sorted.length > 0) {
+        const currentTagDate = currentTag.slice(0, 10);
+        const match = sorted.find(
+          (d) =>
+            d.time === currentTag ||
+            d.time.slice(0, 10) === currentTagDate ||
+            (d.tag && d.tag === currentTag) ||
+            (d.tag && d.tag.slice(0, 10) === currentTagDate)
+        );
+        if (match) {
+          currentValue = match.value.toFixed(4);
+          currentDate = currentTagDate;
+        }
+      }
+
+      const timeSeries: TimeSeriesContext & {
+        currentValue?: string;
+        currentDate?: string;
+      } = {
         title: chartTitle,
         xName: "time",
         yName: "value",
         id: featureId,
         data: csvData,
-        chart: `<chart identifier="${featureId}" title="${chartTitle}">${csvData}</chart>`
+        chart: `<chart identifier="${featureId}" title="${chartTitle}">${csvData}</chart>`,
+        ...(currentValue !== undefined && { currentValue }),
+        ...(currentDate !== undefined && { currentDate })
       };
 
       return { terria: { timeSeries } };

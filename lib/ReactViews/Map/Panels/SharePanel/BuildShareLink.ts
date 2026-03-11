@@ -217,6 +217,22 @@ function addModelStratum(
 
   models[id] = stratum ? saveStratumToJson(model.traits, stratum) : {};
 
+  // For workbench items, also merge definition stratum properties so
+  // the share URL is self-contained (e.g. cog-time-series items loaded
+  // from an init file keep their url, renderOptions, etc.).
+  if (force && stratumId === CommonStrata.user) {
+    const defStratum = model.strata.get(CommonStrata.definition);
+    if (defStratum) {
+      const defJson = saveStratumToJson(model.traits, defStratum);
+      // Only add definition properties that are not already in the user stratum
+      for (const key of Object.keys(defJson)) {
+        if (models[id][key] === undefined) {
+          models[id][key] = defJson[key];
+        }
+      }
+    }
+  }
+
   if (dereferenced && dereferencedStratum) {
     models[id].dereferenced = saveStratumToJson(
       dereferenced.traits,
