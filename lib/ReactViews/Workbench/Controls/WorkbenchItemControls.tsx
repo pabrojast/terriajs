@@ -27,23 +27,11 @@ import ShortReport from "./ShortReport";
 import StacCollectionSection from "./StacCollectionSection";
 import TimerSection from "./TimerSection";
 import ViewingControls from "./ViewingControls";
-
-type WorkbenchControls = {
-  viewingControls?: boolean;
-  opacity?: boolean;
-  scaleWorkbench?: boolean;
-  splitter?: boolean;
-  timer?: boolean;
-  chartItems?: boolean;
-  filter?: boolean;
-  dateTime?: boolean;
-  timeFilter?: boolean;
-  selectableDimensions?: boolean;
-  colorScaleRange?: boolean;
-  shortReport?: boolean;
-  legend?: boolean;
-  stac?: boolean;
-};
+import {
+  WorkbenchControls,
+  disableAllControls,
+  enableAllControls
+} from "./WorkbenchControls";
 
 type WorkbenchItemControlsProps = {
   item: BaseModel;
@@ -53,38 +41,10 @@ type WorkbenchItemControlsProps = {
    */
   disableViewingControlsMenu?: boolean;
 
-export const defaultControls: Complete<WorkbenchControls> = {
-  viewingControls: true,
-  opacity: true,
-  scaleWorkbench: true,
-  splitter: true,
-  timer: true,
-  chartItems: true,
-  filter: true,
-  dateTime: true,
-  timeFilter: true,
-  selectableDimensions: true,
-  colorScaleRange: true,
-  shortReport: true,
-  legend: true,
-  stac: true
-};
-
-export const hideAllControls: Complete<WorkbenchControls> = {
-  viewingControls: false,
-  opacity: false,
-  scaleWorkbench: false,
-  splitter: false,
-  timer: false,
-  chartItems: false,
-  filter: false,
-  dateTime: false,
-  timeFilter: false,
-  selectableDimensions: false,
-  colorScaleRange: false,
-  shortReport: false,
-  legend: false,
-  stac: false
+  /**
+   * Flags to show/hide controls, disableAll=true will disable all controls by default
+   */
+  controls?: Partial<WorkbenchControls>;
 };
 
 const WorkbenchItemControls: FC<WorkbenchItemControlsProps> = observer(

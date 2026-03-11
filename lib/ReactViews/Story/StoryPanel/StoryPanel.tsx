@@ -22,6 +22,7 @@ import StoryBody from "./StoryBody";
 import FooterBar from "./StoryFooterBar";
 import TitleBar from "./TitleBar";
 import DraggableStoryPanel from "./DraggableStoryPanel";
+import DragWrapper from "../../Drag/DragWrapper";
 
 /**
  *
@@ -305,38 +306,17 @@ class StoryPanel extends Component<Props, State> {
               onSwipedLeft={() => this.goToNextStory()}
               onSwipedRight={() => this.goToPrevStory()}
             >
-              <StoryBody
-                isCollapsed={this.state.isCollapsed}
-                story={story}
-                terria={this.props.viewState.terria}
-              />
-            </Box>
-            <Box
-              backgroundColor={this.props.theme.dark}
-              css={{ color: "white" }}
-              paddedHorizontally={3}
-              fullWidth
-            >
-              <FooterBar
-                goPrev={() => this.goToPrevStory()}
-                goNext={() => this.goToNextStory()}
-                jumpToStory={(index: number) => this.navigateStory(index)}
-                zoomTo={() => this.onCenterScene(story)}
-                currentHumanIndex={this.props.viewState.currentStoryId + 1}
-                totalStories={stories.length}
-                listStories={() => {
-                  runInAction(() => {
-                    this.props.viewState.storyShown = false;
-                  });
-                  onStoryButtonClick({
-                    terria: this.props.viewState.terria,
-                    theme: this.props.theme,
-                    viewState: this.props.viewState,
-                    animationDuration: 250
-                  })();
+              <Box
+                css={{
+                  backgroundColor: "rgba(255, 255, 255, 0.85)",
+                  backdropFilter: this.props.theme.blur
                 }}
               >
-                <StoryBody isCollapsed={this.state.isCollapsed} story={story} />
+                <StoryBody
+                  isCollapsed={this.state.isCollapsed}
+                  story={story}
+                  terria={this.props.viewState.terria}
+                />
               </Box>
               <Box
                 backgroundColor={this.props.theme.dark}

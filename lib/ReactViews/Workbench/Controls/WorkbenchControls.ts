@@ -23,6 +23,7 @@ export type WorkbenchControls = {
   colorScaleRange: boolean;
   shortReport: boolean;
   legend: boolean;
+  stac: boolean;
 
   [dynamicControl: string]: boolean | undefined;
 };
@@ -46,7 +47,8 @@ export const enableAllControls: WorkbenchControls = {
   selectableDimensions: true,
   colorScaleRange: true,
   shortReport: true,
-  legend: true
+  legend: true,
+  stac: true
 };
 
 export const disableAllControls: WorkbenchControls = {
@@ -68,7 +70,8 @@ export const disableAllControls: WorkbenchControls = {
   selectableDimensions: false,
   colorScaleRange: false,
   shortReport: false,
-  legend: false
+  legend: false,
+  stac: false
 };
 
 /**
