@@ -12,6 +12,8 @@
 import { observer } from "mobx-react";
 import React, { useCallback, useMemo, useState } from "react";
 import styled, { useTheme } from "styled-components";
+import { runInAction } from "mobx";
+import CommonStrata from "../../../Models/Definition/CommonStrata";
 import CogTimeSeriesCatalogItem from "../../../Models/Catalog/CatalogItems/CogTimeSeriesCatalogItem";
 import Terria from "../../../Models/Terria";
 import ViewState from "../../../ReactViewModels/ViewState";
@@ -109,6 +111,18 @@ const ItemAreaPanel: React.FC<ItemAreaPanelProps> = observer(
       });
     }, [viewState]);
 
+    const toggleChartPanel = useCallback(() => {
+      runInAction(() => {
+        item.setTrait(
+          CommonStrata.user,
+          "showInChartPanel",
+          !item.showInChartPanel
+        );
+      });
+    }, [item]);
+
+    const isInChartPanel = item.showInChartPanel;
+
     return (
       <ItemContainer>
         <HeaderRow onClick={() => setExpanded(!expanded)}>
@@ -118,7 +132,25 @@ const ItemAreaPanel: React.FC<ItemAreaPanelProps> = observer(
               {item.name ?? "COG Time Series"}
             </Text>
           </Box>
-          <CollapseButton>{expanded ? "▼" : "▶"}</CollapseButton>
+          <Box verticalCenter gap>
+            {hasAreaCalcs && (
+              <ChartToggleButton
+                active={isInChartPanel}
+                onClick={(e: React.MouseEvent) => {
+                  e.stopPropagation();
+                  toggleChartPanel();
+                }}
+                title={
+                  isInChartPanel
+                    ? "Remove from chart panel"
+                    : "Show in chart panel"
+                }
+              >
+                📈
+              </ChartToggleButton>
+            )}
+            <CollapseButton>{expanded ? "▼" : "▶"}</CollapseButton>
+          </Box>
         </HeaderRow>
 
         {expanded && (
@@ -428,6 +460,19 @@ const ChartIcon = styled.span`
 const CollapseButton = styled.span`
   font-size: 10px;
   color: ${(p) => p.theme.textLight};
+`;
+
+const ChartToggleButton = styled.span<{ active?: boolean }>`
+  font-size: 14px;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 3px;
+  background: ${(p) =>
+    p.active ? p.theme.colorPrimary + "33" : "transparent"};
+  transition: background 0.15s;
+  &:hover {
+    background: ${(p) => p.theme.colorPrimary + "26"};
+  }
 `;
 
 const ButtonRow = styled.div`

@@ -163,7 +163,7 @@ const ErrorState = styled(Box).attrs({
 `;
 
 const ErrorText = styled(Text)`
-  color: #e74c3c;
+  color: ${(p) => p.theme.colorSecondary};
 `;
 
 const ProgressBar = styled.div`

@@ -241,5 +241,5 @@ const EstimateBox = styled.div`
 `;
 
 const WarningText = styled(Text)`
-  color: #e67e22;
+  color: ${(p) => p.theme.colorSecondary};
 `;

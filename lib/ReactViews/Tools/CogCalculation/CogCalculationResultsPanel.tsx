@@ -7,7 +7,7 @@
 
 import { observer } from "mobx-react";
 import { useMemo } from "react";
-import styled from "styled-components";
+import styled, { useTheme } from "styled-components";
 import CogCalculationViewModel from "../../../ReactViewModels/CogCalculationViewModel";
 import Box from "../../../Styled/Box";
 import Button from "../../../Styled/Button";
@@ -184,6 +184,7 @@ interface ChartProps {
 
 const TimeSeriesChart: React.FC<ChartProps> = observer(
   ({ results, statistic }) => {
+    const theme = useTheme();
     const chartData = useMemo(() => {
       const values = results.map((r) => ({
         time: new Date(r.time).getTime(),
@@ -261,7 +262,7 @@ const TimeSeriesChart: React.FC<ChartProps> = observer(
             y1={padding.top}
             x2={padding.left}
             y2={height - padding.bottom}
-            stroke="#555"
+            stroke={theme.darkLighter}
             strokeWidth={1}
           />
           <line
@@ -269,7 +270,7 @@ const TimeSeriesChart: React.FC<ChartProps> = observer(
             y1={height - padding.bottom}
             x2={width - padding.right}
             y2={height - padding.bottom}
-            stroke="#555"
+            stroke={theme.darkLighter}
             strokeWidth={1}
           />
 
@@ -277,7 +278,7 @@ const TimeSeriesChart: React.FC<ChartProps> = observer(
           <text
             x={padding.left - 5}
             y={padding.top + 4}
-            fill="#aaa"
+            fill={theme.textLight}
             fontSize={9}
             textAnchor="end"
           >
@@ -286,7 +287,7 @@ const TimeSeriesChart: React.FC<ChartProps> = observer(
           <text
             x={padding.left - 5}
             y={height - padding.bottom + 4}
-            fill="#aaa"
+            fill={theme.textLight}
             fontSize={9}
             textAnchor="end"
           >
@@ -297,7 +298,7 @@ const TimeSeriesChart: React.FC<ChartProps> = observer(
           <text
             x={padding.left}
             y={height - 5}
-            fill="#aaa"
+            fill={theme.textLight}
             fontSize={9}
             textAnchor="start"
           >
@@ -306,7 +307,7 @@ const TimeSeriesChart: React.FC<ChartProps> = observer(
           <text
             x={width - padding.right}
             y={height - 5}
-            fill="#aaa"
+            fill={theme.textLight}
             fontSize={9}
             textAnchor="end"
           >
@@ -314,11 +315,16 @@ const TimeSeriesChart: React.FC<ChartProps> = observer(
           </text>
 
           {/* Line */}
-          <path d={linePath} fill="none" stroke="#4a9df8" strokeWidth={1.5} />
+          <path
+            d={linePath}
+            fill="none"
+            stroke={theme.colorPrimary}
+            strokeWidth={1.5}
+          />
 
           {/* Data points */}
           {points.map((p, i) => (
-            <circle key={i} cx={p.x} cy={p.y} r={2.5} fill="#4a9df8">
+            <circle key={i} cx={p.x} cy={p.y} r={2.5} fill={theme.colorPrimary}>
               <title>
                 {p.time}: {formatValue(p.value)}
               </title>
