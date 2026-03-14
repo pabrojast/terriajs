@@ -6,6 +6,7 @@ import {
   observable,
   onBecomeObserved,
   onBecomeUnobserved,
+  override,
   reaction,
   runInAction
 } from "mobx";
@@ -14,6 +15,13 @@ import JulianDate from "terriajs-cesium/Source/Core/JulianDate";
 import Rectangle from "terriajs-cesium/Source/Core/Rectangle";
 import type TIFFImageryProvider from "terriajs-tiff-imagery-provider";
 import CatalogMemberMixin from "../../../ModelMixins/CatalogMemberMixin";
+import getChartColorForId from "../../../Charts/getChartColorForId";
+import filterOutUndefined from "../../../Core/filterOutUndefined";
+import {
+  ChartItem,
+  ChartPoint,
+  calculateDomain
+} from "../../../ModelMixins/ChartableMixin";
 import DiscretelyTimeVaryingMixin, {
   DiscreteTimeAsJS
 } from "../../../ModelMixins/DiscretelyTimeVaryingMixin";
@@ -22,6 +30,7 @@ import CogTimeSeriesCatalogItemTraits from "../../../Traits/TraitsClasses/CogTim
 import { RectangleTraits } from "../../../Traits/TraitsClasses/MappableTraits";
 import { FeatureInfoTemplateTraits } from "../../../Traits/TraitsClasses/FeatureInfoTraits";
 import CreateModel from "../../Definition/CreateModel";
+import CommonStrata from "../../Definition/CommonStrata";
 import createStratumInstance from "../../Definition/createStratumInstance";
 import LoadableStratum from "../../Definition/LoadableStratum";
 import { BaseModel } from "../../Definition/Model";
@@ -537,6 +546,85 @@ export default class CogTimeSeriesCatalogItem extends DiscretelyTimeVaryingMixin
   }
 
   // ──────────────────────────────────────────────
+  // Chart Panel Integration
+  // ──────────────────────────────────────────────
+
+  /**
+   * Override chartItems to include area calculation time series as line charts
+   * in the bottom chart panel, in addition to the default momentChart.
+   */
+  @override
+  get chartItems(): ChartItem[] {
+    const baseItems = filterOutUndefined([this.momentChart]);
+
+    if (!this.showInChartPanel || !this.areaCalculations) {
+      return baseItems;
+    }
+
+    const currentJulian = this.currentDiscreteJulianDate;
+
+    for (const calc of this.areaCalculations) {
+      if (!calc.name) continue;
+
+      const tsData = this.getAreaCalculationTimeSeries(calc.name);
+      if (!tsData || tsData.length === 0) continue;
+
+      const points: ChartPoint[] = [];
+      for (const d of tsData) {
+        try {
+          const jd = JulianDate.fromIso8601(d.time);
+          points.push({
+            x: JulianDate.toDate(jd),
+            y: d.value,
+            isSelected: currentJulian
+              ? JulianDate.equals(jd, currentJulian)
+              : false
+          });
+        } catch {
+          // Skip invalid dates
+        }
+      }
+
+      if (points.length === 0) continue;
+
+      const colorId = `color-${this.uniqueId}-area-${calc.name}`;
+      const chartId = `${this.uniqueId}-area-${calc.name}`;
+
+      baseItems.push({
+        item: this,
+        id: chartId,
+        name: `${this.name || "COG"} – ${calc.name}`,
+        categoryName: this.name,
+        key: `key-${chartId}`,
+        type: "line",
+        units: calc.unit,
+        xAxis: { name: "Time", scale: "time" },
+        points,
+        domain: calculateDomain(points),
+        showInChartPanel: this.show && this.showInChartPanel,
+        isSelectedInWorkbench: this.showInChartPanel,
+        updateIsSelectedInWorkbench: (isSelected: boolean) => {
+          runInAction(() => {
+            this.setTrait(CommonStrata.user, "showInChartPanel", isSelected);
+          });
+        },
+        getColor: () => getChartColorForId(colorId),
+        onClick: (point: any) => {
+          runInAction(() => {
+            this.setTrait(
+              CommonStrata.user,
+              "currentTime",
+              point.x.toISOString()
+            );
+          });
+        }
+      });
+    }
+
+    return baseItems;
+  }
+
+  // ──────────────────────────────────────────────
   // Feature Info — click to extract time series
   // ──────────────────────────────────────────────
 
@@ -684,14 +772,16 @@ export default class CogTimeSeriesCatalogItem extends DiscretelyTimeVaryingMixin
       this._pointTimeSeriesCache.set(key, state);
     });
 
-    // Build task list: one item per time entry, first COG in each mosaic
+    // Build task list: one item per time entry, first COG in each mosaic.
+    // Reversed so the most recent time steps load first.
     const tasks = entries
       .filter((e) => e.time && e.cogs && e.cogs.length > 0)
       .map((e) => ({
         time: e.time!,
         tag: e.tag,
         cogUrl: e.cogs![0]
-      }));
+      }))
+      .reverse();
 
     const band = this.renderOptions?.single?.band ?? 1;
     const nodata = this.renderOptions?.nodata;
