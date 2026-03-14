@@ -11,7 +11,7 @@
 
 import { observer } from "mobx-react";
 import React, { useCallback, useMemo, useState } from "react";
-import styled from "styled-components";
+import styled, { useTheme } from "styled-components";
 import CogTimeSeriesCatalogItem from "../../../Models/Catalog/CatalogItems/CogTimeSeriesCatalogItem";
 import Terria from "../../../Models/Terria";
 import ViewState from "../../../ReactViewModels/ViewState";
@@ -218,6 +218,7 @@ interface MiniChartProps {
 
 const MiniTimeSeriesChart: React.FC<MiniChartProps> = observer(
   ({ data, currentTime, unit, label }) => {
+    const theme = useTheme();
     const chartData = useMemo(() => {
       const values = data.map((d) => ({
         time: new Date(d.time).getTime(),
@@ -308,7 +309,7 @@ const MiniTimeSeriesChart: React.FC<MiniChartProps> = observer(
             y1={pad.top}
             x2={pad.left}
             y2={height - pad.bottom}
-            stroke="#444"
+            stroke={theme.darkLighter}
             strokeWidth={1}
           />
           <line
@@ -316,7 +317,7 @@ const MiniTimeSeriesChart: React.FC<MiniChartProps> = observer(
             y1={height - pad.bottom}
             x2={width - pad.right}
             y2={height - pad.bottom}
-            stroke="#444"
+            stroke={theme.darkLighter}
             strokeWidth={1}
           />
 
@@ -324,7 +325,7 @@ const MiniTimeSeriesChart: React.FC<MiniChartProps> = observer(
           <text
             x={pad.left - 4}
             y={pad.top + 3}
-            fill="#888"
+            fill={theme.textLight}
             fontSize={8}
             textAnchor="end"
           >
@@ -333,7 +334,7 @@ const MiniTimeSeriesChart: React.FC<MiniChartProps> = observer(
           <text
             x={pad.left - 4}
             y={height - pad.bottom + 3}
-            fill="#888"
+            fill={theme.textLight}
             fontSize={8}
             textAnchor="end"
           >
@@ -344,7 +345,7 @@ const MiniTimeSeriesChart: React.FC<MiniChartProps> = observer(
           <text
             x={pad.left}
             y={height - 4}
-            fill="#888"
+            fill={theme.textLight}
             fontSize={8}
             textAnchor="start"
           >
@@ -353,7 +354,7 @@ const MiniTimeSeriesChart: React.FC<MiniChartProps> = observer(
           <text
             x={width - pad.right}
             y={height - 4}
-            fill="#888"
+            fill={theme.textLight}
             fontSize={8}
             textAnchor="end"
           >
@@ -361,10 +362,15 @@ const MiniTimeSeriesChart: React.FC<MiniChartProps> = observer(
           </text>
 
           {/* Area fill */}
-          <path d={areaPath} fill="rgba(74, 157, 248, 0.12)" />
+          <path d={areaPath} fill={theme.colorPrimary + "1f"} />
 
           {/* Line */}
-          <path d={linePath} fill="none" stroke="#4a9df8" strokeWidth={1.5} />
+          <path
+            d={linePath}
+            fill="none"
+            stroke={theme.colorPrimary}
+            strokeWidth={1.5}
+          />
 
           {/* Data points */}
           {points.map((p, i) => (
@@ -373,8 +379,8 @@ const MiniTimeSeriesChart: React.FC<MiniChartProps> = observer(
               cx={p.x}
               cy={p.y}
               r={p.isCurrent ? 4 : 2}
-              fill={p.isCurrent ? "#ff6b6b" : "#4a9df8"}
-              stroke={p.isCurrent ? "#fff" : "none"}
+              fill={p.isCurrent ? theme.colorSecondary : theme.colorPrimary}
+              stroke={p.isCurrent ? theme.textLight : "none"}
               strokeWidth={p.isCurrent ? 1.5 : 0}
             >
               <title>
@@ -431,17 +437,16 @@ const ButtonRow = styled.div`
 const CalculateButton = styled.button`
   width: 100%;
   padding: 10px 14px;
-  border: 2px dashed rgba(74, 157, 248, 0.5);
+  border: 1px solid ${(p) => p.theme.colorPrimary};
   border-radius: 6px;
-  background: rgba(74, 157, 248, 0.08);
-  color: #4a9df8;
+  background: ${(p) => p.theme.darkLighter};
+  color: ${(p) => p.theme.textLight};
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
   &:hover {
-    background: rgba(74, 157, 248, 0.18);
-    border-color: rgba(74, 157, 248, 0.8);
+    background: ${(p) => p.theme.colorPrimary};
   }
 `;
 
@@ -469,12 +474,11 @@ const ValueBadge = styled.div<{ active?: boolean }>`
   cursor: pointer;
   min-width: 120px;
   background: ${(p) =>
-    p.active ? "rgba(74, 157, 248, 0.15)" : p.theme.darkLighter};
-  border: 1px solid
-    ${(p) => (p.active ? "rgba(74, 157, 248, 0.5)" : "transparent")};
+    p.active ? p.theme.colorPrimary + "26" : p.theme.darkLighter};
+  border: 1px solid ${(p) => (p.active ? p.theme.colorPrimary : "transparent")};
   transition: all 0.15s;
   &:hover {
-    background: rgba(74, 157, 248, 0.1);
+    background: ${(p) => p.theme.colorPrimary + "1a"};
   }
 `;
 
@@ -489,7 +493,7 @@ const BadgeLabel = styled.span`
 const BadgeValue = styled.span`
   font-size: 16px;
   font-weight: bold;
-  color: #4a9df8;
+  color: ${(p) => p.theme.colorPrimary};
   margin-top: 2px;
 `;
 
