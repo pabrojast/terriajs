@@ -1295,13 +1295,11 @@ export default class Terria {
       );
     }
 
-    // Load initialization sources first - this ensures catalog references are loaded
-    await this.loadInitSources();
-
-    // After init sources are loaded, ensure any terria-references are also loaded
-    // This is needed before processing sharelinks that might reference items from remote catalogs
-    await this.ensureCatalogReferencesLoaded();
-
+    // Process hash and routes FIRST — these only push to initSources and set
+    // user properties; they do NOT access the catalog.  By collecting all init
+    // sources before calling loadInitSources() we avoid a double-load that
+    // would re-apply simple-modular.json and duplicate non-group catalog items
+    // (e.g. terria-reference models get a "(1)" suffix instead of merging).
     try {
       await interpretHash(
         this,
@@ -1356,8 +1354,14 @@ export default class Terria {
       this.raiseErrorToUser(e);
     }
 
-    // Load any new init sources that were added during hash interpretation (e.g., sharelinks)
+    // Load ALL init sources in a single pass (base catalog + hash/share data).
+    // This prevents the previous double-load which caused non-GroupMixin items
+    // (like terria-reference) to be duplicated with incremented IDs.
     const result = await this.loadInitSources();
+
+    // After all sources are loaded, ensure terria-references are resolved
+    // so that any subsequent catalog lookups can find remote catalog items.
+    await this.ensureCatalogReferencesLoaded();
 
     return result;
   }
