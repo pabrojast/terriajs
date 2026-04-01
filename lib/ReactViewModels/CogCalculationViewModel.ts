@@ -475,7 +475,7 @@ export default class CogCalculationViewModel {
 }
 
 function unselectChartItemsWithXAxisNotMatching(
-  items: BaseModel[],
+  items: readonly BaseModel[],
   requiredAxis: ChartAxis
 ) {
   items.forEach((item) => {
