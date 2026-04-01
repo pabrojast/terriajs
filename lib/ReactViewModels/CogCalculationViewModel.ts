@@ -16,7 +16,11 @@ import Cartographic from "terriajs-cesium/Source/Core/Cartographic";
 import CesiumMath from "terriajs-cesium/Source/Core/Math";
 import type { Polygon } from "geojson";
 import type CogCatalogItem from "../Models/Catalog/CatalogItems/CogCatalogItem";
-import type CogTimeSeriesCatalogItem from "../Models/Catalog/CatalogItems/CogTimeSeriesCatalogItem";
+import CogTimeSeriesCatalogItem from "../Models/Catalog/CatalogItems/CogTimeSeriesCatalogItem";
+import ChartableMixin, {
+  axesMatch,
+  ChartAxis
+} from "../ModelMixins/ChartableMixin";
 import {
   calculateZonalStatistics,
   ZonalStatistics,
@@ -29,6 +33,7 @@ import {
   TimeSeriesProgress
 } from "../Core/CogTimeSeriesCalculator";
 import UserDrawing from "../Models/UserDrawing";
+import { BaseModel } from "../Models/Definition/Model";
 import Terria from "../Models/Terria";
 import type ViewState from "./ViewState";
 
@@ -49,6 +54,19 @@ export interface TimeSeriesResultEntry {
   tag?: string;
   statistics: ZonalStatistics;
 }
+
+const STAT_LABELS: Record<keyof ZonalStatistics, string> = {
+  mean: "Mean",
+  min: "Minimum",
+  max: "Maximum",
+  sum: "Sum",
+  count: "Valid pixels",
+  noDataCount: "NoData pixels",
+  median: "Median",
+  stddev: "Std. deviation"
+};
+
+const TIME_CHART_AXIS: ChartAxis = { name: "Time", scale: "time" };
 
 // ─── ViewModel ──────────────────────────────────────────────────
 
@@ -107,6 +125,13 @@ export default class CogCalculationViewModel {
   }
 
   @computed
+  get selectedTimeSeriesItem(): CogTimeSeriesCatalogItem | undefined {
+    return this.selectedItem instanceof CogTimeSeriesCatalogItem
+      ? this.selectedItem
+      : undefined;
+  }
+
+  @computed
   get timeEntries(): readonly {
     time: string;
     cogs: readonly string[];
@@ -133,6 +158,14 @@ export default class CogCalculationViewModel {
   @computed
   get hasCogItems(): boolean {
     return this.cogItemsInWorkbench.length > 0;
+  }
+
+  @computed
+  get isTimeSeriesResultExpandedInChartPanel(): boolean {
+    return (
+      this.selectedTimeSeriesItem?.isTemporaryAreaChartExpandedInChartPanel ??
+      false
+    );
   }
 
   // ─── Actions ──────────────────────────────────────────────
@@ -372,6 +405,49 @@ export default class CogCalculationViewModel {
     this.subsampleStep = 1;
   }
 
+  @action
+  toggleTimeSeriesResultChartPanel(): void {
+    const item = this.selectedTimeSeriesItem;
+    if (
+      !item ||
+      !this.timeSeriesResults ||
+      this.timeSeriesResults.length === 0
+    ) {
+      return;
+    }
+
+    const shouldExpand = !item.isTemporaryAreaChartExpandedInChartPanel;
+    if (!shouldExpand) {
+      item.setTemporaryAreaChartExpandedInChartPanel(false);
+      return;
+    }
+
+    const values = this.timeSeriesResults
+      .map((result) => ({
+        time: result.time,
+        value: (result.statistics as any)[this.selectedStatistic] as number
+      }))
+      .filter((entry) => isFinite(entry.value));
+
+    if (values.length === 0) {
+      item.clearTemporaryAreaChart();
+      return;
+    }
+
+    item.setTemporaryAreaChart({
+      name: `Area ${
+        STAT_LABELS[this.selectedStatistic] ?? this.selectedStatistic
+      }`,
+      values
+    });
+    item.setTemporaryAreaChartExpandedInChartPanel(true);
+
+    unselectChartItemsWithXAxisNotMatching(
+      this.terria.workbench.items,
+      TIME_CHART_AXIS
+    );
+  }
+
   exportCsv(): void {
     if (!this.timeSeriesResults || this.timeSeriesResults.length === 0) return;
 
@@ -396,4 +472,19 @@ export default class CogCalculationViewModel {
   dispose(): void {
     this.reset();
   }
+}
+
+function unselectChartItemsWithXAxisNotMatching(
+  items: BaseModel[],
+  requiredAxis: ChartAxis
+) {
+  items.forEach((item) => {
+    if (ChartableMixin.isMixedInto(item)) {
+      item.chartItems.forEach((chartItem) => {
+        if (!axesMatch(chartItem.xAxis, requiredAxis)) {
+          chartItem.updateIsSelectedInWorkbench(false);
+        }
+      });
+    }
+  });
 }

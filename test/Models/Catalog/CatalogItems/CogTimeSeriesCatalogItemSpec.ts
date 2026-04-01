@@ -393,6 +393,58 @@ describe("CogTimeSeriesCatalogItem", function () {
     });
   });
 
+  describe("temporary area chart items", function () {
+    beforeEach(function () {
+      updateModelFromJson(item, CommonStrata.definition, {
+        name: "CHL Daily",
+        timeEntries: [
+          { time: "2024-01-15T00:00:00Z", cogs: ["a.tif"] },
+          { time: "2024-01-16T00:00:00Z", cogs: ["b.tif"] }
+        ]
+      });
+      item.setTrait(CommonStrata.user, "show", true);
+    });
+
+    it("adds temporary zonal-statistics chart items to chartItems", function () {
+      item.setTemporaryAreaChart({
+        name: "Area Mean",
+        values: [
+          { time: "2024-01-15T00:00:00Z", value: 12.5 },
+          { time: "2024-01-16T00:00:00Z", value: 18.3 }
+        ]
+      });
+      item.setTemporaryAreaChartExpandedInChartPanel(true);
+
+      const chartItem = item.chartItems.find(
+        (chart) => chart.id === "test-temporary-area-chart"
+      );
+
+      expect(chartItem).toBeDefined();
+      expect(chartItem!.name).toBe("Area Mean");
+      expect(chartItem!.type).toBe("line");
+      expect(chartItem!.points.length).toBe(2);
+      expect(chartItem!.showInChartPanel).toBe(true);
+      expect(chartItem!.isSelectedInWorkbench).toBe(true);
+    });
+
+    it("removes temporary zonal-statistics chart items when cleared", function () {
+      item.setTemporaryAreaChart({
+        name: "Area Mean",
+        values: [{ time: "2024-01-15T00:00:00Z", value: 12.5 }]
+      });
+      item.setTemporaryAreaChartExpandedInChartPanel(true);
+
+      item.clearTemporaryAreaChart();
+
+      expect(
+        item.chartItems.find(
+          (chart) => chart.id === "test-temporary-area-chart"
+        )
+      ).toBeUndefined();
+      expect(item.isTemporaryAreaChartExpandedInChartPanel).toBe(false);
+    });
+  });
+
   // ════════════════════════════════════════════════
   // Remote JSON loading (time entries + area values)
   // ════════════════════════════════════════════════

@@ -90,6 +90,12 @@ interface PointTimeSeriesState {
   data: Array<{ time: string; tag?: string; value: number }>;
 }
 
+interface TemporaryAreaChartState {
+  name: string;
+  unit?: string;
+  values: Array<{ time: string; value: number }>;
+}
+
 /** Max concurrent COG pixel reads for time series extraction */
 const POINT_TS_CONCURRENCY = 8;
 
@@ -315,6 +321,14 @@ export default class CogTimeSeriesCatalogItem extends DiscretelyTimeVaryingMixin
 
   /** Track which point load is in progress so we can ignore stale results */
   private _activePointLoadKey: string | undefined;
+
+  /** Ephemeral zonal-statistics chart data produced by the calculation tool. */
+  @observable.ref
+  private _temporaryAreaChart: TemporaryAreaChartState | undefined = undefined;
+
+  /** Whether the temporary zonal-statistics chart is shown in the bottom chart panel. */
+  @observable
+  private _showTemporaryAreaChartInChartPanel = false;
 
   /** Reprojector function (same as CogCatalogItem) */
   reprojector = reprojector;
@@ -545,6 +559,100 @@ export default class CogTimeSeriesCatalogItem extends DiscretelyTimeVaryingMixin
     return this._stratum.getAreaValues(calculationName);
   }
 
+  @computed
+  get temporaryAreaChartItem(): ChartItem | undefined {
+    if (!this._temporaryAreaChart) return undefined;
+
+    const currentJulian = this.currentDiscreteJulianDate;
+    const points: ChartPoint[] = [];
+
+    for (const entry of this._temporaryAreaChart.values) {
+      try {
+        const jd = JulianDate.fromIso8601(entry.time);
+        points.push({
+          x: JulianDate.toDate(jd),
+          y: entry.value,
+          isSelected: currentJulian
+            ? JulianDate.equals(jd, currentJulian)
+            : false
+        });
+      } catch {
+        // Skip invalid dates
+      }
+    }
+
+    if (points.length === 0) return undefined;
+
+    const chartId = `${this.uniqueId}-temporary-area-chart`;
+    const colorId = `color-${chartId}`;
+
+    return {
+      item: this,
+      id: chartId,
+      name: this._temporaryAreaChart.name,
+      categoryName: this.name,
+      key: `key-${chartId}`,
+      type: "line",
+      units: this._temporaryAreaChart.unit,
+      xAxis: { name: "Time", scale: "time" },
+      points,
+      domain: calculateDomain(points),
+      showInChartPanel: this.show && this._showTemporaryAreaChartInChartPanel,
+      isSelectedInWorkbench: this._showTemporaryAreaChartInChartPanel,
+      updateIsSelectedInWorkbench: (isSelected: boolean) => {
+        runInAction(() => {
+          this._showTemporaryAreaChartInChartPanel =
+            isSelected && this._temporaryAreaChart !== undefined;
+        });
+      },
+      getColor: () => getChartColorForId(colorId),
+      onClick: (point: any) => {
+        runInAction(() => {
+          this.setTrait(
+            CommonStrata.user,
+            "currentTime",
+            point.x.toISOString()
+          );
+        });
+      }
+    };
+  }
+
+  @computed
+  get isTemporaryAreaChartExpandedInChartPanel(): boolean {
+    return this._showTemporaryAreaChartInChartPanel;
+  }
+
+  @action
+  setTemporaryAreaChart(options: {
+    name: string;
+    unit?: string;
+    values: Array<{ time: string; value: number }>;
+  }): void {
+    this._temporaryAreaChart = {
+      name: options.name,
+      unit: options.unit,
+      values: options.values.filter(
+        (value) =>
+          value.time !== undefined &&
+          value.time !== null &&
+          isFinite(value.value)
+      )
+    };
+  }
+
+  @action
+  setTemporaryAreaChartExpandedInChartPanel(expanded: boolean): void {
+    this._showTemporaryAreaChartInChartPanel =
+      expanded && this._temporaryAreaChart !== undefined;
+  }
+
+  @action
+  clearTemporaryAreaChart(): void {
+    this._temporaryAreaChart = undefined;
+    this._showTemporaryAreaChartInChartPanel = false;
+  }
+
   // ──────────────────────────────────────────────
   // Chart Panel Integration
   // ──────────────────────────────────────────────
@@ -555,7 +663,10 @@ export default class CogTimeSeriesCatalogItem extends DiscretelyTimeVaryingMixin
    */
   @override
   get chartItems(): ChartItem[] {
-    const baseItems = filterOutUndefined([this.momentChart]);
+    const baseItems = filterOutUndefined([
+      this.momentChart,
+      this.temporaryAreaChartItem
+    ]);
 
     if (!this.showInChartPanel || !this.areaCalculations) {
       return baseItems;

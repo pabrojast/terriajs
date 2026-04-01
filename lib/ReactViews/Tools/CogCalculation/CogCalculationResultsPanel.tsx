@@ -141,7 +141,15 @@ const CogCalculationResultsPanel: React.FC<Props> = observer(({ vm }) => {
         </StyledDetails>
 
         <Spacing bottom={1.5} />
-        <Box gap>
+        <Box gap flexWrap>
+          <Button
+            primary={!vm.isTimeSeriesResultExpandedInChartPanel}
+            secondary={vm.isTimeSeriesResultExpandedInChartPanel}
+            onClick={() => vm.toggleTimeSeriesResultChartPanel()}
+            textProps={{ small: true }}
+          >
+            {vm.isTimeSeriesResultExpandedInChartPanel ? "Collapse" : "Expand"}
+          </Button>
           <Button
             primary
             onClick={() => vm.exportCsv()}
