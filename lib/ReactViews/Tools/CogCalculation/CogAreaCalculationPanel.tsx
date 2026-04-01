@@ -18,9 +18,6 @@ import CogTimeSeriesCatalogItem from "../../../Models/Catalog/CatalogItems/CogTi
 import Terria from "../../../Models/Terria";
 import ViewState from "../../../ReactViewModels/ViewState";
 import Box from "../../../Styled/Box";
-import Button from "../../../Styled/Button";
-import { GLYPHS } from "../../../Styled/Icon";
-import Spacing from "../../../Styled/Spacing";
 import Text from "../../../Styled/Text";
 import { COG_CALCULATION_TOOL_ID } from "./CogCalculationTool";
 
@@ -84,17 +81,17 @@ const ItemAreaPanel: React.FC<ItemAreaPanelProps> = observer(
     );
 
     const currentResults = item.currentAreaCalculationResults;
-    const areaCalcs = item.areaCalculations ?? [];
+    const areaCalcs = item.areaCalculations;
     const hasAreaCalcs =
-      areaCalcs.length > 0 &&
-      areaCalcs.some((c) => c.values && c.values.length > 0);
+      (areaCalcs?.length ?? 0) > 0 &&
+      (areaCalcs?.some((c) => c.values && c.values.length > 0) ?? false);
 
     // Default to first calc
-    const activeCalcName = selectedCalc ?? areaCalcs[0]?.name;
+    const activeCalcName = selectedCalc ?? areaCalcs?.[0]?.name;
 
     const allSeries = useMemo(() => {
       const map: Record<string, Array<{ time: string; value: number }>> = {};
-      for (const calc of areaCalcs) {
+      for (const calc of areaCalcs ?? []) {
         if (!calc.name) continue;
         const series = item.getAreaCalculationTimeSeries(calc.name);
         if (series) map[calc.name] = series;
@@ -447,6 +444,7 @@ const HeaderRow = styled.div`
   align-items: center;
   justify-content: space-between;
   padding: 8px 12px;
+  color: ${(p) => p.theme.textLight};
   cursor: pointer;
   &:hover {
     background: ${(p) => p.theme.darkLighter};
