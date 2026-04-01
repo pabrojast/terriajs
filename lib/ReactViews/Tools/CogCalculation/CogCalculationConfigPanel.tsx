@@ -196,7 +196,9 @@ export default CogCalculationConfigPanel;
 
 // ─── Styled Components ──────────────────────────────────────────
 
-const Container = styled.div``;
+const Container = styled.div`
+  color: ${(p) => p.theme.textLight};
+`;
 
 const FieldGroup = styled.div`
   margin-bottom: 10px;
