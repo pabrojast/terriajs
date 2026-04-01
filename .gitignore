@@ -1,5 +1,7 @@
 # Update .prettierignore whenever this file changes
-docs/
+docs/*
+!docs/obsidian-vault/
+!docs/obsidian-vault/**
 node_modules/
 .idea/
 build/
