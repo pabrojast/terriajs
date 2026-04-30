@@ -13,6 +13,7 @@ import saveStratumToJson from "../../../../Models/Definition/saveStratumToJson";
 import GlobeOrMap from "../../../../Models/GlobeOrMap";
 import HasLocalData from "../../../../Models/HasLocalData";
 import {
+  FeatureInfoPanelState,
   InitSourceData,
   InitSourcePickedFeatures,
   ShareInitSourceData,
@@ -404,6 +405,12 @@ function addFeaturePicking(terria: Terria, initSource: InitSourceData) {
       });
 
     initSource.pickedFeatures = pickedFeatures;
+
+    if (isDefined(terria.featureInfoPanelState)) {
+      initSource.featureInfoPanel = cloneFeatureInfoPanelState(
+        terria.featureInfoPanelState
+      );
+    }
   }
 }
 
@@ -411,4 +418,25 @@ function addStories(terria: Terria, initSource: InitSourceData) {
   if (isDefined(terria.stories)) {
     initSource.stories = terria.stories.slice();
   }
+}
+
+function cloneFeatureInfoPanelState(
+  state: FeatureInfoPanelState
+): FeatureInfoPanelState {
+  return {
+    ...(state.position
+      ? {
+          position: {
+            ...state.position
+          }
+        }
+      : {}),
+    ...(state.dimensions
+      ? {
+          dimensions: {
+            ...state.dimensions
+          }
+        }
+      : {})
+  };
 }

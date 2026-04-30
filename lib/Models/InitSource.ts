@@ -22,6 +22,24 @@ export interface InitSourcePickedFeatures {
   }[];
 }
 
+export interface DraggableElementPosition {
+  x: number;
+  y: number;
+  /** Normalized position within available bounds (0..1). */
+  xRatio?: number;
+  yRatio?: number;
+}
+
+export interface DraggableElementDimensions {
+  width: number;
+  height: number;
+}
+
+export interface FeatureInfoPanelState {
+  position?: DraggableElementPosition;
+  dimensions?: DraggableElementDimensions;
+}
+
 export type ViewModeJson = "3d" | "3dSmooth" | "2d";
 
 /** Provides loose type hints for ModelJson */
@@ -40,17 +58,8 @@ export interface StoryData {
   id: string;
   shareData: ShareInitSourceData;
   /** Position and dimensions for draggable story panel */
-  position?: {
-    x: number;
-    y: number;
-    /** Normalized position within available bounds (0..1). */
-    xRatio?: number;
-    yRatio?: number;
-  };
-  dimensions?: {
-    width: number;
-    height: number;
-  };
+  position?: DraggableElementPosition;
+  dimensions?: DraggableElementDimensions;
 }
 export interface ShareInitSourceData {
   version: string;
@@ -76,6 +85,7 @@ export interface InitSourceData {
   models?: { [key: string]: ModelJson };
   previewedItemId?: string;
   pickedFeatures?: InitSourcePickedFeatures;
+  featureInfoPanel?: FeatureInfoPanelState;
   /** These settings will override localStorage persistent settings. They are used for shares/stories */
   settings?: {
     baseMaximumScreenSpaceError?: number;

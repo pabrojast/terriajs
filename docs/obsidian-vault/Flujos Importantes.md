@@ -34,6 +34,11 @@ Fuentes observadas:
 - rutas `/story/:id`
 - conversion de v7 a v8 via `catalog-converter`
 
+Estado observable relevante dentro de `initSources`:
+
+- `pickedFeatures` puede restaurar la seleccion consultada en el mapa.
+- `featureInfoPanel` puede restaurar posicion y dimensiones de la ventana flotante de feature info cuando el share/story incluye un pick activo.
+
 ## 3. Registro de tipos de catalogo y busqueda
 
 Archivos clave:

@@ -24,6 +24,7 @@ import CommonStrata from "../../lib/Models/Definition/CommonStrata";
 import { BaseModel } from "../../lib/Models/Definition/Model";
 import TerriaFeature from "../../lib/Models/Feature/Feature";
 import {
+  type InitSourceData,
   isInitFromData,
   isInitFromDataPromise,
   isInitFromOptions,
@@ -1205,12 +1206,17 @@ describe("Terria", function () {
         terria.selectedFeature = new Entity({
           name: "selected"
         }) as TerriaFeature;
+        terria.featureInfoPanelState = {
+          position: { x: 20, y: 30, xRatio: 0.1, yRatio: 0.2 },
+          dimensions: { width: 320, height: 240 }
+        };
         await terria.applyInitData({
           initData: {},
           canUnsetFeaturePickingState: true
         });
         expect(terria.pickedFeatures).toBeUndefined();
         expect(terria.selectedFeature).toBeUndefined();
+        expect(terria.featureInfoPanelState).toBeUndefined();
       });
 
       it("otherwise, should not unset feature picking state", async function () {
@@ -1223,6 +1229,40 @@ describe("Terria", function () {
         });
         expect(terria.pickedFeatures).toBeDefined();
         expect(terria.selectedFeature).toBeDefined();
+      });
+    });
+
+    describe("when pickedFeatures is present in initData", function () {
+      it("hydrates the feature info panel geometry", async function () {
+        const initData: InitSourceData = {
+          pickedFeatures: {},
+          featureInfoPanel: {
+            position: { x: 12, y: 34, xRatio: 0.25, yRatio: 0.75 },
+            dimensions: { width: 360, height: 280 }
+          }
+        };
+
+        await terria.applyInitData({ initData });
+
+        expect(terria.featureInfoPanelState).toEqual({
+          position: { x: 12, y: 34, xRatio: 0.25, yRatio: 0.75 },
+          dimensions: { width: 360, height: 280 }
+        });
+      });
+
+      it("clears previous feature info panel geometry if the initData omits it", async function () {
+        terria.featureInfoPanelState = {
+          position: { x: 20, y: 30, xRatio: 0.1, yRatio: 0.2 },
+          dimensions: { width: 320, height: 240 }
+        };
+
+        await terria.applyInitData({
+          initData: {
+            pickedFeatures: {}
+          }
+        });
+
+        expect(terria.featureInfoPanelState).toBeUndefined();
       });
     });
 

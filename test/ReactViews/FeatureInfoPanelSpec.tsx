@@ -1,4 +1,5 @@
 // import knockout from 'terriajs-cesium/Source/ThirdParty/knockout';
+import { render, waitFor } from "@testing-library/react";
 import { findWithType } from "react-shallow-testutils";
 import { getShallowRenderedOutput } from "./MoreShallowTools";
 import { runInAction } from "mobx";
@@ -27,6 +28,8 @@ describe("FeatureInfoPanel", function () {
   let terria: Terria;
   // let feature;
   let viewState: ViewState;
+  let originalInnerWidth: number;
+  let originalInnerHeight: number;
 
   beforeEach(function () {
     terria = new Terria({
@@ -35,6 +38,28 @@ describe("FeatureInfoPanel", function () {
     viewState = new ViewState({
       terria: terria,
       catalogSearchProvider: undefined
+    });
+
+    originalInnerWidth = window.innerWidth;
+    originalInnerHeight = window.innerHeight;
+    Object.defineProperty(window, "innerWidth", {
+      configurable: true,
+      value: 1280
+    });
+    Object.defineProperty(window, "innerHeight", {
+      configurable: true,
+      value: 900
+    });
+  });
+
+  afterEach(function () {
+    Object.defineProperty(window, "innerWidth", {
+      configurable: true,
+      value: originalInnerWidth
+    });
+    Object.defineProperty(window, "innerHeight", {
+      configurable: true,
+      value: originalInnerHeight
     });
   });
 
@@ -61,6 +86,54 @@ describe("FeatureInfoPanel", function () {
     const panel = <FeatureInfoPanel viewState={viewState} t={() => {}} />;
     const result = getShallowRenderedOutput(panel);
     expect(result.props.children.props.className).not.toContain("is-visible");
+  });
+
+  it("applies stored size and position to the draggable wrapper", async function () {
+    spyOn(HTMLElement.prototype, "getBoundingClientRect").and.callFake(
+      function (this: HTMLElement) {
+        const width = parseFloat(this.style.width || "500");
+        const height = parseFloat(this.style.height || "260");
+        const transform = this.style.transform.match(
+          /translate3d\(([^,]+)px,\s*([^,]+)px,\s*0\)/
+        );
+        const x = transform ? parseFloat(transform[1]) : 0;
+        const y = transform ? parseFloat(transform[2]) : 0;
+
+        return {
+          x,
+          y,
+          left: x,
+          top: y,
+          right: x + width,
+          bottom: y + height,
+          width,
+          height,
+          toJSON() {
+            return {};
+          }
+        } as DOMRect;
+      }
+    );
+
+    terria.featureInfoPanelState = {
+      position: { x: 20, y: 30 },
+      dimensions: { width: 320, height: 240 }
+    };
+    viewState.featureInfoPanelIsVisible = true;
+
+    const { container } = render(
+      <FeatureInfoPanel
+        viewState={viewState}
+        t={((key: string) => key) as any}
+      />
+    );
+    const wrapper = container.firstElementChild as HTMLElement;
+
+    await waitFor(() => {
+      expect(wrapper.style.width).toBe("320px");
+      expect(wrapper.style.height).toBe("240px");
+      expect(wrapper.style.transform).toBe("translate3d(20px, 30px, 0)");
+    });
   });
 
   // This test won't work for two reasons:

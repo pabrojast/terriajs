@@ -313,6 +313,45 @@ describe("BuildShareLink", function () {
         expect(entities?.[1].hash).toBeDefined();
       })
     );
+
+    it(
+      "captures the feature info panel geometry",
+      action(function () {
+        terria.pickedFeatures = new PickedFeatures();
+        terria.pickedFeatures.pickPosition = new Cartesian3(
+          17832.12,
+          83234.52,
+          952313.73
+        );
+        terria.pickedFeatures.features.push(new TerriaFeature({}));
+        terria.featureInfoPanelState = {
+          position: { x: 24, y: 36, xRatio: 0.25, yRatio: 0.5 },
+          dimensions: { width: 360, height: 280 }
+        };
+
+        const shareLink = buildShareLink(terria, viewState);
+        const params = decodeAndParseStartHash(shareLink);
+        const initSources = flattenInitSources(params.initSources);
+
+        expect(initSources.featureInfoPanel).toEqual({
+          position: { x: 24, y: 36, xRatio: 0.25, yRatio: 0.5 },
+          dimensions: { width: 360, height: 280 }
+        });
+      })
+    );
+
+    it("does not capture feature info panel geometry without picked features", function () {
+      terria.featureInfoPanelState = {
+        position: { x: 12, y: 18, xRatio: 0.1, yRatio: 0.2 },
+        dimensions: { width: 300, height: 220 }
+      };
+
+      const shareLink = buildShareLink(terria, viewState);
+      const params = decodeAndParseStartHash(shareLink);
+      const initSources = flattenInitSources(params.initSources);
+
+      expect(initSources.featureInfoPanel).toBeUndefined();
+    });
   });
 
   describe("map settings", function () {

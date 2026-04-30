@@ -7,7 +7,12 @@ import {
   type IReactionDisposer
 } from "mobx";
 import { observer } from "mobx-react";
-import { Component } from "react";
+import {
+  Component,
+  createRef,
+  type MouseEvent as ReactMouseEvent,
+  type TouchEvent as ReactTouchEvent
+} from "react";
 import { withTranslation, TFunction } from "react-i18next";
 import Cartesian3 from "terriajs-cesium/Source/Core/Cartesian3";
 import Ellipsoid from "terriajs-cesium/Source/Core/Ellipsoid";
@@ -22,6 +27,11 @@ import TimeFilterMixin from "../../ModelMixins/TimeFilterMixin";
 import CompositeCatalogItem from "../../Models/Catalog/CatalogItems/CompositeCatalogItem";
 import { BaseModel } from "../../Models/Definition/Model";
 import TerriaFeature from "../../Models/Feature/Feature";
+import type {
+  DraggableElementDimensions,
+  DraggableElementPosition,
+  FeatureInfoPanelState
+} from "../../Models/InitSource";
 import {
   addMarker,
   isMarkerVisible,
@@ -35,7 +45,6 @@ import Loader from "../Loader";
 import { withViewState } from "../Context";
 import Styles from "./feature-info-panel.scss";
 import FeatureInfoCatalogItem from "./FeatureInfoCatalogItem";
-import DragWrapper from "../Drag/DragWrapper";
 
 interface Props {
   viewState: ViewState;
@@ -43,9 +52,124 @@ interface Props {
   t: TFunction;
 }
 
+const DRAG_MARGIN = 8;
+const RESIZE_SAVE_DEBOUNCE_MS = 100;
+
+const clamp01 = (value: number) => Math.min(1, Math.max(0, value));
+
+const isFiniteNumber = (value: unknown): value is number =>
+  typeof value === "number" && Number.isFinite(value);
+
+const parseTranslate = (transform?: string | null) => {
+  if (!transform) return { x: 0, y: 0 };
+
+  const translate3d = transform.match(
+    /translate3d\(([^,]+),\s*([^,]+),\s*[^)]+\)/
+  );
+  if (translate3d) {
+    const x = parseFloat(translate3d[1]);
+    const y = parseFloat(translate3d[2]);
+    return {
+      x: Number.isFinite(x) ? x : 0,
+      y: Number.isFinite(y) ? y : 0
+    };
+  }
+
+  const matrix = transform.match(
+    /matrix\([^,]+,[^,]+,[^,]+,[^,]+,\s*([^,]+),\s*([^)]+)\)/
+  );
+  if (matrix) {
+    const x = parseFloat(matrix[1]);
+    const y = parseFloat(matrix[2]);
+    return {
+      x: Number.isFinite(x) ? x : 0,
+      y: Number.isFinite(y) ? y : 0
+    };
+  }
+
+  const translate2d = transform.match(/translate\(([^,]+),\s*([^)]+)\)/);
+  if (translate2d) {
+    const x = parseFloat(translate2d[1]);
+    const y = parseFloat(translate2d[2]);
+    return {
+      x: Number.isFinite(x) ? x : 0,
+      y: Number.isFinite(y) ? y : 0
+    };
+  }
+
+  return { x: 0, y: 0 };
+};
+
+const getViewportSize = () => ({
+  width: window.innerWidth || document.documentElement.clientWidth || 0,
+  height: window.innerHeight || document.documentElement.clientHeight || 0
+});
+
+const getDragBounds = (element: HTMLElement, dx: number, dy: number) => {
+  const rect = element.getBoundingClientRect();
+  const { width: viewportWidth, height: viewportHeight } = getViewportSize();
+
+  if (!viewportWidth || !viewportHeight || !rect.width || !rect.height) {
+    return null;
+  }
+
+  const baseLeft = rect.left - dx;
+  const baseTop = rect.top - dy;
+
+  return {
+    minAllowedDx: DRAG_MARGIN - baseLeft,
+    maxAllowedDx: viewportWidth - DRAG_MARGIN - rect.width - baseLeft,
+    minAllowedDy: DRAG_MARGIN - baseTop,
+    maxAllowedDy: viewportHeight - DRAG_MARGIN - rect.height - baseTop
+  };
+};
+
+const getRelativePosition = (
+  dx: number,
+  dy: number,
+  bounds: NonNullable<ReturnType<typeof getDragBounds>>
+): Pick<DraggableElementPosition, "xRatio" | "yRatio"> => {
+  const rangeX = bounds.maxAllowedDx - bounds.minAllowedDx;
+  const rangeY = bounds.maxAllowedDy - bounds.minAllowedDy;
+
+  return {
+    xRatio: rangeX > 0 ? clamp01((dx - bounds.minAllowedDx) / rangeX) : 0,
+    yRatio: rangeY > 0 ? clamp01((dy - bounds.minAllowedDy) / rangeY) : 0
+  };
+};
+
+const getPositionFromRelative = (
+  bounds: NonNullable<ReturnType<typeof getDragBounds>>,
+  xRatio: number,
+  yRatio: number
+) => {
+  const rangeX = bounds.maxAllowedDx - bounds.minAllowedDx;
+  const rangeY = bounds.maxAllowedDy - bounds.minAllowedDy;
+
+  return {
+    x:
+      rangeX > 0
+        ? bounds.minAllowedDx + clamp01(xRatio) * rangeX
+        : bounds.maxAllowedDx,
+    y:
+      rangeY > 0
+        ? bounds.minAllowedDy + clamp01(yRatio) * rangeY
+        : bounds.maxAllowedDy
+  };
+};
+
 @observer
 class FeatureInfoPanel extends Component<Props> {
   pickedFeaturesReactionDisposer?: IReactionDisposer = undefined;
+  panelStateReactionDisposer?: IReactionDisposer = undefined;
+  panelVisibilityReactionDisposer?: IReactionDisposer = undefined;
+  panelCollapsedReactionDisposer?: IReactionDisposer = undefined;
+  panelWrapperRef = createRef<HTMLDivElement>();
+  panelResizeObserver?: ResizeObserver = undefined;
+  panelResizeTimeout?: ReturnType<typeof setTimeout> = undefined;
+  panelSyncFrame?: number = undefined;
+  windowResizeFrame?: number = undefined;
+
   constructor(props: Props) {
     super(props);
     makeObservable(this);
@@ -85,8 +209,9 @@ class FeatureInfoPanel extends Component<Props> {
                 featuresShownAtAll.some(
                   (feature) => feature === terria.selectedFeature
                 )
-              )
+              ) {
                 return;
+              }
 
               // Otherwise find first feature with data to show
               let selectedFeature = featuresShownAtAll.filter(
@@ -94,6 +219,7 @@ class FeatureInfoPanel extends Component<Props> {
                   isDefined(feature.properties) ||
                   isDefined(feature.description)
               )[0];
+
               if (
                 !isDefined(selectedFeature) &&
                 featuresShownAtAll.length > 0
@@ -101,6 +227,7 @@ class FeatureInfoPanel extends Component<Props> {
                 // Handles the case when no features have info - still want something to be open.
                 selectedFeature = featuresShownAtAll[0];
               }
+
               runInAction(() => {
                 terria.selectedFeature = selectedFeature;
               });
@@ -109,11 +236,76 @@ class FeatureInfoPanel extends Component<Props> {
         }
       }
     );
+
+    if (this.props.printView) {
+      return;
+    }
+
+    this.panelStateReactionDisposer = reaction(
+      () => terria.featureInfoPanelState,
+      () => {
+        this.syncPanelLayout();
+      }
+    );
+
+    this.panelVisibilityReactionDisposer = reaction(
+      () => this.props.viewState.featureInfoPanelIsVisible,
+      () => {
+        this.syncPanelLayout();
+      }
+    );
+
+    this.panelCollapsedReactionDisposer = reaction(
+      () => this.props.viewState.featureInfoPanelIsCollapsed,
+      () => {
+        this.syncPanelLayout();
+      }
+    );
+
+    if (typeof ResizeObserver !== "undefined" && this.panelWrapperRef.current) {
+      this.panelResizeObserver = new ResizeObserver(() => {
+        if (this.panelResizeTimeout) {
+          clearTimeout(this.panelResizeTimeout);
+        }
+
+        this.panelResizeTimeout = setTimeout(() => {
+          this.savePanelState();
+        }, RESIZE_SAVE_DEBOUNCE_MS);
+      });
+      this.panelResizeObserver.observe(this.panelWrapperRef.current);
+    }
+
+    window.addEventListener("resize", this.handleWindowResize);
+    this.syncPanelLayout();
   }
 
   componentWillUnmount(): void {
     if (isDefined(this.pickedFeaturesReactionDisposer)) {
       this.pickedFeaturesReactionDisposer();
+    }
+    if (isDefined(this.panelStateReactionDisposer)) {
+      this.panelStateReactionDisposer();
+    }
+    if (isDefined(this.panelVisibilityReactionDisposer)) {
+      this.panelVisibilityReactionDisposer();
+    }
+    if (isDefined(this.panelCollapsedReactionDisposer)) {
+      this.panelCollapsedReactionDisposer();
+    }
+    if (this.panelResizeObserver) {
+      this.panelResizeObserver.disconnect();
+    }
+    if (this.panelResizeTimeout) {
+      clearTimeout(this.panelResizeTimeout);
+    }
+    if (isDefined(this.panelSyncFrame)) {
+      cancelAnimationFrame(this.panelSyncFrame);
+    }
+    if (isDefined(this.windowResizeFrame)) {
+      cancelAnimationFrame(this.windowResizeFrame);
+    }
+    if (!this.props.printView) {
+      window.removeEventListener("resize", this.handleWindowResize);
     }
   }
 
@@ -206,17 +398,6 @@ class FeatureInfoPanel extends Component<Props> {
     }
   }
 
-  // locationUpdated(longitude, latitude) {
-  //   if (
-  //     isDefined(latitude) &&
-  //     isDefined(longitude) &&
-  //     isMarkerVisible(this.props.viewState.terria)
-  //   ) {
-  //     removeMarker(this.props.viewState.terria);
-  //     this.addManualMarker(longitude, latitude);
-  //   }
-  // }
-
   filterIntervalsByFeature(
     catalogItem: TimeFilterMixin.Instance,
     feature: TerriaFeature
@@ -240,7 +421,6 @@ class FeatureInfoPanel extends Component<Props> {
     const latitude = CesiumMath.toDegrees(cartographic.latitude);
     const longitude = CesiumMath.toDegrees(cartographic.longitude);
     const pretty = prettifyCoordinates(longitude, latitude);
-    // this.locationUpdated(longitude, latitude);
 
     const that = this;
     const pinClicked = function () {
@@ -269,6 +449,292 @@ class FeatureInfoPanel extends Component<Props> {
       </div>
     );
   }
+
+  private isValidDragHandle(target: EventTarget | null): boolean {
+    const wrapper = this.panelWrapperRef.current;
+    if (!wrapper || !target) return false;
+
+    const handle = wrapper.querySelector(".drag-handle");
+    return handle
+      ? handle === target || handle.contains(target as Node)
+      : false;
+  }
+
+  private updatePanelPosition(dx: number, dy: number) {
+    const wrapper = this.panelWrapperRef.current;
+    if (!wrapper) return;
+
+    wrapper.style.transform = `translate3d(${dx}px, ${dy}px, 0)`;
+  }
+
+  private constrainToBounds() {
+    const wrapper = this.panelWrapperRef.current;
+    if (!wrapper) return;
+
+    const rect = wrapper.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+
+    const { x: currentDx, y: currentDy } = parseTranslate(
+      wrapper.style.transform
+    );
+    const bounds = getDragBounds(wrapper, currentDx, currentDy);
+    if (!bounds) return;
+
+    const constrainedDx = Math.min(
+      Math.max(currentDx, bounds.minAllowedDx),
+      bounds.maxAllowedDx
+    );
+    const constrainedDy = Math.min(
+      Math.max(currentDy, bounds.minAllowedDy),
+      bounds.maxAllowedDy
+    );
+
+    this.updatePanelPosition(constrainedDx, constrainedDy);
+  }
+
+  private setPanelPosition(
+    dx: number,
+    dy: number,
+    clampToBounds: boolean = false
+  ) {
+    this.updatePanelPosition(dx, dy);
+    if (clampToBounds) {
+      this.constrainToBounds();
+    }
+  }
+
+  private resetPanelLayout() {
+    const wrapper = this.panelWrapperRef.current;
+    if (!wrapper) return;
+
+    wrapper.style.transform = "";
+    wrapper.style.width = "";
+    wrapper.style.height = "";
+  }
+
+  private savePanelState() {
+    const wrapper = this.panelWrapperRef.current;
+    const { viewState } = this.props;
+    const currentState = viewState.terria.featureInfoPanelState;
+
+    if (
+      !wrapper ||
+      this.props.printView ||
+      !viewState.featureInfoPanelIsVisible
+    ) {
+      return;
+    }
+
+    const rect = wrapper.getBoundingClientRect();
+    if (!rect.width || !rect.height) {
+      return;
+    }
+
+    const { x, y } = parseTranslate(wrapper.style.transform);
+    const bounds = getDragBounds(wrapper, x, y);
+    const position: DraggableElementPosition = {
+      x,
+      y,
+      ...(bounds ? getRelativePosition(x, y, bounds) : {})
+    };
+
+    const dimensions: DraggableElementDimensions | undefined =
+      viewState.featureInfoPanelIsCollapsed
+        ? currentState?.dimensions
+        : {
+            width: rect.width,
+            height: rect.height
+          };
+
+    const nextState: FeatureInfoPanelState = {
+      position,
+      ...(dimensions ? { dimensions } : {})
+    };
+
+    runInAction(() => {
+      viewState.terria.featureInfoPanelState = nextState;
+    });
+  }
+
+  private applyStoredPanelState(state: FeatureInfoPanelState) {
+    const wrapper = this.panelWrapperRef.current;
+    if (!wrapper) return;
+
+    if (state.dimensions) {
+      wrapper.style.width = `${state.dimensions.width}px`;
+      wrapper.style.height = this.props.viewState.featureInfoPanelIsCollapsed
+        ? ""
+        : `${state.dimensions.height}px`;
+    } else {
+      wrapper.style.width = "";
+      wrapper.style.height = "";
+    }
+
+    const currentPosition = parseTranslate(wrapper.style.transform);
+    const bounds = getDragBounds(wrapper, currentPosition.x, currentPosition.y);
+
+    if (
+      bounds &&
+      isFiniteNumber(state.position?.xRatio) &&
+      isFiniteNumber(state.position?.yRatio)
+    ) {
+      const nextPosition = getPositionFromRelative(
+        bounds,
+        state.position.xRatio,
+        state.position.yRatio
+      );
+      this.setPanelPosition(nextPosition.x, nextPosition.y, true);
+      return;
+    }
+
+    if (
+      isFiniteNumber(state.position?.x) &&
+      isFiniteNumber(state.position?.y)
+    ) {
+      this.setPanelPosition(state.position.x, state.position.y, true);
+      return;
+    }
+
+    this.constrainToBounds();
+  }
+
+  private syncPanelLayout() {
+    if (this.props.printView) return;
+
+    if (isDefined(this.panelSyncFrame)) {
+      cancelAnimationFrame(this.panelSyncFrame);
+    }
+
+    this.panelSyncFrame = requestAnimationFrame(() => {
+      const wrapper = this.panelWrapperRef.current;
+      if (!wrapper || !this.props.viewState.featureInfoPanelIsVisible) {
+        return;
+      }
+
+      const panelState = this.props.viewState.terria.featureInfoPanelState;
+      if (panelState) {
+        this.applyStoredPanelState(panelState);
+      } else {
+        this.resetPanelLayout();
+        this.savePanelState();
+      }
+    });
+  }
+
+  private handleWindowResize = () => {
+    if (this.props.printView) return;
+
+    if (isDefined(this.windowResizeFrame)) {
+      cancelAnimationFrame(this.windowResizeFrame);
+    }
+
+    this.windowResizeFrame = requestAnimationFrame(() => {
+      const wrapper = this.panelWrapperRef.current;
+      const panelState = this.props.viewState.terria.featureInfoPanelState;
+
+      if (
+        !wrapper ||
+        !this.props.viewState.featureInfoPanelIsVisible ||
+        !panelState
+      ) {
+        return;
+      }
+
+      const currentPosition = parseTranslate(wrapper.style.transform);
+      const bounds = getDragBounds(
+        wrapper,
+        currentPosition.x,
+        currentPosition.y
+      );
+
+      if (
+        bounds &&
+        isFiniteNumber(panelState.position?.xRatio) &&
+        isFiniteNumber(panelState.position?.yRatio)
+      ) {
+        const nextPosition = getPositionFromRelative(
+          bounds,
+          panelState.position.xRatio,
+          panelState.position.yRatio
+        );
+        this.setPanelPosition(nextPosition.x, nextPosition.y, true);
+      } else {
+        this.constrainToBounds();
+      }
+
+      this.savePanelState();
+    });
+  };
+
+  private startDrag(clientX: number, clientY: number) {
+    const wrapper = this.panelWrapperRef.current;
+    if (!wrapper) return;
+
+    const elementRect = wrapper.getBoundingClientRect();
+    if (!elementRect.width || !elementRect.height) return;
+
+    const offsetX = clientX - elementRect.left;
+    const offsetY = clientY - elementRect.top;
+    const initialPosition = parseTranslate(wrapper.style.transform);
+
+    const moveHandler = (nextClientX: number, nextClientY: number) => {
+      const dx = nextClientX - elementRect.left - offsetX + initialPosition.x;
+      const dy = nextClientY - elementRect.top - offsetY + initialPosition.y;
+      this.updatePanelPosition(dx, dy);
+    };
+
+    const endHandler = () => {
+      this.constrainToBounds();
+      this.savePanelState();
+    };
+
+    return { moveHandler, endHandler };
+  }
+
+  private handleMouseDown = (e: ReactMouseEvent<HTMLDivElement>) => {
+    if (!this.isValidDragHandle(e.target)) return;
+
+    const dragResult = this.startDrag(e.clientX, e.clientY);
+    if (!dragResult) return;
+
+    const handleMouseMove = (moveEvent: globalThis.MouseEvent) => {
+      dragResult.moveHandler(moveEvent.clientX, moveEvent.clientY);
+    };
+
+    const handleMouseUp = () => {
+      dragResult.endHandler();
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+    };
+
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", handleMouseUp);
+  };
+
+  private handleTouchStart = (e: ReactTouchEvent<HTMLDivElement>) => {
+    if (!this.isValidDragHandle(e.target)) return;
+
+    const touch = e.touches[0];
+    if (!touch) return;
+
+    const dragResult = this.startDrag(touch.clientX, touch.clientY);
+    if (!dragResult) return;
+
+    const handleTouchMove = (moveEvent: globalThis.TouchEvent) => {
+      const nextTouch = moveEvent.touches[0];
+      if (!nextTouch) return;
+      dragResult.moveHandler(nextTouch.clientX, nextTouch.clientY);
+    };
+
+    const handleTouchEnd = () => {
+      dragResult.endHandler();
+      document.removeEventListener("touchmove", handleTouchMove);
+      document.removeEventListener("touchend", handleTouchEnd);
+    };
+
+    document.addEventListener("touchmove", handleTouchMove);
+    document.addEventListener("touchend", handleTouchEnd);
+  };
 
   render() {
     const { t } = this.props;
@@ -307,14 +773,10 @@ class FeatureInfoPanel extends Component<Props> {
       })
       .filter((pair) => isDefined(pair.feature));
 
-    // If the clock is available then use it, otherwise don't.
     const clock = terria.timelineClock?.currentTime;
 
-    // If there is a selected feature then use the feature location.
     let position = terria.selectedFeature?.position?.getValue(clock);
 
-    // If position is invalid then don't use it.
-    // This seems to be fixing the symptom rather then the cause, but don't know what is the true cause this ATM.
     if (
       position === undefined ||
       isNaN(position.x) ||
@@ -325,7 +787,6 @@ class FeatureInfoPanel extends Component<Props> {
     }
 
     if (!isDefined(position)) {
-      // Otherwise use the location picked.
       position = terria.pickedFeatures?.pickPosition;
     }
 
@@ -333,97 +794,102 @@ class FeatureInfoPanel extends Component<Props> {
       <li>{this.renderLocationItem(position)}</li>
     ) : null;
 
-    return (
-      <DragWrapper handleSelector=".drag-handle">
-        <div
-          className={panelClassName}
-          aria-hidden={!viewState.featureInfoPanelIsVisible}
-        >
-          {!this.props.printView && (
-            <div className={Styles.header}>
-              <div
-                className={classNames("drag-handle", Styles.btnPanelHeading)}
-              >
-                <span>{t("featureInfo.panelHeading")}</span>
-                <button
-                  type="button"
-                  onClick={this.toggleCollapsed}
-                  className={Styles.btnToggleFeature}
-                >
-                  {this.props.viewState.featureInfoPanelIsCollapsed ? (
-                    <Icon glyph={Icon.GLYPHS.closed} />
-                  ) : (
-                    <Icon glyph={Icon.GLYPHS.opened} />
-                  )}
-                </button>
-              </div>
+    const panelContent = (
+      <div
+        className={panelClassName}
+        aria-hidden={!viewState.featureInfoPanelIsVisible}
+      >
+        {!this.props.printView && (
+          <div className={Styles.header}>
+            <div className={classNames("drag-handle", Styles.btnPanelHeading)}>
+              <span>{t("featureInfo.panelHeading")}</span>
               <button
                 type="button"
-                onClick={this.close}
-                className={Styles.btnCloseFeature}
-                title={t("featureInfo.btnCloseFeature")}
+                onClick={this.toggleCollapsed}
+                className={Styles.btnToggleFeature}
               >
-                <Icon glyph={Icon.GLYPHS.close} />
+                {this.props.viewState.featureInfoPanelIsCollapsed ? (
+                  <Icon glyph={Icon.GLYPHS.closed} />
+                ) : (
+                  <Icon glyph={Icon.GLYPHS.opened} />
+                )}
               </button>
             </div>
+            <button
+              type="button"
+              onClick={this.close}
+              className={Styles.btnCloseFeature}
+              title={t("featureInfo.btnCloseFeature")}
+            >
+              <Icon glyph={Icon.GLYPHS.close} />
+            </button>
+          </div>
+        )}
+        <ul className={Styles.body}>
+          {this.props.printView && locationElements}
+
+          {!viewState.featureInfoPanelIsCollapsed &&
+          viewState.featureInfoPanelIsVisible ? (
+            isDefined(terria.pickedFeatures) &&
+            terria.pickedFeatures.isLoading ? (
+              <li>
+                <Loader light />
+              </li>
+            ) : featureInfoCatalogItems.length === 0 ? (
+              <li className={Styles.noResults}>
+                {this.getMessageForNoResults()}
+              </li>
+            ) : (
+              featureInfoCatalogItems
+            )
+          ) : null}
+
+          {!this.props.printView && locationElements}
+          {filterableCatalogItems.map((pair) =>
+            TimeFilterMixin.isMixedInto(pair.catalogItem) && pair.feature ? (
+              <button
+                key={pair.catalogItem.uniqueId}
+                type="button"
+                onClick={this.filterIntervalsByFeature.bind(
+                  this,
+                  pair.catalogItem,
+                  pair.feature
+                )}
+                className={Styles.satelliteSuggestionBtn}
+              >
+                {t("featureInfo.satelliteSuggestionBtn", {
+                  catalogItemName: pair.catalogItem.name
+                })}
+              </button>
+            ) : null
           )}
-          <ul className={Styles.body}>
-            {this.props.printView && locationElements}
+        </ul>
+      </div>
+    );
 
-            {
-              // Is feature info visible
-              !viewState.featureInfoPanelIsCollapsed &&
-              viewState.featureInfoPanelIsVisible ? (
-                // Are picked features loading -> show Loader
-                isDefined(terria.pickedFeatures) &&
-                terria.pickedFeatures.isLoading ? ( // Do we have no features/catalog items to show?
-                  <li>
-                    <Loader light />
-                  </li>
-                ) : featureInfoCatalogItems.length === 0 ? (
-                  <li className={Styles.noResults}>
-                    {this.getMessageForNoResults()}
-                  </li>
-                ) : (
-                  // Finally show feature info
-                  featureInfoCatalogItems
-                )
-              ) : null
-            }
+    if (this.props.printView) {
+      return panelContent;
+    }
 
-            {!this.props.printView && locationElements}
-            {
-              // Add "filter by location" buttons if supported
-              filterableCatalogItems.map((pair) =>
-                TimeFilterMixin.isMixedInto(pair.catalogItem) &&
-                pair.feature ? (
-                  <button
-                    key={pair.catalogItem.uniqueId}
-                    type="button"
-                    onClick={this.filterIntervalsByFeature.bind(
-                      this,
-                      pair.catalogItem,
-                      pair.feature
-                    )}
-                    className={Styles.satelliteSuggestionBtn}
-                  >
-                    {t("featureInfo.satelliteSuggestionBtn", {
-                      catalogItemName: pair.catalogItem.name
-                    })}
-                  </button>
-                ) : null
-              )
-            }
-          </ul>
-        </div>
-      </DragWrapper>
+    return (
+      <div
+        ref={this.panelWrapperRef}
+        className={classNames(Styles.wrapper, {
+          [Styles.wrapperExpanded]: !viewState.featureInfoPanelIsCollapsed,
+          [Styles.wrapperVisible]: viewState.featureInfoPanelIsVisible
+        })}
+        onMouseDown={this.handleMouseDown}
+        onTouchStart={this.handleTouchStart}
+      >
+        {panelContent}
+      </div>
     );
   }
 }
 
 function getFeatureMapByCatalogItems(terria: Terria) {
   const featureMap = new Map<string, TerriaFeature[]>();
-  const catalogItems = new Set<MappableMixin.Instance>(); // Will contain a list of all unique catalog items.
+  const catalogItems = new Set<MappableMixin.Instance>();
 
   if (!isDefined(terria.pickedFeatures)) {
     return { featureMap, catalogItems: Array.from(catalogItems) };
@@ -433,9 +899,11 @@ function getFeatureMapByCatalogItems(terria: Terria) {
     const catalogItem = determineCatalogItem(terria.workbench, feature);
     if (catalogItem?.uniqueId) {
       catalogItems.add(catalogItem);
-      if (featureMap.has(catalogItem.uniqueId))
+      if (featureMap.has(catalogItem.uniqueId)) {
         featureMap.get(catalogItem.uniqueId)?.push(feature);
-      else featureMap.set(catalogItem.uniqueId, [feature]);
+      } else {
+        featureMap.set(catalogItem.uniqueId, [feature]);
+      }
     }
   });
 
@@ -453,9 +921,6 @@ export function determineCatalogItem(
     return feature._catalogItem;
   }
 
-  // Expand child members of composite catalog items.
-  // This ensures features from each child model are treated as belonging to
-  // that child model, not the parent composite model.
   const items = flatten(workbench.items.map(recurseIntoMembers)).filter(
     MappableMixin.isMixedInto
   );

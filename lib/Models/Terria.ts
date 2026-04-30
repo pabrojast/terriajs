@@ -103,6 +103,7 @@ import TerriaFeature from "./Feature/Feature";
 import GlobeOrMap from "./GlobeOrMap";
 import IElementConfig from "./IElementConfig";
 import InitSource, {
+  FeatureInfoPanelState,
   InitSourceData,
   InitSourceFromData,
   ShareInitSourceData,
@@ -610,6 +611,9 @@ export default class Terria {
 
   @observable
   selectedFeature: TerriaFeature | undefined;
+
+  @observable.ref
+  featureInfoPanelState: FeatureInfoPanelState | undefined;
 
   @observable
   allowFeatureInfoRequests: boolean = true;
@@ -1985,6 +1989,11 @@ export default class Terria {
     );
 
     if (isJsonObject(initData.pickedFeatures)) {
+      runInAction(() => {
+        this.featureInfoPanelState = featureInfoPanelStateFromJson(
+          initData.featureInfoPanel
+        );
+      });
       when(() => !(this.currentViewer instanceof NoViewer)).then(() => {
         if (isJsonObject(initData.pickedFeatures)) {
           this.loadPickedFeatures(initData.pickedFeatures);
@@ -1994,6 +2003,7 @@ export default class Terria {
       runInAction(() => {
         this.pickedFeatures = undefined;
         this.selectedFeature = undefined;
+        this.featureInfoPanelState = undefined;
       });
     }
 
@@ -2437,6 +2447,64 @@ async function interpretStartData(
       });
     }
   }
+}
+
+function draggableElementPositionFromJson(
+  position: unknown
+): FeatureInfoPanelState["position"] {
+  if (!isJsonObject(position)) return undefined;
+
+  const x = position.x;
+  const y = position.y;
+
+  if (!isJsonNumber(x) || !isJsonNumber(y)) {
+    return undefined;
+  }
+
+  const xRatio = isJsonNumber(position.xRatio) ? position.xRatio : undefined;
+  const yRatio = isJsonNumber(position.yRatio) ? position.yRatio : undefined;
+
+  return {
+    x,
+    y,
+    ...(isDefined(xRatio) ? { xRatio } : {}),
+    ...(isDefined(yRatio) ? { yRatio } : {})
+  };
+}
+
+function draggableElementDimensionsFromJson(
+  dimensions: unknown
+): FeatureInfoPanelState["dimensions"] {
+  if (!isJsonObject(dimensions)) return undefined;
+
+  const width = dimensions.width;
+  const height = dimensions.height;
+
+  if (!isJsonNumber(width) || !isJsonNumber(height)) {
+    return undefined;
+  }
+
+  return { width, height };
+}
+
+function featureInfoPanelStateFromJson(
+  featureInfoPanel: unknown
+): FeatureInfoPanelState | undefined {
+  if (!isJsonObject(featureInfoPanel)) return undefined;
+
+  const position = draggableElementPositionFromJson(featureInfoPanel.position);
+  const dimensions = draggableElementDimensionsFromJson(
+    featureInfoPanel.dimensions
+  );
+
+  if (!position && !dimensions) {
+    return undefined;
+  }
+
+  return {
+    ...(position ? { position } : {}),
+    ...(dimensions ? { dimensions } : {})
+  };
 }
 
 function setCustomRequestSchedulerDomainLimits(
