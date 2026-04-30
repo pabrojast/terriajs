@@ -14,6 +14,10 @@ import CesiumMath from "terriajs-cesium/Source/Core/Math";
 import JulianDate from "terriajs-cesium/Source/Core/JulianDate";
 import Rectangle from "terriajs-cesium/Source/Core/Rectangle";
 import type TIFFImageryProvider from "terriajs-tiff-imagery-provider";
+import Icon from "../../../Styled/Icon";
+import { ViewingControl } from "../../ViewingControls";
+import { runWorkflow } from "../../Workflows/SelectableDimensionWorkflow";
+import CogStylingWorkflow from "../../Workflows/CogStylingWorkflow";
 import CatalogMemberMixin from "../../../ModelMixins/CatalogMemberMixin";
 import getChartColorForId from "../../../Charts/getChartColorForId";
 import filterOutUndefined from "../../../Core/filterOutUndefined";
@@ -458,6 +462,27 @@ export default class CogTimeSeriesCatalogItem extends DiscretelyTimeVaryingMixin
         imageryProvider: provider as any,
         clippingRectangle: provider.rectangle
       }));
+  }
+
+  /**
+   * Expose the same "Edit Style" workflow used by single COGs. Style changes
+   * are written to `renderOptions`, which a reaction in the constructor
+   * watches — destroying the cache and rebuilding every per-time-step
+   * provider, so colors/domain/etc. apply uniformly across the entire series.
+   */
+  @override
+  get viewingControls(): ViewingControl[] {
+    return [
+      ...super.viewingControls,
+      {
+        id: CogStylingWorkflow.type,
+        name: i18next.t("models.cog.editStyle"),
+        onClick: action((viewState) =>
+          runWorkflow(viewState, new CogStylingWorkflow(this))
+        ),
+        icon: { glyph: Icon.GLYPHS.layers }
+      }
+    ];
   }
 
   // ──────────────────────────────────────────────

@@ -3,6 +3,7 @@ import { action, computed, makeObservable, runInAction } from "mobx";
 import filterOutUndefined from "../../Core/filterOutUndefined";
 import isDefined from "../../Core/isDefined";
 import CogCatalogItem from "../Catalog/CatalogItems/CogCatalogItem";
+import CogTimeSeriesCatalogItem from "../Catalog/CatalogItems/CogTimeSeriesCatalogItem";
 import Icon from "../../Styled/Icon";
 import CommonStrata from "../Definition/CommonStrata";
 import {
@@ -65,6 +66,11 @@ const DEFAULT_LEGEND_COLORS = [
   "#bab0ac"
 ];
 
+/** Items that can be styled with this workflow. Both share the same
+ *  `renderOptions: CogRenderOptionsTraits` and `LegendOwnerTraits`, so the
+ *  workflow operates on either without further branching. */
+export type CogStylableItem = CogCatalogItem | CogTimeSeriesCatalogItem;
+
 /** SelectableDimensionWorkflow for styling COG (Cloud Optimized GeoTIFF) catalog items */
 export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
   static type = "cog-styling";
@@ -72,7 +78,7 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
   /** Cached numeric domain derived from previous legend synchronisations */
   private cachedLegendDomain?: [number, number];
 
-  constructor(readonly item: CogCatalogItem) {
+  constructor(readonly item: CogStylableItem) {
     makeObservable(this);
   }
 
@@ -914,7 +920,9 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
         this.getActiveDomain()
       );
       if (generated) {
-        this.item.setTrait(stratumId, "legends", [generated]);
+        (this.item as CogCatalogItem).setTrait(stratumId, "legends", [
+          generated
+        ]);
       }
       return;
     }
@@ -935,7 +943,7 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
             })
           ) ?? []
       });
-      this.item.setTrait(stratumId, "legends", [clone]);
+      (this.item as CogCatalogItem).setTrait(stratumId, "legends", [clone]);
     }
   }
 
@@ -956,7 +964,7 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
       baseline
     );
     if (legend) {
-      this.item.setTrait(stratumId, "legends", [legend]);
+      (this.item as CogCatalogItem).setTrait(stratumId, "legends", [legend]);
     }
   }
 
@@ -968,7 +976,7 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
     const legend = this.buildLegendDefinition();
     if (!legend) return;
     mutator(legend);
-    this.item.setTrait(stratumId, "legends", [legend]);
+    (this.item as CogCatalogItem).setTrait(stratumId, "legends", [legend]);
   }
 
   private buildLegendDefinition(): StratumFromTraits<LegendTraits> | undefined {
@@ -1043,7 +1051,7 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
       baseline
     );
     if (legend) {
-      this.item.setTrait(stratumId, "legends", [legend]);
+      (this.item as CogCatalogItem).setTrait(stratumId, "legends", [legend]);
     }
   }
 
