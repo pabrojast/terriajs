@@ -76,39 +76,42 @@ export class SingleRenderOptionsTraits extends ModelTraits {
   type?: "continuous" | "discrete";
 
   @primitiveArrayTrait({
-    name: "Domain",
-    description: "Value domain for scaling the color.",
+    name: "Color scale range",
+    description:
+      "Stretches the colour scale across these [min, max] data values. Values outside still render (unless clamped or hidden by transparency). Persisted as `domain` for backwards compatibility.",
     type: "number"
   })
   domain?: [number, number];
 
   @primitiveArrayTrait({
-    name: "Display Range",
+    name: "Transparency range",
     description:
-      "Range of values to display. Values outside this range will be transparent when 'Apply Display Range' is enabled.",
+      "Optional [min, max] range used when applyDisplayRange is true. Values outside render transparent. Falls back to `domain` when unset.",
     type: "number"
   })
   displayRange?: [number, number];
 
   @primitiveTrait({
     type: "boolean",
-    name: "Apply Display Range",
+    name: "Hide values outside color scale",
     description:
-      "When enabled, values outside the Display Range will be rendered as transparent."
+      "When true, values outside `displayRange` (or `domain` if `displayRange` is unset) render transparent."
   })
   applyDisplayRange?: boolean;
 
   @primitiveTrait({
     type: "boolean",
-    name: "Clamp Low Values",
-    description: "Whether to clamp values below the domain."
+    name: "Clamp below color scale",
+    description:
+      "Render values below the color scale range with the lowest colour, instead of letting them stretch beyond."
   })
   clampLow?: boolean;
 
   @primitiveTrait({
     type: "boolean",
-    name: "Clamp High Values",
-    description: "Whether to clamp values above the domain."
+    name: "Clamp above color scale",
+    description:
+      "Render values above the color scale range with the highest colour, instead of letting them stretch beyond."
   })
   clampHigh?: boolean;
 
@@ -136,9 +139,9 @@ export class SingleRenderOptionsTraits extends ModelTraits {
 
   @primitiveTrait({
     type: "string",
-    name: "No Data Color",
+    name: "No-data fill color",
     description:
-      "CSS color (e.g., '#FF0000', 'red', 'rgba(255,0,0,0.5)') to use for no-data/null values. If not specified, no-data values will be transparent."
+      "CSS colour (e.g. '#FF0000', 'red', 'rgba(255,0,0,0.5)') to fill cells flagged as no-data. Empty = transparent."
   })
   noDataColor?: string;
 }

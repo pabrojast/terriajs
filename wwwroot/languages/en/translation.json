@@ -2101,22 +2101,34 @@
     "cogStyling": {
       "name": "Style COG",
       "reset": "Reset to default style",
-      "colorScheme": "Color Scheme",
-      "colorScale": "Color Scale",
-      "renderType": "Render Type",
+      "colorScheme": "Color",
+      "colorHelp": "Choose a colour palette and rendering mode.",
+      "colorScale": "Color scale",
+      "reverseColors": "Reverse colors",
+      "renderType": "Render type",
       "continuous": "Continuous",
       "discrete": "Discrete",
+      "legendSteps": "Legend steps",
       "domain": {
-        "title": "Value Domain (auto-calculated if not set)",
+        "title": "Color scale range",
+        "help": "Stretches the colour scale across these values. Values outside still render unless clamped or hidden by transparency.",
         "autoDetect": "Auto-detect from COG",
         "clearManual": "Clear manual values"
       },
-      "minimumValue": "Min Value (optional, auto-calculated)",
-      "maximumValue": "Max Value (optional, auto-calculated)",
-      "displayRange": "Display Range",
-      "applyDisplayRange": "Apply Display Range",
-      "displayRangeMin": "Display Range Min",
-      "displayRangeMax": "Display Range Max",
+      "minimumValue": "Color scale min",
+      "maximumValue": "Color scale max",
+      "displayRange": "Transparency",
+      "applyDisplayRange": "Hide values outside color scale",
+      "displayRangeMin": "Hide below",
+      "displayRangeMax": "Hide above",
+      "transparency": {
+        "help": "Control where the layer becomes see-through.",
+        "noDataColor": "No-data fill color",
+        "outsideRangeWarning": "Transparency range ({{trMin}} – {{trMax}}) is outside the color scale range ({{dMin}} – {{dMax}}). Some data may be hidden."
+      },
+      "timeSeries": {
+        "autoFit": "Auto-fit color scale to current timestep"
+      },
       "customColors": {
         "name": "Custom Colors",
         "addStop": "Add Color Stop",
@@ -2143,8 +2155,8 @@
       },
       "advanced": "Advanced",
       "band": "Band",
-      "clampLow": "Clamp Low Values",
-      "clampHigh": "Clamp High Values"
+      "clampLow": "Clamp below color scale",
+      "clampHigh": "Clamp above color scale"
     },
     "cogTimeSeries": {
       "loadTimeEntriesErrorTitle": "Error loading COG Time Series",
