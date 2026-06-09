@@ -1,0 +1,86 @@
+@use "sass:color";
+
+@use "../../Sass/common/_variables";
+@use "../../Sass/common/mixins";
+
+.wrapper {
+  composes: flex from "../../Sass/common/_base.scss";
+  color: variables.$text-light;
+  font-family: variables.$font-base;
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  right: 0;
+  z-index: variables.$notification-window-z-index;
+  align-items: center;
+  justify-content: center;
+
+  a {
+    @include mixins.link(variables.$dark);
+  }
+
+  pre {
+    display: block;
+    line-height: 2;
+    white-space: pre-wrap;
+  }
+}
+
+.notification {
+  border-radius: 6px;
+  border: 1px solid color.adjust(variables.$dark, $lightness: -3%);
+  // background: $dark;
+  z-index: 300;
+
+  pre {
+    // copy over scrollbar css because I can't compose within
+    -webkit-overflow-scrolling: touch;
+
+    &::-webkit-scrollbar {
+      width: 5px;
+      /* for vertical scrollbars */
+      height: 8px;
+      /* for horizontal scrollbars */
+    }
+
+    &::-webkit-scrollbar-track {
+      background: variables.$scrollbar-track-color;
+      border-radius: variables.$radius-large;
+    }
+
+    &::-webkit-scrollbar-thumb {
+      background: variables.$scrollbar-color;
+      border-radius: variables.$radius-large;
+    }
+  }
+}
+
+.title {
+  composes: h3 from "../../Sass/common/_base.scss";
+}
+
+.inner {
+  composes: scrollbars from "../../Sass/common/_base.scss";
+  padding: 15px;
+  height: 100%;
+  max-height: calc(100vh - #{variables.$input-height * 3});
+  overflow-y: auto;
+  max-width: calc(100vw - 20px);
+  box-sizing: border-box;
+}
+
+.footer {
+  padding: 15px;
+  display: flex;
+  gap: 15px;
+  justify-content: center;
+
+  button {
+    flex: 1;
+  }
+}
+
+.body {
+  font-size: 14px;
+}

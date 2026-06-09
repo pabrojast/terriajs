@@ -1,0 +1,74 @@
+@use "../../Sass/common/_variables";
+@use "../../Sass/common/mixins";
+
+.full-screen {
+  position: absolute;
+  z-index: 79;
+}
+
+.toggleWorkbench {
+  display: none;
+}
+
+.fullScreenWrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  align-content: space-around;
+  background-color: variables.$transparent-dark;
+  backdrop-filter: variables.$blur;
+  width: variables.$work-bench-width;
+  border-radius: variables.$radius-xlarge;
+  overflow: hidden;
+}
+
+.minifiedFullscreenBtnWrapper {
+  left: variables.$work-bench-width;
+  top: 32px;
+}
+
+.trainerBarVisible {
+  top: variables.$map-button-top + variables.$trainer-height;
+}
+
+.btn {
+  composes: btn from "../../Sass/common/_buttons.scss";
+  composes: btn--map from "../../Sass/common/_buttons.scss";
+  display: flex;
+  // background: $color-primary;
+  border-radius: 16px;
+}
+
+.isActive {
+  svg:not(:root) {
+    // New arrow design (w/o styled-component fixes)
+    margin: auto;
+    width: 12px;
+  }
+}
+
+.minified {
+  &,
+  &:hover,
+  &:focus {
+    padding: 0;
+    padding-right: variables.$padding-small;
+    box-shadow: none;
+  }
+
+  svg:not(:root) {
+    margin: auto variables.$padding-small;
+  }
+}
+
+.enter {
+  &:before {
+    font-size: 1.6rem;
+  }
+}
+
+.exit {
+  &:before {
+    font-size: 1.6rem;
+  }
+}

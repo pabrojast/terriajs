@@ -1,0 +1,77 @@
+@use "../../Sass/common/_variables";
+@use "../../Sass/common/mixins";
+
+.popupEditor {
+  @include mixins.transform(translateY(20%));
+  opacity: 0;
+  @include mixins.transition(all 0.3s);
+
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: variables.$notification-window-z-index;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+
+  &.is-mounted {
+    opacity: 1;
+    @include mixins.transform(none);
+  }
+
+  .inner {
+    max-width: 800px;
+    width: 80vw;
+    background: variables.$dark;
+    margin: 0 auto;
+    color: variables.$text-dark;
+    border: 1px solid variables.$dark-lighter;
+    border-radius: 6px;
+    padding: 15px;
+  }
+
+  .header {
+    border-bottom: 1px solid variables.$dark-lighter;
+    margin-bottom: 15px;
+    padding-bottom: 15px;
+  }
+
+  .body {
+    min-height: 150px;
+
+    p {
+      margin-top: 0;
+    }
+
+    margin-bottom: 15px;
+  }
+}
+
+.field {
+  composes: field from "../../Sass/common/_form.scss";
+  border: 0;
+  margin-right: variables.$padding;
+  padding-left: 15px !important;
+  margin-bottom: 15px;
+  border-radius: 6px;
+  background: variables.$dark-mid;
+  border: 1px solid variables.$dark-lighter;
+  color: white;
+}
+
+.saveBtn {
+  composes: btn from "../../Sass/common/_buttons.scss";
+  composes: btn-primary from "../../Sass/common/_buttons.scss";
+  width: auto;
+  padding: 15px 15px;
+}
+
+.cancelBtn {
+  composes: btn from "../../Sass/common/_buttons.scss";
+  composes: btn-transparent from "../../Sass/common/_buttons.scss";
+  border: none;
+  background: variables.$dark-mid;
+  padding: 15px;
+}

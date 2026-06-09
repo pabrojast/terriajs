@@ -1,0 +1,173 @@
+import { action, computed, makeObservable } from "mobx";
+import DeveloperError from "terriajs-cesium/Source/Core/DeveloperError";
+import { JsonObject, isJsonObject } from "../../Core/Json";
+import Result from "../../Core/Result";
+import TerriaError from "../../Core/TerriaError";
+import isDefined from "../../Core/isDefined";
+import MappableMixin from "../../ModelMixins/MappableMixin";
+import ModelReference from "../../Traits/ModelReference";
+import {
+  BaseMapTraits,
+  BaseMapsTraits
+} from "../../Traits/TraitsClasses/BaseMapTraits";
+import BingMapsCatalogItem from "../Catalog/CatalogItems/BingMapsCatalogItem";
+import CommonStrata from "../Definition/CommonStrata";
+import CreateModel from "../Definition/CreateModel";
+import { BaseModel, ModelConstructorParameters } from "../Definition/Model";
+import ModelPropertiesFromTraits from "../Definition/ModelPropertiesFromTraits";
+import updateModelFromJson from "../Definition/updateModelFromJson";
+import Terria from "../Terria";
+import { defaultBaseMaps } from "./defaultBaseMaps";
+import CatalogMemberMixin from "../../ModelMixins/CatalogMemberMixin";
+
+export class BaseMapModel extends CreateModel(BaseMapTraits) {}
+
+export type BaseMapJson = Partial<
+  Omit<ModelPropertiesFromTraits<BaseMapTraits>, "item"> & {
+    item: JsonObject | string;
+  }
+>;
+export type BaseMapsJson = Partial<
+  Omit<ModelPropertiesFromTraits<BaseMapsTraits>, "items"> & {
+    items: BaseMapJson[];
+  }
+>;
+
+export interface BaseMapItem {
+  image?: string;
+  contrastColor?: string;
+  backgroundColor?: string;
+  item: MappableMixin.Instance;
+}
+
+export class BaseMapsModel extends CreateModel(BaseMapsTraits) {
+  constructor(...args: ModelConstructorParameters) {
+    super(...args);
+    makeObservable(this);
+  }
+
+  /**
+   * List of the basemaps to show in setting panel
+   */
+  @computed
+  get baseMapItems(): BaseMapItem[] {
+    const enabledBaseMaps: BaseMapItem[] = [];
+
+    const baseMapItems =
+      this.enabledBaseMaps
+        ?.map((enabledBaseMapId) => {
+          return this.items.find((item) => item.item === enabledBaseMapId);
+        })
+        .filter(isDefined) ?? this.items;
+
+    baseMapItems.forEach((baseMapItem) => {
+      if (baseMapItem.item && !ModelReference.isRemoved(baseMapItem.item)) {
+        const itemModel = this.terria.getModelById(BaseModel, baseMapItem.item);
+        if (MappableMixin.isMixedInto(itemModel)) {
+          enabledBaseMaps.push({
+            image: baseMapItem.image,
+            contrastColor: baseMapItem.contrastColor,
+            backgroundColor: baseMapItem.backgroundColor,
+            item: itemModel
+          });
+        }
+      }
+    });
+
+    return enabledBaseMaps;
+  }
+
+  // Can't do this in constructor since {@link CatalogMemberFactory} doesn't
+  // have any values at the moment of initializing Terria class.
+  initializeDefaultBaseMaps(): Result {
+    return this.loadFromJson(CommonStrata.definition, {
+      items: defaultBaseMaps(this.terria)
+    });
+  }
+
+  @action
+  private add(stratumId: string, baseMap: BaseMapModel) {
+    if (baseMap.item === undefined) {
+      throw new DeveloperError(
+        "A model without a `uniqueId` cannot be added to a group."
+      );
+    }
+
+    const resolvedItem = this.terria.getModelById(
+      BaseModel,
+      baseMap.item as any
+    );
+    if (resolvedItem instanceof BingMapsCatalogItem) {
+      addBingMapsKey(resolvedItem, this.terria);
+    }
+
+    const items = this.getTrait(stratumId, "items");
+    if (isDefined(items)) {
+      items.push(baseMap);
+    } else {
+      this.setTrait(stratumId, "items", [baseMap]);
+    }
+  }
+
+  @action
+  loadFromJson(stratumId: CommonStrata, newBaseMaps: BaseMapsJson): Result {
+    const errors: TerriaError[] = [];
+    const { items, ...rest } = newBaseMaps;
+    if (items !== undefined) {
+      const { items: itemsTrait } = this.traits;
+      const newItemsIds = itemsTrait.fromJson(this, stratumId, items);
+      newItemsIds
+        .pushErrorTo(errors)
+        ?.forEach((member: BaseMapModel, i: number) => {
+          const existingItem = this.items.find(
+            (baseMap) => baseMap.item === member.item
+          );
+          if (existingItem) {
+            // object array trait doesn't automatically update model item
+            updateModelFromJson(existingItem, stratumId, items[i]);
+          } else {
+            this.add(stratumId, member);
+          }
+        });
+    }
+
+    if (isJsonObject(rest))
+      updateModelFromJson(this, stratumId, rest).pushErrorTo(errors);
+    else errors.push(TerriaError.from("Invalid JSON object"));
+
+    return new Result(
+      undefined,
+      TerriaError.combine(
+        errors,
+        `Failed to add members from JSON for model \`${this.uniqueId}\``
+      )
+    );
+  }
+
+  findBaseMapById(id: string | undefined): BaseMapItem | undefined {
+    if (!id) return undefined;
+    return this.baseMapItems.find((baseMapItem) => {
+      return baseMapItem.item.uniqueId === id;
+    });
+  }
+
+  findBaseMapByName(name: string | undefined): BaseMapItem | undefined {
+    if (!name) return undefined;
+    return this.baseMapItems.find((baseMapItem) => {
+      if (CatalogMemberMixin.isMixedInto(baseMapItem.item)) {
+        return baseMapItem.item.name === name;
+      }
+      return false;
+    });
+  }
+}
+
+function addBingMapsKey(item: BingMapsCatalogItem, terria: Terria) {
+  if (!item.key) {
+    item.setTrait(
+      CommonStrata.defaults,
+      "key",
+      terria.configParameters.bingMapsKey
+    );
+  }
+}

@@ -1,0 +1,308 @@
+@use "_variables";
+
+$btn-setting-size: 35px;
+
+::-moz-focus-inner {
+  border: 0;
+  padding: 0;
+}
+
+.btn {
+  background-color: transparent;
+  margin: 0;
+  border: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-weight: variables.$font-weight-normal;
+  box-shadow: none;
+  text-align: left;
+  cursor: pointer;
+  line-height: variables.$btn-default-line-height;
+  text-decoration: none;
+  font-size: variables.$font-size-button;
+  font-family: variables.$font-base;
+
+  &:focus,
+  &:hover {
+    box-shadow: none;
+    border-color: transparent;
+    // outline: none;
+    opacity: 0.9;
+  }
+}
+
+.btn-transparent {
+  background: transparent;
+  margin: 0;
+}
+
+.btn-primary {
+  display: block;
+  // background: $color-primary;
+  font-family: variables.$font-pop;
+  // color: $text-light;
+  text-align: center;
+  width: 100%;
+  box-sizing: border-box;
+  border-radius: variables.$radius-small;
+  padding: variables.$padding;
+
+  &:disabled {
+    background: variables.$color-primary-disabled !important;
+    cursor: not-allowed;
+
+    &:hover,
+    &--hover {
+      background: variables.$color-primary-disabled !important;
+    }
+  }
+  &:hover,
+  &--hover {
+    background: variables.get-hover-color(variables.$color-primary);
+  }
+}
+
+.btn-large {
+  padding: 14px 20px;
+}
+
+.btn-grey {
+  padding: 0;
+  font-size: variables.$font-size-mini;
+  text-align: center;
+  width: 100%;
+  line-height: 4;
+  background: rgba(#fff, 0.15);
+  border: 1px solid transparent;
+  &:hover {
+    border: variables.$border-style;
+  }
+  &.is-active {
+    background: variables.$color-primary;
+    border-color: variables.$color-primary;
+    color: variables.$text-light;
+  }
+}
+
+.btn--add-to-map {
+  color: variables.$color-primary;
+}
+
+.btn--secondary {
+  // color: $color-primary;
+  border: variables.$color-primary;
+  border-radius: 4px;
+
+  &:hover,
+  &:focus {
+    // border: 2px solid get-hover-color($color-primary);
+    // color: get-hover-color($color-primary);
+  }
+}
+
+.btn--tertiary {
+  // background-color: $modal-bg;
+  // color: $modal-text;
+  // border: 2px solid $modal-text;
+  border-radius: 4px;
+  padding: 8px 10px;
+
+  // &:hover,
+  // &:focus {
+  //   border: 2px solid $color-primary;
+  //   color: $color-primary;
+  // }
+}
+
+.btn--tertiary-dark {
+  color: variables.$text-light;
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  border-radius: 4px;
+  padding: 8px 10px;
+
+  &:hover,
+  &:focus {
+    border: 1px solid variables.$color-primary;
+    color: variables.$color-primary;
+  }
+}
+
+.btn--remove-from-map {
+  color: variables.$color-primary;
+}
+
+.btn--loading-on-map {
+  color: variables.$color-primary;
+}
+
+.btn--close-modal {
+  @extend .btn--secondary;
+  font-size: variables.$font-size-small;
+  padding: 4px 10px;
+  margin: 5px;
+  font-weight: bold;
+}
+
+.btn--catalog {
+  padding: variables.$padding 30px + variables.$padding;
+  position: relative;
+  width: 100%;
+  font-weight: bold;
+  @media (min-width: variables.$sm) {
+    padding: variables.$padding-small 30px + variables.$padding;
+  }
+  .btn--group-indicator {
+    position: absolute;
+    left: 0;
+    padding: variables.$padding variables.$padding * 2.2 variables.$padding
+      variables.$padding * 1.5;
+    top: 0;
+    font-size: variables.$font-size-mid-large;
+    opacity: 0.5;
+    @media (min-width: variables.$sm) {
+      padding: variables.$padding-small variables.$padding * 2.2
+        variables.$padding-small variables.$padding * 1.5;
+    }
+  }
+  &:before {
+    position: absolute;
+    right: 5px;
+    top: variables.$padding;
+    @media (min-width: variables.$sm) {
+      top: variables.$padding-small;
+    }
+  }
+  &:hover,
+  &:focus {
+    background: variables.$modal-highlight;
+    color: variables.$text-light;
+    .btn--group-indicator {
+      color: variables.$text-light;
+    }
+  }
+}
+
+.btn--catalog-item {
+  position: relative;
+  width: 100%;
+  padding: variables.$padding-small variables.$padding * 2.2
+    variables.$padding-small variables.$padding * 1.5;
+
+  &:focus,
+  &:hover {
+    color: variables.$modal-highlight;
+    &:before {
+      opacity: 1;
+    }
+  }
+  .is-previewed & {
+    color: variables.$modal-highlight;
+    font-weight: variables.$font-weight-bold;
+    &:before {
+      opacity: 1;
+    }
+  }
+  &.is-active {
+    color: variables.$modal-highlight;
+  }
+}
+
+.btn.btn--tab {
+  border-right: 1px solid variables.$modal-border;
+  font-family: variables.$font-pop;
+  background: variables.$modal-bg;
+  color: variables.$modal-text;
+  font-size: variables.$font-size-base;
+  padding: variables.$padding variables.$padding * 2;
+  border-bottom: 2px solid transparent;
+  li[aria-selected="true"] & {
+    background: #fff;
+    color: variables.$modal-highlight;
+  }
+}
+
+.btn--map {
+  font-size: variables.$font-size-small;
+  padding: 5px;
+  // color: $text-light;
+  display: block;
+  // display: flex;
+  min-height: 32px;
+  font-family: variables.$font-pop;
+  // opacity: 0.95; // new design has opaque map buttons?
+  // background-color: $dark;
+  box-shadow: 0 2px 4px 0 rgba(0, 0, 0, 0.25);
+
+  // Can't apply these atm
+  // due to (presumably https://bugs.chromium.org/p/chromium/issues/detail?id=375693)
+  // display: grid;
+  // grid-auto-flow: column;
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+
+  &:hover,
+  &:focus,
+  .is-open &,
+  &.is-active {
+    // background: $color-primary;
+    text-decoration: none;
+  }
+  &:hover,
+  &:focus {
+    svg {
+      // fill: $text-light;
+    }
+  }
+  // overrides on panel.scss's .button
+  // svg:not(:root) {
+  // }
+  svg {
+    height: 15px;
+    width: 15px;
+    // opacity: 0.35;
+    // margin: auto 5px auto 7px;
+    vertical-align: middle;
+    display: inline-block;
+
+    margin: auto variables.$padding-small;
+    margin-left: variables.$padding-small + 2px;
+    margin-right: variables.$padding-small - 2px;
+
+    // fill: $text-light;
+    // fill: #6487ae;
+    // fill: $map-button-color;
+  }
+
+  span {
+    // vertical-align: top;
+    vertical-align: middle;
+    margin: auto variables.$padding-small + 1px;
+  }
+}
+
+.btn--search-clear {
+  padding: 0;
+  position: absolute;
+  right: 0;
+  top: 0;
+  padding: 12px;
+}
+
+.btn--radio {
+  padding: variables.$padding-small;
+  &:before {
+    color: variables.$color-primary;
+    display: inline-block;
+    padding: variables.$padding-small variables.$padding-small
+      variables.$padding-small 0;
+  }
+}
+
+//FIXME
+.btn--small,
+._buttons__btn-primary.btn--small {
+  padding: 4px 9px;
+  margin-right: 4px;
+  font-size: variables.$font-size-small;
+}

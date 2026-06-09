@@ -1,0 +1,220 @@
+# Search providers
+
+Terriajs supports 2 types of search providers
+
+1. Catalog search provider
+2. Location search providers
+
+Each search provider can be configured using following options
+
+| Name          | Required | Type         | Default                                     | Description                                                    |
+| ------------- | -------- | ------------ | ------------------------------------------- | -------------------------------------------------------------- |
+| name          | no       | **string**   | `unknown`                                   | Name of the search provider.                                   |
+| minCharacters | no       | **number**   | `catalogParameters.searchBar.minCharacters` | Minimum number of characters required for search to start.     |
+| attributions  | no       | **string[]** | []                                          | List of attributions to be displayed at the bottom of the map. |
+
+## Catalog search provider
+
+`type: catalog-search-provider`
+
+Catalog search provider is used to find the desired dataset. Catalog search provider can be used with or without static catalog index JSON file. Without catalog index each catalog group and item will be dynamically fetched from remote servers in the moment of the search, and for bigger catalog this will cause poor performance of search. For example when having WMS-group in catalog searching in that catalog will cause catalog to issue `getCapabilities` request, wait for response and then perform the search. TerriaJS supports only search provider of type `catalog-search-provider`
+
+### CatalogIndex
+
+If your TerriaMap has many (>50) dynamic groups (groups which need to be loaded - for example CKAN, WMS-group...) it may be worth generating a static catalog index JSON file. This file will contain ID, name and description fields of all catalog items, which can be used to search through the catalog very quickly without needing to load dynamic references/groups (for example `MagdaReference` -> `WebMapServiceCatalogGroup` -> `WebMapServiceCatalogItem`).
+
+The [flexsearch](https://github.com/nextapps-de/flexsearch) library is used to index and search the catalog index file.
+
+**Note** NodeJS v10 is not supported, please use v12 or v14.
+
+To generate the catalog index:
+
+- `yarn build-tools`
+- `node ./build/generateCatalogIndex.js -c config-url -b base-url` where
+  - `config-url` is URL to client-side-config file
+  - `base-url` is URL to terriajs-server (this is used to load `server-config` and to proxy requests)
+  - For example `node ./build/generateCatalogIndex.js -c http://localhost:3001/config.json -b http://localhost:3001/`
+
+- This will output three files
+  - `catalog-index.json`
+  - `catalog-index-errors.json` with any error messages which occurred while loading catalog members
+  - `catalog-index-errors-stack.json` with errors stack
+- Set `catalogIndexUrl` config parameter to URL to `catalog-index.json`
+
+This file will have to be re-generated manually every time the catalog structure changes - for example:
+
+- if items are renamed, or moved
+- dynamic groups are updated (for example, WMS server publishes new layers)
+
+For more details see [/buildprocess/generateCatalogIndex.ts](/buildprocess/generateCatalogIndex.ts)
+
+- Run `node ./build/generateCatalogIndex.js --help` for argument documentation
+
+## Location search providers
+
+Location search providers are used to search for locations on the map. TerriaJS currently supports five implementations of search providers:
+
+- [`BingMapsSearchProvider`](#bingmapssearchprovider) - implementation which in background uses Bing Map search API
+- [`CesiumIonSearchProvider`](#cesiumionsearchprovider) - implementation which in background use CesiumIon geocoding API
+- [`AustralianGazetteerSearchProvider`](#australiangazetteersearchprovider) - uses `WebFeatureServiceSearchProvider`
+- [`NominatimSearchProvider`](#NominatimSearchProvider) - implementation which in background use Nominatim geocoding API
+- [`MapboxSearchProvider`](#mapboxsearchprovider) - implementation which in background use Mapbox geocoding API
+
+Each `LocationSearchProvider support following confing options
+
+| Name                  | Required | Type        | Default | Description                                                                                                                      |
+| --------------------- | -------- | ----------- | ------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| url                   | yes      | **string**  | `""`    | The URL of search provider.                                                                                                      |
+| recommendedListLength | no       | **number**  | `5`     | Default amount of entries in the suggestion list.                                                                                |
+| flightDurationSeconds | no       | **number**  | `1.5`   | Time to move to the result location.                                                                                             |
+| isOpen                | no       | **boolean** | `true`  | True if the search results of this search provider are visible by default; otherwise, false (user manually open search results). |
+
+### BingMapsSearchProvider
+
+`type: bing-maps-search-provider`
+
+Bing maps search provider is based on commercial API which is provided by BingMaps. To enable it, it is necessary to add an apropriate Bing Maps API key as config parameter. This search provider as results returns addresses and a place name locations.
+
+| Name           | Required | Type        | Default                        | Description                                                                                                                                                                                                                                                                                                            |
+| -------------- | -------- | ----------- | ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `key`          | no       | **string**  | `configParameters.bingMapsKey` | The Bing Maps key.                                                                                                                                                                                                                                                                                                     |
+| primaryCountry | no       | **string**  | `Australia`                    | Name of the country to prioritize the search results.                                                                                                                                                                                                                                                                  |
+| `culture`      | no       | **string**  | `en-au`                        | Use the culture parameter to specify a culture for your request.The culture parameter provides the result in the language of the culture. For a list of supported cultures, see [Supported Culture Codes](https://docs.microsoft.com/en-us/bingmaps/rest-services/common-parameters-and-types/supported-culture-codes) |
+| `mapCenter`    | no       | **boolean** | `true`                         | Whether the current location of the map center is supplied with search request                                                                                                                                                                                                                                         |
+
+It provides a default value for `url: https://dev.virtualearth.net/`
+
+**Example**
+
+```json
+{
+  "id": "search-provider/bing-maps",
+  "type": "bing-maps-search-provider",
+  "name": "translate#viewModels.searchLocations",
+  "url": "https://dev.virtualearth.net/",
+  "flightDurationSeconds": 1.5,
+  "minCharacters": 5,
+  "isOpen": true
+},
+```
+
+### CesiumIonSearchProvider
+
+`type: cesium-ion-search-provider`
+
+CesiumIon search provider is based on CesiumIon geocoding API provided by Cesium. To enable it it is necessary to add appropriate cesium API key as config parameter.
+
+| Name  | Required | Type       | Default                                 | Description        |
+| ----- | -------- | ---------- | --------------------------------------- | ------------------ |
+| `key` | no       | **string** | `configParameters.cesiumIonAccessToken` | The CesiumIon key. |
+
+It provides a default value for `url: https://api.cesium.com/v1/geocode/search/`
+
+**Example**
+
+```json
+{
+  "id": "search-provider/cesium-ion",
+  "type": "cesium-ion-search-provider",
+  "name": "translate#viewModels.searchLocations",
+  "url": "https://api.cesium.com/v1/geocode/search/",
+  "flightDurationSeconds": 1.5,
+  "minCharacters": 5,
+  "isOpen": true
+},
+```
+
+### AustralianGazetteerSearchProvider
+
+`type: australian-gazetteer-search-provider`
+
+Australian gazzetteer search provider is based on web feature service that uses an official place names of Australia. It is based on `WebFeatureServiceProvider`.
+It can be configured using following options
+
+| Name                     | Required | Type       | Default     | Description                                   |
+| ------------------------ | -------- | ---------- | ----------- | --------------------------------------------- |
+| `searchPropertyName`     | yes      | **string** | `undefined` | Which property to look for the search text in |
+| `searchPropertyTypeName` | yes      | **string** | `undefined` | Type of the properties to search              |
+
+**Example**
+
+```json
+{
+  "id": "search-provider/australian-gazetteer",
+  "type": "australian-gazetteer-search-provider",
+  "name": "translate#viewModels.searchPlaceNames",
+  "url": "http://services.ga.gov.au/gis/services/Australian_Gazetteer/MapServer/WFSServer",
+  "searchPropertyName": "Australian_Gazetteer:NameU",
+  "searchPropertyTypeName": "Australian_Gazetteer:Gazetteer_of_Australia",
+  "flightDurationSeconds": 1.5,
+  "minCharacters": 3,
+  "recommendedListLength": 3,
+  "isOpen": false
+}
+```
+
+### NominatimSearchProvider
+
+`type: nominatim-search-provider`
+
+Nominatim uses OpenStreetMap data to find locations on Earth. If the nominatim search provider is used the autocompletion of search results is disabled for all search providers as per [Nominatim's usage policy](https://operations.osmfoundation.org/policies/nominatim/), and user will have to manually trigger the search by pressing enter.
+It can be configured using following options
+
+| Name           | Required | Type         | Default                                                                                  | Description                                                                                 |
+| -------------- | -------- | ------------ | ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `countryCodes` | no       | **string**   | `undefined`                                                                              | A comma-separated list of country codes (ISO 3166-1alpha2) to prioritize the search results |
+| `maxResults`   | no       | **number**   | 5                                                                                        | The maximum number of results to return                                                     |
+| `attributions` | no       | **string[]** | `['© <a href='https://www.openstreetmap.org/copyright'>OpenStreetMap contributors</a>']` | List of attributions to be displayed at the bottom of the map.                              |
+
+**Example**
+
+```json
+{
+  "id": "search-provider/nominatim",
+  "type": "nominatim-search-provider",
+  "name": "Nominatim",
+  "flightDurationSeconds": 2,
+  "minCharacters": 2,
+  "maxResults": 5
+}
+```
+
+### MapboxSearchProvider
+
+`type: mapbox-search-provider`
+
+Mapbox geocoder API requires a [Mapbox access token](https://docs.mapbox.com/help/glossary/access-token/). Supports forward and reverse geocoding. Reverse Geocoding search term is in the form of `<latitude>, <longitude>` by default.
+
+| Name                | Required | Type        | Default                                    | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| ------------------- | -------- | ----------- | ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `accessToken`       | yes      | **string**  | `undefined`                                | a Mapbox access token, managed by a Mapbox account                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `url`               | no       | **string**  | `https://api.mapbox.com/search/geocode/v6` | The base url for the Mapbox geocoding API                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `partialMatch`      | no       | **boolean** | `true`                                     | Note that when Mapbox `partialMatch` is set to `true`, the Mapbox API will consider every key stroke an API request; use the `minCharacters` parameter to reduce the amount of API requests made.                                                                                                                                                                                                                                                                                                        |
+| `country`           | no       | **string**  | `undefined`                                | filter results by a comma-separated list of ISO 3166 alpha 2 country codes.                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `language`          | no       | **string**  | `eng`                                      | The ISO language code to be returned. If not provided, the default is English.                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `limit`             | no       | **number**  | 5                                          | The number of results to return, up to 10. Does not apply to reverse geocode.                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `types`             | no       | **string**  | `undefined`                                | Limit results to one or more types of features, provided as a comma-separated list. Pass one or more of the type names as a comma separated list. If no types are specified, all possible types may be returned. Available types are: country, region, postcode, district, place, city, locality, neighborhood, street, address, poi, and category. See the [Administrative unit types](https://docs.mapbox.com/api/search/search-box/#administrative-unit-types) section for details about these types. |
+| `worldview`         | no       | **string**  | `undefined`                                | Returns features that are defined differently by audiences that belong to various regional, cultural, or political groups. Available worldviews are: ar,cn,in,jp,ma,rs,ru,tr,us. If worldview is not set, the us worldview boundaries are returned by default. For more information about using the worldview parameter, see the [worldviews section](https://docs.mapbox.com/api/search/geocoding/#worldviews).                                                                                         |
+| `latLonSearchOrder` | no       | **boolean** | `true`                                     | When the user searches using coordinates, should the order be 'latitude, longitude' the default is true, which is familar with most users from Terria and other platforms.                                                                                                                                                                                                                                                                                                                               |
+
+**Example**
+
+```json
+{
+  "id": "search-provider/mapbox",
+  "type": "mapbox-search-provider",
+  "name": "Mapbox",
+  "accessToken": "<replace with your token>",
+  "flightDurationSeconds": 2,
+  "minCharacters": 3
+}
+```
+
+### Implementing new location search provider
+
+Implementing new location search provider is similar to implementing new `CatalogItems` and `CatalogGroups`. Each of them should be based on the usage of one of the mixins
+
+- `LocationSearchProviderMixin` - should be used for API based location search providers. Example of such search provider is `BingMapSearchProvider`.
+- `WebFeatureServiceSearchProviderMixin` - should be used for location search providers that will rely on data provided by `WebFeatureService`. Example of such search provider is `AustralianGazetteerSearchProvider`.
+
+Each new `SearchProvider` should be registered inside `registerSearchProvider` so they can be properly upserted from json definition provider in config file.

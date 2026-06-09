@@ -1,0 +1,49 @@
+@use "../../Sass/common/_variables";
+@use "../../Sass/common/mixins";
+
+.mobileSearch {
+}
+
+.results {
+  composes: list-reset from "../../Sass/common/_base.scss";
+
+  &.results {
+    padding: 0 variables.$padding variables.$padding variables.$padding;
+  }
+
+  li {
+    background: #ffffff;
+  }
+}
+
+.label {
+  color: #3f4854;
+  font-size: 12px;
+  padding: variables.$padding-small variables.$padding;
+  display: block;
+}
+
+.location {
+  height: calc(100vh - #{variables.$workbench-header + variables.$logo-height});
+
+  @media (max-width: variables.$sm) {
+    height: calc(
+      100vh - #{variables.$mobile-header-height +
+        variables.$modal-header-height}
+    );
+  }
+}
+
+.provider-result {
+  margin-top: variables.$padding-small;
+  .items {
+    display: none;
+  }
+}
+
+.btnList {
+  composes: clearfix from "../../Sass/common/_base.scss";
+  composes: list-reset from "../../Sass/common/_base.scss";
+}
+
+@include mixins.empty-module("data");

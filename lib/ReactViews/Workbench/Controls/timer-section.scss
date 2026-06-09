@@ -1,0 +1,17 @@
+@use "../../../Sass/common/_variables";
+
+.section {
+  background: variables.$dark;
+  margin-top: 10px;
+  display: flex;
+  padding: 0 variables.$padding;
+  // align-items: center;
+  align-content: flex-start;
+
+  font-weight: variables.$font-weight-light;
+  font-size: variables.$font-size-mid-small;
+}
+
+.timer-container {
+  padding-right: 10px;
+}

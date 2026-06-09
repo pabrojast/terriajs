@@ -1,0 +1,545 @@
+import { action, makeObservable, observable, runInAction } from "mobx";
+import Cartesian2 from "terriajs-cesium/Source/Core/Cartesian2";
+import Cartesian3 from "terriajs-cesium/Source/Core/Cartesian3";
+import Color from "terriajs-cesium/Source/Core/Color";
+import DeveloperError from "terriajs-cesium/Source/Core/DeveloperError";
+import Ellipsoid from "terriajs-cesium/Source/Core/Ellipsoid";
+import Rectangle from "terriajs-cesium/Source/Core/Rectangle";
+import createGuid from "terriajs-cesium/Source/Core/createGuid";
+import ColorMaterialProperty from "terriajs-cesium/Source/DataSources/ColorMaterialProperty";
+import ConstantPositionProperty from "terriajs-cesium/Source/DataSources/ConstantPositionProperty";
+import ConstantProperty from "terriajs-cesium/Source/DataSources/ConstantProperty";
+import ImageryLayerFeatureInfo from "terriajs-cesium/Source/Scene/ImageryLayerFeatureInfo";
+import SplitDirection from "terriajs-cesium/Source/Scene/SplitDirection";
+import LatLonHeight from "../Core/LatLonHeight";
+import TerriaError from "../Core/TerriaError";
+import isDefined from "../Core/isDefined";
+import ProtomapsImageryProvider from "../Map/ImageryProvider/ProtomapsImageryProvider";
+import { ProviderCoordsMap } from "../Map/PickedFeatures/PickedFeatures";
+import featureDataToGeoJson from "../Map/PickedFeatures/featureDataToGeoJson";
+import MappableMixin from "../ModelMixins/MappableMixin";
+import TimeVarying from "../ModelMixins/TimeVarying";
+import MouseCoords from "../ReactViewModels/MouseCoords";
+import HighlightColorTraits from "../Traits/TraitsClasses/HighlightColorTraits";
+import TableColorStyleTraits from "../Traits/TraitsClasses/Table/ColorStyleTraits";
+import TableOutlineStyleTraits, {
+  OutlineSymbolTraits
+} from "../Traits/TraitsClasses/Table/OutlineStyleTraits";
+import TableStyleTraits from "../Traits/TraitsClasses/Table/StyleTraits";
+import CameraView from "./CameraView";
+import CommonStrata from "./Definition/CommonStrata";
+import createStratumInstance from "./Definition/createStratumInstance";
+import hasTraits from "./Definition/hasTraits";
+import TerriaFeature from "./Feature/Feature";
+import Terria from "./Terria";
+
+import MappableTraits, {
+  VectorTraits
+} from "../Traits/TraitsClasses/MappableTraits";
+import Model from "./Definition/Model";
+import "./Feature/ImageryLayerFeatureInfo"; // overrides Cesium's prototype.configureDescriptionFromProperties
+
+export default abstract class GlobeOrMap {
+  abstract readonly type: string;
+  abstract readonly terria: Terria;
+  abstract readonly canShowSplitter: boolean;
+
+  public static featureHighlightID = "___$FeatureHighlight&__";
+  protected static _featureHighlightName = "TerriaJS Feature Highlight Marker";
+
+  private _removeHighlightCallback?: () => Promise<void> | void;
+  private _highlightPromise: Promise<unknown> | undefined;
+  private _tilesLoadingCountMax: number = 0;
+  protected supportsPolylinesOnTerrain?: boolean;
+
+  // True if zoomTo() was called and the map is currently zooming to dataset
+  @observable isMapZooming = false;
+
+  // An internal id to track an in progress call to zoomTo()
+  _currentZoomId?: string;
+
+  // This is updated by Leaflet and Cesium objects.
+  // Avoid duplicate mousemove events.  Why would we get duplicate mousemove events?  I'm glad you asked:
+  // http://stackoverflow.com/questions/17818493/mousemove-event-repeating-every-second/17819113
+  // I (Kevin Ring) see this consistently on my laptop when Windows Media Player is running.
+  mouseCoords: MouseCoords = new MouseCoords();
+
+  abstract destroy(): void;
+
+  abstract doZoomTo(
+    target: CameraView | Rectangle | MappableMixin.Instance,
+    flightDurationSeconds: number
+  ): Promise<void>;
+
+  constructor() {
+    makeObservable(this);
+  }
+
+  /**
+   * Zoom map to a dataset or the given bounds.
+   *
+   * @param target A bounds item to zoom to
+   * @param flightDurationSeconds Optional time in seconds for the zoom animation to complete
+   * @returns A promise that resolves when the zoom animation is complete
+   */
+  @action
+  zoomTo(
+    target: CameraView | Rectangle | MappableMixin.Instance,
+    flightDurationSeconds: number = 3.0
+  ): Promise<void> {
+    this.isMapZooming = true;
+    const zoomId = createGuid();
+    this._currentZoomId = zoomId;
+
+    // Use camera view from model if specified
+    target = getModelCameraView(target) ?? target;
+
+    if (MappableMixin.isMixedInto(target)) {
+      // If model rectangle is outside world bounds, zoom to homecamera
+      if (
+        target.rectangle?.east !== undefined &&
+        target.rectangle?.west !== undefined &&
+        target.rectangle.east - target.rectangle.west >= 360
+      ) {
+        target = this.terria.mainViewer.homeCamera;
+        console.log("Extent is wider than world so using homeCamera.");
+      }
+    }
+
+    return this.doZoomTo(target, flightDurationSeconds).finally(
+      action(() => {
+        // Unset isMapZooming only if the local zoomId matches _currentZoomId.
+        // If they do not match, it means there was another call to zoomTo which
+        // could still be in progress and it will handle unsetting isMapZooming.
+        if (zoomId === this._currentZoomId) {
+          this.isMapZooming = false;
+          this._currentZoomId = undefined;
+          if (MappableMixin.isMixedInto(target) && TimeVarying.is(target)) {
+            // Set the target as the source for timeline
+            this.terria.timelineStack.promoteToTop(target);
+          }
+        }
+      })
+    );
+  }
+
+  /**
+   * Set initial camera view
+   */
+  abstract setInitialView(cameraView: CameraView): void;
+
+  abstract getCurrentCameraView(): CameraView;
+
+  /* Gets the current container element.
+   */
+  abstract getContainer(): Element | undefined;
+
+  abstract pauseMapInteraction(): void;
+  abstract resumeMapInteraction(): void;
+
+  abstract notifyRepaintRequired(): void;
+
+  /**
+   * List of the attributions (credits) for data currently displayed on map.
+   */
+  get attributions(): string[] {
+    return [];
+  }
+  /**
+   * Picks features based off a latitude, longitude and (optionally) height.
+   * @param latLngHeight The position on the earth to pick.
+   * @param providerCoords A map of imagery provider urls to the coords used to get features for those imagery
+   *     providers - i.e. x, y, level
+   * @param existingFeatures An optional list of existing features to concatenate the ones found from asynchronous picking to.
+   */
+  abstract pickFromLocation(
+    latLngHeight: LatLonHeight,
+    providerCoords: ProviderCoordsMap,
+    existingFeatures: TerriaFeature[]
+  ): void;
+
+  /**
+   * Creates a {@see Feature} (based on an {@see Entity}) from a {@see ImageryLayerFeatureInfo}.
+   * @param imageryFeature The imagery layer feature for which to create an entity-based feature.
+   * @return The created feature.
+   */
+  protected _createFeatureFromImageryLayerFeature(
+    imageryFeature: ImageryLayerFeatureInfo
+  ): TerriaFeature {
+    const feature = new TerriaFeature({
+      id: imageryFeature.name
+    });
+    feature.name = imageryFeature.name;
+    if (imageryFeature.description) {
+      feature.description = new ConstantProperty(imageryFeature.description); // already defined by the new Entity
+    }
+    feature.properties = imageryFeature.properties;
+    feature.data = imageryFeature.data;
+    feature.imageryLayer = imageryFeature.imageryLayer;
+
+    if (imageryFeature.position) {
+      feature.position = new ConstantPositionProperty(
+        Ellipsoid.WGS84.cartographicToCartesian(imageryFeature.position)
+      );
+    }
+
+    (feature as any).coords = (imageryFeature as any).coords;
+
+    return feature;
+  }
+
+  /**
+   * Adds loading progress for cesium
+   */
+  protected _updateTilesLoadingCount(tilesLoadingCount: number): void {
+    if (tilesLoadingCount > this._tilesLoadingCountMax) {
+      this._tilesLoadingCountMax = tilesLoadingCount;
+    } else if (tilesLoadingCount === 0) {
+      this._tilesLoadingCountMax = 0;
+    }
+
+    this.terria.tileLoadProgressEvent.raiseEvent(
+      tilesLoadingCount,
+      this._tilesLoadingCountMax
+    );
+  }
+
+  /**
+   * Adds loading progress (boolean) for 3DTileset layers where total tiles is not known
+   */
+  protected _updateTilesLoadingIndeterminate(loading: boolean): void {
+    this.terria.indeterminateTileLoadProgressEvent.raiseEvent(loading);
+  }
+
+  /**
+   * Returns the side of the splitter the `position` lies on.
+   *
+   * @param The screen position.
+   * @return The side of the splitter on which `position` lies.
+   */
+  protected _getSplitterSideForScreenPosition(
+    position: Cartesian2 | Cartesian3
+  ): SplitDirection | undefined {
+    const container = this.terria.currentViewer.getContainer();
+    if (!isDefined(container)) {
+      return;
+    }
+
+    const splitterX = container.clientWidth * this.terria.splitPosition;
+    if (position.x <= splitterX) {
+      return SplitDirection.LEFT;
+    } else {
+      return SplitDirection.RIGHT;
+    }
+  }
+
+  abstract _addVectorTileHighlight(
+    imageryProvider: ProtomapsImageryProvider,
+    rectangle: Rectangle
+  ): () => void;
+
+  async _highlightFeature(feature: TerriaFeature | undefined): Promise<void> {
+    if (isDefined(this._removeHighlightCallback)) {
+      await this._removeHighlightCallback();
+      this._removeHighlightCallback = undefined;
+      this._highlightPromise = undefined;
+    }
+
+    // Lazy import here to avoid cyclic dependencies.
+    const { default: GeoJsonCatalogItem } =
+      await import("./Catalog/CatalogItems/GeoJsonCatalogItem");
+
+    if (isDefined(feature)) {
+      let hasGeometry = false;
+
+      if (isDefined(feature._cesium3DTileFeature)) {
+        const originalColor = feature._cesium3DTileFeature.color;
+        const defaultColor = Color.fromCssColorString("#fffffe");
+
+        // Get the highlight color from the catalogItem trait or default to baseMapContrastColor
+        const catalogItem = feature._catalogItem;
+        let highlightColorString;
+        if (hasTraits(catalogItem, HighlightColorTraits, "highlightColor")) {
+          highlightColorString = runInAction(() => catalogItem.highlightColor);
+          runInAction(() => catalogItem.highlightColor);
+        } else {
+          highlightColorString = this.terria.baseMapContrastColor;
+        }
+        const highlightColor: Color = isDefined(highlightColorString)
+          ? Color.fromCssColorString(highlightColorString)
+          : defaultColor;
+
+        // highlighting doesn't work if the highlight colour is full white
+        // so in this case use something close to white instead
+        feature._cesium3DTileFeature.color = Color.equals(
+          highlightColor,
+          Color.WHITE
+        )
+          ? defaultColor
+          : highlightColor;
+
+        this._removeHighlightCallback = function () {
+          if (
+            isDefined(feature._cesium3DTileFeature) &&
+            feature._cesium3DTileFeature.tileset.isDestroyed() === false
+          ) {
+            try {
+              feature._cesium3DTileFeature.color = originalColor;
+            } catch (err) {
+              TerriaError.from(err).log();
+            }
+          }
+        };
+      } else if (isDefined(feature.polygon)) {
+        hasGeometry = true;
+
+        const cesiumPolygon = feature.cesiumEntity || feature;
+
+        const polygonOutline = cesiumPolygon.polygon!.outline;
+        const polygonOutlineColor = cesiumPolygon.polygon!.outlineColor;
+        const polygonMaterial = cesiumPolygon.polygon!.material;
+
+        cesiumPolygon.polygon!.outline = new ConstantProperty(true);
+        cesiumPolygon.polygon!.outlineColor = new ConstantProperty(
+          Color.fromCssColorString(this.terria.baseMapContrastColor) ??
+            Color.GRAY
+        );
+        cesiumPolygon.polygon!.material = new ColorMaterialProperty(
+          new ConstantProperty(
+            (
+              Color.fromCssColorString(this.terria.baseMapContrastColor) ??
+              Color.LIGHTGRAY
+            ).withAlpha(0.75)
+          )
+        );
+
+        this._removeHighlightCallback = function () {
+          if (cesiumPolygon.polygon) {
+            cesiumPolygon.polygon.outline = polygonOutline;
+            cesiumPolygon.polygon.outlineColor = polygonOutlineColor;
+            cesiumPolygon.polygon.material = polygonMaterial;
+          }
+        };
+      } else if (isDefined(feature.polyline)) {
+        hasGeometry = true;
+
+        const cesiumPolyline = feature.cesiumEntity || feature;
+
+        const polylineMaterial = cesiumPolyline.polyline!.material;
+        const polylineWidth = cesiumPolyline.polyline!.width;
+
+        (cesiumPolyline as any).polyline.material =
+          Color.fromCssColorString(this.terria.baseMapContrastColor) ??
+          Color.LIGHTGRAY;
+        cesiumPolyline.polyline!.width = new ConstantProperty(2);
+
+        this._removeHighlightCallback = function () {
+          if (cesiumPolyline.polyline) {
+            cesiumPolyline.polyline.material = polylineMaterial;
+            cesiumPolyline.polyline.width = polylineWidth;
+          }
+        };
+      }
+
+      if (!hasGeometry) {
+        let vectorTileHighlightCreated = false;
+
+        // Feature from ProtomapsImageryProvider
+        if (
+          feature.imageryLayer?.imageryProvider instanceof
+          ProtomapsImageryProvider
+        ) {
+          const highlightImageryProvider =
+            feature.imageryLayer.imageryProvider.createHighlightImageryProvider(
+              feature
+            );
+          if (highlightImageryProvider)
+            this._removeHighlightCallback =
+              this.terria.currentViewer._addVectorTileHighlight(
+                highlightImageryProvider,
+                feature.imageryLayer.imageryProvider.rectangle
+              );
+          vectorTileHighlightCreated = true;
+        }
+
+        // No vector tile highlight was created so try to convert feature to GeoJSON
+        // This flag is necessary to check as it is possible for a feature to use ProtomapsImageryProvider and also have GeoJson data - but maybe failed to createHighlightImageryProvider
+        if (!vectorTileHighlightCreated) {
+          const geoJson = featureDataToGeoJson(feature.data);
+
+          // Don't show points; the targeting cursor is sufficient.
+          if (geoJson) {
+            geoJson.features = geoJson.features.filter(
+              (f) => f.geometry.type !== "Point"
+            );
+
+            let catalogItem = this.terria.getModelById(
+              GeoJsonCatalogItem,
+              GlobeOrMap.featureHighlightID
+            );
+            if (catalogItem === undefined) {
+              catalogItem = new GeoJsonCatalogItem(
+                GlobeOrMap.featureHighlightID,
+                this.terria
+              );
+              catalogItem.setTrait(
+                CommonStrata.definition,
+                "name",
+                GlobeOrMap._featureHighlightName
+              );
+              this.terria.addModel(catalogItem);
+            }
+
+            catalogItem.setTrait(
+              CommonStrata.user,
+              "geoJsonData",
+              geoJson as any
+            );
+
+            catalogItem.setTrait(
+              CommonStrata.user,
+              "useOutlineColorForLineFeatures",
+              true
+            );
+
+            catalogItem.setTrait(
+              CommonStrata.user,
+              "defaultStyle",
+              createStratumInstance(TableStyleTraits, {
+                outline: createStratumInstance(TableOutlineStyleTraits, {
+                  null: createStratumInstance(OutlineSymbolTraits, {
+                    width: 4,
+                    color: this.terria.baseMapContrastColor
+                  })
+                }),
+                color: createStratumInstance(TableColorStyleTraits, {
+                  nullColor: "rgba(0,0,0,0)"
+                })
+              })
+            );
+
+            this.terria.overlays.add(catalogItem);
+            this._highlightPromise = catalogItem.loadMapItems();
+
+            const removeCallback = (this._removeHighlightCallback = () => {
+              if (!isDefined(this._highlightPromise)) {
+                return;
+              }
+              return this._highlightPromise
+                .then(() => {
+                  if (removeCallback !== this._removeHighlightCallback) {
+                    return;
+                  }
+                  if (isDefined(catalogItem)) {
+                    catalogItem.setTrait(CommonStrata.user, "show", false);
+                  }
+                })
+                .catch(function () {});
+            });
+
+            (await catalogItem.loadMapItems()).logError(
+              "Error occurred while loading picked feature"
+            );
+
+            // Check to make sure we don't have a different `catalogItem` after loading
+            if (removeCallback !== this._removeHighlightCallback) {
+              return;
+            }
+
+            catalogItem.setTrait(CommonStrata.user, "show", true);
+
+            this._highlightPromise = this.terria.overlays
+              .add(catalogItem)
+              .then((r) => r.throwIfError());
+          }
+        }
+      }
+    }
+  }
+
+  /**
+   * Captures a screenshot of the map.
+   * @return A promise that resolves to a data URL when the screenshot is ready.
+   */
+  captureScreenshot(): Promise<string> {
+    throw new DeveloperError(
+      "captureScreenshot must be implemented in the derived class."
+    );
+  }
+}
+
+/**
+ * Return camera view from a Model's ideal zoom traits
+ *
+ * @param model A Model object
+ * @returns CameraView if the model defines a valid camera view
+ */
+function getModelCameraView(model: any): CameraView | undefined {
+  const idealZoom = hasTraits(model, MappableTraits, "idealZoom")
+    ? model.idealZoom
+    : undefined;
+
+  if (!idealZoom) {
+    return;
+  }
+
+  function vectorToJson(vector: Model<VectorTraits>) {
+    if (
+      typeof vector?.x === "number" &&
+      typeof vector?.y === "number" &&
+      typeof vector?.z === "number"
+    ) {
+      return {
+        x: vector.x,
+        y: vector.y,
+        z: vector.z
+      };
+    } else {
+      return undefined;
+    }
+  }
+
+  // camera is likely used more often than lookAt.
+  const theWest = idealZoom.camera?.west;
+  const theEast = idealZoom.camera?.east;
+  const theNorth = idealZoom.camera?.north;
+  const theSouth = idealZoom.camera?.south;
+
+  if (
+    idealZoom.lookAt?.targetLongitude !== undefined &&
+    idealZoom.lookAt?.targetLatitude !== undefined &&
+    (idealZoom.lookAt?.range ?? 0) >= 0
+  ) {
+    // No value checking here. Improper values can lead to unexpected results.
+    const lookAt = {
+      targetLongitude: idealZoom.lookAt.targetLongitude,
+      targetLatitude: idealZoom.lookAt.targetLatitude,
+      targetHeight: idealZoom.lookAt.targetHeight,
+      heading: idealZoom.lookAt.heading,
+      pitch: idealZoom.lookAt.pitch,
+      range: idealZoom.lookAt.range
+    };
+
+    // In the case of 2D viewer, it zooms to rectangle area approximated by the camera view parameters.
+    return CameraView.fromJson({ lookAt: lookAt });
+  } else if (theWest && theEast && theNorth && theSouth) {
+    const thePosition = vectorToJson(idealZoom?.camera?.position);
+    const theDirection = vectorToJson(idealZoom?.camera?.direction);
+    const theUp = vectorToJson(idealZoom?.camera?.up);
+
+    // No value checking here. Improper values can lead to unexpected results.
+    const camera = {
+      west: theWest,
+      east: theEast,
+      north: theNorth,
+      south: theSouth,
+      position: thePosition,
+      direction: theDirection,
+      up: theUp
+    };
+
+    return CameraView.fromJson(camera);
+  }
+
+  return;
+}

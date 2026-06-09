@@ -1,0 +1,38 @@
+@use "../../../Sass/common/_variables";
+@use "../../../Sass/common/mixins";
+
+.root {
+  height: 100%;
+}
+
+.data-explorer {
+  composes: tab-left-col from "../tabs.scss";
+}
+
+.data-catalog {
+  composes: list-reset from "../../../Sass/common/_base.scss";
+  composes: scrollbars from "../../../Sass/common/_base.scss";
+
+  font-size: variables.$font-size-mid-small;
+
+  background: variables.$modal-secondary-bg;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  box-sizing: border-box;
+
+  @media (min-width: variables.$sm) {
+    padding-right: variables.$padding;
+    margin-top: variables.$padding;
+    height: calc(100% - #{variables.$input-height});
+  }
+}
+
+.data--catalog-group {
+  composes: list-reset from "../../../Sass/common/_base.scss";
+  padding-left: variables.$padding-small;
+}
+
+.label {
+  composes: label from "../../../Sass/common/_labels.scss";
+}

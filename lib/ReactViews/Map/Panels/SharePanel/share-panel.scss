@@ -1,0 +1,53 @@
+@use "../../../../Sass/common/_variables";
+@use "../../../../Sass/common/mixins";
+
+.share-panel {
+  font-size: variables.$font-size-mid-small;
+}
+
+.catalog-share {
+  float: right;
+}
+
+.story-share {
+  position: relative;
+  text-align: center;
+  width: 50%;
+  margin-left: variables.$padding-small;
+}
+
+.story-share-inner {
+  color: variables.$text-darker;
+  right: 0;
+  text-align: left;
+}
+
+.dropdown-inner {
+  width: variables.$share-panel-width;
+  @include mixins.transform-origin(50%, top);
+}
+
+.btn--catalogShare {
+  font-size: variables.$font-size-data-preview;
+  background: transparent;
+  color: variables.$color-primary;
+  box-shadow: none;
+  svg {
+    fill: variables.$color-primary;
+  }
+  &:hover,
+  &:focus {
+    color: variables.$text-light;
+  }
+}
+
+.btn--withoutText {
+  svg {
+    fill: variables.$text-darker;
+  }
+  // not in design but should give life to the button?
+  &:hover,
+  &:focus {
+    color: variables.$color-primary;
+  }
+}

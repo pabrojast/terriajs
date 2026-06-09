@@ -1,0 +1,29 @@
+@use "../../Sass/common/_variables";
+@use "../../Sass/common/mixins";
+
+.overlay {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+}
+
+.mobile-nav {
+  composes: list-reset from "../../Sass/common/_base.scss";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: variables.$mobile-header-height;
+  background: variables.$mobile-main-bg;
+  color: variables.$mobile-text;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+
+  &--hidden {
+    left: -9999px;
+    height: 0;
+    width: 0;
+  }
+}

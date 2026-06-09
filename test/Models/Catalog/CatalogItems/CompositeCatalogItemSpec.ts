@@ -1,0 +1,140 @@
+import { runInAction } from "mobx";
+import { http, HttpResponse } from "msw";
+import CompositeCatalogItem from "../../../../lib/Models/Catalog/CatalogItems/CompositeCatalogItem";
+import GeoJsonCatalogItem from "../../../../lib/Models/Catalog/CatalogItems/GeoJsonCatalogItem";
+import WebMapServiceCatalogItem from "../../../../lib/Models/Catalog/Ows/WebMapServiceCatalogItem";
+import CommonStrata from "../../../../lib/Models/Definition/CommonStrata";
+import updateModelFromJson from "../../../../lib/Models/Definition/updateModelFromJson";
+import Terria from "../../../../lib/Models/Terria";
+import { worker } from "../../../mocks/browser";
+
+import bikeracksJson from "../../../../wwwroot/test/GeoJSON/bike_racks.geojson" with { type: "json" };
+import singleMetadataUrl from "../../../../wwwroot/test/WMS/single_metadata_url.xml";
+
+describe("CompositeCatalogItem", function () {
+  let terria: Terria;
+  let composite: CompositeCatalogItem;
+
+  beforeEach(function () {
+    terria = new Terria({
+      baseUrl: "./"
+    });
+    composite = new CompositeCatalogItem("test", terria);
+
+    worker.use(
+      http.get("test/GeoJSON/bike_racks.geojson", () =>
+        HttpResponse.json(bikeracksJson)
+      ),
+      http.get("test/WMS/single_metadata_url.xml", () =>
+        HttpResponse.xml(singleMetadataUrl)
+      )
+    );
+  });
+
+  it("loads map items after members are added", async function () {
+    const item1 = new GeoJsonCatalogItem("item1", terria);
+    const item2 = new WebMapServiceCatalogItem("item2", terria);
+    const item3 = new WebMapServiceCatalogItem("item3", terria);
+
+    runInAction(() => {
+      item1.setTrait(
+        CommonStrata.definition,
+        "url",
+        "test/GeoJSON/bike_racks.geojson"
+      );
+      item2.setTrait(
+        CommonStrata.definition,
+        "url",
+        "test/WMS/single_metadata_url.xml"
+      );
+      item3.setTrait(
+        CommonStrata.definition,
+        "url",
+        "test/WMS/single_metadata_url.xml"
+      );
+    });
+
+    composite.add(CommonStrata.definition, item1);
+    composite.add(CommonStrata.definition, item2);
+
+    await composite.loadMapItems();
+
+    expect(composite.mapItems.length).toBe(2);
+    composite.add(CommonStrata.definition, item3);
+    await composite.loadMapItems();
+
+    expect(composite.mapItems.length).toBe(3);
+  });
+
+  it("updates from json, preserving order", function () {
+    const json = {
+      members: [
+        {
+          name: "B",
+          type: "geojson",
+          url: "test/GeoJSON/bike_racks.geojson"
+        },
+        {
+          name: "A",
+          type: "wms",
+          url: "test/WMS/single_metadata_url.xml"
+        }
+      ]
+    };
+
+    updateModelFromJson(composite, CommonStrata.definition, json);
+
+    expect(composite.memberModels.length).toBe(2);
+    expect((composite.memberModels[0] as GeoJsonCatalogItem).name).toBe("B");
+    expect((composite.memberModels[1] as WebMapServiceCatalogItem).name).toBe(
+      "A"
+    );
+  });
+
+  it("syncs visibility to its members", function () {
+    const item1 = new GeoJsonCatalogItem("item1", terria);
+    const item2 = new WebMapServiceCatalogItem("item2", terria);
+
+    runInAction(() => {
+      item1.setTrait(
+        CommonStrata.definition,
+        "url",
+        "test/GeoJSON/bike_racks.geojson"
+      );
+      item2.setTrait(
+        CommonStrata.definition,
+        "url",
+        "test/WMS/single_metadata_url.xml"
+      );
+    });
+
+    composite.add(CommonStrata.definition, item1);
+    composite.add(CommonStrata.definition, item2);
+
+    composite.setTrait(CommonStrata.user, "show", false);
+
+    expect(item1.show).toEqual(false);
+    expect(item2.show).toEqual(false);
+  });
+
+  // it("concatenates legends", async function() {
+  //   await composite
+  //     .updateFromJson({
+  //       type: "composite",
+  //       items: [
+  //         {
+  //           type: "wms",
+  //           legendUrl: "http://not.valid"
+  //         },
+  //         {
+  //           type: "wms",
+  //           legendUrl: "http://not.valid.either"
+  //         }
+  //       ]
+  //     });
+  //     expect(composite.legendUrls.slice()).toEqual([
+  //       new LegendUrl("http://not.valid"),
+  //       new LegendUrl("http://not.valid.either")
+  //     ]);
+  // });
+});

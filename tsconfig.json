@@ -1,0 +1,33 @@
+{
+  "compilerOptions": {
+    "target": "esNext",
+    "module": "esNext",
+    "incremental": true,
+    "experimentalDecorators": true,
+    "moduleResolution": "bundler",
+    "sourceMap": true,
+    "strict": true,
+    "allowJs": true,
+    "jsx": "react-jsx",
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "noUncheckedSideEffectImports": true,
+    "isolatedModules": true,
+    "outDir": "ts-out",
+    "resolveJsonModule": true,
+    "typeRoots": [
+      "./lib/ThirdParty/",
+      "./node_modules/",
+      "./node_modules/@types/",
+      "../node_modules/",
+      "../node_modules/@types/",
+      "../../node_modules/",
+      "../../node_modules/@types/",
+      "../../../node_modules/",
+      "../../../node_modules/@types/"
+    ],
+    "preserveSymlinks": true,
+    "types": ["terriajs-cesium", "@testing-library/jasmine-dom"]
+  },
+  "include": ["./lib/**/*", "./test/**/*", "./buildprocess/**/*"]
+}

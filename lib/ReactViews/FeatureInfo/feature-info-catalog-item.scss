@@ -1,0 +1,14 @@
+@use "../../Sass/common/_variables";
+
+.group {
+}
+
+.sections {
+  composes: list-reset from "../../Sass/common/_base.scss";
+}
+
+.message-item {
+  background: variables.$info-color;
+  color: variables.$dark;
+  padding: 5px 8px;
+}

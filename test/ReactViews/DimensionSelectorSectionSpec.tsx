@@ -1,0 +1,363 @@
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { runInAction } from "mobx";
+import { http, HttpResponse } from "msw";
+import { ThemeProvider } from "styled-components";
+import CatalogMemberMixin from "../../lib/ModelMixins/CatalogMemberMixin";
+import CsvCatalogItem from "../../lib/Models/Catalog/CatalogItems/CsvCatalogItem";
+import WebMapServiceCatalogItem from "../../lib/Models/Catalog/Ows/WebMapServiceCatalogItem";
+import CommonStrata from "../../lib/Models/Definition/CommonStrata";
+import CreateModel from "../../lib/Models/Definition/CreateModel";
+import SelectableDimensions, {
+  DEFAULT_PLACEMENT,
+  SelectableDimensionGroup,
+  SelectableDimension as SelectableDimensionModel
+} from "../../lib/Models/SelectableDimensions/SelectableDimensions";
+import Terria from "../../lib/Models/Terria";
+import { terriaTheme } from "../../lib/ReactViews/StandardUserInterface";
+import SelectableDimensionSection from "../../lib/ReactViews/Workbench/Controls/SelectableDimensionSection";
+import CatalogMemberTraits from "../../lib/Traits/TraitsClasses/CatalogMemberTraits";
+import { worker } from "../mocks/browser";
+
+import lgaCode2015 from "../../wwwroot/test/csv/lga_code_2015.csv";
+import lgaCodeJson from "../../wwwroot/data/regionids/region_map-FID_LGA_2015_AUST_LGA_CODE15.json";
+import regionMapping from "../../wwwroot/data/regionMapping.json";
+
+export default class TestCatalogItem
+  extends CatalogMemberMixin(CreateModel(CatalogMemberTraits))
+  implements SelectableDimensions
+{
+  static readonly type = "stub";
+  get type() {
+    return "test";
+  }
+
+  get selectableDimensions() {
+    return this.selectableDimensionsValue;
+  }
+
+  selectableDimensionsValue: SelectableDimensionModel[] = [
+    {
+      id: "some-id",
+      name: "Some name",
+      options: [
+        { id: "option-1", name: "Option 1" },
+        { id: "option-2", name: "Option 2" }
+      ],
+      selectedId: "option-2",
+      allowUndefined: true,
+      setDimensionValue: (_stratumId: string, _newStyle: string) => {}
+    },
+    {
+      id: "some-id-2",
+      name: "Some name 2",
+      options: [
+        { id: "option-3", name: "Option 3" },
+        { id: "option-4", name: "Option 4" },
+        { id: "option-5", name: "Option 5" }
+      ],
+      selectedId: "option-3",
+      allowUndefined: false,
+      setDimensionValue: (_stratumId: string, _newStyle: string) => {}
+    },
+    {
+      id: "some-id-3",
+      name: "Some name 3",
+      options: [
+        { id: "option-6", name: "Neko" },
+        { id: "option-7", name: "Mochi" },
+        { id: "option-8", name: "A dog" }
+      ],
+      selectedId: "option-8",
+      allowUndefined: false,
+      setDimensionValue: (_stratumId: string, _newStyle: string) => {},
+      disable: true
+    },
+    {
+      id: "some-id-4",
+      name: "Some name 4",
+      options: [
+        { id: "true", name: "Option 1" },
+        { id: "false", name: "Option 2" }
+      ],
+      selectedId: "false",
+      type: "checkbox",
+      setDimensionValue: (_stratumId, _newStyle) => {}
+    }
+  ];
+}
+
+describe("DimensionSelectorSection", function () {
+  let terria: Terria;
+
+  beforeEach(function () {
+    terria = new Terria({
+      baseUrl: "./"
+    });
+  });
+
+  it("shows all dimensions and styles for a mock layer", function () {
+    const mockItem = new TestCatalogItem("what", terria);
+
+    render(
+      <ThemeProvider theme={terriaTheme}>
+        <SelectableDimensionSection
+          item={mockItem}
+          placement={DEFAULT_PLACEMENT}
+        />
+      </ThemeProvider>
+    );
+
+    // 2 select dropdowns (3rd has disable:true so not rendered)
+    expect(screen.getAllByRole("combobox").length).toBe(2);
+
+    // 1 checkbox dimension
+    expect(screen.getAllByRole("checkbox").length).toBe(1);
+  });
+
+  it("show dimensions and styles for a 'real' WMS layer", async function () {
+    const wmsItem = new WebMapServiceCatalogItem("some-layer", terria);
+    runInAction(() => {
+      wmsItem.setTrait(CommonStrata.definition, "url", "http://example.com");
+      wmsItem.setTrait(
+        CommonStrata.definition,
+        "getCapabilitiesUrl",
+        "test/WMS/styles_and_dimensions.xml"
+      );
+      wmsItem.setTrait(CommonStrata.definition, "layers", "A,B");
+      wmsItem.setTrait(CommonStrata.definition, "dimensions", {
+        styles: "contour/ferret,shadefill/alg2",
+        custom: "Another thing",
+        elevation: "-0.59375"
+      });
+      wmsItem.setTrait(
+        CommonStrata.definition,
+        "styles",
+        "contour/ferret,shadefill/alg2"
+      );
+    });
+
+    await wmsItem.loadMetadata();
+
+    const { container } = render(
+      <ThemeProvider theme={terriaTheme}>
+        <SelectableDimensionSection
+          item={wmsItem}
+          placement={DEFAULT_PLACEMENT}
+        />
+      </ThemeProvider>
+    );
+
+    // Expect 5 dimensions (elevation, custom, another + 2 styles)
+    const labels = container.querySelectorAll("label");
+
+    expect(screen.getAllByRole("combobox").length).toBe(5);
+    expect(labels.length).toBe(5);
+  });
+
+  it("shows csv region mapping options", async function () {
+    worker.use(
+      http.get("*/build/TerriaJS/data/regionMapping.json", () =>
+        HttpResponse.json(regionMapping)
+      ),
+      http.get(
+        "https://tiles.terria.io/region-mapping/regionids/region_map-FID_LGA_2015_AUST_LGA_CODE15.json",
+        () => HttpResponse.json(lgaCodeJson)
+      ),
+      http.get(
+        "*/test/csv/lga_code_2015.csv",
+        () => new HttpResponse(lgaCode2015)
+      )
+    );
+
+    const csvItem = new CsvCatalogItem("some-csv", terria, undefined);
+
+    runInAction(() => {
+      csvItem.setTrait(
+        CommonStrata.definition,
+        "url",
+        "test/csv/lga_code_2015.csv"
+      );
+
+      csvItem.setTrait(
+        CommonStrata.definition,
+        "enableManualRegionMapping",
+        true
+      );
+    });
+
+    await csvItem.loadMapItems();
+
+    render(
+      <ThemeProvider theme={terriaTheme}>
+        <SelectableDimensionSection
+          item={csvItem}
+          placement={DEFAULT_PLACEMENT}
+        />
+      </ThemeProvider>
+    );
+
+    expect(
+      screen.getByRole("button", {
+        name: "models.tableData.manualRegionMapping"
+      })
+    ).toBeVisible();
+  });
+
+  // xdescribe("when given a SelectableDimensionCheckboxGroup", function () {
+  //   let mockItem: TestCatalogItem;
+
+  //   beforeEach(function () {
+  //     mockItem = new TestCatalogItem("what", terria);
+  //     mockItem.selectableDimensionsValue = [
+  //       {
+  //         id: "checkbox-group1",
+  //         type: "checkbox-group",
+  //         selectedId: "true",
+  //         options: [
+  //           {
+  //             id: "true",
+  //             name: "true"
+  //           },
+  //           {
+  //             id: "false",
+  //             name: "false"
+  //           }
+  //         ],
+  //         setDimensionValue: () => {},
+  //         selectableDimensions: [
+  //           {
+  //             id: "checkbox-1",
+  //             type: "checkbox",
+  //             name: "Checkbox 1",
+  //             selectedId: "true",
+  //             options: [
+  //               { id: "true", name: "When checked" },
+  //               { id: "false", name: "When unchecked" }
+  //             ],
+  //             setDimensionValue: () => {}
+  //           },
+  //           {
+  //             id: "select-1",
+  //             type: "select",
+  //             name: "Dropdown 1",
+  //             selectedId: "true",
+  //             options: [
+  //               { id: "option-1", name: "Option 1" },
+  //               { id: "option-2", name: "Option 2" }
+  //             ],
+  //             setDimensionValue: () => {}
+  //           },
+  //           {
+  //             disable: true,
+  //             id: "select-2",
+  //             type: "select",
+  //             name: "Dropdown 2",
+  //             selectedId: "true",
+  //             options: [
+  //               { id: "option-3", name: "Option 3" },
+  //               { id: "option-4", name: "Option 4" }
+  //             ],
+  //             setDimensionValue: () => {}
+  //           }
+  //         ]
+  //       }
+  //     ];
+  //   });
+  // });
+
+  describe("when given a SelectableDimensionGroup", function () {
+    let mockItem: TestCatalogItem;
+
+    beforeEach(function () {
+      mockItem = new TestCatalogItem("what", terria);
+      mockItem.selectableDimensionsValue = [
+        {
+          id: "group",
+          type: "group",
+          name: "Selectable group",
+          isOpen: true,
+          selectableDimensions: [
+            {
+              id: "checkbox-1",
+              type: "checkbox",
+              name: "Checkbox 1",
+              selectedId: "true",
+              options: [
+                { id: "true", name: "When checked" },
+                { id: "false", name: "When unchecked" }
+              ],
+              setDimensionValue: () => {}
+            },
+            {
+              id: "select-1",
+              type: "select",
+              name: "Dropdown 1",
+              selectedId: "true",
+              options: [
+                { id: "option-1", name: "Option 1" },
+                { id: "option-2", name: "Option 2" }
+              ],
+              setDimensionValue: () => {}
+            },
+            {
+              disable: true,
+              id: "select-2",
+              type: "select",
+              name: "Dropdown 2",
+              selectedId: "true",
+              options: [
+                { id: "option-3", name: "Option 3" },
+                { id: "option-4", name: "Option 4" }
+              ],
+              setDimensionValue: () => {}
+            }
+          ]
+        }
+      ];
+    });
+
+    it("renders the group", function () {
+      render(
+        <ThemeProvider theme={terriaTheme}>
+          <SelectableDimensionSection
+            item={mockItem}
+            placement={DEFAULT_PLACEMENT}
+          />
+        </ThemeProvider>
+      );
+
+      expect(
+        screen.getByRole("button", { name: "Selectable group" })
+      ).toBeVisible();
+      expect(
+        screen.getByRole("button", { name: "Selectable group" })
+      ).toHaveAttribute("aria-expanded", "true");
+    });
+
+    it("renders all the group children", async function () {
+      (
+        mockItem.selectableDimensionsValue[0] as SelectableDimensionGroup
+      ).isOpen = false;
+
+      render(
+        <ThemeProvider theme={terriaTheme}>
+          <SelectableDimensionSection
+            item={mockItem}
+            placement={DEFAULT_PLACEMENT}
+          />
+        </ThemeProvider>
+      );
+
+      expect(screen.queryAllByRole("checkbox").length).toBe(0);
+      expect(screen.queryAllByRole("combobox").length).toBe(0);
+
+      await userEvent.click(
+        screen.getByRole("button", { name: "Selectable group" })
+      );
+
+      expect(screen.getAllByRole("checkbox").length).toBe(1);
+      expect(screen.getAllByRole("combobox").length).toBe(1);
+    });
+  });
+});

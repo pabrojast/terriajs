@@ -1,0 +1,144 @@
+@use "../../Sass/common/_variables";
+@use "../../Sass/common/mixins";
+
+.root {
+  font-family: variables.$font-base;
+  color: variables.$data-catalog-color;
+  position: relative;
+}
+
+.trashGroup {
+  composes: btn from "../../Sass/common/_buttons.scss";
+  // position: absolute;
+  // right: 2px;
+  // top: 5px;
+  color: variables.$color-primary;
+  margin-right: 3px;
+
+  @media (max-width: variables.$sm) {
+    top: 10px;
+  }
+
+  svg {
+    height: 18px;
+    width: 18px;
+    margin: 3px;
+    fill: variables.$grey;
+  }
+}
+
+.btn--catalog {
+  composes: btn from "../../Sass/common/_buttons.scss";
+  @extend %wrap;
+
+  text-align: left;
+  font-size: variables.$font-size-small;
+  padding: 10px 0 10px (24px + variables.$padding);
+  min-height: 35px;
+  position: relative;
+  width: 100%;
+  font-weight: bold;
+  line-height: normal;
+  position: relative;
+
+  svg {
+    display: inline-block;
+  }
+
+  @media (max-width: variables.$sm) {
+    padding-top: 10px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid variables.$grey-lighter;
+  }
+
+  &:hover,
+  &:focus {
+    // background: variables.$modal-highlight;
+    // color: #fff;
+  }
+}
+
+.btnCatalogTopLevel {
+  font-weight: 600;
+  border-bottom: 1px solid variables.$grey-lighter;
+  padding-left: variables.$padding;
+}
+
+.isPreviewed {
+  // background: variables.$modal-highlight;
+  // color: #ffffff;
+}
+
+.folder {
+  position: absolute;
+  left: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  opacity: 0.5;
+
+  svg {
+    height: 17px;
+    width: 17px;
+    display: block;
+  }
+}
+
+.caret {
+  margin: 0 5px 0 5px;
+
+  svg {
+    fill: variables.$grey;
+  }
+
+  @media (min-width: variables.$sm) {
+    svg {
+      height: 12px;
+      width: 12px;
+    }
+  }
+
+  &.offsetRight {
+    right: 25px;
+  }
+}
+
+.catalog-group {
+  composes: list-reset from "../../Sass/common/_base.scss";
+  padding-left: variables.$padding;
+  padding-top: calc(variables.$padding / 2);
+
+  &--lower-level {
+    margin-left: 16px;
+    border-left: 1px solid variables.$grey-lighter;
+  }
+}
+
+.label {
+  composes: label from "../../Sass/common/_labels.scss";
+  font-size: variables.$font-size-small;
+}
+
+.label--no-results {
+  composes: label;
+}
+
+.add-remove-button {
+  composes: btn from "../../Sass/common/_buttons.scss";
+  position: absolute;
+  z-index: 9;
+  right: 35px;
+  top: 5px;
+  color: variables.$color-primary;
+  margin-right: 3px;
+
+  @media (max-width: variables.$sm) {
+    top: 10px;
+  }
+
+  svg {
+    height: 18px;
+    width: 18px;
+    margin: 3px;
+    fill: variables.$grey;
+  }
+}

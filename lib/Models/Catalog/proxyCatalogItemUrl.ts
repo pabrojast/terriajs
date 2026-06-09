@@ -1,0 +1,58 @@
+import isDefined from "../../Core/isDefined";
+import UrlMixin from "../../ModelMixins/UrlMixin";
+import { BaseModel } from "../Definition/Model";
+import UrlReference from "./CatalogReferences/UrlReference";
+
+/**
+ * The terriajs-server is the default server that proxies a URL associated with a catalog item, if necessary.
+ * @param {CatalogItem} [catalogItem] The catalog item.
+ * @param {string} url The URL to be proxied.
+ * @param {string} [cacheDuration] The cache duration to use if catalogItem.cacheDuration is undefined.
+ * @returns {string} The URL, now cached if necessary.
+ */
+export default function proxyCatalogItemUrl(
+  catalogItem: BaseModel | UrlReference | undefined,
+  url: string,
+  cacheDuration?: string
+) {
+  const corsProxy = catalogItem?.terria?.corsProxy;
+
+  if (
+    isDefined(corsProxy) &&
+    (corsProxy.shouldUseProxy(url) ||
+      (UrlMixin.isMixedInto(catalogItem) && catalogItem.forceProxy))
+  ) {
+    cacheDuration =
+      (UrlMixin.isMixedInto(catalogItem)
+        ? catalogItem.cacheDuration
+        : undefined) ?? cacheDuration;
+
+    return corsProxy.getURL(url, cacheDuration);
+  } else {
+    return url;
+  }
+}
+
+/**
+ * Similar to {@link proxyCatalogItemUrl}, but only returns proxy base url, not full URL (for example `proxy/`, instead of `proxy/some/other/resource`)
+ */
+export function proxyCatalogItemBaseUrl(
+  catalogItem: BaseModel | UrlReference | undefined,
+  url: string,
+  cacheDuration?: string
+) {
+  const corsProxy = catalogItem?.terria?.corsProxy;
+
+  if (
+    isDefined(corsProxy) &&
+    (corsProxy.shouldUseProxy(url) ||
+      (UrlMixin.isMixedInto(catalogItem) && catalogItem.forceProxy))
+  ) {
+    cacheDuration =
+      (UrlMixin.isMixedInto(catalogItem)
+        ? catalogItem.cacheDuration
+        : undefined) ?? cacheDuration;
+
+    return corsProxy.getProxyBaseURL(cacheDuration);
+  }
+}

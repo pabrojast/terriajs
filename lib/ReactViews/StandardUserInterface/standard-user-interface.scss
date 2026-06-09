@@ -1,0 +1,218 @@
+@use "../../Sass/common/_variables";
+@use "../../Sass/common/mixins";
+
+// NOTE: When changing this file with hot-reloading on you might see the globe in the map disappear. Don't panic! This
+// happens because losing this stylesheet for a second causes Cesium to zoom itself as far out as it can go for some
+// reason - you can change pretty much other file to do another hot-reload and get your globe back, or just zoom
+// back in.
+
+.story-wrapper {
+  @media (min-width: variables.$sm) {
+    display: flex;
+  }
+}
+
+:global {
+  body {
+    height: 100vh;
+    width: 100vw;
+  }
+
+  @media (max-width: variables.$md) {
+    html {
+      height: 100%;
+      overflow: hidden;
+    }
+    body {
+      height: 100%;
+      position: fixed;
+    }
+  }
+
+  .top-element {
+    z-index: variables.$notification-window-z-index - 10 !important;
+    &:focus {
+      outline: none;
+    }
+  }
+}
+
+.ui-root {
+  // This is a workaround for a bug in IE11 on Windows 7.
+  // https://connect.microsoft.com/IE/feedback/details/796745/mouse-events-are-not-delivered-at-all-anymore-when-inside-an-svg-a-use-is-removed-from-the-dom
+  position: relative;
+  flex-basis: 100%;
+  height: 100vh;
+  @media (max-width: variables.$sm) {
+    position: unset;
+  }
+  svg use {
+    pointer-events: none;
+  }
+}
+
+.ui {
+  overflow: hidden;
+  width: 100%;
+  height: 100%;
+}
+
+.explorerPanelIsVisible {
+  opacity: 0.3;
+}
+
+.map {
+  @include mixins.transition(left variables.$animation-fast ease-in);
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: variables.$mobile-header-height;
+  bottom: 0;
+}
+
+.disableMobileInterface {
+  top: 0;
+}
+
+.feedback {
+  position: absolute;
+  z-index: variables.$front-component-z-index - 10;
+}
+
+.featureInfo {
+  // On very large screens, the feature info may be up to 40% of the screen.
+  // On small screens (mobile), it make be up to 90% of the screen.
+  // In between, it may be up to 90% of the largest mobile screen ($sm), minus a bit to leave room
+  // for the map controls on the right.  This is computed in $feature-info-medium-max-size.
+  $feature-info-medium-max-size: calc(
+    variables.$sm * 0.9 - variables.$feature-info-right-margin * 0.5
+  );
+  $feature-info-forty-percent-size: calc(
+    $feature-info-medium-max-size * 100 / 40
+  );
+
+  z-index: variables.$front-component-z-index - 20;
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  top: 0;
+  pointer-events: none;
+  left: 0;
+
+  @media (min-width: variables.$sm) {
+    left: variables.$work-bench-width + 22px;
+    top: 62px;
+    right: 96px;
+    bottom: 0;
+  }
+
+  & > div {
+    pointer-events: auto;
+    position: absolute;
+    top: variables.$mobile-header-height + 10px;
+    right: 10px;
+    max-width: 95%;
+    min-width: 150px;
+    max-height: 80vh;
+    z-index: 99;
+    font-family: variables.$font-base;
+
+    @media (min-width: variables.$sm) and (max-width: $feature-info-forty-percent-size) {
+      max-width: $feature-info-medium-max-size;
+      top: 60px;
+    }
+
+    @media (min-width: $feature-info-forty-percent-size) {
+      max-width: 80%;
+      top: 0;
+    }
+  }
+}
+
+.storyPanel {
+  z-index: variables.$front-component-z-index - 20;
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  top: 0;
+  pointer-events: none;
+  left: 0;
+
+  @media (min-width: variables.$sm) {
+    left: variables.$work-bench-width + 22px;
+    top: 62px;
+    right: 96px;
+    bottom: 0;
+  }
+
+  & > div {
+    pointer-events: auto;
+    position: absolute;
+  }
+}
+
+.featureInfoFullScreen,
+.storyPanelFullScreen {
+  left: 0;
+}
+
+.showWorkbenchButton {
+  position: fixed;
+  top: 18px;
+  transform: translateX(-200px);
+  z-index: 99;
+  width: 200px;
+  transition: transform 0.25s;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  // transition-delay: 0.25s; // temporary disable delays for splitter lag w/o resizing on transitionend
+}
+
+.showWorkbenchButtonTrainerBarVisible {
+  top: 0;
+}
+
+.showWorkbenchButtonisVisible {
+  left: 16px;
+  transform: translateX(0);
+}
+.showWorkbenchButtonisNotVisible {
+  transition-delay: 0s;
+}
+
+@media (min-width: variables.$sm) {
+  .uiInner {
+    display: flex;
+    overflow: hidden;
+    height: 100%;
+  }
+  .sidePanel {
+    vertical-align: top;
+  }
+  .map {
+    position: relative;
+    height: 100vh;
+    top: auto;
+    bottom: auto;
+    left: auto;
+    right: auto;
+    // Temporary disabling this property for the related maps
+    // bug, if anything goes wrong revert this back
+    // overflow: hidden;
+    flex-grow: 1;
+    flex-basis: calc(100% - #{variables.$work-bench-width});
+  }
+}
+
+// TODO: In v7 this is specified only in cesium-timeline.scss In v8 we have to
+// additionally specify it here to prevent ugly timeline height readjustments
+// when page loads with active timeline (especially in firefox but also visible
+// in chrome).
+:global {
+  .cesium-timeline {
+    &-needle,
+    &-trackContainer,
+    &-ruler {
+      display: none !important;
+    }
+  }
+}

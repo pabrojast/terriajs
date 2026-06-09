@@ -1,0 +1,20 @@
+{
+  "presets": [
+    [
+      "@babel/preset-env",
+      {
+        "corejs": 3,
+        "useBuiltIns": "usage"
+      }
+    ],
+    ["@babel/preset-react", { "runtime": "automatic" }],
+    ["@babel/preset-typescript", { "allowNamespaces": true }]
+  ],
+  "plugins": [
+    ["@babel/plugin-proposal-decorators", { "legacy": true }],
+    "babel-plugin-styled-components"
+  ],
+  "assumptions": {
+    "setPublicClassFields": false
+  }
+}

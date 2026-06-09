@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20">
+    <defs>
+        <path id="a" d="M13 4a1 1 0 0 1 0-2h3a2 2 0 0 1 2 2v3a1 1 0 0 1-2 0V4zm3 9a1 1 0 0 1 2 0v3a2 2 0 0 1-2 2h-3a1 1 0 0 1 0-2h3zm-9 3a1 1 0 0 1 0 2H4a2 2 0 0 1-2-2v-3a1 1 0 0 1 2 0v3zM4 7a1 1 0 1 1-2 0V4a2 2 0 0 1 2-2h3a1 1 0 1 1 0 2H4zm8.247.341a1 1 0 1 1 1.506 1.317l-3.5 4a1 1 0 0 1-1.46.05l-2-2a1 1 0 0 1 1.414-1.415l1.244 1.244z"/>
+    </defs>
+    <mask id="b" fill="#fff">
+        <use href="#a"/>
+    </mask>
+    <use fill="#4d5766" href="#a"/>
+    <g mask="url(#b)">
+        <path d="M0 0h20v20H0z"/>
+    </g>
+</svg>

@@ -1,0 +1,178 @@
+@use "../../../../Sass/common/_variables";
+@use "../../../../Sass/common/mixins";
+
+.root {
+  height: 100%;
+  font-family: variables.$font-base;
+}
+
+.data-catalog {
+  composes: list-reset from "../../../../Sass/common/_base.scss";
+  border-top: 1px solid variables.$grey-lighter;
+  border-bottom: 1px solid variables.$grey-lighter;
+}
+
+.left-col {
+  composes: tab-left-col from "../../tabs.scss";
+  composes: scrollbars from "../../../../Sass/common/_base.scss";
+  overflow-y: auto;
+  background: #ffffff;
+  border-right: 1px solid variables.$grey-lighter;
+  padding-right: 0;
+
+  .dataTypeTab {
+    margin-right: variables.$padding-small;
+  }
+}
+
+.oneCol {
+  margin: 15px;
+  height: calc(100% - 30px);
+  width: calc(100% - 30px);
+  overflow: auto;
+  text-align: center;
+  color: variables.$dark-lighter;
+  line-height: 2;
+  padding: 3vh 6vh;
+  text-align: center;
+  box-sizing: border-box;
+}
+
+.tabCenter {
+  text-align: center;
+  margin: variables.$padding 0;
+}
+
+.tabLeft {
+  text-align: left;
+  padding: 0 variables.$padding;
+  border-top: 1px solid variables.$grey-lighter;
+}
+
+.tab-list {
+  display: block;
+  padding-left: 0;
+  margin: 0;
+
+  &__item {
+    display: inline-block;
+    margin-right: 15px;
+
+    svg {
+      display: inline;
+      width: 15px;
+      height: 15px;
+      fill: variables.$color-primary;
+      padding-right: variables.$padding-small;
+      vertical-align: middle;
+    }
+  }
+
+  &__btn {
+    composes: btn from "../../../../Sass/common/_buttons.scss";
+    composes: btn-transparent from "../../../../Sass/common/_buttons.scss";
+
+    font-size: variables.$font-size-small;
+    font-weight: variables.$font-weight-medium;
+    text-decoration: underline;
+    width: 100%;
+    padding: variables.$padding 0;
+
+    // color: variables.$color-primary;
+    &:hover,
+    &:focus,
+    &.is-active {
+      // color: variables.$grey;
+    }
+  }
+}
+
+.dndBoxInfo {
+  flex-shrink: 0;
+}
+
+.dndBox {
+  border: 2px dashed #ddd;
+  flex-grow: 1;
+  border-radius: 3px;
+  display: flex;
+  justify-content: center;
+  flex-direction: column;
+  text-align: center;
+  background: #f6f6f7;
+  width: 100%;
+  margin: 6px 0;
+  color: variables.$dark-lighter;
+
+  div {
+    margin-top: 5%;
+  }
+
+  svg {
+    fill: variables.$grey-lighter;
+    height: 15%;
+    width: 15%;
+    margin: 5% auto;
+    opacity: 0.6;
+  }
+}
+
+.addedData {
+  flex-shrink: 0;
+}
+
+.dataTypeTab {
+  width: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 100%;
+  min-height: 300px;
+  padding: variables.$padding;
+  box-sizing: border-box;
+}
+
+.explanation {
+  font-family: variables.$font-base;
+  font-size: variables.$font-size-mid-small;
+  margin: variables.$padding;
+}
+
+.btn--back-to-my-data {
+  composes: btn from "../../../../Sass/common/_buttons.scss";
+  composes: btn-transparent from "../../../../Sass/common/_buttons.scss";
+  position: absolute;
+  left: 40px;
+  top: 40px;
+  background: #ffffff;
+  border-radius: 2px;
+  padding: 3px 10px;
+  border: 1px solid #ddd;
+  // color: variables.$color-primary;
+
+  &:hover,
+  &:focus {
+    // border: 1px solid variables.$color-primary;
+  }
+
+  svg {
+    width: 10px;
+    height: 10px;
+    display: inline-block;
+    vertical-align: baseline;
+    margin-right: 8px;
+    // fill: variables.$color-primary;
+  }
+}
+
+.btn--add-more-data {
+  composes: btn from "../../../../Sass/common/_buttons.scss";
+  composes: btn-transparent from "../../../../Sass/common/_buttons.scss";
+  composes: btn-primary from "../../../../Sass/common/_buttons.scss";
+  margin-top: variables.$padding;
+}
+
+.h3 {
+  composes: h3 from "../../../../Sass/common/_base.scss";
+  font-size: variables.$font-size-mid-large;
+}

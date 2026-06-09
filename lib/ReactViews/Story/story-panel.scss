@@ -1,0 +1,51 @@
+@use "../../Sass/common/_variables";
+@use "../../Sass/common/mixins";
+
+.story-container {
+  @include mixins.transform(translateY(20%));
+  opacity: 0;
+  @include mixins.transition(all 0.3s);
+  pointer-events: auto;
+  opacity: 0;
+  width: 100%;
+  min-height: 2em;
+  color: variables.$text-dark;
+  text-align: left;
+  box-sizing: border-box;
+  box-shadow: 0px 1px 0px 0px #1f2937 inset;
+  border-radius: 6px;
+
+  a,
+  a:visited,
+  a:focus {
+    color: variables.$color-primary;
+  }
+
+  &.is-mounted {
+    opacity: 1;
+    @include mixins.transform(none);
+  }
+
+  .left {
+    border-right: 1px solid variables.$field-border;
+  }
+
+  .right {
+    border-left: 1px solid variables.$field-border;
+  }
+}
+
+// styling for the "this map contains a story" notification
+:global {
+  .story.tjs-notification-window__wrapper {
+    @media (min-width: variables.$md) {
+      left: variables.$work-bench-width;
+    }
+
+    .tjs-notification-window__notification {
+      color: #ffffff;
+      border: 1px solid rgba(#ffffff, 0.1);
+      text-align: center;
+    }
+  }
+}

@@ -1,0 +1,28 @@
+@use "../../../Sass/common/_variables";
+@use "../../../Sass/common/mixins";
+
+.btn-download {
+  composes: btn from "../../../Sass/common/_buttons.scss";
+
+  padding: 10px;
+  color: #fff;
+  float: right;
+  margin-right: variables.$input-height;
+  svg {
+    height: 20px;
+    width: 20px;
+    fill: #ffffff;
+    display: inline-block;
+    vertical-align: bottom;
+  }
+
+  &:hover,
+  &:focus {
+    text-decoration: none;
+    color: variables.$color-primary;
+  }
+
+  &:before {
+    display: inline-block;
+  }
+}

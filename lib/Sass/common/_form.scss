@@ -1,0 +1,55 @@
+@use "_variables";
+@use "mixins";
+
+.input {
+  font-family: inherit;
+  font-size: variables.$font-size-mid-small;
+  box-sizing: border-box;
+  margin-top: 0;
+  margin-bottom: 0;
+  border-style: solid;
+  border-width: 1px;
+  border-color: variables.$field-border;
+  border-radius: variables.$radius-small;
+  width: 100%;
+}
+
+.input {
+  height: variables.$input-height;
+  color: variables.$text-dark;
+  display: block;
+  padding: 0.5rem 0.5rem;
+  vertical-align: middle;
+  -webkit-appearance: none;
+
+  @include mixins.placeholder {
+    opacity: 0.7;
+  }
+}
+
+.field {
+  composes: input;
+  border-style: solid;
+  border-width: 1px;
+  border-color: variables.$field-border;
+  border-radius: variables.$radius-small;
+  width: 100%;
+}
+
+.field:focus,
+.field.is-focused {
+  // outline: none;
+  border-color: rgba(variables.$color-primary, 0.5);
+  box-shadow: none;
+}
+
+.field:disabled,
+.field.is-disabled {
+  background-color: rgba(0, 0, 0, 0.125);
+  opacity: 0.5;
+}
+
+.field:read-only:not(select),
+.field.is-read-only {
+  background-color: rgba(0, 0, 0, 0.125);
+}

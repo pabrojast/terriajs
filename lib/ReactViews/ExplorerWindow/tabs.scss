@@ -1,0 +1,96 @@
+@use "sass:meta";
+@use "../../Sass/common/_variables";
+@use "../../Sass/common/mixins";
+
+@include mixins.empty-module("tabs");
+
+.tab-list {
+  composes: list-reset from "../../Sass/common/_base.scss";
+  composes: clearfix from "../../Sass/common/_base.scss";
+  padding-right: 100px;
+}
+
+.tab-list__item {
+  display: inline-block;
+  float: left;
+}
+
+.tab-panel {
+  width: 100%;
+  // subtract height of new modal title
+  height: calc(variables.$modal-content-height - 64px);
+
+  &:focus {
+    outline: none;
+  }
+}
+
+.panel-content {
+  composes: clearfix from "../../Sass/common/_base.scss";
+  position: relative;
+  background: variables.$modal-bg;
+  color: variables.$modal-text;
+  border-top: 1px solid variables.$grey-lighter;
+  height: 100%;
+  overflow: hidden;
+  border-bottom-left-radius: variables.$radius-xlarge;
+  border-bottom-right-radius: variables.$radius-xlarge;
+}
+
+.tab-left-col {
+  @media (min-width: variables.$sm) {
+    width: 40%;
+    float: left;
+    height: 100%;
+    padding: 0 variables.$padding-small;
+    background: variables.$modal-secondary-bg;
+    display: flex;
+    flex-direction: column;
+
+    form {
+      margin: variables.$padding 0;
+    }
+  }
+}
+
+:global {
+  .data-explorer,
+  .my-data {
+    @media (min-width: variables.$sm) {
+      width: 40%;
+      float: left;
+      height: 100%;
+    }
+  }
+}
+
+// Modal window tab buttons
+
+.btn--tab {
+  composes: btn from "../../Sass/common/_buttons.scss";
+  // background: transparent;
+  // color: $text-light;
+  font-size: variables.$font-size-mid-small;
+  padding: variables.$padding-small;
+  margin: variables.$padding;
+  border-radius: 3px;
+
+  &:hover,
+  &:focus {
+    // background: $text-light;
+    @if meta.variable-exists(modal-selected) {
+      // color: $modal-selected;
+    } @else {
+      // color: $color-primary;
+    }
+  }
+}
+
+.btn--selected {
+  // background: $text-light;
+  @if meta.variable-exists(modal-selected) {
+    // color: $modal-selected;
+  } @else {
+    // color: $color-primary;
+  }
+}
