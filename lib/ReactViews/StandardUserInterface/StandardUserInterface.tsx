@@ -98,7 +98,10 @@ const StandardUserInterfaceBase: FC<StandardUserInterfaceProps> = observer(
         props.terria.configParameters.storyEnabled &&
         props.terria.stories &&
         props.terria.stories.length &&
-        !props.viewState.storyShown
+        !props.viewState.storyShown &&
+        // '#hideStory=1' (story-map embeds): the parent page narrates the
+        // story itself, so never auto-open the native panel.
+        props.terria.userProperties.get("hideStory") !== "1"
       ) {
         // Automatically show the story panel without prompting
         props.viewState.storyShown = true;

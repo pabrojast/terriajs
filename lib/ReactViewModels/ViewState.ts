@@ -444,7 +444,12 @@ export default class ViewState {
 
         // if /#hideWorkbench=1 exists in url onload, show stories directly
         // any show/hide workbench will not automatically show story
-        if (!defined(this.storyShown)) {
+        // '#hideStory=1' (story-map embeds) suppresses this: the parent
+        // page narrates the story itself.
+        if (
+          !defined(this.storyShown) &&
+          terria.userProperties.get("hideStory") !== "1"
+        ) {
           // Always show stories if they are enabled and available
           // This will be checked again in StandardUserInterface when stories are loaded
           this.storyShown = terria.configParameters.storyEnabled;
