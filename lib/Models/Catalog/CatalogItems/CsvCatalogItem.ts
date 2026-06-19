@@ -10,6 +10,7 @@ import TableAutomaticStylesStratum from "../../../Table/TableAutomaticStylesStra
 import CsvCatalogItemTraits from "../../../Traits/TraitsClasses/CsvCatalogItemTraits";
 import CreateModel from "../../Definition/CreateModel";
 import { BaseModel } from "../../Definition/Model";
+import { SelectableDimension } from "../../SelectableDimensions/SelectableDimensions";
 import StratumOrder from "../../Definition/StratumOrder";
 import HasLocalData from "../../HasLocalData";
 import Terria from "../../Terria";
@@ -75,6 +76,45 @@ export default class CsvCatalogItem
   @override
   get cacheDuration() {
     return super.cacheDuration || "1d";
+  }
+
+  /**
+   * Append a workbench checkbox to toggle the interactive Chart.js renderer for
+   * per-feature time-series charts (see the `useChartJsTimeSeries` trait). Only
+   * shown when the CSV has a time column, i.e. when time-series charts are
+   * actually produced in the feature info panel.
+   */
+  @override
+  get selectableDimensions(): SelectableDimension[] {
+    return [
+      ...super.selectableDimensions,
+      this.chartJsTimeSeriesDimension
+    ].filter(isDefined);
+  }
+
+  @computed
+  get chartJsTimeSeriesDimension(): SelectableDimension | undefined {
+    if (this.activeTableStyle.timeColumn === undefined) {
+      return undefined;
+    }
+    // Same label for both states so the checkbox text stays stable; the
+    // checkbox itself indicates whether the mode is on.
+    const label = i18next.t("models.csv.useChartJsTimeSeries");
+    return {
+      id: "useChartJsTimeSeries",
+      type: "checkbox",
+      options: [
+        { id: "true" as const, name: label },
+        { id: "false" as const, name: label }
+      ],
+      selectedId: this.useChartJsTimeSeries ? "true" : "false",
+      setDimensionValue: (
+        stratumId: string,
+        value: "true" | "false" | undefined
+      ) => {
+        this.setTrait(stratumId, "useChartJsTimeSeries", value === "true");
+      }
+    };
   }
 
   protected async _exportData() {

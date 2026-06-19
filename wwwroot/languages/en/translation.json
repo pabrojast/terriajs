@@ -1062,7 +1062,8 @@
       "unableToLoadTitle": "Unable to load CSV file",
       "unableToLoadMessage": "See the <a href=\"https://github.com/TerriaJS/nationalmap/wiki/csv-geo-au\">csv-geo-au</a> specification for supported CSV formats.\n\n {{message}}",
       "unableToLoadItemTitle": "No CSV available",
-      "unableToLoadItemMessage": "The CSV catalog item cannot be loaded because it was not configured with a `url` or `csvString` property."
+      "unableToLoadItemMessage": "The CSV catalog item cannot be loaded because it was not configured with a `url` or `csvString` property.",
+      "useChartJsTimeSeries": "Interactive time-series chart (zoom & pan)"
     },
     "csw": {
       "name": "Catalogue Service (CSW)",
