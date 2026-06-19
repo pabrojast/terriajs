@@ -20,6 +20,9 @@ import DiscretelyTimeVaryingTraits from "../../Traits/TraitsClasses/DiscretelyTi
 import LatLonHeightTraits from "../../Traits/TraitsClasses/LatLonHeightTraits";
 import ChartPreviewStyles from "./Chart/chart-preview.scss";
 import ChartExpandAndDownloadButtons from "./Chart/ChartExpandAndDownloadButtons";
+// Light wrapper with NO chart.js imports — it lazy-loads the heavy renderer,
+// so statically importing it does not pull chart.js into the main bundle.
+import ChartJsFeatureInfoChart from "./Chart/ChartJs/ChartJsFeatureInfoChart";
 import Chart from "./Chart/FeatureInfoPanelChart";
 import CustomComponent, {
   DomElement,
@@ -89,6 +92,14 @@ export interface ChartCustomComponentAttributes {
   /** csv-formatted data, with \n for newlines. Eg. data="time,a,b\n2016-01-01,2,3\n2016-01-02,5,6".
    * or json-formatted string data, with \quot; for quotes, eg. `data="[[\quot;a\quot;,\quot;b\quot;],[2,3],[5,6]]"`. */
   data?: string;
+
+  /** When set to "chartjs", the feature-info preview chart is rendered with the
+   * interactive Chart.js renderer instead of the legacy preview chart. */
+  renderer?: "chartjs";
+
+  /** When using the Chart.js renderer, whether the raw data table may be shown.
+   * Defaults to true; only the literal string "false" disables it. */
+  showDataTable?: boolean;
 }
 
 /**
@@ -113,7 +124,9 @@ export const ChartAttributes = [
   "highlight-x",
   "title",
   "can-download",
-  "hide-buttons"
+  "hide-buttons",
+  "renderer",
+  "show-data-table"
 ];
 
 /**
@@ -330,20 +343,38 @@ export default abstract class ChartCustomComponent<
         }
       });
 
-      chartElements.push(
-        createElement(Chart, {
-          key: "chart",
-          item: chartItem,
-          xAxisLabel: attrs.previewXLabel,
-          // Currently implementation supports showing only one column in the
-          // feature info panel chart
-          yColumn: attrs.yColumns?.[0],
-          height: 110
-          // styling: attrs.styling,
-          // highlightX: attrs.highlightX,
-          // transitionDuration: 300
-        })
-      );
+      if (attrs.renderer === "chartjs") {
+        // Opt-in interactive Chart.js renderer. The component is a light
+        // wrapper that lazy-loads chart.js, so this does not affect the legacy
+        // path or the main bundle.
+        chartElements.push(
+          createElement(ChartJsFeatureInfoChart, {
+            key: "chart",
+            item: chartItem,
+            xAxisLabel: attrs.previewXLabel,
+            // Currently implementation supports showing only one column in the
+            // feature info panel chart
+            yColumn: attrs.yColumns?.[0],
+            showDataTable: attrs.showDataTable,
+            height: 110
+          })
+        );
+      } else {
+        chartElements.push(
+          createElement(Chart, {
+            key: "chart",
+            item: chartItem,
+            xAxisLabel: attrs.previewXLabel,
+            // Currently implementation supports showing only one column in the
+            // feature info panel chart
+            yColumn: attrs.yColumns?.[0],
+            height: 110
+            // styling: attrs.styling,
+            // highlightX: attrs.highlightX,
+            // transitionDuration: 300
+          })
+        );
+      }
     }
 
     return createElement(
@@ -518,6 +549,11 @@ export default abstract class ChartCustomComponent<
       nodeAttrs["y-columns"] || nodeAttrs["y-column"]
     );
 
+    const renderer =
+      nodeAttrs["renderer"] === "chartjs" ? "chartjs" : undefined;
+    // Default true; only the literal string "false" disables the data table.
+    const showDataTable = nodeAttrs["show-data-table"] !== "false";
+
     return {
       title: nodeAttrs["title"],
       identifier: nodeAttrs["identifier"],
@@ -533,7 +569,9 @@ export default abstract class ChartCustomComponent<
       columnUnits,
       xColumn: nodeAttrs["x-column"],
       previewXLabel: nodeAttrs["preview-x-label"],
-      yColumns
+      yColumns,
+      renderer,
+      showDataTable
     };
   }
 

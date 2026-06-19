@@ -75,4 +75,20 @@ export default class CsvCatalogItemTraits extends mixTraits(
     type: PollingTraits
   })
   polling?: PollingTraits;
+
+  @primitiveTrait({
+    name: "Use Chart.js time series",
+    description:
+      "Render the feature-info time-series chart with the interactive Chart.js renderer (zoom/pan/tooltips) instead of the legacy preview chart.",
+    type: "boolean"
+  })
+  useChartJsTimeSeries = false;
+
+  @primitiveTrait({
+    name: "Show data table",
+    description:
+      "When using the Chart.js renderer, allow showing the raw data as a table.",
+    type: "boolean"
+  })
+  chartJsShowDataTable = true;
 }

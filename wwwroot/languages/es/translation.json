@@ -508,7 +508,14 @@
     "sectionLabel": "Gráficos",
     "loading": "Cargando los datos del gráfico...",
     "noData": "No se han encontrado datos cartográficos.",
-    "showItemInChart": "Mostrar {{value}} en el gráfico"
+    "showItemInChart": "Mostrar {{value}} en el gráfico",
+    "viewLarger": "Ver en grande",
+    "resetZoom": "Restablecer zoom",
+    "downloadPng": "Descargar imagen",
+    "downloadCsv": "Descargar CSV",
+    "chartTab": "Gráfico",
+    "dataTab": "Datos",
+    "showAllRows": "Mostrar las {{count}} filas"
   },
   "loader": {
     "loadingMessage": "Cargando"

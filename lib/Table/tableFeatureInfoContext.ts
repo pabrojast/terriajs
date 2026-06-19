@@ -1,8 +1,35 @@
 import { JsonObject } from "../Core/Json";
 import CatalogMemberMixin, { getName } from "../ModelMixins/CatalogMemberMixin";
 import TableMixin from "../ModelMixins/TableMixin";
+import hasTraits from "../Models/Definition/hasTraits";
+import { BaseModel } from "../Models/Definition/Model";
 import TerriaFeature from "../Models/Feature/Feature";
 import { isTerriaFeatureData } from "../Models/Feature/FeatureData";
+import CsvCatalogItemTraits from "../Traits/TraitsClasses/CsvCatalogItemTraits";
+
+/**
+ * Returns the extra `<chart>` attributes to emit when the catalog item is a CSV
+ * item with the interactive Chart.js renderer enabled. Returns an empty string
+ * otherwise, so the emitted markup is byte-identical to the legacy behaviour
+ * when the trait is off/absent.
+ *
+ * Uses a safe trait check (no `CsvCatalogItem` import) to avoid module cycles.
+ */
+function chartJsAttributes(catalogItem: BaseModel | undefined): string {
+  if (
+    catalogItem &&
+    hasTraits(catalogItem, CsvCatalogItemTraits, "useChartJsTimeSeries") &&
+    catalogItem.useChartJsTimeSeries === true
+  ) {
+    const showDataTable =
+      hasTraits(catalogItem, CsvCatalogItemTraits, "chartJsShowDataTable") &&
+      catalogItem.chartJsShowDataTable === false
+        ? "false"
+        : "true";
+    return ` renderer="chartjs" show-data-table="${showDataTable}"`;
+  }
+  return "";
+}
 
 export interface TimeSeriesFeatureInfoContext extends JsonObject {
   layerTitle?: string;
@@ -51,7 +78,7 @@ export const tableFeatureInfoContext: (
     // Corresponding row IDs for the selected feature are stored in TerriaFeatureData
     // See createLongitudeLatitudeFeaturePerId, createLongitudeLatitudeFeaturePerRow and createRegionMappedImageryProvider
     const rowIds = isTerriaFeatureData(feature.data)
-      ? (feature.data.rowIds ?? [])
+      ? feature.data.rowIds ?? []
       : [];
 
     if (!style.timeColumn || !style.colorColumn || rowIds.length < 2) return {};
@@ -70,6 +97,8 @@ export const tableFeatureInfoContext: (
 
     const featureId = feature.id.replace(/"/g, "");
 
+    const chartJsAttrs = chartJsAttributes(catalogItem);
+
     const timeSeriesContext: TimeSeriesContext = {
       title: style.colorColumn?.title,
       xName: style.timeColumn?.title,
@@ -79,7 +108,7 @@ export const tableFeatureInfoContext: (
       data: csvData,
       chart: `<chart ${'identifier="' + featureId + '" '} ${
         title ? `title="${title}"` : ""
-      }>${csvData}</chart>`
+      }${chartJsAttrs}>${csvData}</chart>`
     };
 
     return {
@@ -104,6 +133,7 @@ export const csvFeatureInfoContext: (
         .join("\n");
 
       const title = getName(catalogItem);
+      const chartJsAttrs = chartJsAttributes(catalogItem);
       return {
         terria: {
           timeSeries: {
@@ -112,7 +142,7 @@ export const csvFeatureInfoContext: (
             data: csvData,
             chart: `<chart ${'identifier="' + featureId + '" '} ${
               title ? `title="${title}"` : ""
-            }>${csvData}</chart>`
+            }${chartJsAttrs}>${csvData}</chart>`
           }
         }
       };

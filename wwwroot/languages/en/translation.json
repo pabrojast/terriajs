@@ -676,7 +676,14 @@
     "download": "Download",
     "showItemInChart": "Show {{value}} in chart",
     "loading": "Loading chart data...",
-    "noData": "No chart data found."
+    "noData": "No chart data found.",
+    "viewLarger": "View larger",
+    "resetZoom": "Reset zoom",
+    "downloadPng": "Download image",
+    "downloadCsv": "Download CSV",
+    "chartTab": "Chart",
+    "dataTab": "Data",
+    "showAllRows": "Show all {{count}} rows"
   },
   "viewModels": {
     "searchNoLocations": "Sorry, no locations match your search query.",
