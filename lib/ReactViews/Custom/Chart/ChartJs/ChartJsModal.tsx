@@ -1,7 +1,8 @@
-import { FC, ReactNode, RefObject, useEffect, useId, useRef } from "react";
+import { FC, ReactNode, RefObject, useEffect, useRef } from "react";
 import ReactDOM from "react-dom";
 import { useTranslation } from "react-i18next";
 import styled from "styled-components";
+import createGuid from "terriajs-cesium/Source/Core/createGuid";
 import Box from "../../../../Styled/Box";
 import Text from "../../../../Styled/Text";
 import CloseButton from "../../../Generic/CloseButton";
@@ -70,7 +71,14 @@ const ChartJsModal: FC<ChartJsModalProps> = ({
 }) => {
   const { t } = useTranslation();
   const dialogRef = useRef<HTMLDivElement>(null);
-  const titleId = useId();
+  // Stable unique id for aria-labelledby. We avoid React 18's `useId` because
+  // TerriaJS must compile against consuming apps that may resolve older React
+  // typings; `createGuid` is the established pattern in this codebase.
+  const titleIdRef = useRef<string>();
+  if (!titleIdRef.current) {
+    titleIdRef.current = `chartjs-modal-title-${createGuid()}`;
+  }
+  const titleId = titleIdRef.current;
 
   // ESC to close.
   useEffect(() => {

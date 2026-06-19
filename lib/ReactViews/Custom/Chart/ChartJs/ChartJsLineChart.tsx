@@ -7,13 +7,13 @@ import {
   KeyboardEvent as ReactKeyboardEvent,
   useCallback,
   useEffect,
-  useId,
   useMemo,
   useRef,
   useState
 } from "react";
 import { useTranslation } from "react-i18next";
 import { Line } from "react-chartjs-2";
+import createGuid from "terriajs-cesium/Source/Core/createGuid";
 import styled, { useTheme } from "styled-components";
 import ChartableMixin, {
   ChartItem
@@ -149,7 +149,13 @@ const ChartJsLineChart: FC<ChartJsChartProps> = observer((props) => {
   const chartRef = useRef<ChartJsInstance<"line", LinePoint[]>>(null);
   const chartAreaRef = useRef<HTMLDivElement>(null);
 
-  const tabBaseId = useId();
+  // Stable unique id base for the tablist (avoid React 18's `useId` so the lib
+  // still compiles against consuming apps with older React typings).
+  const tabBaseIdRef = useRef<string>();
+  if (!tabBaseIdRef.current) {
+    tabBaseIdRef.current = `chartjs-tabs-${createGuid()}`;
+  }
+  const tabBaseId = tabBaseIdRef.current;
   const [activeTab, setActiveTab] = useState<"chart" | "data">("chart");
 
   const primaryColor: string =
