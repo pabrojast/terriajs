@@ -166,8 +166,15 @@ const ChartJsLineChart: FC<ChartJsChartProps> = observer((props) => {
     (theme && ((theme as any).gridColor as string)) ||
     "rgba(255, 255, 255, 0.15)";
 
+  const chartItemsOverride = props.chartItemsOverride;
+
   const lineChartItems = useMemo(() => {
-    if (!ChartableMixin.isMixedInto(catalogItem)) {
+    // When the caller supplies pre-resolved series (the accumulating dock),
+    // render them directly and skip the `item.chartItems` derivation.
+    if (chartItemsOverride) {
+      return chartItemsOverride.filter(isLineType);
+    }
+    if (!catalogItem || !ChartableMixin.isMixedInto(catalogItem)) {
       return [];
     }
     const all = catalogItem.chartItems.filter(isLineType);
@@ -181,7 +188,12 @@ const ChartJsLineChart: FC<ChartJsChartProps> = observer((props) => {
     }
     return all;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [catalogItem, (catalogItem as any).chartItems, props.yColumn]);
+  }, [
+    catalogItem,
+    (catalogItem as any)?.chartItems,
+    props.yColumn,
+    chartItemsOverride
+  ]);
 
   // Determine a single common x-axis type. Use "time" only when every series is
   // time-based, otherwise fall back to linear.
@@ -337,7 +349,7 @@ const ChartJsLineChart: FC<ChartJsChartProps> = observer((props) => {
 
   // Base filename for downloads.
   const baseName =
-    (catalogItem as { name?: string }).name ||
+    (catalogItem as { name?: string } | undefined)?.name ||
     lineChartItems[0]?.name ||
     props.yColumn ||
     "chart";
@@ -407,8 +419,12 @@ const ChartJsLineChart: FC<ChartJsChartProps> = observer((props) => {
     // the no-data message once the item has finished loading its map items.
     // The wrapper normally gates the loading state, but a re-render can land
     // here before `chartItems` populates (e.g. activeTableStyle not ready yet).
+    // When the caller supplied resolved series there is nothing left to load.
     const stillLoading =
-      MappableMixin.isMixedInto(catalogItem) && catalogItem.isLoadingMapItems;
+      !chartItemsOverride &&
+      !!catalogItem &&
+      MappableMixin.isMixedInto(catalogItem) &&
+      catalogItem.isLoadingMapItems;
     return (
       <ChartStatusText width={0} height={fillHeight ? 110 : pixelHeight}>
         {stillLoading ? t("chart.loading") : t("chart.noData")}

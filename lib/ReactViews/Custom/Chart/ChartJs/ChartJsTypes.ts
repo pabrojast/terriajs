@@ -1,4 +1,6 @@
-import ChartableMixin from "../../../../ModelMixins/ChartableMixin";
+import ChartableMixin, {
+  ChartItem
+} from "../../../../ModelMixins/ChartableMixin";
 
 /**
  * Where a Chart.js chart is being rendered. `inline` is the compact chart shown
@@ -8,12 +10,42 @@ import ChartableMixin from "../../../../ModelMixins/ChartableMixin";
 export type ChartVariant = "inline" | "modal";
 
 /**
+ * A single per-feature time-series accumulated by clicking map features when the
+ * interactive Chart.js renderer is enabled. `x` is always normalised to epoch
+ * milliseconds so the stored data is plain, serialisable and renderer-agnostic
+ * (no chart.js types leak into the store).
+ */
+export interface AccumulatedSeries {
+  /** Stable per-feature id used to de-duplicate re-clicks of the same feature. */
+  key: string;
+  /** Display name for the series (feature name or plotted column title). */
+  name: string;
+  /** Units of the plotted (y) column, if any. */
+  units?: string;
+  /** Distinct line colour for this series. */
+  color: string;
+  /** Ascending-by-x points; `x` is epoch milliseconds. */
+  points: { x: number; y: number }[];
+}
+
+/**
  * Props shared by the light wrapper and the heavy `ChartJsLineChart` renderer.
  * Kept here so the heavy chunk never has to import the wrapper (which would
  * break lazy isolation).
  */
 export interface ChartJsChartProps {
-  item: ChartableMixin.Instance;
+  /**
+   * The chartable catalog item whose `chartItems` are rendered. Optional when
+   * `chartItemsOverride` is supplied (the dock passes pre-resolved series and
+   * has no single backing item to derive from).
+   */
+  item?: ChartableMixin.Instance;
+  /**
+   * Pre-resolved series to render directly, bypassing the `item.chartItems`
+   * derivation and the map-items loading gate. Used by the accumulating bottom
+   * dock, which already holds fully-resolved data.
+   */
+  chartItemsOverride?: ChartItem[];
   xAxisLabel?: string;
   yColumn?: string;
   showDataTable?: boolean;

@@ -46,7 +46,7 @@ interface ChartJsErrorBoundaryState {
  * so that a failure (e.g. a failed dynamic `import()`) never breaks the whole
  * feature-info panel.
  */
-class ChartJsErrorBoundary extends Component<
+export class ChartJsErrorBoundary extends Component<
   ChartJsErrorBoundaryProps,
   ChartJsErrorBoundaryState
 > {
@@ -107,7 +107,7 @@ const ChartJsFeatureInfoChart: FC<ChartJsFeatureInfoChartProps> = observer(
     // !isLoadingMapItems). Trigger that load here exactly as the legacy
     // FeatureInfoPanelChart does, re-running if the item identity changes.
     useEffect(() => {
-      if (MappableMixin.isMixedInto(item)) {
+      if (item && MappableMixin.isMixedInto(item)) {
         item.loadMapItems().then((result) => {
           result.logError();
         });
@@ -119,13 +119,14 @@ const ChartJsFeatureInfoChart: FC<ChartJsFeatureInfoChartProps> = observer(
     // (which would otherwise flash "No chart data" before data arrives). Because
     // this component is an observer it re-renders once `isLoadingMapItems`
     // flips and `chartItems` populates.
-    const isLoading = MappableMixin.isMixedInto(item) && item.isLoadingMapItems;
+    const isLoading =
+      !!item && MappableMixin.isMixedInto(item) && item.isLoadingMapItems;
 
     // Prefer the dataset/catalog item name as the modal title, falling back to
     // the plotted column and finally a generic label. `name` lives on
     // CatalogMemberMixin and is not guaranteed by the bare ChartableMixin type,
     // so read it defensively.
-    const itemName = (item as { name?: string }).name;
+    const itemName = (item as { name?: string } | undefined)?.name;
     const modalTitle = itemName || props.yColumn || t("chart.sectionLabel");
 
     const loadingFallback = (

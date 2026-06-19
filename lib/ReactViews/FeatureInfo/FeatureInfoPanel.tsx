@@ -25,8 +25,10 @@ import prettifyCoordinates from "../../Map/Vector/prettifyCoordinates";
 import MappableMixin from "../../ModelMixins/MappableMixin";
 import TimeFilterMixin from "../../ModelMixins/TimeFilterMixin";
 import CompositeCatalogItem from "../../Models/Catalog/CatalogItems/CompositeCatalogItem";
+import CsvCatalogItem from "../../Models/Catalog/CatalogItems/CsvCatalogItem";
 import { BaseModel } from "../../Models/Definition/Model";
 import TerriaFeature from "../../Models/Feature/Feature";
+import { isTerriaFeatureData } from "../../Models/Feature/FeatureData";
 import type {
   DraggableElementDimensions,
   DraggableElementPosition,
@@ -54,6 +56,21 @@ interface Props {
 
 const DRAG_MARGIN = 8;
 const RESIZE_SAVE_DEBOUNCE_MS = 100;
+
+/**
+ * Distinct colours cycled per accumulated Chart.js series so each clicked
+ * feature gets a visually separable line in the non-blocking bottom dock.
+ */
+const ACCUMULATED_SERIES_PALETTE = [
+  "#519ac2",
+  "#f4a259",
+  "#7fb069",
+  "#d65780",
+  "#9d79bc",
+  "#e6b800",
+  "#56b4b0",
+  "#c1666b"
+];
 
 const clamp01 = (value: number) => Math.min(1, Math.max(0, value));
 
@@ -161,6 +178,7 @@ const getPositionFromRelative = (
 @observer
 class FeatureInfoPanel extends Component<Props> {
   pickedFeaturesReactionDisposer?: IReactionDisposer = undefined;
+  chartJsAccumulateReactionDisposer?: IReactionDisposer = undefined;
   panelStateReactionDisposer?: IReactionDisposer = undefined;
   panelVisibilityReactionDisposer?: IReactionDisposer = undefined;
   panelCollapsedReactionDisposer?: IReactionDisposer = undefined;
@@ -237,6 +255,19 @@ class FeatureInfoPanel extends Component<Props> {
       }
     );
 
+    // When the interactive Chart.js renderer is enabled on a CSV layer,
+    // automatically accumulate the clicked feature's time-series into the
+    // non-blocking bottom dock so the map stays clickable and more points can
+    // be added without re-opening a modal.
+    this.chartJsAccumulateReactionDisposer = reaction(
+      () => terria.selectedFeature,
+      (feature) => {
+        if (isDefined(feature)) {
+          this.accumulateChartJsSeries(feature);
+        }
+      }
+    );
+
     if (this.props.printView) {
       return;
     }
@@ -282,6 +313,9 @@ class FeatureInfoPanel extends Component<Props> {
   componentWillUnmount(): void {
     if (isDefined(this.pickedFeaturesReactionDisposer)) {
       this.pickedFeaturesReactionDisposer();
+    }
+    if (isDefined(this.chartJsAccumulateReactionDisposer)) {
+      this.chartJsAccumulateReactionDisposer();
     }
     if (isDefined(this.panelStateReactionDisposer)) {
       this.panelStateReactionDisposer();
@@ -359,6 +393,90 @@ class FeatureInfoPanel extends Component<Props> {
       terria.selectedFeature = undefined;
     } else {
       terria.selectedFeature = feature;
+    }
+  }
+
+  /**
+   * If the clicked feature belongs to a CSV layer with the interactive Chart.js
+   * renderer enabled and has a time-series, normalise it to epoch-ms points and
+   * add it to that layer's accumulation store (which de-dups by key and caps the
+   * total). Fully guarded: never throws into the feature-info flow, and never
+   * loops (adding to the store does not change `selectedFeature`).
+   */
+  accumulateChartJsSeries(feature: TerriaFeature) {
+    try {
+      const terria = this.props.viewState.terria;
+      const parent = determineCatalogItem(terria.workbench, feature);
+      if (
+        !(parent instanceof CsvCatalogItem) ||
+        parent.useChartJsTimeSeries !== true
+      ) {
+        return;
+      }
+
+      const style = parent.activeTableStyle;
+      const timeColumn = style.timeColumn;
+      const colorColumn = style.colorColumn;
+      if (!isDefined(timeColumn) || !isDefined(colorColumn)) {
+        return;
+      }
+
+      const rowIds = isTerriaFeatureData(feature.data)
+        ? feature.data.rowIds ?? []
+        : [];
+      if (rowIds.length < 2) {
+        return;
+      }
+
+      const dates = timeColumn.valuesAsDates.values;
+      const numbers = colorColumn.valuesAsNumbers.values;
+
+      const points: { x: number; y: number }[] = [];
+      for (const rowId of rowIds) {
+        const date = dates[rowId];
+        const value = numbers[rowId];
+        if (date === null || value === null || value === undefined) {
+          continue;
+        }
+        const x = date.getTime();
+        const y = Number(value);
+        if (Number.isFinite(x) && Number.isFinite(y)) {
+          points.push({ x, y });
+        }
+      }
+      if (points.length < 2) {
+        return;
+      }
+      points.sort((a, b) => a.x - b.x);
+
+      const featureId =
+        feature.id !== undefined && feature.id !== null
+          ? String(feature.id)
+          : String(rowIds[0]);
+      const key = `${parent.uniqueId ?? "csv"}:${featureId}`;
+
+      const featureName =
+        (typeof feature.name === "string" && feature.name) || undefined;
+      const name = featureName || colorColumn.title;
+
+      const color =
+        ACCUMULATED_SERIES_PALETTE[
+          parent.accumulatedChartSeries.length %
+            ACCUMULATED_SERIES_PALETTE.length
+        ];
+
+      runInAction(() => {
+        parent.addAccumulatedSeries({
+          key,
+          name,
+          units: colorColumn.units,
+          color,
+          points
+        });
+      });
+    } catch (e) {
+      // Never break the feature-info panel on accumulation errors.
+      console.warn("Failed to accumulate Chart.js time-series", e);
     }
   }
 

@@ -683,7 +683,10 @@
     "downloadCsv": "Download CSV",
     "chartTab": "Chart",
     "dataTab": "Data",
-    "showAllRows": "Show all {{count}} rows"
+    "showAllRows": "Show all {{count}} rows",
+    "seriesLabel": "series",
+    "viewAll": "View all series",
+    "clearSeries": "Clear"
   },
   "viewModels": {
     "searchNoLocations": "Sorry, no locations match your search query.",

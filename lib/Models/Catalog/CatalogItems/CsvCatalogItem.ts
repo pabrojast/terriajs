@@ -1,13 +1,22 @@
 import i18next from "i18next";
-import { computed, makeObservable, override, runInAction } from "mobx";
+import {
+  action,
+  computed,
+  makeObservable,
+  observable,
+  override,
+  runInAction
+} from "mobx";
 import isDefined from "../../../Core/isDefined";
 import TerriaError from "../../../Core/TerriaError";
+import { ChartItem } from "../../../ModelMixins/ChartableMixin";
 import AutoRefreshingMixin from "../../../ModelMixins/AutoRefreshingMixin";
 import TableMixin from "../../../ModelMixins/TableMixin";
 import UrlMixin from "../../../ModelMixins/UrlMixin";
 import Csv from "../../../Table/Csv";
 import TableAutomaticStylesStratum from "../../../Table/TableAutomaticStylesStratum";
 import CsvCatalogItemTraits from "../../../Traits/TraitsClasses/CsvCatalogItemTraits";
+import { AccumulatedSeries } from "../../../ReactViews/Custom/Chart/ChartJs/ChartJsTypes";
 import CreateModel from "../../Definition/CreateModel";
 import { BaseModel } from "../../Definition/Model";
 import { SelectableDimension } from "../../SelectableDimensions/SelectableDimensions";
@@ -15,6 +24,9 @@ import StratumOrder from "../../Definition/StratumOrder";
 import HasLocalData from "../../HasLocalData";
 import Terria from "../../Terria";
 import proxyCatalogItemUrl from "../proxyCatalogItemUrl";
+
+/** Maximum number of accumulated per-feature series kept at once. */
+export const MAX_ACCUMULATED = 12;
 
 // Types of CSVs:
 // - Points - Latitude and longitude columns or address
@@ -38,6 +50,16 @@ export default class CsvCatalogItem
 
   private _csvFile?: File;
 
+  /**
+   * Per-feature time-series accumulated by clicking map features while the
+   * interactive Chart.js renderer (`useChartJsTimeSeries`) is enabled. Drives
+   * the non-blocking bottom dock so multiple features can be compared without
+   * re-opening a modal. Shallow because each entry is a plain, immutable-by-
+   * convention value object (we replace, never mutate, entries).
+   */
+  @observable.shallow
+  accumulatedChartSeries: AccumulatedSeries[] = [];
+
   constructor(
     id: string | undefined,
     terria: Terria,
@@ -57,6 +79,65 @@ export default class CsvCatalogItem
 
   setFileInput(file: File) {
     this._csvFile = file;
+  }
+
+  /**
+   * Add (or replace) an accumulated per-feature series. De-duplicates by `key`
+   * so re-clicking the same feature never produces duplicate datasets, and caps
+   * the total at {@link MAX_ACCUMULATED}, dropping the oldest entries first.
+   */
+  @action
+  addAccumulatedSeries(series: AccumulatedSeries) {
+    const existingIndex = this.accumulatedChartSeries.findIndex(
+      (s) => s.key === series.key
+    );
+    if (existingIndex >= 0) {
+      // Replace in place so the freshest data wins without re-ordering.
+      this.accumulatedChartSeries.splice(existingIndex, 1, series);
+      return;
+    }
+    this.accumulatedChartSeries.push(series);
+    if (this.accumulatedChartSeries.length > MAX_ACCUMULATED) {
+      this.accumulatedChartSeries.splice(
+        0,
+        this.accumulatedChartSeries.length - MAX_ACCUMULATED
+      );
+    }
+  }
+
+  /** Remove all accumulated per-feature series. */
+  @action
+  clearAccumulatedSeries() {
+    this.accumulatedChartSeries = [];
+  }
+
+  /**
+   * Map the accumulated series to full {@link ChartItem}s so they can be fed
+   * straight to `ChartJsLineChart` via its `chartItemsOverride` prop. The
+   * x-axis is always time (the accumulation only runs for CSVs that have a time
+   * column).
+   */
+  @computed
+  get accumulatedChartItems(): ChartItem[] {
+    const timeColumnTitle = this.activeTableStyle.timeColumn?.title ?? "Date";
+    return this.accumulatedChartSeries.map((series) => ({
+      id: series.key,
+      name: series.name,
+      key: series.key,
+      item: this,
+      type: "line" as const,
+      units: series.units,
+      showInChartPanel: true,
+      isSelectedInWorkbench: false,
+      xAxis: { name: timeColumnTitle, scale: "time" as const },
+      points: series.points.map((p) => ({ x: p.x, y: p.y })),
+      domain: {
+        x: series.points.map((p) => p.x),
+        y: series.points.map((p) => p.y)
+      },
+      getColor: () => series.color,
+      updateIsSelectedInWorkbench: () => {}
+    }));
   }
 
   @computed

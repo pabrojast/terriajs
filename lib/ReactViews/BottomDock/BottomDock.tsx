@@ -4,6 +4,7 @@ import { Component } from "react";
 import Terria from "../../Models/Terria";
 import ViewState from "../../ReactViewModels/ViewState";
 import ChartPanel from "../Custom/Chart/ChartPanel";
+import ChartJsSeriesDock from "../Custom/Chart/ChartJs/ChartJsSeriesDock";
 import measureElement, { MeasureElementProps } from "../HOCs/measureElement";
 import withControlledVisibility from "../HOCs/withControlledVisibility";
 import CogAreaCalculationPanel from "../Tools/CogCalculation/CogAreaCalculationPanel";
@@ -69,6 +70,7 @@ class BottomDock extends Component<PropsType & MeasureElementProps> {
           <>
             <ChartDisclaimer terria={terria} viewState={this.props.viewState} />
             <ChartPanel />
+            <ChartJsSeriesDock terria={terria} />
           </>
         )}
         {top && (
