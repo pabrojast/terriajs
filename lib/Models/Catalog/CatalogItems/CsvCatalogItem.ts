@@ -111,6 +111,14 @@ export default class CsvCatalogItem
     this.accumulatedChartSeries = [];
   }
 
+  /** Remove a single accumulated per-feature series by its `key`. */
+  @action
+  removeAccumulatedSeries(key: string) {
+    this.accumulatedChartSeries = this.accumulatedChartSeries.filter(
+      (s) => s.key !== key
+    );
+  }
+
   /**
    * Map the accumulated series to full {@link ChartItem}s so they can be fed
    * straight to `ChartJsLineChart` via its `chartItemsOverride` prop. The

@@ -15,7 +15,9 @@ import ChartJsModal from "./ChartJsModal";
 // (or its wrappers) — only this dynamic `import()` pulls in the heavy chunk.
 const ChartJsLineChart = lazy(() => import("./ChartJsLineChart"));
 
-const DOCK_HEIGHT = 220;
+// Raised to fit the compact toolbar + legend above/below the chart so the chart
+// itself keeps a usable height.
+const DOCK_HEIGHT = 280;
 const INLINE_CHART_HEIGHT = 180;
 
 const DockHolder = styled.div`
@@ -171,8 +173,9 @@ const ChartJsSeriesDock: FC<ChartJsSeriesDockProps> = observer((props) => {
               <Suspense fallback={loadingFallback}>
                 <ChartJsLineChart
                   chartItemsOverride={chartItems}
-                  variant="inline"
+                  variant="dock"
                   height={INLINE_CHART_HEIGHT}
+                  onRemoveSeries={(key) => item.removeAccumulatedSeries(key)}
                 />
               </Suspense>
             </ChartJsErrorBoundary>
@@ -192,6 +195,7 @@ const ChartJsSeriesDock: FC<ChartJsSeriesDockProps> = observer((props) => {
               variant="modal"
               showDataTable
               height="100%"
+              onRemoveSeries={(key) => item.removeAccumulatedSeries(key)}
             />
           </Suspense>
         </ChartJsErrorBoundary>

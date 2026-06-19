@@ -4,10 +4,11 @@ import ChartableMixin, {
 
 /**
  * Where a Chart.js chart is being rendered. `inline` is the compact chart shown
- * directly in the feature-info panel; `modal` is the large "view larger" chart
- * with toolbar, tabs and data table.
+ * directly in the feature-info panel; `dock` is the accumulating bottom panel
+ * (compact toolbar + legend, no tabs/table); `modal` is the large "view larger"
+ * chart with toolbar, legend, tabs and data table.
  */
-export type ChartVariant = "inline" | "modal";
+export type ChartVariant = "inline" | "dock" | "modal";
 
 /**
  * A single per-feature time-series accumulated by clicking map features when the
@@ -55,6 +56,12 @@ export interface ChartJsChartProps {
    */
   height?: number | "100%";
   variant?: ChartVariant;
+  /**
+   * Called when the user removes a series from the chart's own legend. Used by
+   * the accumulating dock/modal to drop the series from the shared store. When
+   * omitted, the legend's remove button is not rendered.
+   */
+  onRemoveSeries?: (key: string) => void;
 }
 
 /** A single column in the normalised chart data table. */

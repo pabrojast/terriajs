@@ -22,6 +22,7 @@ import MappableMixin from "../../../../ModelMixins/MappableMixin";
 import { ChartStatusText } from "../FeatureInfoPanelChart";
 import ChartDataTable from "./ChartDataTable";
 import { buildCsv, slugifyFilename } from "./chartJsExport";
+import ChartJsLegend from "./ChartJsLegend";
 import ChartJsToolbar from "./ChartJsToolbar";
 import {
   ChartJsChartProps,
@@ -271,7 +272,9 @@ const ChartJsLineChart: FC<ChartJsChartProps> = observer((props) => {
           algorithm: "lttb"
         },
         legend: {
-          display: lineChartItems.length > 1,
+          // We render our own legend (ChartJsLegend) so series can be toggled
+          // and removed; the built-in one is disabled.
+          display: false,
           labels: { color: textColor }
         },
         tooltip: {
@@ -354,9 +357,62 @@ const ChartJsLineChart: FC<ChartJsChartProps> = observer((props) => {
     props.yColumn ||
     "chart";
 
+  const onRemoveSeries = props.onRemoveSeries;
+
   const resetZoom = useCallback(() => {
     chartRef.current?.resetZoom?.();
   }, []);
+
+  const zoomIn = useCallback(() => {
+    chartRef.current?.zoom(1.2);
+  }, []);
+
+  const zoomOut = useCallback(() => {
+    chartRef.current?.zoom(0.8);
+  }, []);
+
+  // Per-series visibility, keyed by the stable series `id`. We drive the live
+  // chart's dataset visibility from this state (see the effect below) rather
+  // than from the built-in chart.js legend, which we disable.
+  const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set());
+
+  const toggleSeries = useCallback((key: string) => {
+    setHiddenIds((prev) => {
+      // Return a NEW Set so React detects the change and re-renders the legend.
+      const next = new Set(prev);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
+  }, []);
+
+  // Apply the visibility state to the live chart. `lineChartItems[i].id` is the
+  // stable per-series key, matching the accumulation store / `accumulatedChartItems`.
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (!chart) {
+      return;
+    }
+    lineChartItems.forEach((chartItem, i) => {
+      chart.setDatasetVisibility(i, !hiddenIds.has(chartItem.id));
+    });
+    chart.update("none");
+  }, [hiddenIds, lineChartItems]);
+
+  // Legend entries, derived from the resolved series and current visibility.
+  const legendSeries = useMemo(
+    () =>
+      lineChartItems.map((chartItem, index) => ({
+        key: chartItem.id,
+        name: chartItem.name,
+        color: seriesColors[index] || primaryColor,
+        hidden: hiddenIds.has(chartItem.id)
+      })),
+    [lineChartItems, seriesColors, primaryColor, hiddenIds]
+  );
 
   const triggerDownload = useCallback((href: string, filename: string) => {
     const anchor = document.createElement("a");
@@ -453,6 +509,31 @@ const ChartJsLineChart: FC<ChartJsChartProps> = observer((props) => {
     return chartElement;
   }
 
+  const legend =
+    lineChartItems.length >= 1 ? (
+      <ChartJsLegend
+        series={legendSeries}
+        onToggle={toggleSeries}
+        onRemove={onRemoveSeries}
+      />
+    ) : null;
+
+  // Dock variant: compact toolbar (zoom in/out/reset, no downloads) + chart +
+  // legend. No tabs/table.
+  if (variant === "dock") {
+    return (
+      <FillColumn>
+        <ChartJsToolbar
+          onZoomIn={zoomIn}
+          onZoomOut={zoomOut}
+          onResetZoom={resetZoom}
+        />
+        {chartElement}
+        {legend}
+      </FillColumn>
+    );
+  }
+
   const showDataTable = props.showDataTable === true;
 
   const onTabKeyDown = (event: ReactKeyboardEvent<HTMLButtonElement>) => {
@@ -473,11 +554,14 @@ const ChartJsLineChart: FC<ChartJsChartProps> = observer((props) => {
   return (
     <FillColumn>
       <ChartJsToolbar
+        onZoomIn={zoomIn}
+        onZoomOut={zoomOut}
         onResetZoom={resetZoom}
         onDownloadPng={downloadPng}
         onDownloadCsv={downloadCsv}
         canDownloadCsv={tableModel.rows.length > 0}
       />
+      {legend}
       {showDataTable ? (
         <>
           <TabList role="tablist" aria-label={t("chart.sectionLabel")}>
