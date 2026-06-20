@@ -683,6 +683,7 @@
     "resetZoom": "Reset zoom",
     "removeSeries": "Remove series",
     "toggleSeries": "Show/hide series",
+    "isolateSeries": "Show only this series",
     "downloadPng": "Download image",
     "downloadCsv": "Download CSV",
     "chartTab": "Chart",

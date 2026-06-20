@@ -45,6 +45,7 @@ import ViewState from "../../ReactViewModels/ViewState";
 import Icon from "../../Styled/Icon";
 import Loader from "../Loader";
 import { withViewState } from "../Context";
+import { paletteColor } from "../Custom/Chart/ChartJs/chartJsPalette";
 import Styles from "./feature-info-panel.scss";
 import FeatureInfoCatalogItem from "./FeatureInfoCatalogItem";
 
@@ -56,21 +57,6 @@ interface Props {
 
 const DRAG_MARGIN = 8;
 const RESIZE_SAVE_DEBOUNCE_MS = 100;
-
-/**
- * Distinct colours cycled per accumulated Chart.js series so each clicked
- * feature gets a visually separable line in the non-blocking bottom dock.
- */
-const ACCUMULATED_SERIES_PALETTE = [
-  "#519ac2",
-  "#f4a259",
-  "#7fb069",
-  "#d65780",
-  "#9d79bc",
-  "#e6b800",
-  "#56b4b0",
-  "#c1666b"
-];
 
 const clamp01 = (value: number) => Math.min(1, Math.max(0, value));
 
@@ -459,11 +445,9 @@ class FeatureInfoPanel extends Component<Props> {
         (typeof feature.name === "string" && feature.name) || undefined;
       const name = featureName || colorColumn.title;
 
-      const color =
-        ACCUMULATED_SERIES_PALETTE[
-          parent.accumulatedChartSeries.length %
-            ACCUMULATED_SERIES_PALETTE.length
-        ];
+      // Cycle the colourblind-safe palette by the current accumulated count so
+      // each newly clicked station gets a distinct, distinguishable colour.
+      const color = paletteColor(parent.accumulatedChartSeries.length);
 
       runInAction(() => {
         parent.addAccumulatedSeries({

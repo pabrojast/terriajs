@@ -23,6 +23,7 @@ import { ChartStatusText } from "../FeatureInfoPanelChart";
 import ChartDataTable from "./ChartDataTable";
 import { buildCsv, slugifyFilename } from "./chartJsExport";
 import ChartJsLegend from "./ChartJsLegend";
+import { seriesDash, withAlpha } from "./chartJsPalette";
 import ChartJsToolbar from "./ChartJsToolbar";
 import {
   ChartJsChartProps,
@@ -223,23 +224,49 @@ const ChartJsLineChart: FC<ChartJsChartProps> = observer((props) => {
   // Join into a primitive so the `data` memo re-runs on any color change.
   const seriesColorsKey = seriesColors.join("|");
 
+  // Hover-to-highlight: the series currently emphasised (others de-emphasised).
+  const [highlightedId, setHighlightedId] = useState<string | null>(null);
+  // Click-to-isolate: the single series the legend has isolated, if any.
+  const [isolatedId, setIsolatedId] = useState<string | null>(null);
+
+  const isMultiSeries = lineChartItems.length > 1;
+
   const data = useMemo<ChartData<"line", LinePoint[]>>(() => {
+    const hasHighlight = highlightedId !== null;
     return {
       datasets: lineChartItems.map((chartItem, index) => {
         const color = seriesColors[index] || primaryColor;
+        // Vary dash patterns per series only when there is more than one line, so
+        // overlapping similar-coloured lines stay distinguishable. A single
+        // series stays solid.
+        const dash = isMultiSeries ? seriesDash(index) : [];
+        const isHighlighted = highlightedId === chartItem.id;
+        // When a series is highlighted, emphasise it and fade the rest so the
+        // hovered line stands out of the "spaghetti".
+        const strokeColor =
+          hasHighlight && !isHighlighted ? withAlpha(color, 0.25) : color;
+        const borderWidth = hasHighlight ? (isHighlighted ? 3 : 1) : 1.5;
         return {
           label: chartItem.name,
           data: buildLinePoints(chartItem),
-          borderColor: color,
-          backgroundColor: color,
+          borderColor: strokeColor,
+          backgroundColor: strokeColor,
+          borderDash: dash,
           pointRadius: 0,
-          borderWidth: 1.5,
+          borderWidth,
           spanGaps: true
         };
       })
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lineChartItems, primaryColor, seriesColors, seriesColorsKey]);
+  }, [
+    lineChartItems,
+    primaryColor,
+    seriesColors,
+    seriesColorsKey,
+    isMultiSeries,
+    highlightedId
+  ]);
 
   const options = useMemo<ChartOptions<"line">>(() => {
     const firstItem = lineChartItems[0];
@@ -278,7 +305,23 @@ const ChartJsLineChart: FC<ChartJsChartProps> = observer((props) => {
           labels: { color: textColor }
         },
         tooltip: {
+          // Show the highest value first so the multi-series tooltip is easy to
+          // scan when many lines cross the hovered x.
+          itemSort: (a, b) => (b.parsed.y as number) - (a.parsed.y as number),
           callbacks: {
+            title: (items) => {
+              const first = items[0];
+              if (!first) {
+                return "";
+              }
+              if (xScaleType === "time") {
+                const x = (first.parsed as { x: number }).x;
+                if (Number.isFinite(x)) {
+                  return moment(x).format("YYYY-MM-DD HH:mm");
+                }
+              }
+              return first.label ?? "";
+            },
             label: (context) => {
               const name = context.dataset.label ?? "";
               const value = context.parsed.y;
@@ -377,6 +420,9 @@ const ChartJsLineChart: FC<ChartJsChartProps> = observer((props) => {
   const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set());
 
   const toggleSeries = useCallback((key: string) => {
+    // A manual eye-toggle breaks the "isolated" invariant (exactly one visible),
+    // so clear the isolated marker.
+    setIsolatedId(null);
     setHiddenIds((prev) => {
       // Return a NEW Set so React detects the change and re-renders the legend.
       const next = new Set(prev);
@@ -388,6 +434,33 @@ const ChartJsLineChart: FC<ChartJsChartProps> = observer((props) => {
       return next;
     });
   }, []);
+
+  // Click-to-isolate: show only the clicked series (or clear if it is already
+  // isolated). Implemented by driving the existing `hiddenIds` set, which the
+  // visibility effect below applies to the live chart.
+  const isolate = useCallback(
+    (key: string) => {
+      if (isolatedId === key) {
+        setIsolatedId(null);
+        setHiddenIds(new Set());
+        return;
+      }
+      setIsolatedId(key);
+      const next = new Set<string>();
+      lineChartItems.forEach((chartItem) => {
+        if (chartItem.id !== key) {
+          next.add(chartItem.id);
+        }
+      });
+      setHiddenIds(next);
+    },
+    [isolatedId, lineChartItems]
+  );
+
+  const onHighlight = useCallback(
+    (key: string | null) => setHighlightedId(key),
+    []
+  );
 
   // Apply the visibility state to the live chart. `lineChartItems[i].id` is the
   // stable per-series key, matching the accumulation store / `accumulatedChartItems`.
@@ -515,6 +588,10 @@ const ChartJsLineChart: FC<ChartJsChartProps> = observer((props) => {
         series={legendSeries}
         onToggle={toggleSeries}
         onRemove={onRemoveSeries}
+        highlightedId={highlightedId}
+        onHighlight={onHighlight}
+        isolatedId={isolatedId}
+        onIsolate={isolate}
       />
     ) : null;
 
