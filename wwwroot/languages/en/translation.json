@@ -690,7 +690,10 @@
     "showAllRows": "Show all {{count}} rows",
     "seriesLabel": "series",
     "viewAll": "View all series",
-    "clearSeries": "Clear"
+    "clearSeries": "Clear",
+    "collapse": "Collapse",
+    "dragToMove": "Drag to move",
+    "resize": "Drag to resize"
   },
   "viewModels": {
     "searchNoLocations": "Sorry, no locations match your search query.",

@@ -1,5 +1,13 @@
 import { observer } from "mobx-react";
-import { FC, Suspense, lazy, useState } from "react";
+import {
+  FC,
+  Suspense,
+  lazy,
+  useCallback,
+  useEffect,
+  useRef,
+  useState
+} from "react";
 import { useTranslation } from "react-i18next";
 import styled from "styled-components";
 import CsvCatalogItem from "../../../../Models/Catalog/CatalogItems/CsvCatalogItem";
@@ -15,10 +23,21 @@ import ChartJsModal from "./ChartJsModal";
 // (or its wrappers) — only this dynamic `import()` pulls in the heavy chunk.
 const ChartJsLineChart = lazy(() => import("./ChartJsLineChart"));
 
-// Raised to fit the compact toolbar + legend above/below the chart so the chart
-// itself keeps a usable height.
-const DOCK_HEIGHT = 280;
+// Header keeps a compact toolbar + legend above/below the chart so the chart
+// itself keeps a usable height. The dock body height is user-adjustable.
+const DEFAULT_DOCK_HEIGHT = 280;
+const MIN_DOCK_HEIGHT = 140;
+const MAX_DOCK_HEIGHT = 520;
+const HEADER_HEIGHT = 36;
 const INLINE_CHART_HEIGHT = 180;
+
+// Session-scoped dock state. Module-level so it survives unmount/remount (e.g.
+// the dock toggling visibility) but resets on a full reload.
+let sessionDockHeight = DEFAULT_DOCK_HEIGHT;
+let sessionCollapsed = false;
+
+const clampDockHeight = (height: number) =>
+  Math.min(MAX_DOCK_HEIGHT, Math.max(MIN_DOCK_HEIGHT, height));
 
 const DockHolder = styled.div`
   left: 0;
@@ -29,10 +48,34 @@ const DockHolder = styled.div`
   box-sizing: border-box;
 `;
 
-const DockInner = styled.div`
+// Thin grip strip along the top edge for vertical (height) resizing.
+const ResizeGrip = styled.div`
+  height: 6px;
+  width: 100%;
+  flex-shrink: 0;
+  cursor: ns-resize;
+  border-radius: 8px 8px 0 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: ${(props) => props.theme.overlay};
+  opacity: 0.6;
+  &:hover {
+    opacity: 1;
+  }
+  &::after {
+    content: "";
+    width: 36px;
+    height: 2px;
+    border-radius: 2px;
+    background: ${(props) => props.theme.textLight};
+  }
+`;
+
+const DockInner = styled.div<{ $height: number }>`
   display: flex;
   flex-direction: column;
-  height: ${DOCK_HEIGHT}px;
+  height: ${(props) => props.$height}px;
   padding: 0 8px 8px 8px;
   box-sizing: border-box;
 `;
@@ -41,7 +84,7 @@ const DockHeader = styled.div`
   display: flex;
   align-items: center;
   gap: 8px;
-  height: 36px;
+  height: ${HEADER_HEIGHT}px;
   flex-shrink: 0;
   color: ${(props) => props.theme.textLight};
 `;
@@ -68,15 +111,17 @@ const DockButton = styled(RawButton)`
   }
 `;
 
-const CloseDockButton = styled(RawButton)`
+const DockIconButton = styled(RawButton)`
   display: flex;
   align-items: center;
   padding: 4px;
   color: ${(props) => props.theme.textLight};
-  opacity: 0.8;
+  border-radius: 3px;
+  opacity: 0.85;
   &:hover,
   &:focus {
     opacity: 1;
+    background: ${(props) => props.theme.colorPrimary};
   }
 `;
 
@@ -104,10 +149,79 @@ function isActiveAccumulatingItem(item: unknown): item is CsvCatalogItem {
  * layer with the interactive Chart.js renderer enabled. Stays light: only the
  * lazily-loaded `ChartJsLineChart` pulls in chart.js. Supports the FIRST active
  * accumulating CSV item (one interactive CSV at a time for Increment 1).
+ *
+ * The dock height is user-resizable from a grip on its top edge and it can be
+ * collapsed to just the header; both states persist for the session.
  */
 const ChartJsSeriesDock: FC<ChartJsSeriesDockProps> = observer((props) => {
   const { t } = useTranslation();
   const [modalOpen, setModalOpen] = useState(false);
+  const [dockHeight, setDockHeight] = useState(sessionDockHeight);
+  const [collapsed, setCollapsed] = useState(sessionCollapsed);
+
+  // Keep the session-scoped values in sync so a remount restores the last state.
+  useEffect(() => {
+    sessionDockHeight = dockHeight;
+  }, [dockHeight]);
+  useEffect(() => {
+    sessionCollapsed = collapsed;
+  }, [collapsed]);
+
+  // Vertical resize from the top grip: dragging up grows the dock. Listeners are
+  // attached to the document for the duration of the drag (mouse + touch).
+  const startResize = useCallback(
+    (startClientY: number) => {
+      const startHeight = dockHeight;
+
+      const onMove = (clientY: number) => {
+        setDockHeight(clampDockHeight(startHeight + (startClientY - clientY)));
+      };
+
+      const onMouseMove = (e: MouseEvent) => onMove(e.clientY);
+      const onTouchMove = (e: TouchEvent) => {
+        if (e.touches[0]) onMove(e.touches[0].clientY);
+      };
+      const onEnd = () => {
+        document.removeEventListener("mousemove", onMouseMove);
+        document.removeEventListener("mouseup", onEnd);
+        document.removeEventListener("touchmove", onTouchMove);
+        document.removeEventListener("touchend", onEnd);
+      };
+
+      document.addEventListener("mousemove", onMouseMove);
+      document.addEventListener("mouseup", onEnd);
+      document.addEventListener("touchmove", onTouchMove);
+      document.addEventListener("touchend", onEnd);
+    },
+    [dockHeight]
+  );
+
+  const handleResizeMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault();
+      startResize(e.clientY);
+    },
+    [startResize]
+  );
+  const handleResizeTouchStart = useCallback(
+    (e: React.TouchEvent) => {
+      if (e.touches[0]) startResize(e.touches[0].clientY);
+    },
+    [startResize]
+  );
+
+  const resizeGripRef = useRef<HTMLDivElement>(null);
+  // React's onTouchStart is passive by default; attach a non-passive listener so
+  // the resize drag does not also scroll the page on touch devices.
+  useEffect(() => {
+    const node = resizeGripRef.current;
+    if (!node) return;
+    const onTouchStart = (e: TouchEvent) => {
+      e.preventDefault();
+    };
+    node.addEventListener("touchstart", onTouchStart, { passive: false });
+    return () => node.removeEventListener("touchstart", onTouchStart);
+  }, []);
 
   // First workbench item that is an active accumulating Chart.js CSV item.
   const item = props.terria.workbench.items.find(isActiveAccumulatingItem) as
@@ -139,14 +253,29 @@ const ChartJsSeriesDock: FC<ChartJsSeriesDockProps> = observer((props) => {
     </ChartStatusText>
   );
 
+  // When collapsed the dock shows only the header bar (no grip, no chart).
+  const collapsedHeight = HEADER_HEIGHT + 8;
+
   return (
     <DockHolder>
-      <DockInner>
+      {collapsed ? null : (
+        <ResizeGrip
+          ref={resizeGripRef}
+          role="separator"
+          aria-orientation="horizontal"
+          aria-label={t("chart.resize")}
+          title={t("chart.resize")}
+          onMouseDown={handleResizeMouseDown}
+          onTouchStart={handleResizeTouchStart}
+        />
+      )}
+      <DockInner $height={collapsed ? collapsedHeight : dockHeight}>
         <DockHeader>
           <DockTitle title={title}>{title}</DockTitle>
           <DockButton
             type="button"
             onClick={() => setModalOpen(true)}
+            aria-label={t("chart.viewAll")}
             title={t("chart.viewAll")}
           >
             {t("chart.viewAll")}
@@ -154,39 +283,56 @@ const ChartJsSeriesDock: FC<ChartJsSeriesDockProps> = observer((props) => {
           <DockButton
             type="button"
             onClick={() => item.clearAccumulatedSeries()}
+            aria-label={t("chart.clearSeries")}
             title={t("chart.clearSeries")}
           >
             {t("chart.clearSeries")}
           </DockButton>
-          <CloseDockButton
+          <DockIconButton
+            type="button"
+            onClick={() => setCollapsed((c) => !c)}
+            aria-label={collapsed ? t("chart.expand") : t("chart.collapse")}
+            aria-expanded={!collapsed}
+            title={collapsed ? t("chart.expand") : t("chart.collapse")}
+          >
+            <StyledIcon
+              glyph={collapsed ? Icon.GLYPHS.expand : Icon.GLYPHS.collapse}
+              styledWidth="14px"
+              light
+            />
+          </DockIconButton>
+          <DockIconButton
             type="button"
             onClick={clearAndClose}
             aria-label={t("chart.clearSeries")}
             title={t("chart.clearSeries")}
           >
             <StyledIcon glyph={Icon.GLYPHS.close} styledWidth="14px" light />
-          </CloseDockButton>
+          </DockIconButton>
         </DockHeader>
-        <DockBody>
-          {modalOpen ? null : (
-            <ChartJsErrorBoundary fallback={errorFallback}>
-              <Suspense fallback={loadingFallback}>
-                <ChartJsLineChart
-                  chartItemsOverride={chartItems}
-                  variant="dock"
-                  height={INLINE_CHART_HEIGHT}
-                  onRemoveSeries={(key) => item.removeAccumulatedSeries(key)}
-                />
-              </Suspense>
-            </ChartJsErrorBoundary>
-          )}
-        </DockBody>
+        {collapsed ? null : (
+          <DockBody>
+            {modalOpen ? null : (
+              <ChartJsErrorBoundary fallback={errorFallback}>
+                <Suspense fallback={loadingFallback}>
+                  <ChartJsLineChart
+                    chartItemsOverride={chartItems}
+                    variant="dock"
+                    height={INLINE_CHART_HEIGHT}
+                    onRemoveSeries={(key) => item.removeAccumulatedSeries(key)}
+                  />
+                </Suspense>
+              </ChartJsErrorBoundary>
+            )}
+          </DockBody>
+        )}
       </DockInner>
 
       <ChartJsModal
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
         title={title}
+        persistKey={`${item.uniqueId}:chartModal`}
       >
         <ChartJsErrorBoundary fallback={errorFallback}>
           <Suspense fallback={loadingFallback}>
