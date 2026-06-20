@@ -745,13 +745,13 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
       }
 
       const formatCandidates = forceArray(layer.Format).map((item: any) =>
-        typeof item === "string" ? item : (item?.toString?.() ?? "")
+        typeof item === "string" ? item : item?.toString?.() ?? ""
       );
       const format = formatCandidates.includes("image/png")
         ? "image/png"
         : formatCandidates.includes("image/jpeg")
-          ? "image/jpeg"
-          : "image/png";
+        ? "image/jpeg"
+        : "image/png";
 
       const resourceUrl: ResourceUrl | ResourceUrl[] | undefined =
         layer.ResourceURL;
@@ -2993,8 +2993,8 @@ function parseFeatureInfoResponse(
     const features = Array.isArray(data.features)
       ? data.features
       : Array.isArray(data)
-        ? data
-        : [data];
+      ? data
+      : [data];
     return features.map((feature: any) => {
       const info = new ImageryLayerFeatureInfo();
       info.data = feature;

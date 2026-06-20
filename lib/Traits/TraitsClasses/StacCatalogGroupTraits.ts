@@ -38,8 +38,7 @@ export default class StacCatalogGroupTraits extends mixTraits(
   @primitiveTrait({
     type: "number",
     name: "Maximum Collections",
-    description:
-      "Maximum number of collections to fetch. Default is 100."
+    description: "Maximum number of collections to fetch. Default is 100."
   })
   maximumCollections?: number;
 }

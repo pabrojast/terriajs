@@ -121,10 +121,8 @@ export class StacCatalogStratum extends LoadableStratum(
 
     let collectionsUrl: string;
     if (collectionsLink) {
-      collectionsUrl = new URL(
-        collectionsLink.href,
-        this.catalogGroup.url
-      ).href;
+      collectionsUrl = new URL(collectionsLink.href, this.catalogGroup.url)
+        .href;
     } else {
       // Try standard STAC API endpoint
       collectionsUrl = new URL("collections", this.catalogGroup.url).href;
@@ -168,10 +166,7 @@ export class StacCatalogStratum extends LoadableStratum(
     );
 
     if (!isDefined(item)) {
-      item = new StacCollectionCatalogItem(
-        itemId,
-        this.catalogGroup.terria
-      );
+      item = new StacCollectionCatalogItem(itemId, this.catalogGroup.terria);
       this.catalogGroup.terria.addModel(item);
     }
 
@@ -179,16 +174,21 @@ export class StacCatalogStratum extends LoadableStratum(
     const selfLink = collection.links.find((link) => link.rel === "self");
     const collectionUrl = selfLink
       ? new URL(selfLink.href, this.catalogGroup.url).href
-      : new URL(
-          `collections/${collection.id}`,
-          this.catalogGroup.url
-        ).href;
+      : new URL(`collections/${collection.id}`, this.catalogGroup.url).href;
 
-    item.setTrait(CommonStrata.definition, "name", collection.title || collection.id);
+    item.setTrait(
+      CommonStrata.definition,
+      "name",
+      collection.title || collection.id
+    );
     item.setTrait(CommonStrata.definition, "url", collectionUrl);
 
     if (collection.description) {
-      item.setTrait(CommonStrata.definition, "description", collection.description);
+      item.setTrait(
+        CommonStrata.definition,
+        "description",
+        collection.description
+      );
     }
   }
 

@@ -22,14 +22,7 @@ export const COG_COLOR_SCALES: Record<
     ]
   },
   jet: {
-    colors: [
-      "#000083",
-      "#003CAA",
-      "#05FFFF",
-      "#FFFF00",
-      "#FA0000",
-      "#800000"
-    ]
+    colors: ["#000083", "#003CAA", "#05FFFF", "#FFFF00", "#FA0000", "#800000"]
   },
   hsv: {
     colors: [
@@ -112,14 +105,7 @@ export const COG_COLOR_SCALES: Record<
     colors: ["#0000ff", "#ff0000"]
   },
   rdbu: {
-    colors: [
-      "#050aac",
-      "#6a89f7",
-      "#bebebe",
-      "#dcaa84",
-      "#e6915a",
-      "#b20a1c"
-    ]
+    colors: ["#050aac", "#6a89f7", "#bebebe", "#dcaa84", "#e6915a", "#b20a1c"]
   },
   picnic: {
     colors: [
@@ -143,23 +129,9 @@ export const COG_COLOR_SCALES: Record<
     colors: ["#000000", "#e60000", "#e6d200", "#ffffff", "#a0c8ff"]
   },
   earth: {
-    colors: [
-      "#000082",
-      "#00b4b4",
-      "#28d228",
-      "#e6e632",
-      "#784614",
-      "#ffffff"
-    ]
+    colors: ["#000082", "#00b4b4", "#28d228", "#e6e632", "#784614", "#ffffff"]
   },
   electric: {
-    colors: [
-      "#000000",
-      "#1e0064",
-      "#780064",
-      "#a05a00",
-      "#e6c800",
-      "#fffadc"
-    ]
+    colors: ["#000000", "#1e0064", "#780064", "#a05a00", "#e6c800", "#fffadc"]
   }
 };

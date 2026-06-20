@@ -43,3 +43,7 @@ yarn.lock
 
 # Ignore some files
 doc/acknowledgements/attributions.md
+
+# Local tooling / per-user config (not source)
+.claude/
+.mix/

@@ -179,7 +179,9 @@ export class CogLegendStratum extends LoadableStratum(CogCatalogItemTraits) {
       ${stops.join("\n      ")}
     </linearGradient>
   </defs>
-  <rect x="0" y="${labelMargin + fontSize}" width="${width}" height="${gradientHeight}" fill="url(#grad)" stroke="#333" stroke-width="1"/>
+  <rect x="0" y="${
+    labelMargin + fontSize
+  }" width="${width}" height="${gradientHeight}" fill="url(#grad)" stroke="#333" stroke-width="1"/>
   <text x="0" y="${fontSize}" font-family="Arial, sans-serif" font-size="${fontSize}" fill="#fff">${minLabel}</text>
   <text x="${width}" y="${fontSize}" font-family="Arial, sans-serif" font-size="${fontSize}" fill="#fff" text-anchor="end">${maxLabel}</text>
 </svg>`;
