@@ -2,6 +2,7 @@ import { JsonObject } from "../Core/Json";
 import Result from "../Core/Result";
 import { TerriaErrorSeverity } from "../Core/TerriaError";
 import { ProviderCoordsMap } from "../Map/PickedFeatures/PickedFeatures";
+import type { AccumulatedSeries } from "../ReactViews/Custom/Chart/ChartJs/ChartJsTypes";
 import { BaseMapsJson } from "./BaseMaps/BaseMapsModel";
 import IElementConfig from "./IElementConfig";
 
@@ -86,6 +87,12 @@ export interface InitSourceData {
   previewedItemId?: string;
   pickedFeatures?: InitSourcePickedFeatures;
   featureInfoPanel?: FeatureInfoPanelState;
+  /**
+   * Accumulated Chart.js per-feature time-series, keyed by the backing
+   * `CsvCatalogItem`'s model id. Persisted so a share/story can restore the
+   * lines the user built up by clicking features.
+   */
+  accumulatedChartSeries?: { [modelId: string]: AccumulatedSeries[] };
   /** These settings will override localStorage persistent settings. They are used for shares/stories */
   settings?: {
     baseMaximumScreenSpaceError?: number;

@@ -113,6 +113,7 @@ import InitSource, {
   isInitFromOptions,
   isInitFromUrl
 } from "./InitSource";
+import type { AccumulatedSeries } from "../ReactViews/Custom/Chart/ChartJs/ChartJsTypes";
 import Internationalization, {
   I18nStartOptions,
   LanguageConfiguration
@@ -2007,6 +2008,30 @@ export default class Terria {
       });
     }
 
+    // Restore accumulated Chart.js per-feature series onto their backing
+    // `CsvCatalogItem`s. Done here (after models + workbench are loaded) so the
+    // target models exist. Duck-typed (`addAccumulatedSeries`) rather than an
+    // `instanceof CsvCatalogItem` check to avoid Terria.ts taking a static
+    // dependency on a concrete catalog item (circular-import risk).
+    if (isJsonObject(initData.accumulatedChartSeries)) {
+      const accumulatedChartSeries = initData.accumulatedChartSeries;
+      Object.keys(accumulatedChartSeries).forEach((modelId) => {
+        const series = accumulatedChartSeries[modelId];
+        if (!Array.isArray(series)) {
+          return;
+        }
+        const model = this.getModelById(BaseModel, modelId);
+        if (model && isAccumulatedChartSeriesTarget(model)) {
+          runInAction(() => {
+            model.clearAccumulatedSeries();
+            (series as AccumulatedSeries[]).forEach((s) =>
+              model.addAccumulatedSeries(s)
+            );
+          });
+        }
+      });
+    }
+
     if (initData.settings?.shortenShareUrls !== undefined) {
       this.setLocalProperty(
         "shortenShareUrls",
@@ -2485,6 +2510,28 @@ function draggableElementDimensionsFromJson(
   }
 
   return { width, height };
+}
+
+/**
+ * Minimal structural view of a model that can hold accumulated Chart.js series
+ * (currently `CsvCatalogItem`). Used so {@link Terria.applyInitData} can restore
+ * shared series without statically importing the concrete catalog item, which
+ * would risk a circular import.
+ */
+interface AccumulatedChartSeriesTarget {
+  clearAccumulatedSeries(): void;
+  addAccumulatedSeries(series: AccumulatedSeries): void;
+}
+
+function isAccumulatedChartSeriesTarget(
+  model: BaseModel
+): model is BaseModel & AccumulatedChartSeriesTarget {
+  return (
+    typeof (model as Partial<AccumulatedChartSeriesTarget>)
+      .addAccumulatedSeries === "function" &&
+    typeof (model as Partial<AccumulatedChartSeriesTarget>)
+      .clearAccumulatedSeries === "function"
+  );
 }
 
 function featureInfoPanelStateFromJson(

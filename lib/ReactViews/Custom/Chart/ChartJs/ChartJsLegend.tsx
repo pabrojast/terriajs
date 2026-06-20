@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import styled, { useTheme } from "styled-components";
 import { RawButton } from "../../../../Styled/Button";
 import Icon, { StyledIcon } from "../../../../Styled/Icon";
+import { SeriesStats } from "./ChartJsTypes";
 
 /** A single legend entry. `hidden` reflects the live chart's dataset visibility. */
 export interface ChartJsLegendSeries {
@@ -21,6 +22,11 @@ export interface ChartJsLegendProps {
    * button is not rendered (e.g. when there is no backing store to mutate).
    */
   onRemove?: (key: string) => void;
+  /**
+   * Per-series min/max/mean, keyed by series key. When present, a compact stats
+   * line is shown under each series name.
+   */
+  stats?: Record<string, SeriesStats>;
   /** The series currently highlighted (emphasised) on the live chart, if any. */
   highlightedId?: string | null;
   /**
@@ -42,7 +48,7 @@ const LegendBox = styled.div`
   flex-wrap: wrap;
   gap: 6px;
   flex-shrink: 0;
-  max-height: 64px;
+  max-height: 88px;
   overflow-y: auto;
   padding: 4px 0;
 `;
@@ -89,8 +95,15 @@ const Swatch = styled.span<{ $color: string }>`
   background-color: ${(props) => props.$color};
 `;
 
-const SeriesName = styled.span<{ $hidden: boolean; $highlighted: boolean }>`
+/** Stacks the series name and its compact stats line. */
+const SeriesLabel = styled.span`
+  display: flex;
+  flex-direction: column;
   flex: 1;
+  min-width: 0;
+`;
+
+const SeriesName = styled.span<{ $hidden: boolean; $highlighted: boolean }>`
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -98,6 +111,16 @@ const SeriesName = styled.span<{ $hidden: boolean; $highlighted: boolean }>`
   color: ${(props) => props.theme.textLight};
   font-weight: ${(props) => (props.$highlighted ? 700 : 400)};
   text-decoration: ${(props) => (props.$hidden ? "line-through" : "none")};
+`;
+
+/** Muted, compact per-series stats (avg/max/min). Allowed to wrap. */
+const SeriesStatsLine = styled.span`
+  font-size: 0.85em;
+  line-height: 1.2;
+  color: ${(props) => props.theme.textLight};
+  opacity: 0.7;
+  white-space: normal;
+  overflow-wrap: anywhere;
 `;
 
 const LegendButton = styled(RawButton)`
@@ -115,6 +138,17 @@ const LegendButton = styled(RawButton)`
 `;
 
 /**
+ * Format a number for the compact legend stats: round to 2 decimals and drop
+ * trailing zeros, so e.g. `1.5`, `42`, `0.07` rather than `1.50`, `42.00`.
+ */
+function formatStat(value: number): string {
+  if (!Number.isFinite(value)) {
+    return "";
+  }
+  return String(Math.round(value * 100) / 100);
+}
+
+/**
  * Light, presentational legend for the Chart.js renderer. Replaces the built-in
  * chart.js legend so each series can be toggled (eye) and optionally removed
  * (trash). It deliberately does NOT import chart.js: all interaction with the
@@ -123,6 +157,7 @@ const LegendButton = styled(RawButton)`
  */
 const ChartJsLegend: FC<ChartJsLegendProps> = ({
   series,
+  stats,
   onToggle,
   onRemove,
   highlightedId,
@@ -138,6 +173,15 @@ const ChartJsLegend: FC<ChartJsLegendProps> = ({
       {series.map((s) => {
         const highlighted = highlightedId === s.key;
         const isolated = isolatedId === s.key;
+        const stat = stats?.[s.key];
+        const statsText = stat
+          ? `${t("chart.statAvg")} ${formatStat(stat.mean)} · ${t(
+              "chart.statMax"
+            )} ${formatStat(stat.max)} · ${t("chart.statMin")} ${formatStat(
+              stat.min
+            )}`
+          : undefined;
+        const rowTitle = statsText ? `${s.name}\n${statsText}` : s.name;
         return (
           <LegendRow
             key={s.key}
@@ -157,17 +201,21 @@ const ChartJsLegend: FC<ChartJsLegendProps> = ({
               onBlur={() => onHighlight?.(null)}
               aria-pressed={isolated}
               aria-label={t("chart.isolateSeries")}
-              title={t("chart.isolateSeries")}
+              title={rowTitle}
             >
               <Swatch $color={s.color} aria-hidden="true" />
-              <SeriesName
-                $hidden={s.hidden}
-                $highlighted={highlighted}
-                title={s.name}
-                theme={theme}
-              >
-                {s.name}
-              </SeriesName>
+              <SeriesLabel>
+                <SeriesName
+                  $hidden={s.hidden}
+                  $highlighted={highlighted}
+                  theme={theme}
+                >
+                  {s.name}
+                </SeriesName>
+                {statsText ? (
+                  <SeriesStatsLine theme={theme}>{statsText}</SeriesStatsLine>
+                ) : null}
+              </SeriesLabel>
             </IsolateButton>
             <LegendButton
               type="button"

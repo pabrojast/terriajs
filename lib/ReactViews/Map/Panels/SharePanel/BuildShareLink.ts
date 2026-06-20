@@ -7,6 +7,7 @@ import hashEntity from "../../../../Core/hashEntity";
 import isDefined from "../../../../Core/isDefined";
 import TerriaError from "../../../../Core/TerriaError";
 import ReferenceMixin from "../../../../ModelMixins/ReferenceMixin";
+import CsvCatalogItem from "../../../../Models/Catalog/CatalogItems/CsvCatalogItem";
 import CommonStrata from "../../../../Models/Definition/CommonStrata";
 import { BaseModel } from "../../../../Models/Definition/Model";
 import saveStratumToJson from "../../../../Models/Definition/saveStratumToJson";
@@ -24,6 +25,7 @@ import ViewState from "../../../../ReactViewModels/ViewState";
 import getDereferencedIfExists from "../../../../Core/getDereferencedIfExists";
 import CatalogMemberMixin from "../../../../ModelMixins/CatalogMemberMixin";
 import ViewerMode from "../../../../Models/ViewerMode";
+import type { AccumulatedSeries } from "../../../Custom/Chart/ChartJs/ChartJsTypes";
 
 /** User properties (generated from URL hash parameters) to add to share link URL in PRODUCTION environment.
  * If in Dev, we add all user properties.
@@ -411,6 +413,41 @@ function addFeaturePicking(terria: Terria, initSource: InitSourceData) {
         terria.featureInfoPanelState
       );
     }
+
+    addAccumulatedChartSeries(terria, initSource);
+  }
+}
+
+/**
+ * Persist the accumulated Chart.js per-feature series of every workbench
+ * `CsvCatalogItem`, keyed by model id, so a share/story can restore the lines
+ * the user built up by clicking features. Each series is deep-copied to plain
+ * JSON so no observable/chart.js state leaks into the share. The field is only
+ * set when there is at least one item with accumulated series.
+ */
+function addAccumulatedChartSeries(terria: Terria, initSource: InitSourceData) {
+  const accumulatedChartSeries: { [modelId: string]: AccumulatedSeries[] } = {};
+
+  terria.workbench.items.forEach((item) => {
+    if (
+      item instanceof CsvCatalogItem &&
+      item.uniqueId &&
+      item.accumulatedChartSeries.length > 0
+    ) {
+      accumulatedChartSeries[item.uniqueId] = item.accumulatedChartSeries.map(
+        (series) => ({
+          key: series.key,
+          name: series.name,
+          units: series.units,
+          color: series.color,
+          points: series.points.map((p) => ({ x: p.x, y: p.y }))
+        })
+      );
+    }
+  });
+
+  if (Object.keys(accumulatedChartSeries).length > 0) {
+    initSource.accumulatedChartSeries = accumulatedChartSeries;
   }
 }
 

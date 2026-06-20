@@ -29,7 +29,8 @@ import {
   ChartJsChartProps,
   ChartTableColumn,
   ChartTableModel,
-  ChartTableRow
+  ChartTableRow,
+  SeriesStats
 } from "./ChartJsTypes";
 import { registerChartJs } from "./registerChartJs";
 
@@ -487,6 +488,32 @@ const ChartJsLineChart: FC<ChartJsChartProps> = observer((props) => {
     [lineChartItems, seriesColors, primaryColor, hiddenIds]
   );
 
+  // Per-series min/max/mean over the finite y values, keyed by series id. Shown
+  // in the legend so each line carries a little context (the "stats" ask).
+  const seriesStats = useMemo<Record<string, SeriesStats>>(() => {
+    const stats: Record<string, SeriesStats> = {};
+    lineChartItems.forEach((chartItem) => {
+      let min = Infinity;
+      let max = -Infinity;
+      let sum = 0;
+      let count = 0;
+      for (const point of chartItem.points) {
+        const y = Number(point.y);
+        if (!Number.isFinite(y)) {
+          continue;
+        }
+        if (y < min) min = y;
+        if (y > max) max = y;
+        sum += y;
+        count++;
+      }
+      if (count > 0) {
+        stats[chartItem.id] = { min, max, mean: sum / count, count };
+      }
+    });
+    return stats;
+  }, [lineChartItems]);
+
   const triggerDownload = useCallback((href: string, filename: string) => {
     const anchor = document.createElement("a");
     anchor.href = href;
@@ -586,6 +613,7 @@ const ChartJsLineChart: FC<ChartJsChartProps> = observer((props) => {
     lineChartItems.length >= 1 ? (
       <ChartJsLegend
         series={legendSeries}
+        stats={seriesStats}
         onToggle={toggleSeries}
         onRemove={onRemoveSeries}
         highlightedId={highlightedId}

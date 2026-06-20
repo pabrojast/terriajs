@@ -64,6 +64,18 @@ export interface ChartJsChartProps {
   onRemoveSeries?: (key: string) => void;
 }
 
+/**
+ * Summary statistics for a single series, shown in the legend. Computed from the
+ * finite y values of the series' points.
+ */
+export interface SeriesStats {
+  min: number;
+  max: number;
+  mean: number;
+  /** Number of finite y values the stats were computed from. */
+  count: number;
+}
+
 /** A single column in the normalised chart data table. */
 export interface ChartTableColumn {
   key: string;
