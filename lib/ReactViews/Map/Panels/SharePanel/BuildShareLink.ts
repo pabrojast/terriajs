@@ -7,7 +7,6 @@ import hashEntity from "../../../../Core/hashEntity";
 import isDefined from "../../../../Core/isDefined";
 import TerriaError from "../../../../Core/TerriaError";
 import ReferenceMixin from "../../../../ModelMixins/ReferenceMixin";
-import CsvCatalogItem from "../../../../Models/Catalog/CatalogItems/CsvCatalogItem";
 import CommonStrata from "../../../../Models/Definition/CommonStrata";
 import { BaseModel } from "../../../../Models/Definition/Model";
 import saveStratumToJson from "../../../../Models/Definition/saveStratumToJson";
@@ -419,19 +418,39 @@ function addFeaturePicking(terria: Terria, initSource: InitSourceData) {
 }
 
 /**
- * Persist the accumulated Chart.js per-feature series of every workbench
- * `CsvCatalogItem`, keyed by model id, so a share/story can restore the lines
- * the user built up by clicking features. Each series is deep-copied to plain
- * JSON so no observable/chart.js state leaks into the share. The field is only
- * set when there is at least one item with accumulated series.
+ * Minimal structural view of a model that holds accumulated Chart.js series
+ * (currently `CsvCatalogItem`). Used so this module can read the series without
+ * statically importing the concrete catalog item, which would close a circular
+ * import (`Terria` → `BuildShareLink` → `CsvCatalogItem` → `Terria`) and break
+ * app startup. Mirrors the duck-typed guard in {@link Terria.applyInitData}.
+ */
+interface AccumulatedChartSeriesSource {
+  accumulatedChartSeries: AccumulatedSeries[];
+}
+
+function hasAccumulatedChartSeries(
+  model: BaseModel
+): model is BaseModel & AccumulatedChartSeriesSource {
+  return Array.isArray(
+    (model as Partial<AccumulatedChartSeriesSource>).accumulatedChartSeries
+  );
+}
+
+/**
+ * Persist the accumulated Chart.js per-feature series of every workbench item
+ * that has them (currently `CsvCatalogItem`), keyed by model id, so a
+ * share/story can restore the lines the user built up by clicking features.
+ * Each series is deep-copied to plain JSON so no observable/chart.js state leaks
+ * into the share. The field is only set when there is at least one item with
+ * accumulated series.
  */
 function addAccumulatedChartSeries(terria: Terria, initSource: InitSourceData) {
   const accumulatedChartSeries: { [modelId: string]: AccumulatedSeries[] } = {};
 
   terria.workbench.items.forEach((item) => {
     if (
-      item instanceof CsvCatalogItem &&
       item.uniqueId &&
+      hasAccumulatedChartSeries(item) &&
       item.accumulatedChartSeries.length > 0
     ) {
       accumulatedChartSeries[item.uniqueId] = item.accumulatedChartSeries.map(
