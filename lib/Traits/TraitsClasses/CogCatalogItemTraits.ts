@@ -35,10 +35,20 @@ export type ColorScaleNames =
   | "blackbody"
   | "earth"
   | "electric";
+
+export type CogColorScaleMode = "default" | "named" | "custom";
 /**
  * Definition of traits for the `single` rendering options.
  */
 export class SingleRenderOptionsTraits extends ModelTraits {
+  @primitiveTrait({
+    type: "string",
+    name: "Color Scale Mode",
+    description:
+      "Selects the active color source. When unset, custom colors retain their legacy precedence over a named color scale."
+  })
+  colorScaleMode?: CogColorScaleMode;
+
   @primitiveTrait({
     type: "number",
     name: "Band",

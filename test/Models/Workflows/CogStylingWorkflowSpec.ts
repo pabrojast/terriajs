@@ -1,4 +1,8 @@
 import CogStylingWorkflow from "../../../lib/Models/Workflows/CogStylingWorkflow";
+import CogCatalogItem from "../../../lib/Models/Catalog/CatalogItems/CogCatalogItem";
+import CommonStrata from "../../../lib/Models/Definition/CommonStrata";
+import updateModelFromJson from "../../../lib/Models/Definition/updateModelFromJson";
+import Terria from "../../../lib/Models/Terria";
 
 describe("CogStylingWorkflow.extractNumericValue", () => {
   it("parses localized numeric strings", () => {
@@ -55,20 +59,14 @@ describe("CogStylingWorkflow color stops", () => {
     );
     const items = legend?.items ?? [];
     expect(items.length).toBe(7);
-    expect(items[0]?.value).toBeCloseTo(10);
-    expect(items[items.length - 1]?.value).toBeCloseTo(40);
+    expect(items[0]?.value).toBeCloseTo(40);
+    expect(items[items.length - 1]?.value).toBeCloseTo(10);
   });
 
-  it("uses provider statistics when domain is missing", () => {
+  it("uses the shared effective provider domain when domain is missing", () => {
     const workflow = new CogStylingWorkflow({
       renderOptions: { single: { colors: ["#000000", "#ffffff"] } },
-      mapItems: [
-        {
-          imageryProvider: {
-            statistics: { min: -5, max: 15 }
-          }
-        }
-      ]
+      effectiveCogStyle: { domain: [-5, 15] }
     } as any);
 
     const legend = (workflow as any).buildLegendFromStops([
@@ -77,7 +75,60 @@ describe("CogStylingWorkflow color stops", () => {
     ]);
 
     const items = legend?.items ?? [];
-    expect(items[0]?.value).toBeCloseTo(-5);
-    expect(items[items.length - 1]?.value).toBeCloseTo(15);
+    expect(items[0]?.value).toBeCloseTo(15);
+    expect(items[items.length - 1]?.value).toBeCloseTo(-5);
+  });
+
+  it("lets a named palette override inherited custom colors", () => {
+    const item = new CogCatalogItem("test", new Terria());
+    updateModelFromJson(item.renderOptions, CommonStrata.definition, {
+      single: { colors: ["#000000", "#ffffff"] }
+    });
+    const workflow = new CogStylingWorkflow(item);
+
+    (workflow as any).colorScaleSelectableDim.setDimensionValue(
+      CommonStrata.user,
+      "jet"
+    );
+
+    expect(item.renderOptions.single?.colors as any).toEqual([
+      "#000000",
+      "#ffffff"
+    ]);
+    expect(item.renderOptions.single?.colorScale).toBe("jet");
+    expect(item.renderOptions.single?.colorScaleMode).toBe("named");
+    expect((workflow as any).colorScaleSelectableDim.selectedId).toBe("jet");
+  });
+
+  it("keeps automatic legend mode across repeated custom color edits", () => {
+    const item = new CogCatalogItem("test", new Terria());
+    const workflow = new CogStylingWorkflow(item);
+
+    (workflow as any).writeColorStops(CommonStrata.user, [
+      { position: 0, color: "#000000" },
+      { position: 1, color: "#ffffff" }
+    ]);
+    (workflow as any).writeColorStops(CommonStrata.user, [
+      { position: 0, color: "#ff0000" },
+      { position: 1, color: "#0000ff" }
+    ]);
+
+    expect(item.renderOptions.single?.colorScaleMode).toBe("custom");
+    expect(item.renderOptions.single?.colors as any).toEqual([
+      [0, "#ff0000"],
+      [1, "#0000ff"]
+    ]);
+    expect(
+      (workflow as any).colorScaleSelectableDim.selectedId
+    ).toBeUndefined();
+    expect((workflow as any).hasManualLegend).toBe(false);
+  });
+
+  it("shows the provider clamp defaults as enabled", () => {
+    const item = new CogCatalogItem("test", new Terria());
+    const workflow = new CogStylingWorkflow(item);
+
+    expect((workflow as any).clampLowSelectableDim.selectedId).toBe("true");
+    expect((workflow as any).clampHighSelectableDim.selectedId).toBe("true");
   });
 });

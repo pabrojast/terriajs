@@ -1,9 +1,6 @@
 import { ColorScaleNames } from "../../../Traits/TraitsClasses/CogCatalogItemTraits";
 
-/**
- * Color scale definitions for COG legend generation
- * These are sample colors from each scale, used to generate legend items
- */
+/** Exact named color-scale definitions used by the TIFF imagery provider. */
 export const COG_COLOR_SCALES: Record<
   ColorScaleNames,
   { colors: string[]; positions?: number[] }
@@ -19,48 +16,66 @@ export const COG_COLOR_SCALES: Record<
       "#FFEA00",
       "#FF6F00",
       "#FF0000"
-    ]
+    ],
+    positions: [0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875, 1]
   },
   jet: {
-    colors: ["#000083", "#003CAA", "#05FFFF", "#FFFF00", "#FA0000", "#800000"]
+    colors: ["#000083", "#003CAA", "#05FFFF", "#FFFF00", "#FA0000", "#800000"],
+    positions: [0, 0.125, 0.375, 0.625, 0.875, 1]
   },
   hsv: {
     colors: [
       "#ff0000",
       "#fdff02",
+      "#f7ff02",
       "#00fc04",
+      "#00fc0a",
       "#01f9ff",
       "#0200fd",
+      "#0800fd",
       "#ff00fb",
+      "#ff00f5",
       "#ff0006"
+    ],
+    positions: [
+      0, 0.169, 0.173, 0.337, 0.341, 0.506, 0.671, 0.675, 0.839, 0.843, 1
     ]
   },
   hot: {
-    colors: ["#000000", "#e60000", "#ffd200", "#ffffff"]
+    colors: ["#000000", "#e60000", "#ffd200", "#ffffff"],
+    positions: [0, 0.3, 0.6, 1]
   },
   cool: {
-    colors: ["#00ffff", "#ff00ff"]
+    colors: ["#00ffff", "#ff00ff"],
+    positions: [0, 1]
   },
   spring: {
-    colors: ["#ff00ff", "#ffff00"]
+    colors: ["#ff00ff", "#ffff00"],
+    positions: [0, 1]
   },
   summer: {
-    colors: ["#008066", "#ffff66"]
+    colors: ["#008066", "#ffff66"],
+    positions: [0, 1]
   },
   autumn: {
-    colors: ["#ff0000", "#ffff00"]
+    colors: ["#ff0000", "#ffff00"],
+    positions: [0, 1]
   },
   winter: {
-    colors: ["#0000ff", "#00ff80"]
+    colors: ["#0000ff", "#00ff80"],
+    positions: [0, 1]
   },
   bone: {
-    colors: ["#000000", "#545474", "#a9c8c8", "#ffffff"]
+    colors: ["#000000", "#545474", "#a9c8c8", "#ffffff"],
+    positions: [0, 0.376, 0.753, 1]
   },
   copper: {
-    colors: ["#000000", "#ffa066", "#ffc77f"]
+    colors: ["#000000", "#ffa066", "#ffc77f"],
+    positions: [0, 0.804, 1]
   },
   greys: {
-    colors: ["#000000", "#ffffff"]
+    colors: ["#000000", "#ffffff"],
+    positions: [0, 1]
   },
   ylgnbu: {
     colors: [
@@ -73,7 +88,8 @@ export const COG_COLOR_SCALES: Record<
       "#c7e9b4",
       "#edf8d9",
       "#ffffd9"
-    ]
+    ],
+    positions: [0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875, 1]
   },
   greens: {
     colors: [
@@ -86,7 +102,8 @@ export const COG_COLOR_SCALES: Record<
       "#c7e9c0",
       "#e5f5e0",
       "#f7fcf5"
-    ]
+    ],
+    positions: [0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875, 1]
   },
   ylorrd: {
     colors: [
@@ -99,13 +116,16 @@ export const COG_COLOR_SCALES: Record<
       "#fed976",
       "#ffeda0",
       "#ffffcc"
-    ]
+    ],
+    positions: [0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875, 1]
   },
   bluered: {
-    colors: ["#0000ff", "#ff0000"]
+    colors: ["#0000ff", "#ff0000"],
+    positions: [0, 1]
   },
   rdbu: {
-    colors: ["#050aac", "#6a89f7", "#bebebe", "#dcaa84", "#e6915a", "#b20a1c"]
+    colors: ["#050aac", "#6a89f7", "#bebebe", "#dcaa84", "#e6915a", "#b20a1c"],
+    positions: [0, 0.35, 0.5, 0.6, 0.7, 1]
   },
   picnic: {
     colors: [
@@ -120,18 +140,32 @@ export const COG_COLOR_SCALES: Record<
       "#ff66cc",
       "#ff6666",
       "#ff0000"
-    ]
+    ],
+    positions: [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1]
   },
   portland: {
-    colors: ["#0c3383", "#0a88ba", "#f2d338", "#f28f38", "#d91e1e"]
+    colors: ["#0c3383", "#0a88ba", "#f2d338", "#f28f38", "#d91e1e"],
+    positions: [0, 0.25, 0.5, 0.75, 1]
   },
   blackbody: {
-    colors: ["#000000", "#e60000", "#e6d200", "#ffffff", "#a0c8ff"]
+    colors: ["#000000", "#e60000", "#e6d200", "#ffffff", "#a0c8ff"],
+    positions: [0, 0.2, 0.4, 0.7, 1]
   },
   earth: {
-    colors: ["#000082", "#00b4b4", "#28d228", "#e6e632", "#784614", "#ffffff"]
+    colors: ["#000082", "#00b4b4", "#28d228", "#e6e632", "#784614", "#ffffff"],
+    positions: [0, 0.1, 0.2, 0.4, 0.6, 1]
   },
   electric: {
-    colors: ["#000000", "#1e0064", "#780064", "#a05a00", "#e6c800", "#fffadc"]
+    colors: ["#000000", "#1e0064", "#780064", "#a05a00", "#e6c800", "#fffadc"],
+    positions: [0, 0.15, 0.4, 0.6, 0.8, 1]
   }
 };
+
+export const COG_DEFAULT_COLOR_SCALE = {
+  colors: ["#000000", "#ffffff"],
+  positions: [0, 1]
+};
+
+export const COG_COLOR_SCALE_NAMES = Object.keys(
+  COG_COLOR_SCALES
+) as ColorScaleNames[];

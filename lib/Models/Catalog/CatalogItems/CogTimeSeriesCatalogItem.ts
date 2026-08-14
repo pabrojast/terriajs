@@ -50,6 +50,13 @@ import {
   TimeSeriesFeatureInfoContext,
   TimeSeriesContext
 } from "../../../Table/tableFeatureInfoContext";
+import { applyCogNoDataColor } from "./CogRasterPostProcessor";
+import {
+  buildCogRenderOptions,
+  CogEffectiveStyle,
+  finalizeCogProviders
+} from "./CogRenderStyle";
+import { CogTimeSeriesLegendStratum } from "./CogLegendStratum";
 
 /**
  * Cached imagery provider entry for a specific time step.
@@ -59,6 +66,8 @@ interface CachedProvider {
   timeKey: string;
   /** One or more TIFFImageryProviders (one per COG URL in the mosaic) */
   providers: TIFFImageryProvider[];
+  /** Resolved domain and palette shared by every COG in the timestep. */
+  effectiveStyle: CogEffectiveStyle | undefined;
   /** Timestamp of last access for LRU eviction */
   lastAccess: number;
 }
@@ -291,6 +300,7 @@ class CogTimeSeriesStratum extends LoadableStratum(
 }
 
 StratumOrder.addLoadStratum(CogTimeSeriesStratum.stratumName);
+StratumOrder.addLoadStratum(CogTimeSeriesLegendStratum.stratumName);
 
 /**
  * A time-varying Cloud Optimised GeoTIFF catalog item.
@@ -312,6 +322,14 @@ export default class CogTimeSeriesCatalogItem extends DiscretelyTimeVaryingMixin
   /** Currently active imagery providers for the displayed time step */
   @observable
   private _currentProviders: TIFFImageryProvider[] = [];
+
+  @observable.ref
+  private _effectiveCogStyle: CogEffectiveStyle | undefined;
+
+  @computed
+  get effectiveCogStyle(): CogEffectiveStyle | undefined {
+    return this._effectiveCogStyle;
+  }
 
   /** The stratum handling data loading */
   private _stratum: CogTimeSeriesStratum;
@@ -351,6 +369,10 @@ export default class CogTimeSeriesCatalogItem extends DiscretelyTimeVaryingMixin
 
     this._stratum = new CogTimeSeriesStratum(this);
     this.strata.set(CogTimeSeriesStratum.stratumName, this._stratum);
+    this.strata.set(
+      CogTimeSeriesLegendStratum.stratumName,
+      new CogTimeSeriesLegendStratum(this)
+    );
 
     // Destroy providers when mapItems is no longer observed
     onBecomeUnobserved(this, "mapItems", () => {
@@ -367,6 +389,7 @@ export default class CogTimeSeriesCatalogItem extends DiscretelyTimeVaryingMixin
     // Watch for render option changes and reload
     reaction(
       () => ({
+        colorScaleMode: this.renderOptions?.single?.colorScaleMode,
         colorScale: this.renderOptions?.single?.colorScale,
         colors: this.renderOptions?.single?.colors,
         type: this.renderOptions?.single?.type,
@@ -1081,6 +1104,7 @@ export default class CogTimeSeriesCatalogItem extends DiscretelyTimeVaryingMixin
     if (!currentTime) {
       runInAction(() => {
         this._currentProviders = [];
+        this._effectiveCogStyle = undefined;
       });
       return;
     }
@@ -1089,6 +1113,7 @@ export default class CogTimeSeriesCatalogItem extends DiscretelyTimeVaryingMixin
     if (!cogUrls || cogUrls.length === 0) {
       runInAction(() => {
         this._currentProviders = [];
+        this._effectiveCogStyle = undefined;
       });
       return;
     }
@@ -1099,6 +1124,7 @@ export default class CogTimeSeriesCatalogItem extends DiscretelyTimeVaryingMixin
       cached.lastAccess = Date.now();
       runInAction(() => {
         this._currentProviders = cached.providers;
+        this._effectiveCogStyle = cached.effectiveStyle;
       });
       this._updateRectangleFromProviders(cached.providers);
       return;
@@ -1114,11 +1140,24 @@ export default class CogTimeSeriesCatalogItem extends DiscretelyTimeVaryingMixin
         (p): p is TIFFImageryProvider => p !== undefined
       );
 
+      const effectiveStyle = finalizeCogProviders(
+        validProviders,
+        this.renderOptions?.single
+      );
+      for (const provider of validProviders) {
+        applyCogNoDataColor(
+          provider,
+          this.renderOptions?.single?.band,
+          this.renderOptions?.single?.noDataColor
+        );
+      }
+
       // Cache them
-      this._addToCache(currentTime, validProviders);
+      this._addToCache(currentTime, validProviders, effectiveStyle);
 
       runInAction(() => {
         this._currentProviders = validProviders;
+        this._effectiveCogStyle = effectiveStyle;
       });
 
       if (validProviders.length > 0) {
@@ -1158,7 +1197,7 @@ export default class CogTimeSeriesCatalogItem extends DiscretelyTimeVaryingMixin
         import("proj4-fully-loaded")
       ]);
 
-    const renderOptions = this._buildRenderOptions();
+    const renderOptions = buildCogRenderOptions(this.renderOptions);
 
     const imageryProvider = await runInAction(() =>
       TIFFImageryProvider.fromUrl(proxiedUrl, {
@@ -1169,60 +1208,11 @@ export default class CogTimeSeriesCatalogItem extends DiscretelyTimeVaryingMixin
         enablePickFeatures: this.allowFeaturePicking,
         hasAlphaChannel: this.hasAlphaChannel,
         projFunc: this.reprojector(proj4),
-        renderOptions:
-          Object.keys(renderOptions).length > 0 ? renderOptions : undefined
+        renderOptions
       })
     );
 
     return imageryProvider;
-  }
-
-  /**
-   * Build render options from traits (same logic as CogCatalogItem).
-   */
-  private _buildRenderOptions(): any {
-    const singleOptions = this.renderOptions?.single;
-    const singleRenderOptions: any = {};
-
-    if (singleOptions?.band !== undefined)
-      singleRenderOptions.band = singleOptions.band;
-    if (singleOptions?.colorScale !== undefined)
-      singleRenderOptions.colorScale = singleOptions.colorScale;
-    if (singleOptions?.colors !== undefined)
-      singleRenderOptions.colors = singleOptions.colors;
-    if (singleOptions?.useRealValue !== undefined)
-      singleRenderOptions.useRealValue = singleOptions.useRealValue;
-    if (singleOptions?.type !== undefined)
-      singleRenderOptions.type = singleOptions.type;
-    if (singleOptions?.domain !== undefined)
-      singleRenderOptions.domain = singleOptions.domain;
-    if (singleOptions?.displayRange !== undefined)
-      singleRenderOptions.displayRange = singleOptions.displayRange.slice();
-    if (singleOptions?.applyDisplayRange !== undefined)
-      singleRenderOptions.applyDisplayRange = singleOptions.applyDisplayRange;
-    if (singleOptions?.clampLow !== undefined)
-      singleRenderOptions.clampLow = singleOptions.clampLow;
-    if (singleOptions?.clampHigh !== undefined)
-      singleRenderOptions.clampHigh = singleOptions.clampHigh;
-    if (singleOptions?.expression !== undefined)
-      singleRenderOptions.expression = singleOptions.expression;
-    if (singleOptions?.noDataColor !== undefined)
-      singleRenderOptions.noDataColor = singleOptions.noDataColor;
-
-    const renderOptions: any = {};
-
-    if (Object.keys(singleRenderOptions).length > 0) {
-      renderOptions.single = singleRenderOptions;
-    }
-
-    if (this.renderOptions?.nodata !== undefined)
-      renderOptions.nodata = this.renderOptions.nodata;
-    if (this.renderOptions?.convertToRGB !== undefined)
-      renderOptions.convertToRGB = this.renderOptions.convertToRGB;
-    if (this.renderOptions?.resampleMethod !== undefined)
-      renderOptions.resampleMethod = this.renderOptions.resampleMethod;
-
-    return renderOptions;
   }
 
   /**
@@ -1257,7 +1247,11 @@ export default class CogTimeSeriesCatalogItem extends DiscretelyTimeVaryingMixin
   /**
    * Add providers to the LRU cache, evicting old entries if needed.
    */
-  private _addToCache(timeKey: string, providers: TIFFImageryProvider[]): void {
+  private _addToCache(
+    timeKey: string,
+    providers: TIFFImageryProvider[],
+    effectiveStyle: CogEffectiveStyle | undefined
+  ): void {
     const maxSize = this.providerCacheSize ?? 3;
 
     // Remove existing entry for this time key
@@ -1284,6 +1278,7 @@ export default class CogTimeSeriesCatalogItem extends DiscretelyTimeVaryingMixin
     this._providerCache.push({
       timeKey,
       providers,
+      effectiveStyle,
       lastAccess: Date.now()
     });
   }
@@ -1298,6 +1293,7 @@ export default class CogTimeSeriesCatalogItem extends DiscretelyTimeVaryingMixin
     this._providerCache = [];
     runInAction(() => {
       this._currentProviders = [];
+      this._effectiveCogStyle = undefined;
     });
   }
 }

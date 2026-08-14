@@ -2126,6 +2126,7 @@
       "colorScheme": "Color",
       "colorHelp": "Choose a colour palette and rendering mode.",
       "colorScale": "Color scale",
+      "defaultColorScale": "Default (black to white)",
       "reverseColors": "Reverse colors",
       "renderType": "Render type",
       "continuous": "Continuous",
@@ -2133,19 +2134,21 @@
       "legendSteps": "Legend steps",
       "domain": {
         "title": "Color scale range",
-        "help": "Stretches the colour scale across these values. Values outside still render unless clamped or hidden by transparency.",
-        "autoDetect": "Auto-detect from COG",
-        "clearManual": "Clear manual values"
+        "help": "Stretches the colour scale across these values. Leave them automatic to use the current COG data range.",
+        "autoDetect": "Use automatic COG range",
+        "clearManual": "Clear manual values",
+        "invalidRange": "The color scale range is not applied because it requires two finite values with minimum less than maximum."
       },
       "minimumValue": "Color scale min",
       "maximumValue": "Color scale max",
       "displayRange": "Transparency",
-      "applyDisplayRange": "Hide values outside color scale",
-      "displayRangeMin": "Hide below",
-      "displayRangeMax": "Hide above",
+      "applyDisplayRange": "Hide values outside range",
+      "displayRangeMin": "Show from (inclusive)",
+      "displayRangeMax": "Show to (inclusive)",
       "transparency": {
-        "help": "Control where the layer becomes see-through.",
+        "help": "Values below the minimum or above the maximum become transparent. Both limits remain visible.",
         "noDataColor": "No-data fill color",
+        "invalidRange": "The transparency range is not applied because it requires two finite values with minimum less than or equal to maximum.",
         "outsideRangeWarning": "Transparency range ({{trMin}} – {{trMax}}) is outside the color scale range ({{dMin}} – {{dMax}}). Some data may be hidden."
       },
       "timeSeries": {

@@ -1,5 +1,5 @@
 import i18next from "i18next";
-import { action, computed, makeObservable, runInAction } from "mobx";
+import { action, computed, makeObservable } from "mobx";
 import filterOutUndefined from "../../Core/filterOutUndefined";
 import isDefined from "../../Core/isDefined";
 import CogCatalogItem from "../Catalog/CatalogItems/CogCatalogItem";
@@ -24,34 +24,14 @@ import LegendTraits, {
 import createStratumInstance from "../Definition/createStratumInstance";
 import StratumFromTraits from "../Definition/StratumFromTraits";
 import Model from "../Definition/Model";
-import { COG_COLOR_SCALES } from "../Catalog/CatalogItems/CogColorScales";
 import { CogColorScaleOptionRenderer } from "../../ReactViews/SelectableDimensions/CogColorScaleOptionRenderer";
-
-/** Available color scales for COG rendering */
-const COLOR_SCALES: ColorScaleNames[] = [
-  "rainbow",
-  "jet",
-  "hsv",
-  "hot",
-  "cool",
-  "spring",
-  "summer",
-  "autumn",
-  "winter",
-  "bone",
-  "copper",
-  "greys",
-  "ylgnbu",
-  "greens",
-  "ylorrd",
-  "bluered",
-  "rdbu",
-  "picnic",
-  "portland",
-  "blackbody",
-  "earth",
-  "electric"
-];
+import { COG_COLOR_SCALE_NAMES } from "../Catalog/CatalogItems/CogColorScales";
+import {
+  getValidDisplayRange,
+  getValidDomain,
+  resolveCogColorStops,
+  sampleCogColor
+} from "../Catalog/CatalogItems/CogRenderStyle";
 
 const DEFAULT_LEGEND_COLORS = [
   "#4e79a7",
@@ -176,36 +156,21 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
         ),
         minDim,
         maxDim,
-        autoDetectButton,
-        this.autoFitTimestepButton
+        this.domainValidationWarning,
+        autoDetectButton
       ]),
       isOpen: true
     };
   }
 
-  /** Time-series only: rewrite `domain` from the current timestep's provider
-   *  statistics. Solves the friction of a fixed colour-scale range across
-   *  timestamps with diverging value ranges. */
   @computed
-  private get autoFitTimestepButton(): SelectableDimensionButton | undefined {
-    if (!(this.item instanceof CogTimeSeriesCatalogItem)) return undefined;
-    const providerDomain = this.getProviderDomain();
-    if (!providerDomain) return undefined;
-    return {
-      type: "button",
-      id: "auto-fit-timestep",
-      value: i18next.t("models.cogStyling.timeSeries.autoFit"),
-      setDimensionValue: action((stratumId: string) => {
-        if (!this.item.renderOptions.single) {
-          this.item.renderOptions.setTrait(stratumId, "single", undefined);
-        }
-        this.item.renderOptions.single!.setTrait(
-          stratumId,
-          "domain",
-          providerDomain
-        );
-      })
-    };
+  private get domainValidationWarning(): SelectableDimensionText | undefined {
+    const domain = this.item.renderOptions?.single?.domain;
+    if (domain === undefined || getValidDomain(domain)) return undefined;
+    return this.makeInfoText(
+      "domain-validation-warning",
+      i18next.t("models.cogStyling.domain.invalidRange")
+    );
   }
 
   /** Transparency group: fuses no-data fill colour, "hide outside range" toggle,
@@ -254,6 +219,12 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
     if (!single?.applyDisplayRange) return undefined;
     const tr = single.displayRange;
     if (!tr) return undefined;
+    if (!getValidDisplayRange(tr)) {
+      return this.makeInfoText(
+        "transparency-warning",
+        i18next.t("models.cogStyling.transparency.invalidRange")
+      );
+    }
     const dom = single.domain ?? this.getProviderDomain();
     if (!dom) return undefined;
     const outside =
@@ -295,16 +266,27 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
   /** Color Scale selector */
   @computed
   private get colorScaleSelectableDim(): SelectableDimensionEnum | undefined {
-    const colorScale = this.item.renderOptions?.single?.colorScale;
+    const single = this.item.renderOptions?.single;
+    const colorScale = single?.colorScale;
+    const mode =
+      single?.colorScaleMode ??
+      (single?.colors && single.colors.length > 0
+        ? "custom"
+        : colorScale
+        ? "named"
+        : "default");
 
     return {
       type: "select",
       id: "color-scale",
       name: i18next.t("models.cogStyling.colorScale"),
-      selectedId: colorScale,
+      selectedId: mode === "named" ? colorScale : undefined,
       allowUndefined: true,
-      undefinedLabel: "None (use default)",
-      options: COLOR_SCALES.map((scale) => ({
+      undefinedLabel:
+        mode === "custom"
+          ? i18next.t("models.cogStyling.customColors.name")
+          : i18next.t("models.cogStyling.defaultColorScale"),
+      options: COG_COLOR_SCALE_NAMES.map((scale) => ({
         id: scale,
         name: scale.charAt(0).toUpperCase() + scale.slice(1)
       })),
@@ -319,15 +301,11 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
             "colorScale",
             value as ColorScaleNames | undefined
           );
-
-          if (value !== undefined && this.item.renderOptions.single?.colors) {
-            // Remove dataset-provided custom colors so the selected scale can apply
-            this.item.renderOptions.single!.setTrait(
-              stratumId,
-              "colors",
-              undefined
-            );
-          }
+          this.item.renderOptions.single!.setTrait(
+            stratumId,
+            "colorScaleMode",
+            value === undefined ? "default" : "named"
+          );
         }
       )
     };
@@ -734,7 +712,16 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
   }
 
   private get customColorStops(): CustomColorStop[] {
-    const colors = this.item.renderOptions?.single?.colors;
+    const single = this.item.renderOptions?.single;
+    const colors = single?.colors;
+    const mode =
+      single?.colorScaleMode ??
+      (colors && colors.length > 0
+        ? "custom"
+        : single?.colorScale
+        ? "named"
+        : "default");
+    if (mode !== "custom") return [];
     if (!colors || colors.length === 0) return [];
 
     if (typeof colors[0] === "string") {
@@ -817,23 +804,23 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
   private clearColorStops(stratumId: string) {
     this.ensureSingleRenderOptions(stratumId);
     this.item.renderOptions.single!.setTrait(stratumId, "colors", undefined);
-    this.cachedLegendDomain = undefined;
-    // Remove legends from user stratum to allow CogLegendStratum to regenerate them automatically
-    this.item.legends?.forEach((legend) =>
-      legend.strata.delete(CommonStrata.user)
+    this.item.renderOptions.single!.setTrait(
+      stratumId,
+      "colorScaleMode",
+      this.item.renderOptions.single?.colorScale ? "named" : "default"
     );
+    this.cachedLegendDomain = undefined;
   }
 
   private writeColorStops(stratumId: string, stops: CustomColorStop[]) {
     this.ensureSingleRenderOptions(stratumId);
     if (stops.length === 0) {
       this.item.renderOptions.single!.setTrait(stratumId, "colors", undefined);
-      if (!this.hasManualLegend) {
-        // Remove legends from user stratum to allow CogLegendStratum to regenerate them automatically
-        this.item.legends?.forEach((legend) =>
-          legend.strata.delete(CommonStrata.user)
-        );
-      }
+      this.item.renderOptions.single!.setTrait(
+        stratumId,
+        "colorScaleMode",
+        this.item.renderOptions.single?.colorScale ? "named" : "default"
+      );
       return;
     }
 
@@ -849,9 +836,11 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
       "colors",
       sanitized as any
     );
-    if (!this.hasManualLegend) {
-      this.syncLegendWithColorStops(stratumId, sanitized);
-    }
+    this.item.renderOptions.single!.setTrait(
+      stratumId,
+      "colorScaleMode",
+      "custom"
+    );
   }
 
   private get hasManualLegend(): boolean {
@@ -971,7 +960,7 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
     });
   }
 
-  private clearLegendOverrides(stratumId: string) {
+  private clearLegendOverrides(_stratumId: string) {
     this.cachedLegendDomain = undefined;
     // Remove legends from user stratum to allow CogLegendStratum to regenerate them automatically
     this.item.legends?.forEach((legend) =>
@@ -1082,44 +1071,6 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
         })
       )
     });
-  }
-
-  private syncLegendWithColorStops(
-    stratumId: string,
-    stops: [number, string][]
-  ) {
-    if (stops.length === 0) {
-      // Remove legends from user stratum to allow CogLegendStratum to regenerate them automatically
-      this.item.legends?.forEach((legend) =>
-        legend.strata.delete(CommonStrata.user)
-      );
-      return;
-    }
-    const baseline = this.primaryLegend?.items?.map((item) => ({
-      title: item.title,
-      value: item.value ?? this.extractNumericValue(item.title)
-    }));
-    const providerDomain = this.getProviderDomain();
-    const baselineDomain =
-      this.deriveDomainFromBaseline(baseline) ?? providerDomain;
-    if (baselineDomain) {
-      this.cachedLegendDomain = baselineDomain;
-    }
-    const expandedStops = this.expandStopsForLegend(
-      stops,
-      this.getLegendBinCount()
-    );
-    const legend = this.buildLegendFromStops(
-      expandedStops,
-      this.getActiveDomain() ??
-        baselineDomain ??
-        this.cachedLegendDomain ??
-        providerDomain,
-      baseline
-    );
-    if (legend) {
-      (this.item as CogCatalogItem).setTrait(stratumId, "legends", [legend]);
-    }
   }
 
   private buildLegendFromStops(
@@ -1242,37 +1193,13 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
   }
 
   private getDefaultScaleStops(): [number, string][] {
-    const renderOptions = this.item.renderOptions?.single;
-    const scaleName = (renderOptions?.colorScale ??
-      "rainbow") as ColorScaleNames;
-    const scale = COG_COLOR_SCALES[scaleName];
-    if (!scale) return [];
-
-    let palette = scale.colors.slice();
-    let positions =
-      scale.positions && scale.positions.length === palette.length
-        ? scale.positions.slice()
-        : undefined;
-
-    if (renderOptions?.reverseColorScale) {
-      palette = palette.reverse();
-      if (positions) {
-        positions = positions.map((pos) => 1 - pos).reverse();
-      }
-    }
-
-    if (positions && positions.length === palette.length) {
-      return positions.map((pos, index) => [pos, palette[index]]);
-    }
-
-    if (palette.length === 0) {
-      return [];
-    }
-    if (palette.length === 1) {
-      return [[0, palette[0]]];
-    }
-
-    return palette.map((color, index) => [index / (palette.length - 1), color]);
+    const stops =
+      this.item.effectiveCogStyle?.stops ??
+      resolveCogColorStops(
+        this.item.renderOptions?.single,
+        this.getActiveDomain()
+      );
+    return stops.map((stop) => [stop.position, stop.color]);
   }
 
   private expandStopsForLegend(
@@ -1294,182 +1221,23 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
     const minPos = sorted[0][0];
     const maxPos = sorted[sorted.length - 1][0];
     const range = maxPos - minPos;
-
-    const evaluateColor = (target: number): string => {
-      if (target <= minPos) {
-        return sorted[0][1];
-      }
-      if (target >= maxPos) {
-        return sorted[sorted.length - 1][1];
-      }
-      for (let i = 0; i < sorted.length - 1; i++) {
-        const [posA, colorA] = sorted[i];
-        const [posB, colorB] = sorted[i + 1];
-        if (target >= posA && target <= posB) {
-          const localT = posB === posA ? 0 : (target - posA) / (posB - posA);
-          return interpolateColor(colorA, colorB, localT);
-        }
-      }
-      return sorted[sorted.length - 1][1];
-    };
+    const effectiveStops = sorted.map(([position, color]) => ({
+      position,
+      color
+    }));
 
     return Array.from({ length: count }, (_, index) => {
       const t = count === 1 ? 0 : index / (count - 1);
       const targetPos = range === 0 ? minPos : minPos + t * range;
-      return [targetPos, evaluateColor(targetPos)] as [number, string];
+      return [
+        targetPos,
+        sampleCogColor(effectiveStops, targetPos, "continuous")
+      ] as [number, string];
     });
   }
 
   private getProviderDomain(): [number, number] | undefined {
-    const mapItems = (this.item.mapItems ?? []) as any[];
-    if (!Array.isArray(mapItems) || mapItems.length === 0) return undefined;
-    const provider = mapItems[0]?.imageryProvider as any;
-    if (!provider) return undefined;
-
-    // First, try to extract from provider.bands (most reliable for COGs)
-    if (provider.bands && typeof provider.bands === "object") {
-      const bandKeys = Object.keys(provider.bands);
-      if (bandKeys.length > 0) {
-        // Get the first band (or the band specified in renderOptions)
-        const targetBand = this.item.renderOptions?.single?.band || 1;
-        const bandStats =
-          provider.bands[targetBand] || provider.bands[bandKeys[0]];
-
-        if (bandStats && typeof bandStats === "object") {
-          const range = this.extractRange(bandStats);
-          if (range) {
-            // Filter out noData values from the range
-            let [min, max] = range;
-            const noData = provider.noData;
-
-            // If min equals noData, it's likely not a real data value
-            if (typeof noData === "number" && min === noData) {
-              // Use 0 as min if noData is negative and max is positive
-              if (noData < 0 && max > 0) {
-                return [0, max];
-              }
-            }
-
-            return range;
-          }
-        }
-      }
-    }
-
-    const directCandidates = [
-      provider.renderOptions?.single?.domain,
-      provider.renderOptions?.single?.displayRange,
-      provider.domain,
-      provider.displayRange,
-      provider.dataRange,
-      provider.range,
-      provider._domain,
-      provider._displayRange
-    ];
-
-    for (const candidate of directCandidates) {
-      const range = this.extractRange(candidate);
-      if (range) return range;
-    }
-
-    const statsCandidates = [
-      provider.statistics,
-      provider._statistics,
-      provider.statistics?.global,
-      provider.statistics?.overall,
-      provider.statistics?.band,
-      provider.statistics?.band0,
-      provider.statistics?.band1,
-      Array.isArray(provider.statisticsBySample)
-        ? provider.statisticsBySample[0]
-        : undefined,
-      Array.isArray(provider.statisticsByBand)
-        ? provider.statisticsByBand[0]
-        : undefined
-    ];
-
-    for (const candidate of statsCandidates) {
-      const range = this.extractRange(candidate);
-      if (range) return range;
-    }
-
-    return undefined;
-  }
-
-  private extractRange(candidate: any): [number, number] | undefined {
-    if (candidate === undefined || candidate === null) return undefined;
-
-    const normalizePair = (min: number, max: number) => {
-      if (!Number.isFinite(min) || !Number.isFinite(max) || min === max) {
-        return undefined;
-      }
-      return min <= max
-        ? ([min, max] as [number, number])
-        : ([max, min] as [number, number]);
-    };
-
-    if (Array.isArray(candidate)) {
-      if (candidate.length >= 2) {
-        const pair = normalizePair(Number(candidate[0]), Number(candidate[1]));
-        if (pair) return pair;
-      }
-      if (candidate.length >= 1) {
-        const nested = this.extractRange(candidate[0]);
-        if (nested) return nested;
-      }
-    }
-
-    if (typeof candidate === "object") {
-      const minKeys = [
-        "min",
-        "minimum",
-        "minValue",
-        "minimumValue",
-        "low",
-        "lower",
-        "lo"
-      ];
-      const maxKeys = [
-        "max",
-        "maximum",
-        "maxValue",
-        "maximumValue",
-        "high",
-        "upper",
-        "hi"
-      ];
-      let min: number | undefined;
-      let max: number | undefined;
-      for (const key of minKeys) {
-        if (candidate[key] !== undefined) {
-          const value = Number(candidate[key]);
-          if (Number.isFinite(value)) {
-            min = value;
-            break;
-          }
-        }
-      }
-      for (const key of maxKeys) {
-        if (candidate[key] !== undefined) {
-          const value = Number(candidate[key]);
-          if (Number.isFinite(value)) {
-            max = value;
-            break;
-          }
-        }
-      }
-      if (min !== undefined && max !== undefined) {
-        const pair = normalizePair(min, max);
-        if (pair) return pair;
-      }
-
-      if (Array.isArray(candidate.values) && candidate.values.length >= 2) {
-        const nested = this.extractRange(candidate.values);
-        if (nested) return nested;
-      }
-    }
-
-    return undefined;
+    return this.item.effectiveCogStyle?.domain;
   }
 
   private getLegendBinCount(): number {
@@ -1482,8 +1250,8 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
 
   private getActiveDomain(): [number, number] | undefined {
     return (
-      toMutableDisplayRange(this.item.renderOptions?.single?.displayRange) ??
-      toMutableDisplayRange(this.item.renderOptions?.single?.domain)
+      getValidDomain(this.item.renderOptions?.single?.domain) ??
+      this.item.effectiveCogStyle?.domain
     );
   }
 
@@ -1512,7 +1280,7 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
   private extractNumericValue(title?: string | null): number | undefined {
     if (!title) return undefined;
     const match = title.match(
-      /[-+\u2212]?\d[\d\s\.,\u00A0\u202F\u2009\u2007\-\+\u2212]*/
+      /[-+\u2212]?\d[\d\s.,\u00A0\u202F\u2009\u2007+\u2212-]*/
     );
     if (!match) return undefined;
     let candidate = match[0].trim();
@@ -1525,10 +1293,25 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
     }));
     let normalized = candidate;
     if (separatorMatches.length > 0) {
-      const { index } = separatorMatches[separatorMatches.length - 1];
-      if (index >= 0) {
-        const integerPart = normalized.slice(0, index).replace(/[.,]/g, "");
-        const fractionalPart = normalized.slice(index + 1).replace(/[.,]/g, "");
+      const separatorKinds = new Set(separatorMatches.map(({ char }) => char));
+      const lastSeparator = separatorMatches[separatorMatches.length - 1];
+      const unsigned = candidate.replace(/^[-+]/, "");
+      const groups = unsigned.split(lastSeparator.char);
+      const looksLikeThousands =
+        separatorKinds.size === 1 &&
+        groups.length >= 2 &&
+        groups.slice(1).every((group) => group.length === 3) &&
+        groups[0] !== "0";
+
+      if (looksLikeThousands) {
+        normalized = normalized.replace(/[.,]/g, "");
+      } else if (lastSeparator.index >= 0) {
+        const integerPart = normalized
+          .slice(0, lastSeparator.index)
+          .replace(/[.,]/g, "");
+        const fractionalPart = normalized
+          .slice(lastSeparator.index + 1)
+          .replace(/[.,]/g, "");
         normalized = `${integerPart}.${fractionalPart}`;
       } else {
         normalized = normalized.replace(/[.,]/g, "");
@@ -1638,37 +1421,19 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
     const providerDomain = this.getProviderDomain();
     const currentDomain = this.item.renderOptions?.single?.domain;
 
-    // Only show button if:
-    // 1. Provider has statistics available, OR
-    // 2. User has set a domain and might want to reset it
     if (!providerDomain && !currentDomain) return undefined;
 
     return {
       type: "button",
       id: "auto-detect-domain",
-      value: providerDomain
-        ? i18next.t("models.cogStyling.domain.autoDetect")
-        : i18next.t("models.cogStyling.domain.clearManual"),
+      value: i18next.t("models.cogStyling.domain.autoDetect"),
       setDimensionValue: action((stratumId: string) => {
-        if (providerDomain) {
-          // Set domain from provider statistics
-          if (!this.item.renderOptions.single) {
-            this.item.renderOptions.setTrait(stratumId, "single", undefined);
-          }
-          this.item.renderOptions.single!.setTrait(
+        if (this.item.renderOptions.single) {
+          this.item.renderOptions.single.setTrait(
             stratumId,
             "domain",
-            providerDomain
+            undefined
           );
-        } else {
-          // Clear manual domain
-          if (this.item.renderOptions.single) {
-            this.item.renderOptions.single.setTrait(
-              stratumId,
-              "domain",
-              undefined
-            );
-          }
         }
       })
     };
@@ -1817,7 +1582,7 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
   /** Clamp low values checkbox */
   @computed
   private get clampLowSelectableDim(): SelectableDimensionCheckbox | undefined {
-    const clampLow = this.item.renderOptions?.single?.clampLow ?? false;
+    const clampLow = this.item.renderOptions?.single?.clampLow ?? true;
 
     return {
       type: "checkbox",
@@ -1845,7 +1610,10 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
   private get clampHighSelectableDim():
     | SelectableDimensionCheckbox
     | undefined {
-    const clampHigh = this.item.renderOptions?.single?.clampHigh ?? false;
+    const clampHigh =
+      this.item.renderOptions?.single?.clampHigh ??
+      this.item.renderOptions?.single?.clampLow ??
+      true;
 
     return {
       type: "checkbox",
@@ -1881,77 +1649,7 @@ function clamp01(value: number): number {
   return Math.max(0, Math.min(1, value));
 }
 
-function interpolateHexColor(start: string, end: string, t: number): string {
-  const startRgb = parseColorToRgb(start);
-  const endRgb = parseColorToRgb(end);
-  if (!startRgb || !endRgb) {
-    return t < 0.5 ? start : end;
-  }
-  const interpolateChannel = (a: number, b: number) =>
-    Math.round(a + (b - a) * Math.min(Math.max(t, 0), 1));
-  const [r, g, b] = [
-    interpolateChannel(startRgb[0], endRgb[0]),
-    interpolateChannel(startRgb[1], endRgb[1]),
-    interpolateChannel(startRgb[2], endRgb[2])
-  ];
-  return rgbToHex(r, g, b);
-}
-
-function interpolateColor(start: string, end: string, t: number): string {
-  return interpolateHexColor(start, end, t);
-}
-
-function parseColorToRgb(color: string): [number, number, number] | undefined {
-  const trimmed = color.trim();
-  const hexMatch = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(trimmed);
-  if (hexMatch) {
-    let hex = hexMatch[1];
-    if (hex.length === 3) {
-      hex = hex
-        .split("")
-        .map((ch) => ch + ch)
-        .join("");
-    }
-    const r = parseInt(hex.slice(0, 2), 16);
-    const g = parseInt(hex.slice(2, 4), 16);
-    const b = parseInt(hex.slice(4, 6), 16);
-    return [r, g, b];
-  }
-
-  const rgbMatch = /^rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})/i.exec(
-    trimmed
-  );
-  if (rgbMatch) {
-    const r = Number(rgbMatch[1]);
-    const g = Number(rgbMatch[2]);
-    const b = Number(rgbMatch[3]);
-    if ([r, g, b].every((v) => v >= 0 && v <= 255)) {
-      return [r, g, b];
-    }
-  }
-
-  return undefined;
-}
-
-function rgbToHex(r: number, g: number, b: number): string {
-  const clamp = (value: number) =>
-    Math.min(255, Math.max(0, Math.round(value)));
-  const toHex = (value: number) => clamp(value).toString(16).padStart(2, "0");
-  return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
-}
-
 interface LegendItemSnapshot {
   title?: string;
   value?: number;
-}
-
-function toMutableDisplayRange(
-  value: ReadonlyArray<number> | undefined,
-  fallback?: ReadonlyArray<number> | undefined
-): [number, number] | undefined {
-  const range = value ?? fallback;
-  if (!range || range.length < 2) {
-    return;
-  }
-  return [range[0], range[1]];
 }

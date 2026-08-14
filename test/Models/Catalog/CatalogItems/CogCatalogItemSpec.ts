@@ -115,12 +115,19 @@ describe("CogCatalogItem", function () {
         });
         await item.loadMapItems();
         const renderOptions = getImageryProvider(item)?.renderOptions;
+        const imageryProvider = getImageryProvider(item);
         expect(renderOptions?.single).toBeDefined();
         if (renderOptions?.single) {
-          expect(renderOptions.single.displayRange).toEqual([10, 50]);
-          expect(renderOptions.single.applyDisplayRange).toBe(true);
+          // The shared adapter applies this only after the provider has read
+          // its statistics, avoiding plotty's [min,max) behavior.
+          expect(renderOptions.single.displayRange).toBeUndefined();
+          expect(renderOptions.single.applyDisplayRange).toBe(false);
           expect(renderOptions.single.domain).toEqual([0, 100]);
         }
+        expect(item.effectiveCogStyle?.displayRange).toEqual([10, 50]);
+        expect(imageryProvider.plot?.applyDisplayRange).toBe(true);
+        expect(imageryProvider.plot?.displayRange[0]).toBe(10);
+        expect(imageryProvider.plot?.displayRange[1]).toBeGreaterThan(50);
       });
 
       it("correctly sets noDataColor", async function () {
@@ -133,12 +140,52 @@ describe("CogCatalogItem", function () {
         });
         await item.loadMapItems();
         const renderOptions = getImageryProvider(item)?.renderOptions;
-        expect(renderOptions?.single).toBeDefined();
-        if (renderOptions?.single) {
-          // Check if noDataColor exists on the type, otherwise skip this assertion
-          // as the library might not expose this property in its types
-          expect((renderOptions.single as any).noDataColor).toBe("#FF0000");
-        }
+        expect((renderOptions?.single as any)?.noDataColor).toBeUndefined();
+      });
+
+      it("applies reverseColorScale to the raster palette", async function () {
+        item.setTrait(CommonStrata.user, "url", TEST_URLS["4326"]);
+        updateModelFromJson(item.renderOptions, CommonStrata.user, {
+          single: { colorScale: "jet", reverseColorScale: true }
+        });
+
+        await item.loadMapItems();
+
+        expect(item.effectiveCogStyle?.stops[0].color).toBe("#800000");
+        expect(item.effectiveCogStyle?.stops.slice(-1)[0].color).toBe(
+          "#000083"
+        );
+      });
+
+      it("generates a legend automatically for a loaded single-band COG", async function () {
+        item.setTrait(CommonStrata.user, "url", TEST_URLS["32756"]);
+        await item.loadMapItems();
+
+        expect(item.effectiveCogStyle?.isSingleBand).toBe(true);
+        expect(item.legends?.length).toBe(1);
+        expect(item.legends?.[0].urlMimeType).toBe("image/svg+xml");
+      });
+
+      it("does not generate a numeric legend for an RGB COG", async function () {
+        item.setTrait(CommonStrata.user, "url", TEST_URLS["4326"]);
+        await item.loadMapItems();
+
+        expect(item.effectiveCogStyle).toBeUndefined();
+        expect(item.legends?.length).toBe(0);
+      });
+
+      it("keeps an explicitly configured legend ahead of the automatic legend", async function () {
+        updateModelFromJson(item, CommonStrata.user, {
+          url: TEST_URLS["32756"],
+          legends: [{ title: "Configured legend", items: [] }]
+        });
+
+        await item.loadMapItems();
+
+        expect(item.effectiveCogStyle?.isSingleBand).toBe(true);
+        expect(item.legends?.length).toBe(1);
+        expect(item.legends?.[0].title).toBe("Configured legend");
+        expect(item.legends?.[0].url).toBeUndefined();
       });
     });
   });

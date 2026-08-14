@@ -712,6 +712,32 @@ describe("CogTimeSeriesCatalogItem", function () {
   // ════════════════════════════════════════════════
 
   describe("mosaic support", function () {
+    it("uses one automatic domain and legend for every COG in the current timestep", async function () {
+      updateModelFromJson(item, CommonStrata.definition, {
+        timeEntries: [
+          {
+            time: "2024-01-15T00:00:00Z",
+            cogs: ["low.tif", "high.tif"]
+          }
+        ]
+      });
+      const providers = [
+        makeStyleProvider([-5, 8]),
+        makeStyleProvider([2, 20])
+      ];
+      let providerIndex = 0;
+      spyOn<any>(item as any, "_createImageryProvider").and.callFake(
+        async () => providers[providerIndex++]
+      );
+
+      await item.loadMapItems();
+
+      expect(item.effectiveCogStyle?.domain).toEqual([-5, 20]);
+      expect(providers[0].plot.domain).toEqual([-5, 20]);
+      expect(providers[1].plot.domain).toEqual([-5, 20]);
+      expect(item.legends?.length).toBe(1);
+    });
+
     it("supports multiple COGs per time step", function () {
       updateModelFromJson(item, CommonStrata.definition, {
         timeEntries: [
@@ -1098,3 +1124,27 @@ describe("CogTimeSeriesCatalogItem", function () {
     });
   });
 });
+
+function makeStyleProvider(domain: [number, number]): any {
+  const plot: any = {
+    domain: domain.slice(),
+    applyDisplayRange: false,
+    setDomain(value: number[]) {
+      this.domain = value;
+    },
+    setClamp() {},
+    setColorType() {},
+    setColorScaleImage() {},
+    setDisplayRange(value: number[]) {
+      this.displayRange = value;
+      this.applyDisplayRange = true;
+    }
+  };
+  return {
+    plot,
+    bands: { 1: { min: domain[0], max: domain[1] } },
+    readSamples: [0],
+    renderOptions: { single: { band: 1 } },
+    destroy() {}
+  };
+}

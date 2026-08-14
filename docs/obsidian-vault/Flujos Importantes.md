@@ -107,6 +107,28 @@ Archivos clave:
 - `.github/workflows/deploy.yml`
 - `buildprocess/ci-deploy.sh`
 
+## 9. Styling y leyenda de COG
+
+Archivos clave:
+
+- `lib/Models/Catalog/CatalogItems/CogRenderStyle.ts`
+- `lib/Models/Catalog/CatalogItems/CogRasterPostProcessor.ts`
+- `lib/Models/Catalog/CatalogItems/CogLegendStratum.ts`
+- `lib/Models/Catalog/CatalogItems/CogCatalogItem.ts`
+- `lib/Models/Catalog/CatalogItems/CogTimeSeriesCatalogItem.ts`
+- `lib/Models/Workflows/CogStylingWorkflow.ts`
+
+Flujo observado para `cog` y `cog-time-series`:
+
+1. El proveedor carga los metadatos y detecta si el render es de una sola banda.
+2. `CogRenderStyle` resuelve una representacion efectiva unica para mapa, workflow y leyenda: dominio, paleta con posiciones exactas, inversion, clamps y rango visible.
+3. Un `domain` configurado y valido (`min < max`) permanece fijo. Si no existe, se obtiene de los metadatos del proveedor; para un mosaico temporal se agrega un dominio comun entre todos los COG de la fecha activa.
+4. `displayRange` filtra valores de manera inclusiva (`min <= valor <= max`). Si `applyDisplayRange` esta activo y no hay rango explicito, usa el dominio efectivo. Un rango invalido no se aplica.
+5. Los clamps inferior y superior son independientes y, cuando no se configuran, ambos quedan activos. `noDataColor` se aplica despues del render solo a pixeles realmente marcados como no-data.
+6. La leyenda automatica se deriva del mismo estilo efectivo despues de cargar el COG. Se genera solo para render de una banda; RGB y multibanda quedan sin leyenda automatica. Una leyenda configurada explicitamente mantiene precedencia.
+
+La paleta activa se identifica con `colorScaleMode` (`default`, `named` o `custom`). Esto evita que colores heredados o residuales desplacen silenciosamente la seleccion actual. Las escalas continuas conservan las posiciones reales de cada stop; las discretas muestrean esa misma rampa segun `numberOfBins`.
+
 ## Nota
 
 - **Inferencia:** el deploy continuo de aplicacion no empaqueta TerriaJS solo; clona TerriaMap, injerta la version/branch actual de TerriaJS y despliega esa app resultante.

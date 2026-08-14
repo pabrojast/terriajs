@@ -422,18 +422,37 @@
     "cogStyling": {
       "name": "Estilo COG",
       "reset": "Restablecer al estilo predeterminado",
-      "colorScheme": "Esquema de Color",
-      "colorScale": "Escala de Color",
-      "renderType": "Tipo de Renderizado",
+      "colorScheme": "Color",
+      "colorHelp": "Elige una paleta de colores y un modo de renderizado.",
+      "colorScale": "Escala de color",
+      "defaultColorScale": "Predeterminada (negro a blanco)",
+      "reverseColors": "Invertir colores",
+      "renderType": "Tipo de renderizado",
       "continuous": "Continuo",
       "discrete": "Discreto",
-      "domain": "Dominio de Valores (auto-calculado si no se establece)",
-      "minimumValue": "Valor Mín (opcional, auto-calculado)",
-      "maximumValue": "Valor Máx (opcional, auto-calculado)",
-      "displayRange": "Rango de Visualización",
-      "applyDisplayRange": "Aplicar Rango de Visualización",
-      "displayRangeMin": "Rango de Visualización Mín",
-      "displayRangeMax": "Rango de Visualización Máx",
+      "legendSteps": "Pasos de la leyenda",
+      "domain": {
+        "title": "Rango de la escala de color",
+        "help": "Extiende la escala de color entre estos valores. Déjalos automáticos para usar el rango de datos del COG actual.",
+        "autoDetect": "Usar rango automático del COG",
+        "clearManual": "Borrar valores manuales",
+        "invalidRange": "El rango de color no se aplica porque requiere dos valores finitos con el mínimo menor que el máximo."
+      },
+      "minimumValue": "Mínimo de la escala",
+      "maximumValue": "Máximo de la escala",
+      "displayRange": "Transparencia",
+      "applyDisplayRange": "Ocultar valores fuera del rango",
+      "displayRangeMin": "Mostrar desde (inclusivo)",
+      "displayRangeMax": "Mostrar hasta (inclusivo)",
+      "transparency": {
+        "help": "Los valores menores que el mínimo o mayores que el máximo quedan transparentes. Ambos límites permanecen visibles.",
+        "noDataColor": "Color de relleno sin datos",
+        "invalidRange": "El rango de transparencia no se aplica porque requiere dos valores finitos con el mínimo menor o igual que el máximo.",
+        "outsideRangeWarning": "El rango de transparencia ({{trMin}} – {{trMax}}) está fuera del rango de color ({{dMin}} – {{dMax}}). Algunos datos pueden quedar ocultos."
+      },
+      "timeSeries": {
+        "autoFit": "Ajustar automáticamente la escala al intervalo actual"
+      },
       "customColors": {
         "name": "Colores personalizados",
         "addStop": "Agregar punto de color",
