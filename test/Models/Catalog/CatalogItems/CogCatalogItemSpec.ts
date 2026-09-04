@@ -122,8 +122,11 @@ describe("CogCatalogItem", function () {
           // its statistics, avoiding plotty's [min,max) behavior.
           expect(renderOptions.single.displayRange).toBeUndefined();
           expect(renderOptions.single.applyDisplayRange).toBe(false);
-          expect(renderOptions.single.domain).toEqual([0, 100]);
+          // Domain is applied after metadata load so band statistics stay native.
+          expect(renderOptions.single.domain).toBeUndefined();
         }
+        expect(item.effectiveCogStyle?.domain).toEqual([0, 100]);
+        expect(imageryProvider.plot?.domain).toEqual([0, 100]);
         expect(item.effectiveCogStyle?.displayRange).toEqual([10, 50]);
         expect(imageryProvider.plot?.applyDisplayRange).toBe(true);
         expect(imageryProvider.plot?.displayRange[0]).toBe(10);
@@ -164,6 +167,9 @@ describe("CogCatalogItem", function () {
         expect(item.effectiveCogStyle?.isSingleBand).toBe(true);
         expect(item.legends?.length).toBe(1);
         expect(item.legends?.[0].urlMimeType).toBe("image/svg+xml");
+        expect(item.legends?.[0].items?.length).toBe(2);
+        expect(item.legends?.[0].items?.[0].value).toBeDefined();
+        expect(item.legends?.[0].items?.[1].value).toBeDefined();
       });
 
       it("does not generate a numeric legend for an RGB COG", async function () {

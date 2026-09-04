@@ -27,7 +27,10 @@ export class CogLegendStratum extends LoadableStratum(CogCatalogItemTraits) {
 
   @computed
   get legends(): StratumFromTraits<LegendTraits>[] | undefined {
-    return createAutomaticCogLegends(this.catalogItem.effectiveCogStyle);
+    return createAutomaticCogLegends(
+      this.catalogItem.effectiveCogStyle,
+      this.catalogItem.renderOptions?.single?.numberOfBins
+    );
   }
 }
 
@@ -49,12 +52,16 @@ export class CogTimeSeriesLegendStratum extends LoadableStratum(
 
   @computed
   get legends(): StratumFromTraits<LegendTraits>[] | undefined {
-    return createAutomaticCogLegends(this.catalogItem.effectiveCogStyle);
+    return createAutomaticCogLegends(
+      this.catalogItem.effectiveCogStyle,
+      this.catalogItem.renderOptions?.single?.numberOfBins
+    );
   }
 }
 
 export function createAutomaticCogLegends(
-  style: CogEffectiveStyle | undefined
+  style: CogEffectiveStyle | undefined,
+  numberOfBinsOverride?: number
 ): StratumFromTraits<LegendTraits>[] | undefined {
   if (!style?.isSingleBand || !style.domain || style.stops.length === 0) {
     return undefined;
@@ -66,37 +73,56 @@ export function createAutomaticCogLegends(
     return [
       createStratumInstance(LegendTraits, {
         title,
-        url: createGradientSvg(style, minimum, maximum),
-        urlMimeType: "image/svg+xml"
+        url: createGradientSvg(style),
+        urlMimeType: "image/svg+xml",
+        items: [
+          createStratumInstance(LegendItemTraits, {
+            color: sampleCogColor(style.stops, 1, "continuous"),
+            title: formatValue(maximum),
+            value: maximum
+          }),
+          createStratumInstance(LegendItemTraits, {
+            color: sampleCogColor(style.stops, 0, "continuous"),
+            title: formatValue(minimum),
+            value: minimum
+          })
+        ]
       })
     ];
   }
 
-  const binSize = (maximum - minimum) / style.numberOfBins;
-  const items = Array.from({ length: style.numberOfBins }, (_, index) => {
+  const numberOfBins = resolveLegendBinCount(
+    numberOfBinsOverride,
+    style.numberOfBins
+  );
+  const binSize = (maximum - minimum) / numberOfBins;
+  const items = Array.from({ length: numberOfBins }, (_, index) => {
     const binMinimum = minimum + index * binSize;
     const binMaximum =
-      index === style.numberOfBins - 1
-        ? maximum
-        : minimum + (index + 1) * binSize;
-    const samplePosition = (index + 0.5) / style.numberOfBins;
+      index === numberOfBins - 1 ? maximum : minimum + (index + 1) * binSize;
+    const samplePosition = (index + 0.5) / numberOfBins;
     return createStratumInstance(LegendItemTraits, {
       color: sampleCogColor(style.stops, samplePosition, "discrete"),
       title: `${formatValue(binMinimum)} – ${formatValue(binMaximum)}`,
-      value: index === style.numberOfBins - 1 ? binMaximum : binMinimum
+      value: index === numberOfBins - 1 ? binMaximum : binMinimum
     });
   }).reverse();
 
   return [createStratumInstance(LegendTraits, { title, items })];
 }
 
-function createGradientSvg(
-  style: CogEffectiveStyle,
-  minimum: number,
-  maximum: number
-): string {
+function resolveLegendBinCount(
+  override: number | undefined,
+  fallback: number
+): number {
+  return Number.isFinite(override) && override! > 0
+    ? Math.max(2, Math.min(30, Math.floor(override!)))
+    : fallback;
+}
+
+function createGradientSvg(style: CogEffectiveStyle): string {
   const width = 300;
-  const height = 42;
+  const height = 20;
   const stops = style.stops
     .map(
       (stop) =>
@@ -105,11 +131,7 @@ function createGradientSvg(
         )}%" stop-color="${escapeXml(stop.color)}"/>`
     )
     .join("");
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><defs><linearGradient id="cog-gradient" x1="0%" y1="0%" x2="100%" y2="0%">${stops}</linearGradient></defs><text x="0" y="12" font-family="Arial,sans-serif" font-size="12" fill="#fff">${escapeXml(
-    formatValue(minimum)
-  )}</text><text x="${width}" y="12" text-anchor="end" font-family="Arial,sans-serif" font-size="12" fill="#fff">${escapeXml(
-    formatValue(maximum)
-  )}</text><rect x="0" y="18" width="${width}" height="20" fill="url(#cog-gradient)" stroke="#777" stroke-width="1"/></svg>`;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><defs><linearGradient id="cog-gradient" x1="0%" y1="0%" x2="100%" y2="0%">${stops}</linearGradient></defs><rect x="0" y="0" width="${width}" height="${height}" fill="url(#cog-gradient)" stroke="#777" stroke-width="1"/></svg>`;
   const base64 =
     typeof Buffer !== "undefined"
       ? Buffer.from(svg).toString("base64")

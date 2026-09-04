@@ -157,7 +157,8 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
         minDim,
         maxDim,
         this.domainValidationWarning,
-        autoDetectButton
+        autoDetectButton,
+        this.autoFitTimestepButton
       ]),
       isOpen: true
     };
@@ -1412,6 +1413,29 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
           ]);
         }
       )
+    };
+  }
+
+  /** Time-series only: write the current timestep's native statistics into
+   *  `domain` so the colour scale (and legend) stay fixed at that range. */
+  @computed
+  private get autoFitTimestepButton(): SelectableDimensionButton | undefined {
+    if (!(this.item instanceof CogTimeSeriesCatalogItem)) return undefined;
+    const nativeDomain = this.item.effectiveCogStyle?.nativeDomain;
+    if (!nativeDomain) return undefined;
+    return {
+      type: "button",
+      id: "auto-fit-timestep",
+      value: i18next.t("models.cogStyling.timeSeries.autoFit"),
+      setDimensionValue: action((stratumId: string) => {
+        if (!this.item.renderOptions.single) {
+          this.item.renderOptions.setTrait(stratumId, "single", undefined);
+        }
+        this.item.renderOptions.single!.setTrait(stratumId, "domain", [
+          nativeDomain[0],
+          nativeDomain[1]
+        ]);
+      })
     };
   }
 

@@ -16,6 +16,8 @@ export interface CogColorStop {
 export interface CogEffectiveStyle {
   isSingleBand: boolean;
   domain?: CogRange;
+  /** Band statistics before a configured domain is applied to the plot. */
+  nativeDomain?: CogRange;
   displayRange?: CogRange;
   applyDisplayRange: boolean;
   invalidDomain: boolean;
@@ -78,8 +80,9 @@ export function buildCogRenderOptions(
     }
 
     if (single?.type !== undefined) singleOptions.type = single.type;
-    const domain = getValidDomain(single?.domain);
-    if (domain) singleOptions.domain = domain;
+    // Do not pass `domain` at construction. The provider overwrites band
+    // statistics with it, so auto-range and later scale edits lose the real
+    // min/max. finalizeCogProviders applies domain after metadata is ready.
     if (single?.expression !== undefined)
       singleOptions.expression = single.expression;
 
@@ -114,9 +117,10 @@ export function finalizeCogProviders(
   if (singleProviders.length === 0) return undefined;
 
   const configuredDomain = getValidDomain(single?.domain);
-  const domain =
-    configuredDomain ??
+  const nativeDomain =
+    getAggregateBandDomain(singleProviders, single?.band) ??
     getAggregateProviderDomain(singleProviders, single?.band);
+  const domain = configuredDomain ?? nativeDomain;
   const invalidDomain = single?.domain !== undefined && !configuredDomain;
   const configuredDisplayRange = getValidDisplayRange(single?.displayRange);
   const invalidDisplayRange =
@@ -156,9 +160,11 @@ export function finalizeCogProviders(
   }
 
   const mode = getColorScaleMode(single);
+  invalidateCogRenderedTiles(providers);
   return {
     isSingleBand: singleProviders.length === providers.length,
     domain,
+    nativeDomain,
     displayRange,
     applyDisplayRange,
     invalidDomain,
@@ -176,6 +182,58 @@ export function finalizeCogProviders(
         : undefined,
     stops
   };
+}
+
+/** Observable snapshot so style reactions track array *contents*, not identity. */
+export function getCogStyleReactionSnapshot(
+  options: CogRenderOptionsInput | undefined
+): {
+  colorScaleMode?: CogSingleStyleInput["colorScaleMode"];
+  colorScale?: CogSingleStyleInput["colorScale"];
+  colors?: CogSingleStyleInput["colors"];
+  type?: CogSingleStyleInput["type"];
+  domain0?: number;
+  domain1?: number;
+  display0?: number;
+  display1?: number;
+  applyDisplayRange?: boolean;
+  clampLow?: boolean;
+  clampHigh?: boolean;
+  band?: number;
+  reverseColorScale?: boolean;
+  noDataColor?: string;
+  nodata?: number;
+} {
+  const single = options?.single;
+  return {
+    colorScaleMode: single?.colorScaleMode,
+    colorScale: single?.colorScale,
+    colors: single?.colors,
+    type: single?.type,
+    domain0: single?.domain?.[0],
+    domain1: single?.domain?.[1],
+    display0: single?.displayRange?.[0],
+    display1: single?.displayRange?.[1],
+    applyDisplayRange: single?.applyDisplayRange,
+    clampLow: single?.clampLow,
+    clampHigh: single?.clampHigh,
+    band: single?.band,
+    reverseColorScale: single?.reverseColorScale,
+    noDataColor: single?.noDataColor,
+    nodata: options?.nodata
+  };
+}
+
+/** Drop plotty's per-tile image cache so the next request uses the new style. */
+export function invalidateCogRenderedTiles(
+  providers: readonly TIFFImageryProvider[]
+): void {
+  for (const provider of providers) {
+    const cache = (provider as any)._imagesCache;
+    if (cache && typeof cache.clear === "function") {
+      cache.clear();
+    }
+  }
 }
 
 export function getValidDomain(
@@ -210,14 +268,18 @@ export function getAggregateProviderDomain(
   providers: readonly TIFFImageryProvider[],
   band = 1
 ): CogRange | undefined {
-  const ranges = providers
-    .map((provider) => getProviderDomain(provider, band))
-    .filter((range): range is CogRange => range !== undefined);
-  if (ranges.length === 0) return undefined;
-  return [
-    Math.min(...ranges.map((range) => range[0])),
-    Math.max(...ranges.map((range) => range[1]))
-  ];
+  return aggregateRanges(
+    providers.map((provider) => getProviderDomain(provider, band))
+  );
+}
+
+export function getAggregateBandDomain(
+  providers: readonly TIFFImageryProvider[],
+  band = 1
+): CogRange | undefined {
+  return aggregateRanges(
+    providers.map((provider) => getBandDomain(provider, band))
+  );
 }
 
 export function resolveCogColorStops(
@@ -396,10 +458,30 @@ function getProviderDomain(
 ): CogRange | undefined {
   const plotDomain = getFiniteProviderRange(provider.plot?.domain);
   if (plotDomain) return plotDomain;
+  return getBandDomain(provider, band);
+}
+
+function getBandDomain(
+  provider: TIFFImageryProvider,
+  band: number
+): CogRange | undefined {
   const bandStats = provider.bands?.[band];
   return getFiniteProviderRange(
     bandStats ? [Number(bandStats.min), Number(bandStats.max)] : undefined
   );
+}
+
+function aggregateRanges(
+  ranges: readonly (CogRange | undefined)[]
+): CogRange | undefined {
+  const defined = ranges.filter(
+    (range): range is CogRange => range !== undefined
+  );
+  if (defined.length === 0) return undefined;
+  return [
+    Math.min(...defined.map((range) => range[0])),
+    Math.max(...defined.map((range) => range[1]))
+  ];
 }
 
 function getFiniteProviderRange(

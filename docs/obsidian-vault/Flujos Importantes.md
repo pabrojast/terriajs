@@ -122,12 +122,13 @@ Flujo observado para `cog` y `cog-time-series`:
 
 1. El proveedor carga los metadatos y detecta si el render es de una sola banda.
 2. `CogRenderStyle` resuelve una representacion efectiva unica para mapa, workflow y leyenda: dominio, paleta con posiciones exactas, inversion, clamps y rango visible.
-3. Un `domain` configurado y valido (`min < max`) permanece fijo. Si no existe, se obtiene de los metadatos del proveedor; para un mosaico temporal se agrega un dominio comun entre todos los COG de la fecha activa.
-4. `displayRange` filtra valores de manera inclusiva (`min <= valor <= max`). Si `applyDisplayRange` esta activo y no hay rango explicito, usa el dominio efectivo. Un rango invalido no se aplica.
+3. Un `domain` configurado y valido (`min < max`) permanece fijo entre fechas. No se pasa al crear el proveedor (el proveedor pisaria las estadisticas nativas). Se aplica despues, con `setDomain`, y se vacia la cache de teselas pintadas. Si no existe, se obtiene de las estadisticas de banda; para un mosaico temporal se agrega un dominio comun entre todos los COG de la fecha activa. Cambiar min/max restylea el provider actual sin recargar el COG.
+4. `displayRange` filtra valores de manera inclusiva (`min <= valor <= max`) y no alimenta la leyenda. Si `applyDisplayRange` esta activo y no hay rango explicito, usa el dominio efectivo. Un rango invalido no se aplica.
 5. Los clamps inferior y superior son independientes y, cuando no se configuran, ambos quedan activos. `noDataColor` se aplica despues del render solo a pixeles realmente marcados como no-data.
-6. La leyenda automatica se deriva del mismo estilo efectivo despues de cargar el COG. Se genera solo para render de una banda; RGB y multibanda quedan sin leyenda automatica. Una leyenda configurada explicitamente mantiene precedencia.
+6. La leyenda automatica se deriva del mismo estilo efectivo despues de cargar el COG. Continua: barra de rampa mas ticks HTML con min/max del `domain`. Discreta: bins con `value`. Se genera solo para render de una banda; RGB y multibanda quedan sin leyenda automatica. Una leyenda configurada explicitamente mantiene precedencia.
+7. En series, "Auto-fit color scale to current timestep" escribe las estadisticas nativas de la fecha activa en `domain` y deja la leyenda fija. "Use automatic COG range" borra `domain` y vuelve a seguir cada fecha.
 
-La paleta activa se identifica con `colorScaleMode` (`default`, `named` o `custom`). Esto evita que colores heredados o residuales desplacen silenciosamente la seleccion actual. Las escalas continuas conservan las posiciones reales de cada stop; las discretas muestrean esa misma rampa segun `numberOfBins`.
+La paleta activa se identifica con `colorScaleMode` (`default`, `named` o `custom`). Esto evita que colores heredados o residuales desplacen silenciosamente la seleccion actual. Las escalas continuas conservan las posiciones reales de cada stop; las discretas muestrean esa misma rampa segun `numberOfBins` leido en vivo desde el trait.
 
 ## Nota
 

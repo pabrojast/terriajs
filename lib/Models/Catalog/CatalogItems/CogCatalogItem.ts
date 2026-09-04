@@ -12,6 +12,7 @@ import {
 } from "mobx";
 import GeographicTilingScheme from "terriajs-cesium/Source/Core/GeographicTilingScheme";
 import CesiumMath from "terriajs-cesium/Source/Core/Math";
+import Rectangle from "terriajs-cesium/Source/Core/Rectangle";
 import WebMercatorTilingScheme from "terriajs-cesium/Source/Core/WebMercatorTilingScheme";
 import type TIFFImageryProvider from "terriajs-tiff-imagery-provider";
 import CatalogMemberMixin from "../../../ModelMixins/CatalogMemberMixin";
@@ -34,7 +35,8 @@ import { applyCogNoDataColor } from "./CogRasterPostProcessor";
 import {
   buildCogRenderOptions,
   CogEffectiveStyle,
-  finalizeCogProviders
+  finalizeCogProviders,
+  getCogStyleReactionSnapshot
 } from "./CogRenderStyle";
 
 /**
@@ -106,6 +108,10 @@ export default class CogCatalogItem extends MappableMixin(
   @observable.ref
   private _effectiveCogStyle: CogEffectiveStyle | undefined;
 
+  /** New rectangle identity forces Cesium to drop cached tiles after a restyle. */
+  @observable.ref
+  private _styleClipRectangle: Rectangle | undefined;
+
   @computed
   get effectiveCogStyle(): CogEffectiveStyle | undefined {
     return this._effectiveCogStyle;
@@ -145,6 +151,7 @@ export default class CogCatalogItem extends MappableMixin(
         this._imageryProvider.destroy();
         this._imageryProvider = undefined;
         this._effectiveCogStyle = undefined;
+        this._styleClipRectangle = undefined;
       }
     });
 
@@ -156,25 +163,12 @@ export default class CogCatalogItem extends MappableMixin(
       }
     });
 
-    // Watch for changes in renderOptions and reload imagery provider
+    // Restyle in place when the provider is already loaded. Rebuilding the
+    // TIFF provider is only needed if there is nothing to restyle yet.
     reaction(
-      () => ({
-        colorScaleMode: this.renderOptions?.single?.colorScaleMode,
-        colorScale: this.renderOptions?.single?.colorScale,
-        colors: this.renderOptions?.single?.colors,
-        type: this.renderOptions?.single?.type,
-        domain: this.renderOptions?.single?.domain,
-        displayRange: this.renderOptions?.single?.displayRange,
-        applyDisplayRange: this.renderOptions?.single?.applyDisplayRange,
-        clampLow: this.renderOptions?.single?.clampLow,
-        clampHigh: this.renderOptions?.single?.clampHigh,
-        band: this.renderOptions?.single?.band,
-        reverseColorScale: this.renderOptions?.single?.reverseColorScale,
-        noDataColor: this.renderOptions?.single?.noDataColor,
-        nodata: this.renderOptions?.nodata
-      }),
+      () => getCogStyleReactionSnapshot(this.renderOptions),
       () => {
-        // Only reload if we have an active imagery provider
+        if (this._applyLiveCogStyle()) return;
         if (this._imageryProvider && !this.isLoadingMapItems) {
           this.loadMapItems(true);
         }
@@ -240,9 +234,30 @@ export default class CogCatalogItem extends MappableMixin(
         show: this.show,
         alpha: this.opacity,
         imageryProvider: imageryProvider as any,
-        clippingRectangle: this.cesiumRectangle
+        clippingRectangle: this._styleClipRectangle ?? this.cesiumRectangle
       }
     ];
+  }
+
+  @action
+  private _applyLiveCogStyle(): boolean {
+    const provider = this._imageryProvider;
+    if (!provider?.plot) return false;
+    const effectiveStyle = finalizeCogProviders(
+      [provider],
+      this.renderOptions?.single
+    );
+    applyCogNoDataColor(
+      provider,
+      this.renderOptions?.single?.band,
+      this.renderOptions?.single?.noDataColor
+    );
+    this._effectiveCogStyle = effectiveStyle;
+    const rectangle = this.cesiumRectangle ?? provider.rectangle;
+    this._styleClipRectangle = rectangle
+      ? Rectangle.clone(rectangle)
+      : undefined;
+    return true;
   }
 
   /**

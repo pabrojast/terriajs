@@ -736,6 +736,69 @@ describe("CogTimeSeriesCatalogItem", function () {
       expect(providers[0].plot.domain).toEqual([-5, 20]);
       expect(providers[1].plot.domain).toEqual([-5, 20]);
       expect(item.legends?.length).toBe(1);
+      expect(item.legends?.[0].items?.[0].value).toBe(20);
+      expect(item.legends?.[0].items?.[1].value).toBe(-5);
+    });
+
+    it("keeps a configured share domain and legend values across timesteps", async function () {
+      updateModelFromJson(item, CommonStrata.definition, {
+        timeEntries: [
+          { time: "2025-07-09T00:00:00Z", cogs: ["low.tif"] },
+          { time: "2025-07-10T00:00:00Z", cogs: ["high.tif"] }
+        ],
+        renderOptions: {
+          single: {
+            band: 1,
+            colorScale: "ylgnbu",
+            type: "continuous",
+            domain: [0, 500],
+            displayRange: [0, 50000],
+            applyDisplayRange: true,
+            clampHigh: true
+          },
+          nodata: 0
+        }
+      });
+      const providers: Record<string, any> = {
+        "low.tif": makeStyleProvider([2, 80]),
+        "high.tif": makeStyleProvider([10, 900])
+      };
+      spyOn<any>(item as any, "_createImageryProvider").and.callFake(
+        async (url: string) => providers[url]
+      );
+
+      await item.loadMapItems();
+
+      expect(item.currentDiscreteTimeTag).toContain("2025-07-10");
+      expect(item.effectiveCogStyle?.domain).toEqual([0, 500]);
+      expect(item.effectiveCogStyle?.nativeDomain).toEqual([10, 900]);
+      expect(providers["high.tif"].plot.domain).toEqual([0, 500]);
+      expect(item.legends?.[0].items?.[0].value).toBe(500);
+      expect(item.legends?.[0].items?.[1].value).toBe(0);
+
+      item.setTrait(CommonStrata.user, "currentTime", "2025-07-09T00:00:00Z");
+      await (item as any)._updateProvidersForCurrentTime();
+
+      expect(item.effectiveCogStyle?.domain).toEqual([0, 500]);
+      expect(item.effectiveCogStyle?.nativeDomain).toEqual([2, 80]);
+      expect(item.legends?.[0].items?.[0].value).toBe(500);
+      expect(item.legends?.[0].items?.[1].value).toBe(0);
+    });
+
+    it("keeps an explicitly configured legend ahead of the automatic legend", async function () {
+      updateModelFromJson(item, CommonStrata.definition, {
+        timeEntries: [{ time: "2025-07-09T00:00:00Z", cogs: ["a.tif"] }],
+        legends: [{ title: "Configured legend", items: [] }]
+      });
+      spyOn<any>(item as any, "_createImageryProvider").and.returnValue(
+        Promise.resolve(makeStyleProvider([0, 10]))
+      );
+
+      await item.loadMapItems();
+
+      expect(item.legends?.length).toBe(1);
+      expect(item.legends?.[0].title).toBe("Configured legend");
+      expect(item.legends?.[0].url).toBeUndefined();
     });
 
     it("supports multiple COGs per time step", function () {
@@ -1145,6 +1208,7 @@ function makeStyleProvider(domain: [number, number]): any {
     bands: { 1: { min: domain[0], max: domain[1] } },
     readSamples: [0],
     renderOptions: { single: { band: 1 } },
+    rectangle: { west: 0, south: 0, east: 1, north: 1 },
     destroy() {}
   };
 }

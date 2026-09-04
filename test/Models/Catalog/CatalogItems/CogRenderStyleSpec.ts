@@ -9,6 +9,22 @@ import {
 } from "../../../../lib/Models/Catalog/CatalogItems/CogRenderStyle";
 
 describe("CogRenderStyle", function () {
+  it("omits domain from provider construction options", function () {
+    const options = buildCogRenderOptions({
+      single: {
+        colorScale: "ylgnbu",
+        domain: [0, 200],
+        displayRange: [0, 500],
+        applyDisplayRange: true
+      }
+    });
+
+    expect(options.single.colorScale).toBe("ylgnbu");
+    expect(options.single.domain).toBeUndefined();
+    expect(options.single.displayRange).toBeUndefined();
+    expect(options.single.applyDisplayRange).toBe(false);
+  });
+
   it("selects a named palette over inherited custom colors explicitly", function () {
     const options = buildCogRenderOptions({
       single: {
@@ -73,6 +89,7 @@ describe("CogRenderStyle", function () {
     });
 
     expect(style?.domain).toEqual([-5, 10]);
+    expect(style?.nativeDomain).toEqual([-5, 10]);
     expect(style?.displayRange).toEqual([0, 8]);
     expect(first.plot.domain).toEqual([-5, 10]);
     expect(second.plot.domain).toEqual([-5, 10]);
@@ -80,6 +97,44 @@ describe("CogRenderStyle", function () {
     expect(first.plot.displayRange[0]).toBe(0);
     expect(first.plot.displayRange[1]).toBeGreaterThan(8);
     expect(first.plot.applyDisplayRange).toBe(true);
+  });
+
+  it("restyles domain and drops cached tiles without losing native statistics", function () {
+    const provider = makeProvider([2, 80]);
+    provider._imagesCache = new Map([["0_0_0", {}]]);
+
+    const first = finalizeCogProviders([provider], {
+      colorScale: "ylgnbu",
+      domain: [0, 500]
+    });
+    expect(first?.domain).toEqual([0, 500]);
+    expect(provider.plot.domain).toEqual([0, 500]);
+    expect(provider._imagesCache.size).toBe(0);
+
+    provider._imagesCache.set("1_1_1", {});
+    const second = finalizeCogProviders([provider], {
+      colorScale: "ylgnbu",
+      domain: [0, 200]
+    });
+    expect(second?.domain).toEqual([0, 200]);
+    expect(second?.nativeDomain).toEqual([2, 80]);
+    expect(provider.plot.domain).toEqual([0, 200]);
+    expect(provider._imagesCache.size).toBe(0);
+  });
+
+  it("keeps a configured domain and still reports native band statistics", function () {
+    const provider = makeProvider([2, 80]);
+    const style = finalizeCogProviders([provider], {
+      colorScale: "ylgnbu",
+      domain: [0, 500],
+      displayRange: [0, 50000],
+      applyDisplayRange: true
+    });
+
+    expect(style?.domain).toEqual([0, 500]);
+    expect(style?.nativeDomain).toEqual([2, 80]);
+    expect(provider.plot.domain).toEqual([0, 500]);
+    expect(style?.displayRange).toEqual([0, 50000]);
   });
 
   it("does not apply malformed configured ranges", function () {

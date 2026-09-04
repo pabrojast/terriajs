@@ -133,6 +133,7 @@ export default class Legend extends Component<{
               onLoad={(evt) => this.onImageLoad.bind(this, evt, legend)()}
             />
           </a>
+          {this.renderGradientCaptions(legend, proxiedUrl)}
         </li>
       );
     }
@@ -148,6 +149,26 @@ export default class Legend extends Component<{
           Open legend in a separate tab
         </a>
       </li>
+    );
+  }
+
+  renderGradientCaptions(legend: Model<LegendTraits>, proxiedUrl: string) {
+    const items = legend.items;
+    if (
+      !proxiedUrl.startsWith("data:image/svg+xml") ||
+      !items ||
+      items.length < 2
+    ) {
+      return null;
+    }
+    const minTitle = items[items.length - 1].title;
+    const maxTitle = items[0].title;
+    if (!isDefined(minTitle) && !isDefined(maxTitle)) return null;
+    return (
+      <div className={Styles.legendGradientCaption}>
+        <span>{minTitle}</span>
+        <span>{maxTitle}</span>
+      </div>
     );
   }
 

@@ -54,7 +54,8 @@ import { applyCogNoDataColor } from "./CogRasterPostProcessor";
 import {
   buildCogRenderOptions,
   CogEffectiveStyle,
-  finalizeCogProviders
+  finalizeCogProviders,
+  getCogStyleReactionSnapshot
 } from "./CogRenderStyle";
 import { CogTimeSeriesLegendStratum } from "./CogLegendStratum";
 
@@ -326,6 +327,10 @@ export default class CogTimeSeriesCatalogItem extends DiscretelyTimeVaryingMixin
   @observable.ref
   private _effectiveCogStyle: CogEffectiveStyle | undefined;
 
+  /** New rectangle identity forces Cesium to drop cached tiles after a restyle. */
+  @observable.ref
+  private _styleClipRectangles: (Rectangle | undefined)[] = [];
+
   @computed
   get effectiveCogStyle(): CogEffectiveStyle | undefined {
     return this._effectiveCogStyle;
@@ -386,26 +391,13 @@ export default class CogTimeSeriesCatalogItem extends DiscretelyTimeVaryingMixin
       }
     });
 
-    // Watch for render option changes and reload
+    // Restyle the current providers in place. Rebuilding every COG is only
+    // needed when there is nothing loaded yet (or after a full destroy).
     reaction(
-      () => ({
-        colorScaleMode: this.renderOptions?.single?.colorScaleMode,
-        colorScale: this.renderOptions?.single?.colorScale,
-        colors: this.renderOptions?.single?.colors,
-        type: this.renderOptions?.single?.type,
-        domain: this.renderOptions?.single?.domain,
-        displayRange: this.renderOptions?.single?.displayRange,
-        applyDisplayRange: this.renderOptions?.single?.applyDisplayRange,
-        clampLow: this.renderOptions?.single?.clampLow,
-        clampHigh: this.renderOptions?.single?.clampHigh,
-        band: this.renderOptions?.single?.band,
-        reverseColorScale: this.renderOptions?.single?.reverseColorScale,
-        noDataColor: this.renderOptions?.single?.noDataColor,
-        nodata: this.renderOptions?.nodata
-      }),
+      () => getCogStyleReactionSnapshot(this.renderOptions),
       () => {
+        if (this._applyLiveCogStyle()) return;
         if (this._currentProviders.length > 0 && !this.isLoadingMapItems) {
-          // Clear cache because render options changed
           this._destroyAllProviders();
           this.loadMapItems(true);
         }
@@ -479,19 +471,65 @@ export default class CogTimeSeriesCatalogItem extends DiscretelyTimeVaryingMixin
 
     return this._currentProviders
       .filter((provider) => provider.rectangle !== undefined)
-      .map((provider) => ({
+      .map((provider, index) => ({
         show: this.show,
         alpha: this.opacity,
         imageryProvider: provider as any,
-        clippingRectangle: provider.rectangle
+        clippingRectangle:
+          this._styleClipRectangles[index] ?? provider.rectangle
       }));
+  }
+
+  @action
+  private _applyLiveCogStyle(): boolean {
+    const providers = this._currentProviders.filter(
+      (provider) => provider.plot
+    );
+    if (providers.length === 0) return false;
+
+    const effectiveStyle = finalizeCogProviders(
+      providers,
+      this.renderOptions?.single
+    );
+    for (const provider of providers) {
+      applyCogNoDataColor(
+        provider,
+        this.renderOptions?.single?.band,
+        this.renderOptions?.single?.noDataColor
+      );
+    }
+
+    this._effectiveCogStyle = effectiveStyle;
+    this._styleClipRectangles = this._currentProviders
+      .filter((provider) => provider.rectangle !== undefined)
+      .map((provider) => Rectangle.clone(provider.rectangle!));
+
+    const currentTime = this.currentDiscreteTimeTag;
+    const current = this._currentProviders;
+    for (const cached of this._providerCache) {
+      if (cached.providers.some((provider) => current.includes(provider))) {
+        cached.effectiveStyle = effectiveStyle;
+      } else {
+        cached.providers.forEach((provider) => provider.destroy());
+      }
+    }
+    this._providerCache = currentTime
+      ? [
+          {
+            timeKey: currentTime,
+            providers: current,
+            effectiveStyle,
+            lastAccess: Date.now()
+          }
+        ]
+      : [];
+    return true;
   }
 
   /**
    * Expose the same "Edit Style" workflow used by single COGs. Style changes
    * are written to `renderOptions`, which a reaction in the constructor
-   * watches — destroying the cache and rebuilding every per-time-step
-   * provider, so colors/domain/etc. apply uniformly across the entire series.
+   * watches and restyles the current providers in place.
    */
   @override
   get viewingControls(): ViewingControl[] {
@@ -1105,6 +1143,7 @@ export default class CogTimeSeriesCatalogItem extends DiscretelyTimeVaryingMixin
       runInAction(() => {
         this._currentProviders = [];
         this._effectiveCogStyle = undefined;
+        this._styleClipRectangles = [];
       });
       return;
     }
@@ -1114,6 +1153,7 @@ export default class CogTimeSeriesCatalogItem extends DiscretelyTimeVaryingMixin
       runInAction(() => {
         this._currentProviders = [];
         this._effectiveCogStyle = undefined;
+        this._styleClipRectangles = [];
       });
       return;
     }
@@ -1125,6 +1165,7 @@ export default class CogTimeSeriesCatalogItem extends DiscretelyTimeVaryingMixin
       runInAction(() => {
         this._currentProviders = cached.providers;
         this._effectiveCogStyle = cached.effectiveStyle;
+        this._styleClipRectangles = [];
       });
       this._updateRectangleFromProviders(cached.providers);
       return;
@@ -1158,6 +1199,7 @@ export default class CogTimeSeriesCatalogItem extends DiscretelyTimeVaryingMixin
       runInAction(() => {
         this._currentProviders = validProviders;
         this._effectiveCogStyle = effectiveStyle;
+        this._styleClipRectangles = [];
       });
 
       if (validProviders.length > 0) {
@@ -1294,6 +1336,7 @@ export default class CogTimeSeriesCatalogItem extends DiscretelyTimeVaryingMixin
     runInAction(() => {
       this._currentProviders = [];
       this._effectiveCogStyle = undefined;
+      this._styleClipRectangles = [];
     });
   }
 }

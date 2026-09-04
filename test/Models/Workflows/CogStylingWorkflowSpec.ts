@@ -1,5 +1,6 @@
 import CogStylingWorkflow from "../../../lib/Models/Workflows/CogStylingWorkflow";
 import CogCatalogItem from "../../../lib/Models/Catalog/CatalogItems/CogCatalogItem";
+import CogTimeSeriesCatalogItem from "../../../lib/Models/Catalog/CatalogItems/CogTimeSeriesCatalogItem";
 import CommonStrata from "../../../lib/Models/Definition/CommonStrata";
 import updateModelFromJson from "../../../lib/Models/Definition/updateModelFromJson";
 import Terria from "../../../lib/Models/Terria";
@@ -130,5 +131,31 @@ describe("CogStylingWorkflow color stops", () => {
 
     expect((workflow as any).clampLowSelectableDim.selectedId).toBe("true");
     expect((workflow as any).clampHighSelectableDim.selectedId).toBe("true");
+  });
+
+  it("writes native timestep statistics into domain for time series auto-fit", () => {
+    const item = new CogTimeSeriesCatalogItem("test", new Terria());
+    updateModelFromJson(item, CommonStrata.definition, {
+      renderOptions: {
+        single: { colorScale: "ylgnbu", domain: [0, 500] }
+      }
+    });
+    (item as any)._effectiveCogStyle = {
+      domain: [0, 500],
+      nativeDomain: [2, 80]
+    };
+    const workflow = new CogStylingWorkflow(item);
+    const button = (workflow as any).autoFitTimestepButton;
+
+    expect(button).toBeDefined();
+    button.setDimensionValue(CommonStrata.user);
+
+    expect(item.renderOptions.single?.domain as any).toEqual([2, 80]);
+  });
+
+  it("does not show timestep auto-fit for a single COG", () => {
+    const item = new CogCatalogItem("test", new Terria());
+    const workflow = new CogStylingWorkflow(item);
+    expect((workflow as any).autoFitTimestepButton).toBeUndefined();
   });
 });

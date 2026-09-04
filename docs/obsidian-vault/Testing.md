@@ -41,10 +41,10 @@ yarn gulp test-firefox
 
 ### Cobertura de styling COG
 
-- `test/Models/Catalog/CatalogItems/CogRenderStyleSpec.ts` cubre resolucion de dominio y paleta, inversion, clamps, rangos inclusivos y validacion.
-- `test/Models/Catalog/CatalogItems/CogLegendStratumSpec.ts` cubre leyendas continuas, discretas, omision multibanda y precedencia de leyendas explicitas.
-- `CogCatalogItemSpec.ts` y `CogTimeSeriesCatalogItemSpec.ts` cubren la integracion tras la carga, incluida la leyenda automatica y el dominio comun de mosaicos temporales.
-- `CogStylingWorkflowSpec.ts` cubre la edicion repetida de estilos, la seleccion explicita de paleta y los defaults visibles del workflow.
+- `test/Models/Catalog/CatalogItems/CogRenderStyleSpec.ts` cubre resolucion de dominio y paleta, inversion, clamps, rangos inclusivos, validacion y `nativeDomain` cuando hay un `domain` configurado.
+- `test/Models/Catalog/CatalogItems/CogLegendStratumSpec.ts` cubre leyendas continuas (ticks min/max del domain), discretas, override de bins y omision multibanda.
+- `CogCatalogItemSpec.ts` y `CogTimeSeriesCatalogItemSpec.ts` cubren la integracion tras la carga, incluida la leyenda automatica, un dominio de share fijo entre fechas y la precedencia de leyendas explicitas.
+- `CogStylingWorkflowSpec.ts` cubre la edicion repetida de estilos, la seleccion explicita de paleta, los defaults visibles del workflow y el auto-fit de series.
 
 ## Ejecucion manual en navegador
 
