@@ -1082,6 +1082,40 @@
     "mapUserGuide": "Guía del usuario del mapa",
     "promptMessage": "Encuentre el Tour, los vídeos explicativos y otros contenidos de ayuda aquí"
   },
+  "ckanSession": {
+    "btnLogin": "Iniciar sesión",
+    "btnLoginTitle": "Inicie sesión en el portal de datos para ver los conjuntos de datos privados a los que tiene acceso (se abre en una pestaña nueva)",
+    "checking": "Comprobando sesión…",
+    "pendingLogin": "Termine de iniciar sesión…",
+    "pendingLoginTitle": "Complete el inicio de sesión en la pestaña nueva y vuelva aquí; el mapa detecta la sesión automáticamente. Haga clic para comprobar ahora.",
+    "pendingLoginPrompt": "Inicie sesión en la pestaña nueva y vuelva aquí. Su mapa se conserva tal como está.",
+    "checkNow": "Comprobar ahora",
+    "btnTitleAuthenticated": "Sesión iniciada como {{user}}",
+    "signedInAs": "Sesión iniciada como",
+    "sysadmin": "Administrador del portal",
+    "privateCatalogName": "Datos privados ({{user}})",
+    "organisations": "Organizaciones",
+    "groupDescription": "Conjuntos de datos no públicos que **{{user}}** está autorizado a usar en el portal de datos. Esta lista es personal: otros visitantes no la ven y se actualiza cuando cambian sus permisos. Si está vacía, todavía no se ha compartido con usted ningún conjunto de datos restringido.",
+    "openPrivateCatalog": "Abrir mis datos privados",
+    "refresh": "Actualizar sesión",
+    "profile": "Perfil en el portal",
+    "logout": "Cerrar sesión",
+    "newTabHint": "Perfil y cerrar sesión se abren en una pestaña nueva; el mapa se conserva.",
+    "errorShort": "Sesión no disponible",
+    "error": "El portal de datos no respondió a la comprobación de sesión. Haga clic para reintentar.",
+    "errors": {
+      "title": "Datos privados",
+      "sessionExpired": "Su sesión en el portal ha expirado. Use **Iniciar sesión** en el menú superior y vuelva a esta pestaña; el mapa se conservará.",
+      "forbidden": "Su cuenta no tiene permiso para acceder a este conjunto de datos privado."
+    },
+    "notifications": {
+      "loggedOutTitle": "Sesión cerrada",
+      "loggedOutMessage": "Ya no tiene sesión en el portal de datos. Se quitaron {{count}} capa(s) privada(s) del mapa.",
+      "shareRequiresLoginTitle": "Este mapa contiene datos privados",
+      "shareRequiresLoginMessage": "Algunas capas de este mapa compartido provienen de conjuntos de datos privados. Inicie sesión en el portal para cargarlas; el resto del mapa funciona sin sesión.",
+      "dismiss": "Continuar sin iniciar sesión"
+    }
+  },
   "welcomeMessage": {
     "welcomeMessage": "¿Está interesado en el descubrimiento y la exploración de datos? <br/>Entre directamente y comience o consulte las siguientes opciones de la guía de ayuda.",
     "exploreDataBtnText": "Explorar los datos del mapa",

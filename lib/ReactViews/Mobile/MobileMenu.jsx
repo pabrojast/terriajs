@@ -6,6 +6,7 @@ import PropTypes from "prop-types";
 
 import classNames from "classnames";
 import MobileMenuItem from "./MobileMenuItem";
+import CkanSessionPanel from "../Map/Panels/CkanSessionPanel/CkanSessionPanel";
 import SettingPanel from "../Map/Panels/SettingPanel";
 import SharePanel from "../Map/Panels/SharePanel/SharePanel";
 import { withTranslation } from "react-i18next";
@@ -133,6 +134,11 @@ class MobileMenu extends Component {
               viewState={this.props.viewState}
             />
           </div>
+          {this.props.terria.ckanSession && (
+            <div onClick={() => this.hideMenu()}>
+              <CkanSessionPanel smallScreen />
+            </div>
+          )}
           {this.props.menuItems.map((menuItem) => (
             <div
               onClick={() => this.hideMenu()}

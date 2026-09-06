@@ -37,6 +37,43 @@ Estas viven en JSON/configuracion del consumidor y conviene no confundirlas con 
 - `configParameters` en `lib/Models/Terria.ts`
 - `clientConfig`, `serverConfig` e `initConfig` en TerriaMap/Helm
 - `allowProxyFor`, `corsProxyBaseUrl`, `serverConfigUrl`, `shareUrl`
+- `ckanSession` (detalle abajo)
+
+### `configParameters.ckanSession`
+
+Integracion de sesion CKAN same-origin (`CkanSessionConfig` en `lib/Models/CkanSession.ts`). Default `undefined`: sin la clave no se crea `terria.ckanSession`, no aparece el boton y no se hace ninguna peticion. El flujo completo esta en [[Flujos Importantes]] (seccion 10).
+
+| Clave               | Default                                               | Uso                                                                                                                        |
+| ------------------- | ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `sessionUrl`        | `/api/terria/user/session`                            | whoami; se le agrega `_=<timestamp>` anti-cache                                                                            |
+| `privateCatalogUrl` | `/api/terria/user/private-catalog`                    | indice del catalogo privado cuando el whoami no trae `private_catalog_url`; se le agrega `catalog_id=<nonce>`              |
+| `loginUrl`          | `/user/login`                                         | pagina de login; se le agrega `came_from=<pathname>`; el `login_url` del whoami tiene prioridad                            |
+| `logoutUrl`         | `/user/_logout`                                       | logout; se le agrega `came_from`; el `logout_url` del whoami tiene prioridad                                               |
+| `profileUrl`        | sin valor                                             | plantilla opcional con `{{user}}`; el `profile_url` del whoami tiene prioridad                                             |
+| `catalogGroupName`  | sin valor (usa i18n `ckanSession.privateCatalogName`) | plantilla con `{{user}}` para el nombre del grupo privado                                                                  |
+| `catalogGroupId`    | `ckan-private-catalog`                                | id del grupo raiz; la referencia interna es `<catalogGroupId>/catalog`                                                     |
+| `checkOnFocus`      | `true`                                                | re-check de sesion al recuperar foco o visibilidad                                                                         |
+| `focusThrottleMs`   | `5000`                                                | intervalo minimo entre re-checks por foco; mientras hay login/logout pendiente se usa 1000 ms (constante, no configurable) |
+
+Reglas de validacion (`resolveConfig`):
+
+- Solo rutas relativas: empiezan por `/` y no por `//`, sin `\`, espacios ni caracteres de control. Asi el XHR es same-origin, lleva la cookie de CKAN y nunca pasa por el proxy de terriajs-server. Un valor no seguro en `sessionUrl`, `privateCatalogUrl`, `loginUrl` o `logoutUrl` se ignora con `console.warn` y se usa el default; un `profileUrl` no seguro se descarta.
+- `checkOnFocus` debe ser booleano y `focusThrottleMs` un numero finito `>= 0`; strings vacios en `catalogGroupName`/`catalogGroupId` se ignoran.
+- La clave existe como `ckanSession: undefined` en los defaults de `configParameters` de `Terria.ts` porque `updateParameters` solo copia claves presentes en los defaults.
+
+Ejemplo (dentro de `parameters` del `config.json` de TerriaMap):
+
+```json
+"ckanSession": {
+  "sessionUrl": "/api/terria/user/session",
+  "privateCatalogUrl": "/api/terria/user/private-catalog",
+  "loginUrl": "/user/login",
+  "logoutUrl": "/user/_logout",
+  "catalogGroupId": "ckan-private-catalog",
+  "checkOnFocus": true,
+  "focusThrottleMs": 5000
+}
+```
 
 ## Nota
 

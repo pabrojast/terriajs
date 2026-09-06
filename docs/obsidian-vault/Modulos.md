@@ -4,20 +4,23 @@ Ver tambien: [[Arquitectura]], [[Flujos Importantes]], [[Estructura del Repo]]
 
 ## Modulos y carpetas clave
 
-| Modulo/carpeta                     | Responsabilidad                                                     | Archivos de entrada utiles                                          |
-| ---------------------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------- |
-| `lib/Models/Terria.ts`             | estado raiz, start, config, init sources, sharing, viewer principal | `Terria.ts`                                                         |
-| `lib/Models/Catalog/`              | items, groups, references, functions y fabrica de catalog members   | `registerCatalogMembers.ts`, `CatalogMemberFactory.ts`              |
-| `lib/ModelMixins/`                 | capacidades reusables para modelos                                  | `CatalogMemberMixin`, `MappableMixin`, `ReferenceMixin`, `UrlMixin` |
-| `lib/Traits/`                      | definicion de propiedades configurables y strata                    | `TraitsClasses/`, `mixTraits.ts`                                    |
-| `lib/Map/`                         | integracion con Cesium/Leaflet y providers                          | `ImageryProvider/`, `Leaflet/`, `Cesium/`                           |
-| `lib/ReactViewModels/ViewState.ts` | estado de UI                                                        | `ViewState.ts`                                                      |
-| `lib/ViewModels/TerriaViewer.ts`   | ciclo de vida del viewer y carga 2D/3D                              | `TerriaViewer.ts`                                                   |
-| `lib/ReactViews/`                  | UI React estandar                                                   | `StandardUserInterface/`                                            |
-| `lib/Models/SearchProviders/`      | search providers y catalog index                                    | `registerSearchProviders.ts`, `CatalogIndex.ts`                     |
-| `lib/Models/BaseMaps/`             | basemaps y modelo asociado                                          | `BaseMapsModel.ts`                                                  |
-| `lib/Models/Workflows/`            | workflows de dimensiones y paneles                                  | `SelectableDimensionWorkflow`                                       |
-| `buildprocess/`                    | build/test/docs/CI utilities                                        | `configureWebpack.js`, `createKarmaBaseConfig.js`                   |
+| Modulo/carpeta                                                        | Responsabilidad                                                                                           | Archivos de entrada utiles                                                     |
+| --------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| `lib/Models/Terria.ts`                                                | estado raiz, start, config, init sources, sharing, viewer principal                                       | `Terria.ts`                                                                    |
+| `lib/Models/Catalog/`                                                 | items, groups, references, functions y fabrica de catalog members                                         | `registerCatalogMembers.ts`, `CatalogMemberFactory.ts`                         |
+| `lib/ModelMixins/`                                                    | capacidades reusables para modelos                                                                        | `CatalogMemberMixin`, `MappableMixin`, `ReferenceMixin`, `UrlMixin`            |
+| `lib/Traits/`                                                         | definicion de propiedades configurables y strata                                                          | `TraitsClasses/`, `mixTraits.ts`                                               |
+| `lib/Map/`                                                            | integracion con Cesium/Leaflet y providers                                                                | `ImageryProvider/`, `Leaflet/`, `Cesium/`                                      |
+| `lib/ReactViewModels/ViewState.ts`                                    | estado de UI                                                                                              | `ViewState.ts`                                                                 |
+| `lib/ViewModels/TerriaViewer.ts`                                      | ciclo de vida del viewer y carga 2D/3D                                                                    | `TerriaViewer.ts`                                                              |
+| `lib/ReactViews/`                                                     | UI React estandar                                                                                         | `StandardUserInterface/`                                                       |
+| `lib/Models/SearchProviders/`                                         | search providers y catalog index                                                                          | `registerSearchProviders.ts`, `CatalogIndex.ts`                                |
+| `lib/Models/BaseMaps/`                                                | basemaps y modelo asociado                                                                                | `BaseMapsModel.ts`                                                             |
+| `lib/Models/Workflows/`                                               | workflows de dimensiones y paneles                                                                        | `SelectableDimensionWorkflow`                                                  |
+| `lib/Models/CkanSession.ts`                                           | sesion CKAN same-origin: whoami sin proxy, estados del boton, login/logout, alta y baja del grupo privado | `CkanSession.ts`                                                               |
+| `lib/Models/Catalog/CatalogReferences/CkanPrivateCatalogReference.ts` | `terria-reference` del catalogo privado CKAN; mapea 401/403 a error traducido y re-chequea la sesion      | `CkanPrivateCatalogReference.ts`, `TerriaReference.ts` (hook `loadInitJson()`) |
+| `lib/ReactViews/Map/Panels/CkanSessionPanel/`                         | boton de sesion CKAN en la barra de menu y en el menu movil                                               | `CkanSessionPanel.tsx`                                                         |
+| `buildprocess/`                                                       | build/test/docs/CI utilities                                                                              | `configureWebpack.js`, `createKarmaBaseConfig.js`                              |
 
 ## Subdominios del catalogo observados
 
@@ -25,7 +28,7 @@ Dentro de `lib/Models/Catalog/` hay conectores y familias de integracion para:
 
 - OWS: WMS, WMTS, WFS, WPS, CSW, SOS
 - Esri/ArcGIS
-- CKAN
+- CKAN (incluido el catalogo privado por sesion de portal; ver [[Flujos Importantes]], seccion 10)
 - STAC
 - SDMX
 - GTFS

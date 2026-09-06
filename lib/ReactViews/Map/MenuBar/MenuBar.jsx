@@ -5,6 +5,7 @@ import PropTypes from "prop-types";
 import styled from "styled-components";
 import withControlledVisibility from "../../HOCs/withControlledVisibility";
 import { useViewState } from "../../Context";
+import CkanSessionPanel from "../Panels/CkanSessionPanel/CkanSessionPanel";
 import LangPanel from "../Panels/LangPanel/LangPanel";
 import SettingPanel from "../Panels/SettingPanel";
 import SharePanel from "../Panels/SharePanel/SharePanel";
@@ -88,6 +89,15 @@ const MenuBar = observer((props) => {
                 terria={terria}
                 viewState={viewState}
                 theme={props.theme}
+              />
+            </li>
+          </ul>
+        )}
+        {terria.ckanSession && (
+          <ul className={classNames(Styles.menu)}>
+            <li className={Styles.menuItem}>
+              <CkanSessionPanel
+                smallScreen={viewState.useSmallScreenInterface}
               />
             </li>
           </ul>

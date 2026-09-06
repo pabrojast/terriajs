@@ -88,6 +88,7 @@ import MagdaReference, {
   MagdaReferenceHeaders
 } from "./Catalog/CatalogReferences/MagdaReference";
 import SplitItemReference from "./Catalog/CatalogReferences/SplitItemReference";
+import CkanSession, { CkanSessionConfig } from "./CkanSession";
 import CommonStrata from "./Definition/CommonStrata";
 import { BaseModel } from "./Definition/Model";
 import ModelPropertiesFromTraits from "./Definition/ModelPropertiesFromTraits";
@@ -378,6 +379,12 @@ export interface ConfigParameters {
    * Keep catalog open when adding / removing items
    */
   keepCatalogOpen: boolean;
+
+  /**
+   * Same-origin CKAN session integration. Inert when undefined. All URLs must
+   * be relative paths ("/api/terria/..."), never proxied.
+   */
+  ckanSession?: CkanSessionConfig;
 }
 
 interface StartOptions {
@@ -482,6 +489,10 @@ export default class Terria {
 
   catalogIndex: CatalogIndex | undefined;
 
+  /** CKAN portal session tracker. Created in `start()` when `configParameters.ckanSession` is set. */
+  @observable.ref
+  ckanSession: CkanSession | undefined = undefined;
+
   readonly elements = observable.map<string, IElementConfig>();
 
   @observable
@@ -558,6 +569,7 @@ export default class Terria {
     keepCatalogOpen: false,
     experimentalFeatures: undefined,
     magdaReferenceHeaders: undefined,
+    ckanSession: undefined,
     locationSearchBoundingBox: undefined,
     googleAnalyticsKey: undefined,
     errorService: undefined,
@@ -1099,6 +1111,19 @@ export default class Terria {
       );
     }
 
+    // CKAN session (same-origin cookie). The whoami runs in parallel with the
+    // init sources; the private catalog group is only added after
+    // `restoreAppState` (see `setReady()` below).
+    if (this.configParameters.ckanSession && !this.ckanSession) {
+      runInAction(() => {
+        this.ckanSession = new CkanSession(
+          this,
+          this.configParameters.ckanSession!
+        );
+      });
+      void this.ckanSession!.refresh();
+    }
+
     this.baseMapsModel
       .initializeDefaultBaseMaps()
       .catchError((error) =>
@@ -1124,7 +1149,13 @@ export default class Terria {
       }
     }
 
-    await this.restoreAppState(options);
+    try {
+      await this.restoreAppState(options);
+    } finally {
+      // The private catalog group is added after the init members (last tab)
+      // and after `models`/`#start=` have been processed.
+      this.ckanSession?.setReady();
+    }
   }
 
   private async restoreAppState(options: StartOptions) {
@@ -1267,6 +1298,7 @@ export default class Terria {
 
   dispose(): void {
     this._initSourceLoader.dispose();
+    this.ckanSession?.dispose();
   }
 
   async updateFromStartData(

@@ -310,6 +310,40 @@
     "takeTour": "Take the tour",
     "mapUserGuide": "Map user guide"
   },
+  "ckanSession": {
+    "btnLogin": "Log in",
+    "btnLoginTitle": "Log in to the data portal to see the private datasets you have access to (opens in a new tab)",
+    "checking": "Checking session…",
+    "pendingLogin": "Finish logging in…",
+    "pendingLoginTitle": "Complete the login in the new tab and come back; the map detects your session automatically. Click to check now.",
+    "pendingLoginPrompt": "Log in using the new tab, then come back here. Your map stays exactly as it is.",
+    "checkNow": "Check now",
+    "btnTitleAuthenticated": "Signed in as {{user}}",
+    "signedInAs": "Signed in as",
+    "sysadmin": "Portal administrator",
+    "privateCatalogName": "Private datasets ({{user}})",
+    "organisations": "Organisations",
+    "groupDescription": "Datasets that are not public but that **{{user}}** is authorised to use in the data portal. This list is personal: it is not visible to other visitors and it updates when your access changes. If it is empty, no restricted dataset has been shared with you yet.",
+    "openPrivateCatalog": "Open my private datasets",
+    "refresh": "Refresh session",
+    "profile": "Portal profile",
+    "logout": "Log out",
+    "newTabHint": "Profile and log out open in a new tab; your map is preserved.",
+    "errorShort": "Session unavailable",
+    "error": "The data portal did not answer the session check. Click to try again.",
+    "errors": {
+      "title": "Private datasets",
+      "sessionExpired": "Your portal session has expired. Use **Log in** in the top menu and come back to this tab; your map will be kept.",
+      "forbidden": "Your account is not allowed to access this private dataset."
+    },
+    "notifications": {
+      "loggedOutTitle": "Logged out",
+      "loggedOutMessage": "You are no longer logged in to the data portal. {{count}} private layer(s) were removed from the map.",
+      "shareRequiresLoginTitle": "This map contains private datasets",
+      "shareRequiresLoginMessage": "Some layers in this shared map come from private datasets. Log in to the data portal to load them; the rest of the map works without logging in.",
+      "dismiss": "Continue without logging in"
+    }
+  },
   "sui": {
     "notifications": {
       "title": "This map contains a story",

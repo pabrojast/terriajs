@@ -473,6 +473,66 @@ describe("Terria", function () {
       expect(terria.mainViewer.viewerMode).toBe(ViewerMode.Leaflet);
       expect(beforeRestoreAppState).toHaveBeenCalledBefore(restoreAppState);
     });
+
+    describe("ckanSession", function () {
+      const SESSION_RE = /\/api\/terria\/user\/session/;
+
+      afterEach(function () {
+        terria.dispose();
+      });
+
+      it("is not created and never calls the session endpoint without configParameters.ckanSession", async function () {
+        jasmine.Ajax.stubRequest("config.json").andReturn({
+          responseText: JSON.stringify({ parameters: {} })
+        });
+        terria = new Terria({ appBaseHref: "/", baseUrl: "./" });
+
+        await terria.start({ configUrl: "config.json", i18nOptions });
+        // Let the whoami promise chain settle.
+        await new Promise((resolve) => setTimeout(resolve, 0));
+
+        expect(terria.configParameters.ckanSession).toBeUndefined();
+        expect(terria.ckanSession).toBeUndefined();
+        expect(jasmine.Ajax.requests.filter(SESSION_RE).length).toBe(0);
+      });
+
+      it("is created by start(), keeps configParameters.ckanSession and issues one whoami when configured", async function () {
+        const ckanSession = {
+          sessionUrl: "/api/terria/user/session",
+          privateCatalogUrl: "/api/terria/user/private-catalog",
+          loginUrl: "/user/login",
+          logoutUrl: "/user/_logout",
+          catalogGroupId: "ckan-private-catalog",
+          checkOnFocus: false,
+          focusThrottleMs: 5000
+        };
+        jasmine.Ajax.stubRequest("config.json").andReturn({
+          responseText: JSON.stringify({ parameters: { ckanSession } })
+        });
+        jasmine.Ajax.stubRequest(SESSION_RE).andReturn({
+          responseText: JSON.stringify({ authenticated: false })
+        });
+        terria = new Terria({ appBaseHref: "/", baseUrl: "./" });
+
+        await terria.start({ configUrl: "config.json", i18nOptions });
+        // Let the whoami promise chain settle.
+        await new Promise((resolve) => setTimeout(resolve, 0));
+
+        expect(terria.configParameters.ckanSession).toEqual(ckanSession);
+        expect(terria.ckanSession).toBeDefined();
+        expect(terria.ckanSession!.groupId).toBe("ckan-private-catalog");
+        expect(terria.ckanSession!.referenceId).toBe(
+          "ckan-private-catalog/catalog"
+        );
+        const requests = jasmine.Ajax.requests.filter(SESSION_RE);
+        expect(requests.length).toBe(1);
+        expect(requests[0].url).not.toContain("proxy/");
+        expect(terria.ckanSession!.status).toBe("anonymous");
+        expect(
+          terria.catalog.group.members.some((m) => m === "ckan-private-catalog")
+        ).toBe(false);
+      });
+    });
   });
 
   describe("updateApplicationUrl", function () {

@@ -31,6 +31,7 @@ import StubCatalogItem from "./CatalogItems/StubCatalogItem";
 import UrlTemplateImageryCatalogItem from "./CatalogItems/UrlTemplateImageryCatalogItem";
 import CatalogMemberFactory from "./CatalogMemberFactory";
 import CatalogIndexReference from "./CatalogReferences/CatalogIndexReference";
+import CkanPrivateCatalogReference from "./CatalogReferences/CkanPrivateCatalogReference";
 import MagdaReference from "./CatalogReferences/MagdaReference";
 import SplitItemReference from "./CatalogReferences/SplitItemReference";
 import TerriaReference from "./CatalogReferences/TerriaReference";
@@ -162,6 +163,10 @@ export default function registerCatalogMembers() {
   );
   CatalogMemberFactory.register(MagdaReference.type, MagdaReference);
   CatalogMemberFactory.register(TerriaReference.type, TerriaReference);
+  CatalogMemberFactory.register(
+    CkanPrivateCatalogReference.type,
+    CkanPrivateCatalogReference
+  );
   CatalogMemberFactory.register(KmlCatalogItem.type, KmlCatalogItem);
   CatalogMemberFactory.register(
     MapboxVectorTileCatalogItem.type,
