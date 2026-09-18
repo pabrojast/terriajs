@@ -212,3 +212,7 @@ Limites conocidos:
 ## Nota
 
 - **Inferencia:** el deploy continuo de aplicacion no empaqueta TerriaJS solo; clona TerriaMap, injerta la version/branch actual de TerriaJS y despliega esa app resultante.
+
+## Escenas de Data Stories y búsqueda explícita
+
+El bridge applyScene confirma received al recibir la solicitud y complete al terminar. createSceneQueue ejecuta una aplicación a la vez, mantiene solo la última pendiente y confirma las descartadas con superseded. Las búsquedas de lugares se envían con Enter/botón; SearchBox admite searchOnChange=false sin alterar el autocompletado del catálogo. El proveedor Nominatim muestra atribución OpenStreetMap y puede apuntar al proxy CKAN.

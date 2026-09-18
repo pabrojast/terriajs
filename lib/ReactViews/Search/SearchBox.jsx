@@ -34,6 +34,7 @@ export const SearchBox = createReactClass({
   propTypes: {
     /** Called when the search changes, after a debounce of {@link DEBOUNCE_INTERVAL} ms */
     onSearchTextChanged: PropTypes.func.isRequired,
+    searchOnChange: PropTypes.bool,
     /** Called when an actual search is triggered, either by clicking the button or pressing Enter */
     onDoSearch: PropTypes.func.isRequired,
     /** The search text to display in the search box */
@@ -94,6 +95,11 @@ export const SearchBox = createReactClass({
 
   handleChange(event) {
     const value = event.target.value;
+    if (this.props.searchOnChange === false) {
+      this.searchWithDebounce.cancel();
+      this.props.onSearchTextChanged(value);
+      return;
+    }
     // immediately bypass debounce if we started with no value
     if (this.props.searchText.length === 0) {
       this.props.onSearchTextChanged(value);

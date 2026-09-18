@@ -92,3 +92,7 @@ afterEach(function () {
 
 - El repo no documenta una matriz oficial de browsers de desarrollo local mas alla de los launchers instalados y el uso de Firefox en CI.
 - **Pendiente por confirmar:** si existe un flujo oficial para tests headless en Chrome dentro del repo actual.
+
+## Cola de escenas
+
+`node --test test/ViewModels/sceneQueue.test.mjs` valida la serialización y que un fallo no bloquee la siguiente escena. Ejecutar ESLint en los módulos cambiados y compilar TerriaMap contra estos fuentes antes de desplegar. Verificar en navegador que escribir no consulta el geocoder, Enter/botón sí, y que seleccionar un resultado conserva el mapa base.

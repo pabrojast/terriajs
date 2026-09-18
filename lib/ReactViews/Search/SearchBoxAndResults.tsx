@@ -131,15 +131,62 @@ export const SearchBoxAndResults: FC<SearchBoxAndResultsProps> = observer(
     return (
       <Text textDarker>
         <Box fullWidth>
-          <PresentationBox highlightBottom={shouldShowResults}>
-            <SearchBox
-              ref={locationSearchRef}
-              onSearchTextChanged={changeSearchText}
-              onDoSearch={search}
-              onFocus={startLocationSearch}
-              searchText={searchState.locationSearchText}
-              placeholder={placeholder}
-            />
+          <PresentationBox column highlightBottom={shouldShowResults}>
+            <Box
+              fullWidth
+              css={`
+                gap: 8px;
+                align-items: center;
+              `}
+            >
+              <SearchBox
+                ref={locationSearchRef}
+                onSearchTextChanged={changeSearchText}
+                onDoSearch={search}
+                searchOnChange={false}
+                onFocus={startLocationSearch}
+                searchText={searchState.locationSearchText}
+                placeholder={placeholder}
+              />
+              <button
+                type="button"
+                onClick={search}
+                aria-label="Search locations"
+                style={{
+                  padding: "6px 12px",
+                  cursor: "pointer",
+                  alignSelf: "stretch",
+                  border: 0,
+                  borderRadius: 4,
+                  font: "inherit",
+                  color: theme.textLight,
+                  backgroundColor: theme.colorPrimary
+                }}
+              >
+                Search
+              </button>
+            </Box>
+            {viewState.terria.searchBarModel.locationSearchProvidersArray.some(
+              (provider) => provider.type === "nominatim-search-provider"
+            ) && (
+              <small
+                style={{
+                  display: "block",
+                  padding: "6px 0",
+                  color: theme.textLight
+                }}
+              >
+                Locations:{" "}
+                <a
+                  href="https://www.openstreetmap.org/copyright"
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{ color: "inherit" }}
+                >
+                  © OpenStreetMap contributors
+                </a>
+              </small>
+            )}
           </PresentationBox>
           {/* Results */}
           {shouldShowResults && (
