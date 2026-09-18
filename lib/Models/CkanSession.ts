@@ -228,6 +228,8 @@ export default class CkanSession {
   private _lastCheck = 0;
   private _attached: { name: string; url: string } | undefined = undefined;
   private _shareLoginNotified = false;
+  /** A share link lost private layers while anonymous; re-apply it on login. */
+  private _restoreShareOnLogin = false;
   private readonly _disposers: (() => void)[] = [];
 
   constructor(readonly terria: Terria, config: CkanSessionConfig = {}) {
@@ -418,6 +420,14 @@ export default class CkanSession {
         appendQuery(this.config.sessionUrl, "_=" + Date.now())
       );
       if (seq !== this._seq) return;
+      if (!isJsonObject(json, false)) {
+        // A 200 that is not a whoami object (misconfigured portal, cached
+        // page) says nothing about the session: never treat it as a logout.
+        throw new TerriaError({
+          title: i18next.t("ckanSession.errors.title"),
+          message: i18next.t("ckanSession.errors.invalidResponse")
+        });
+      }
       this.applySessionJson(json);
     } catch (e) {
       if (seq !== this._seq) return;
@@ -499,6 +509,14 @@ export default class CkanSession {
       if (user !== undefined && next.name && next.url) {
         this.upsertPrivateCatalog(user, next.url);
       }
+      if (this._restoreShareOnLogin) {
+        // The private layers of the share link were swept while anonymous.
+        // Same path as a `hashchange`: re-apply the share data of this tab.
+        this._restoreShareOnLogin = false;
+        void this.terria
+          .updateApplicationUrl(window.location.href)
+          .then((result) => result.raiseError(this.terria));
+      }
     } else if (next.status === "anonymous") {
       const wasAuthenticated = prev?.name !== undefined;
       const hasPrivateShareIds =
@@ -519,6 +537,7 @@ export default class CkanSession {
       } else if (hasPrivateShareIds) {
         // A share link with private layers was opened without a session.
         this._shareLoginNotified = true;
+        this._restoreShareOnLogin = true;
         this.terria.notificationState.addNotificationToQueue({
           key: "ckanSession/shareRequiresLogin",
           title: i18next.t("ckanSession.notifications.shareRequiresLoginTitle"),

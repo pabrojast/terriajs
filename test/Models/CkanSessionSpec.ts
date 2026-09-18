@@ -422,9 +422,44 @@ describe("CkanSession", function () {
     expect(rootMembers(terria)).not.toContain(GROUP_ID);
   });
 
+  it("keeps the catalog when a 200 is not a whoami object (403, HTML login page, non-object JSON)", async function () {
+    const raiseErrorToUser = spyOn(terria, "raiseErrorToUser");
+    await login("alice", "nonceA");
+
+    const responses = [
+      { status: 403, contentType: "application/json", responseText: "" },
+      {
+        status: 200,
+        contentType: "text/html",
+        responseText: "<html><body>Login</body></html>"
+      },
+      { status: 200, contentType: "application/json", responseText: "null" },
+      { status: 200, contentType: "application/json", responseText: "[]" },
+      {
+        status: 200,
+        contentType: "application/json",
+        responseText: '"garbage"'
+      }
+    ];
+    for (const response of responses) {
+      jasmine.Ajax.stubRequest(SESSION_RE).andReturn(response);
+      await session.refresh();
+      expect(session.status).toBe("error");
+      expect(session.lastError).toBeDefined();
+      expect(session.user?.name).toBe("alice");
+      expect(rootMembers(terria)).toContain(GROUP_ID);
+    }
+    expect(raiseErrorToUser).not.toHaveBeenCalled();
+
+    // A well-formed answer recovers from the error state.
+    stubSession(sessionJson("alice", "nonceA"));
+    await session.refresh();
+    expect(session.status).toBe("authenticated");
+    expect(session.lastError).toBeUndefined();
+  });
+
   it("tolerates malformed payloads", async function () {
     for (const payload of [
-      "garbage",
       {},
       { authenticated: true, user: null },
       { authenticated: true, user: { name: "" } },
@@ -608,13 +643,26 @@ describe("CkanSession", function () {
     expect(session.pendingLogin).toBe(true);
     terria.notificationState.dismissCurrentNotification();
 
-    // Going through login and logout again must not repeat the share notification.
+    // Logging in re-applies the share link of this tab (once) so the swept
+    // private layers come back.
+    const updateApplicationUrl = spyOn(
+      terria,
+      "updateApplicationUrl"
+    ).and.callThrough();
     await login("alice", "nonceA");
+    expect(updateApplicationUrl.calls.count()).toBe(1);
+    expect(updateApplicationUrl.calls.mostRecent().args[0]).toBe(
+      window.location.href
+    );
+
+    // Going through logout and login again must not repeat either of them.
     terria.addModel(new SimpleCatalogItem(orphanId, terria));
     stubSession(ANONYMOUS_JSON);
     await session.refresh();
     expect(terria.getModelById(BaseModel, orphanId)).toBeUndefined();
     expect(terria.notificationState.currentNotification).toBeUndefined();
+    await login("alice", "nonceB");
+    expect(updateApplicationUrl.calls.count()).toBe(1);
   });
 
   it("dispose removes listeners and stops the reaction", async function () {

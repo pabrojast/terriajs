@@ -1106,7 +1106,8 @@
     "errors": {
       "title": "Datos privados",
       "sessionExpired": "Su sesión en el portal ha expirado. Use **Iniciar sesión** en el menú superior y vuelva a esta pestaña; el mapa se conservará.",
-      "forbidden": "Su cuenta no tiene permiso para acceder a este conjunto de datos privado."
+      "forbidden": "Su cuenta no tiene permiso para acceder a este conjunto de datos privado.",
+      "invalidResponse": "El portal devolvió una respuesta inesperada al comprobar su sesión."
     },
     "notifications": {
       "loggedOutTitle": "Sesión cerrada",

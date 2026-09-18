@@ -7,6 +7,7 @@ import hashEntity from "../../../../Core/hashEntity";
 import isDefined from "../../../../Core/isDefined";
 import TerriaError from "../../../../Core/TerriaError";
 import ReferenceMixin from "../../../../ModelMixins/ReferenceMixin";
+import { CKAN_PRIVATE_CATALOG_ID_PREFIX } from "../../../../Models/CkanSession";
 import CommonStrata from "../../../../Models/Definition/CommonStrata";
 import { BaseModel } from "../../../../Models/Definition/Model";
 import saveStratumToJson from "../../../../Models/Definition/saveStratumToJson";
@@ -232,6 +233,15 @@ function addModelStratum(
           models[id][key] = defJson[key];
         }
       }
+    }
+  }
+
+  if (id.startsWith(CKAN_PRIVATE_CATALOG_ID_PREFIX)) {
+    // The CKAN resource proxy also authorises by session cookie, so the
+    // recipient does not need (and must not receive) the sharer's token.
+    const url = models[id].url;
+    if (typeof url === "string") {
+      models[id].url = new URI(url).removeSearch("token").toString();
     }
   }
 

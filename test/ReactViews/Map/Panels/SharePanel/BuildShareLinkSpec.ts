@@ -64,6 +64,29 @@ describe("BuildShareLink", function () {
     expect(initSources.previewedItemId).toBeUndefined();
   });
 
+  it("strips the CKAN proxy token from private catalog items", async function () {
+    const privateId = "__ckan_private_catalog__/nonce/resource/r1/view/0";
+    const publicId = "public-wms";
+    for (const id of [privateId, publicId]) {
+      const model = new WebMapServiceCatalogItem(id, terria);
+      model.setTrait(
+        CommonStrata.definition,
+        "url",
+        "/api/terria/resource/r1/content/a.tif?token=123.abc&keep=1"
+      );
+      terria.addModel(model);
+      await terria.workbench.add(model);
+    }
+
+    const params = decodeAndParseStartHash(buildShareLink(terria, viewState));
+    const models = flattenInitSources(params.initSources).models as any;
+
+    expect(models[privateId].url).toBe(
+      "/api/terria/resource/r1/content/a.tif?keep=1"
+    );
+    expect(models[publicId].url).toContain("token=123.abc");
+  });
+
   describe("user added model containing local data", function () {
     it("should not be serialized", function (done) {
       const modelId = "Test";

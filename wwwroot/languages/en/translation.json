@@ -334,7 +334,8 @@
     "errors": {
       "title": "Private datasets",
       "sessionExpired": "Your portal session has expired. Use **Log in** in the top menu and come back to this tab; your map will be kept.",
-      "forbidden": "Your account is not allowed to access this private dataset."
+      "forbidden": "Your account is not allowed to access this private dataset.",
+      "invalidResponse": "The portal returned an unexpected response while checking your session."
     },
     "notifications": {
       "loggedOutTitle": "Logged out",

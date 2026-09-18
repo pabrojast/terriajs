@@ -151,7 +151,7 @@ Contexto: cuando Terria y un portal CKAN comparten origen, un XHR same-origin ll
 2. Las URLs son rutas relativas con `/` inicial: `CorsProxy.shouldUseProxy` devuelve `false` cuando el host esta vacio, asi que la peticion nunca pasa por el `/proxy/` de terriajs-server (que descarta `Cookie` y reescribe `Cache-Control`).
 3. `refresh()` nunca rechaza ni llama a `raiseErrorToUser`. Las llamadas concurrentes comparten la peticion en vuelo y cada refresh lleva un numero de secuencia: una respuesta obsoleta (por ejemplo un whoami lento que resuelve tras un logout) se ignora.
 4. Respuesta esperada: `authenticated`, `user { name, display_name, sysadmin }`, `private_catalog_url`, `login_url`, `logout_url`, `profile_url`. Las URLs del servidor solo se aceptan si pasan `isSafeRelativePath` (empiezan por `/` y no por `//`; sin `\`, espacios ni caracteres de control).
-5. `status` pasa de `unknown` a `anonymous`, `authenticated` o `error`. Un 401 del whoami equivale a anonimo. Cualquier otro fallo (500, red) deja `status = "error"` y `lastError`, pero conserva `user` y el grupo privado: un fallo transitorio no desmonta nada.
+5. `status` pasa de `unknown` a `anonymous`, `authenticated` o `error`. Un 401 del whoami equivale a anonimo. Cualquier otro fallo (403, 500, red, una pagina HTML de login o un `200` cuyo JSON no es un objeto) deja `status = "error"` y `lastError`, pero conserva `user` y el grupo privado: un fallo transitorio no desmonta nada.
 
 ### Boton de sesion (`CkanSessionPanel`)
 
@@ -183,7 +183,7 @@ Una reaction observa `{ ready, status, user.name, privateCatalogUrl }` y no hace
 ### Notificaciones
 
 - Logout con capas privadas en el workbench: notificacion "Logged out" (`ckanSession.notifications.loggedOut*`, con el numero de capas retiradas). La `key` es por evento (`ckanSession/loggedOut/<catalogGeneration>`): `NotificationState` ignora para siempre una key ya vista y una key fija solo se mostraria en el primer logout.
-- Share link con capas privadas abierto sin sesion: una sola vez por carga de pagina, si el usuario es anonimo (sin haber estado autenticado antes) y el catalogo contiene ids `__ckan_private_catalog__/...`, notificacion "This map contains private datasets" con "Log in" (`openLogin()`) y "Continue without logging in".
+- Share link con capas privadas abierto sin sesion: una sola vez por carga de pagina, si el usuario es anonimo (sin haber estado autenticado antes) y el catalogo contiene ids `__ckan_private_catalog__/...`, notificacion "This map contains private datasets" con "Log in" (`openLogin()`) y "Continue without logging in". Como el barrido ya elimino esas capas, `CkanSession` recuerda el caso (`_restoreShareOnLogin`) y, al pasar a `authenticated`, vuelve a aplicar una sola vez el share de la pestana con `terria.updateApplicationUrl(window.location.href)`, el mismo camino que un `hashchange`.
 
 ### 401/403 del catalogo privado
 
@@ -194,6 +194,7 @@ Una reaction observa `{ ready, status, user.name, privateCatalogUrl }` y no hace
 ### Alcance real de `shareable: false`
 
 - Quedan fuera del share link el envoltorio, la referencia interna (cuya URL lleva el nonce) y los grupos por organizacion.
+- `BuildShareLink.addModelStratum` quita el parametro `token` de la `url` de todo modelo con id `__ckan_private_catalog__/...`: el proxy de recursos de CKAN tambien autoriza por cookie, asi que el destinatario no necesita (ni debe recibir) el token de quien comparte.
 - Las referencias por dataset y los items privados del workbench si se serializan en el share: el endpoint exige cookie, asi que para un anonimo solo producen la notificacion de login, y el barrido al pasar a anonimo limpia los huerfanos.
 
 ### Invariantes de seguridad
