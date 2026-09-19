@@ -122,6 +122,110 @@ export class AreaCalculationTraits extends ModelTraits {
   unit?: string;
 }
 
+/**
+ * One temporal resolution (e.g. annual, monthly, daily) of the same variable.
+ * Whatever is set here applies while this resolution is the active one.
+ */
+export class CogSeriesResolutionTraits extends ModelTraits {
+  @primitiveTrait({
+    type: "string",
+    name: "Id",
+    description: "Identifier of this resolution, e.g. `monthly`."
+  })
+  id?: string;
+
+  @primitiveTrait({
+    type: "string",
+    name: "Name",
+    description: "Label shown in the resolution switch, e.g. `Monthly`."
+  })
+  name?: string;
+
+  @primitiveTrait({
+    type: "string",
+    name: "URL",
+    description:
+      'URL of the JSON listing this resolution\'s time steps: `{ "times": [{ "time", "cogs", "tag" }] }`.'
+  })
+  url?: string;
+
+  @objectArrayTrait({
+    type: CogTimeEntryTraits,
+    idProperty: "time",
+    name: "Time Entries",
+    description: "Inline time steps, as an alternative to `url`."
+  })
+  timeEntries?: CogTimeEntryTraits[];
+
+  @primitiveTrait({
+    type: "string",
+    name: "Date Format",
+    description:
+      "`dateformat` mask for this resolution's dates, e.g. `UTC:yyyy` or `UTC:mmm yyyy`. Prefix with `UTC:` so period starts are not shifted into the previous period by the viewer's time zone."
+  })
+  dateFormat?: string;
+
+  @primitiveTrait({
+    type: "string",
+    name: "From Continuous",
+    description:
+      "How the current time maps to a time step: `nearest`, `previous` or `next`. Use `previous` for aggregates whose time is the start of the period, so July 2024 maps to the year 2024 and not 2025."
+  })
+  fromContinuous?: string;
+
+  @objectTrait({
+    type: CogRenderOptionsTraits,
+    name: "Render Options",
+    description:
+      "Render options specific to this resolution, typically `single.domain`. Options shared by every resolution belong on the item."
+  })
+  renderOptions?: CogRenderOptionsTraits;
+
+  @primitiveTrait({
+    type: "number",
+    name: "Value Scale",
+    description: "See the item's `valueScale`."
+  })
+  valueScale?: number;
+
+  @primitiveTrait({
+    type: "number",
+    name: "Value Offset",
+    description: "See the item's `valueOffset`."
+  })
+  valueOffset?: number;
+
+  @primitiveTrait({
+    type: "string",
+    name: "Unit",
+    description: "See the item's `unit`."
+  })
+  unit?: string;
+
+  @primitiveArrayTrait({
+    type: "number",
+    name: "NoData Values",
+    description: "See the item's `noDataValues`."
+  })
+  noDataValues?: number[];
+
+  @primitiveTrait({
+    type: "boolean",
+    name: "Partial Coverage",
+    description:
+      "True when each date only covers part of the area (e.g. single satellite passes). Shown as a hint so an empty map at some date is not mistaken for an error."
+  })
+  partialCoverage?: boolean;
+
+  @primitiveTrait({
+    type: "string",
+    name: "Hint",
+    description:
+      "Short note shown in the workbench while this resolution is active."
+  })
+  hint?: string;
+}
+
 @traitClass({
   description:
     "Creates a time-varying Cloud Optimised GeoTIFF dataset. Supports multiple COGs per time step (mosaics) and optional area calculations.",
@@ -172,6 +276,24 @@ export default class CogTimeSeriesCatalogItemTraits extends mixTraits(
       "and either inline precalculated values or a URL to fetch them from."
   })
   areaCalculations?: AreaCalculationTraits[];
+
+  @objectArrayTrait({
+    type: CogSeriesResolutionTraits,
+    idProperty: "id",
+    name: "Resolutions",
+    description:
+      "Temporal resolutions of the same variable (e.g. annual, monthly, daily), switchable from the workbench without losing the date or the clicked points. " +
+      "When set, time steps come from the active resolution instead of the item's `url` / `timeEntries`."
+  })
+  resolutions?: CogSeriesResolutionTraits[];
+
+  @primitiveTrait({
+    type: "string",
+    name: "Active Resolution Id",
+    description:
+      "The `id` of the resolution to show. Defaults to the first one."
+  })
+  activeResolutionId?: string;
 
   @primitiveTrait({
     type: "string",

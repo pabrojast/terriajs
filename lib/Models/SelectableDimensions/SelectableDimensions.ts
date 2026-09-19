@@ -71,7 +71,7 @@ export type SelectableDimensionType =
   | "button"
   | "color";
 
-export type Placement = "default" | "belowLegend";
+export type Placement = "default" | "belowLegend" | "top";
 export const DEFAULT_PLACEMENT: Placement = "default";
 
 /** Base SelectableDimension interface. Each following SelectableDimension will extend this and the Dimension interface above */
@@ -81,6 +81,7 @@ export interface SelectableDimensionBase<T = string> {
   /** Placement of dimension in Workbench:
    * - default (above legend and short-report sections)
    * - belowLegend
+   * - top (first control of the item, above opacity and the date selector)
    * This is only relevant to top level SelectableDimensions (not nested in groups)
    */
   placement?: Placement;
@@ -97,6 +98,12 @@ export interface SelectableDimensionEnum
   type?: undefined | "select";
   /** Render ReactNodes for each option - instead of plain label */
   optionRenderer?: OptionRenderer;
+  /**
+   * How the options are presented. "pills" shows every option at once as a
+   * segmented control — for a handful of short, mutually exclusive choices that
+   * people switch between often. Defaults to a dropdown ("select").
+   */
+  display?: "select" | "pills";
 }
 
 /** Similar to SelectableDimensionEnum, but supports multiple selected values */

@@ -100,6 +100,9 @@ const WorkbenchItemControls: FC<WorkbenchItemControlsProps> = observer(
         {controls?.viewingControls ? (
           <ViewingControls item={item} viewState={viewState} />
         ) : null}
+        {controls?.selectableDimensions ? (
+          <DimensionSelectorSection item={item} placement="top" />
+        ) : null}
         {controls?.opacity ? <OpacitySection item={item} /> : null}
         {controls?.scaleWorkbench ? <ScaleWorkbenchInfo item={item} /> : null}
         {controls?.timer ? <TimerSection item={item} /> : null}

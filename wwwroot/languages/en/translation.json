@@ -2228,6 +2228,11 @@
       "loadImageryErrorMessage": "Failed to load one or more COG files for the current time step.",
       "noTimeEntries": "No time entries available for this dataset.",
       "noDataAtPoint": "No data here",
+      "resolution": "Time resolution",
+      "colorRange": "Colour range",
+      "fitRangeToDate": "Fit to this date",
+      "resetRange": "Reset range",
+      "partialCoverageHint": "Each date only covers part of the area. If the map is empty here, try another date.",
       "pointSeriesLoading": "Reading time series… {{loaded}}/{{total}} dates",
       "pointSeriesErrors": "{{count}} date could not be read.",
       "pointSeriesErrors_plural": "{{count}} dates could not be read."

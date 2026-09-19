@@ -17,15 +17,13 @@ import {
 import SelectableDimensionWorkflow, {
   SelectableDimensionWorkflowGroup
 } from "./SelectableDimensionWorkflow";
-import { ColorScaleNames } from "../../Traits/TraitsClasses/CogCatalogItemTraits";
 import LegendTraits, {
   LegendItemTraits
 } from "../../Traits/TraitsClasses/LegendTraits";
 import createStratumInstance from "../Definition/createStratumInstance";
 import StratumFromTraits from "../Definition/StratumFromTraits";
 import Model from "../Definition/Model";
-import { CogColorScaleOptionRenderer } from "../../ReactViews/SelectableDimensions/CogColorScaleOptionRenderer";
-import { COG_COLOR_SCALE_NAMES } from "../Catalog/CatalogItems/CogColorScales";
+import { createCogColorScaleDimension } from "../Catalog/CatalogItems/CogStyleDimensions";
 import {
   getValidDisplayRange,
   getValidDomain,
@@ -267,49 +265,7 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
   /** Color Scale selector */
   @computed
   private get colorScaleSelectableDim(): SelectableDimensionEnum | undefined {
-    const single = this.item.renderOptions?.single;
-    const colorScale = single?.colorScale;
-    const mode =
-      single?.colorScaleMode ??
-      (single?.colors && single.colors.length > 0
-        ? "custom"
-        : colorScale
-        ? "named"
-        : "default");
-
-    return {
-      type: "select",
-      id: "color-scale",
-      name: i18next.t("models.cogStyling.colorScale"),
-      selectedId: mode === "named" ? colorScale : undefined,
-      allowUndefined: true,
-      undefinedLabel:
-        mode === "custom"
-          ? i18next.t("models.cogStyling.customColors.name")
-          : i18next.t("models.cogStyling.defaultColorScale"),
-      options: COG_COLOR_SCALE_NAMES.map((scale) => ({
-        id: scale,
-        name: scale.charAt(0).toUpperCase() + scale.slice(1)
-      })),
-      optionRenderer: CogColorScaleOptionRenderer,
-      setDimensionValue: action(
-        (stratumId: string, value: string | undefined) => {
-          if (!this.item.renderOptions.single) {
-            this.item.renderOptions.setTrait(stratumId, "single", undefined);
-          }
-          this.item.renderOptions.single!.setTrait(
-            stratumId,
-            "colorScale",
-            value as ColorScaleNames | undefined
-          );
-          this.item.renderOptions.single!.setTrait(
-            stratumId,
-            "colorScaleMode",
-            value === undefined ? "default" : "named"
-          );
-        }
-      )
-    };
+    return createCogColorScaleDimension(this.item);
   }
 
   /** Render Type selector (continuous/discrete) */

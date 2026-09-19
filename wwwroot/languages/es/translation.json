@@ -489,6 +489,11 @@
       "loadImageryErrorMessage": "No se pudieron cargar uno o más archivos COG de la fecha actual.",
       "noTimeEntries": "Este conjunto de datos no tiene fechas disponibles.",
       "noDataAtPoint": "Sin datos aquí",
+      "resolution": "Resolución temporal",
+      "colorRange": "Rango de color",
+      "fitRangeToDate": "Ajustar a esta fecha",
+      "resetRange": "Restablecer rango",
+      "partialCoverageHint": "Cada fecha cubre solo una parte del área. Si el mapa aparece vacío aquí, prueba otra fecha.",
       "pointSeriesLoading": "Leyendo serie temporal… {{loaded}}/{{total}} fechas",
       "pointSeriesErrors": "No se pudo leer {{count}} fecha.",
       "pointSeriesErrors_plural": "No se pudieron leer {{count}} fechas."

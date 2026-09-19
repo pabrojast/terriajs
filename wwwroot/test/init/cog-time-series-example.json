@@ -1,0 +1,59 @@
+{
+  "catalog": [
+    {
+      "type": "cog-time-series",
+      "id": "cog-time-series-example",
+      "name": "COG time series example",
+      "description": "Minimal example of a `cog-time-series` item with two temporal resolutions. It uses the 1x1 test fixtures, so it shows the configuration rather than meaningful imagery. `domain`, the legend, clicked values and point series are in physical units (`stored * valueScale + valueOffset`). Do not set `renderOptions.nodata` unless the GeoTIFF does not declare its own no-data value: it replaces it.",
+      "unit": "mg m-3",
+      "opacity": 0.9,
+      "activeResolutionId": "monthly",
+      "renderOptions": {
+        "single": {
+          "colorScale": "ylgnbu",
+          "type": "continuous",
+          "band": 1
+        }
+      },
+      "resolutions": [
+        {
+          "id": "annual",
+          "name": "Annual",
+          "dateFormat": "UTC:yyyy",
+          "fromContinuous": "previous",
+          "renderOptions": { "single": { "domain": [0, 60] } },
+          "timeEntries": [
+            {
+              "time": "2024-01-01T00:00:00Z",
+              "tag": "2024",
+              "cogs": ["/test/cogs/4326.tif"]
+            },
+            {
+              "time": "2025-01-01T00:00:00Z",
+              "tag": "2025",
+              "cogs": ["/test/cogs/4326.tif"]
+            }
+          ]
+        },
+        {
+          "id": "monthly",
+          "name": "Monthly",
+          "dateFormat": "UTC:mmm yyyy",
+          "fromContinuous": "previous",
+          "valueScale": 0.1,
+          "renderOptions": { "single": { "domain": [0, 80] } },
+          "timeEntries": [
+            {
+              "time": "2024-06-01T00:00:00Z",
+              "cogs": ["/test/cogs/4326.tif"]
+            },
+            {
+              "time": "2024-07-01T00:00:00Z",
+              "cogs": ["/test/cogs/32756.tif"]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

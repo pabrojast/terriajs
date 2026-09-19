@@ -1239,6 +1239,246 @@ describe("CogTimeSeriesCatalogItem", function () {
   });
 
   // ════════════════════════════════════════════════
+  // Temporal resolutions (annual / monthly / daily in one item)
+  // ════════════════════════════════════════════════
+
+  describe("resolutions", function () {
+    const CONFIG = {
+      name: "CHL",
+      unit: "mg m-3",
+      // Shared by every resolution.
+      renderOptions: { single: { colorScale: "ylgnbu", band: 1 } },
+      activeResolutionId: "monthly",
+      preloadAdjacentSteps: 0,
+      resolutions: [
+        {
+          id: "annual",
+          name: "Annual",
+          dateFormat: "UTC:yyyy",
+          fromContinuous: "previous",
+          renderOptions: { single: { domain: [0, 60] } },
+          timeEntries: [
+            { time: "2023-01-01T00:00:00Z", tag: "2023", cogs: ["y2023.tif"] },
+            { time: "2024-01-01T00:00:00Z", tag: "2024", cogs: ["y2024.tif"] },
+            { time: "2025-01-01T00:00:00Z", tag: "2025", cogs: ["y2025.tif"] }
+          ]
+        },
+        {
+          id: "monthly",
+          name: "Monthly",
+          dateFormat: "UTC:mmm yyyy",
+          fromContinuous: "previous",
+          renderOptions: { single: { domain: [0, 80] } },
+          timeEntries: [
+            { time: "2024-06-01T00:00:00Z", cogs: ["m2024-06.tif"] },
+            { time: "2024-07-01T00:00:00Z", cogs: ["m2024-07.tif"] },
+            { time: "2024-08-01T00:00:00Z", cogs: ["m2024-08.tif"] }
+          ]
+        },
+        {
+          id: "daily",
+          name: "Daily",
+          valueScale: 0.1,
+          partialCoverage: true,
+          renderOptions: {
+            single: { domain: [0, 100] },
+            resampleMethod: "nearest"
+          },
+          timeEntries: [
+            { time: "2024-07-09T00:00:00Z", cogs: ["d20240709.tif"] }
+          ]
+        }
+      ]
+    };
+
+    function stubProviders() {
+      return spyOn<any>(item as any, "_createImageryProvider").and.callFake(
+        async (url: string) => {
+          const provider = makeStyleProvider([0, 1000]);
+          provider.url = url;
+          return provider;
+        }
+      );
+    }
+
+    it("takes time steps and settings from the active resolution", function () {
+      updateModelFromJson(item, CommonStrata.definition, CONFIG);
+
+      expect(item.activeResolution?.id).toBe("monthly");
+      expect(item.timeEntries?.map((entry) => entry.cogs?.[0])).toEqual([
+        "m2024-06.tif",
+        "m2024-07.tif",
+        "m2024-08.tif"
+      ]);
+      expect(item.dateFormat).toBe("UTC:mmm yyyy");
+      expect(item.fromContinuous).toBe("previous");
+      expect(item.valueTransform).toEqual({ scale: 1, offset: 0 });
+      // Per-resolution range, shared palette, continuous default.
+      expect(item.renderOptions.single?.domain as any).toEqual([0, 80]);
+      expect(item.renderOptions.single?.colorScale).toBe("ylgnbu");
+      expect(item.renderOptions.resampleMethod).toBe("bilinear");
+    });
+
+    it("falls back to the first resolution and keeps items without resolutions unchanged", function () {
+      updateModelFromJson(item, CommonStrata.definition, {
+        ...CONFIG,
+        activeResolutionId: "does-not-exist"
+      });
+      expect(item.activeResolution?.id).toBe("annual");
+
+      const plain = new CogTimeSeriesCatalogItem("plain", terria);
+      updateModelFromJson(plain, CommonStrata.definition, {
+        timeEntries: [{ time: "2024-01-15T00:00:00Z", cogs: ["a.tif"] }]
+      });
+      expect(plain.activeResolution).toBeUndefined();
+      expect(plain.timeEntries?.length).toBe(1);
+      expect(
+        plain.selectableDimensions.some(
+          (dim) => dim.id === "cog-series-resolution"
+        )
+      ).toBe(false);
+    });
+
+    it("keeps the period when switching: July 2024 monthly becomes 2024 annual", async function () {
+      updateModelFromJson(item, CommonStrata.definition, CONFIG);
+      stubProviders();
+      item.setTrait(CommonStrata.user, "currentTime", "2024-07-01T00:00:00Z");
+      await item.loadMapItems();
+      expect(item.currentStepLabel).toBe("Jul 2024");
+
+      item.setActiveResolution(CommonStrata.user, "annual");
+      await item.loadMapItems();
+
+      // `nearest` would have picked 2025 for July; `previous` keeps the year.
+      expect(item.currentStepLabel).toBe("2024");
+      expect((item.mapItems[0] as any).imageryProvider.url).toBe("y2024.tif");
+      expect(item.effectiveCogStyle?.domain).toEqual([0, 60]);
+    });
+
+    it("applies a resolution's scale and explicit resampling, and warns about partial coverage", function () {
+      updateModelFromJson(item, CommonStrata.definition, CONFIG);
+      item.setActiveResolution(CommonStrata.user, "daily");
+
+      expect(item.valueTransform).toEqual({ scale: 0.1, offset: 0 });
+      expect(item.renderOptions.resampleMethod).toBe("nearest");
+      expect(item.renderOptions.single?.domain as any).toEqual([0, 100]);
+      expect(item.shortReport).toBeDefined();
+    });
+
+    it("drops a colour range the user set on another resolution", function () {
+      updateModelFromJson(item, CommonStrata.definition, CONFIG);
+      item.renderOptions.single!.setTrait(CommonStrata.user, "domain", [5, 15]);
+      expect(item.renderOptions.single?.domain as any).toEqual([5, 15]);
+
+      item.setActiveResolution(CommonStrata.user, "annual");
+
+      expect(item.renderOptions.single?.domain as any).toEqual([0, 60]);
+    });
+
+    it("keeps built steps when switching back and forth", async function () {
+      updateModelFromJson(item, CommonStrata.definition, CONFIG);
+      const spy = stubProviders();
+      item.setTrait(CommonStrata.user, "currentTime", "2024-07-01T00:00:00Z");
+      await item.loadMapItems();
+      item.setActiveResolution(CommonStrata.user, "annual");
+      await item.loadMapItems();
+      item.setActiveResolution(CommonStrata.user, "monthly");
+      await item.loadMapItems();
+
+      // m2024-07 and y2024 were each built exactly once.
+      expect(spy.calls.allArgs().map((args) => args[0])).toEqual([
+        "m2024-07.tif",
+        "y2024.tif"
+      ]);
+    });
+
+    it("offers the resolution as pills on top of the workbench card, plus palette and range", function () {
+      updateModelFromJson(item, CommonStrata.definition, CONFIG);
+      const dimensions = item.selectableDimensions as any[];
+
+      const resolution = dimensions.find(
+        (dim) => dim.id === "cog-series-resolution"
+      );
+      expect(resolution.display).toBe("pills");
+      expect(resolution.placement).toBe("top");
+      expect(resolution.selectedId).toBe("monthly");
+      expect(resolution.options.map((option: any) => option.name)).toEqual([
+        "Annual",
+        "Monthly",
+        "Daily"
+      ]);
+      resolution.setDimensionValue(CommonStrata.user, "daily");
+      expect(item.activeResolution?.id).toBe("daily");
+
+      expect(
+        dimensions.find((dim) => dim.id === "cog-series-palette")
+      ).toBeDefined();
+      const range = dimensions.find((dim) => dim.id === "cog-series-range");
+      expect(range.name).toContain("mg m-3");
+      expect(range.selectableDimensions.map((dim: any) => dim.id)).toEqual([
+        "cog-series-range-min",
+        "cog-series-range-max",
+        "cog-series-range-fit",
+        "cog-series-range-reset"
+      ]);
+    });
+
+    it("keeps the example init file valid", async function () {
+      const response = await fetch("/test/init/cog-time-series-example.json");
+      const { type, id, ...definition } = (await response.json()).catalog[0];
+      expect(type).toBe("cog-time-series");
+      expect(id).toBeDefined();
+
+      const result = updateModelFromJson(
+        item,
+        CommonStrata.definition,
+        definition
+      );
+
+      expect(result.error).toBeUndefined();
+      expect(item.activeResolution?.id).toBe("monthly");
+      expect(item.resolutions.length).toBe(2);
+      expect(item.valueTransform.scale).toBe(0.1);
+    });
+
+    it("loads each resolution's time steps from its own URL, once", async function () {
+      jasmine.Ajax.install();
+      try {
+        updateModelFromJson(item, CommonStrata.definition, {
+          preloadAdjacentSteps: 0,
+          resolutions: [
+            { id: "annual", url: "https://example.com/annual.json" },
+            { id: "monthly", url: "https://example.com/monthly.json" }
+          ]
+        });
+        jasmine.Ajax.stubRequest("https://example.com/annual.json").andReturn({
+          responseJSON: {
+            times: [{ time: "2024-01-01T00:00:00Z", cogs: ["y2024.tif"] }]
+          }
+        });
+        jasmine.Ajax.stubRequest("https://example.com/monthly.json").andReturn({
+          responseJSON: SAMPLE_TIME_SERIES_JSON
+        });
+        stubProviders();
+
+        await item.loadMapItems();
+        expect(item.timeEntries?.length).toBe(1);
+
+        item.setActiveResolution(CommonStrata.user, "monthly");
+        await item.loadMapItems();
+        expect(item.timeEntries?.length).toBe(3);
+
+        item.setActiveResolution(CommonStrata.user, "annual");
+        await item.loadMapItems();
+        expect(item.timeEntries?.length).toBe(1);
+        expect(jasmine.Ajax.requests.count()).toBe(2);
+      } finally {
+        jasmine.Ajax.uninstall();
+      }
+    });
+  });
+
+  // ════════════════════════════════════════════════
   // Full JSON configuration (realistic examples)
   // ════════════════════════════════════════════════
 
@@ -1426,7 +1666,7 @@ describe("CogTimeSeriesCatalogItem", function () {
         ],
         renderOptions: {
           single: {
-            colorScale: "viridis",
+            colorScale: "ylgnbu",
             domain: [0, 50],
             type: "continuous"
           }

@@ -18,6 +18,11 @@ import Rectangle from "terriajs-cesium/Source/Core/Rectangle";
 import ImageryLayerFeatureInfo from "terriajs-cesium/Source/Scene/ImageryLayerFeatureInfo";
 import type TIFFImageryProvider from "terriajs-tiff-imagery-provider";
 import Icon from "../../../Styled/Icon";
+import {
+  SelectableDimension,
+  SelectableDimensionEnum,
+  SelectableDimensionGroup
+} from "../../SelectableDimensions/SelectableDimensions";
 import { ViewingControl } from "../../ViewingControls";
 import { runWorkflow } from "../../Workflows/SelectableDimensionWorkflow";
 import CogStylingWorkflow from "../../Workflows/CogStylingWorkflow";
@@ -33,14 +38,16 @@ import DiscretelyTimeVaryingMixin, {
   DiscreteTimeAsJS
 } from "../../../ModelMixins/DiscretelyTimeVaryingMixin";
 import MappableMixin, { MapItem } from "../../../ModelMixins/MappableMixin";
-import CogTimeSeriesCatalogItemTraits from "../../../Traits/TraitsClasses/CogTimeSeriesCatalogItemTraits";
+import CogTimeSeriesCatalogItemTraits, {
+  CogSeriesResolutionTraits
+} from "../../../Traits/TraitsClasses/CogTimeSeriesCatalogItemTraits";
 import { RectangleTraits } from "../../../Traits/TraitsClasses/MappableTraits";
 import { FeatureInfoTemplateTraits } from "../../../Traits/TraitsClasses/FeatureInfoTraits";
 import CreateModel from "../../Definition/CreateModel";
 import CommonStrata from "../../Definition/CommonStrata";
 import createStratumInstance from "../../Definition/createStratumInstance";
 import LoadableStratum from "../../Definition/LoadableStratum";
-import { BaseModel } from "../../Definition/Model";
+import Model, { BaseModel } from "../../Definition/Model";
 import StratumFromTraits from "../../Definition/StratumFromTraits";
 import StratumOrder from "../../Definition/StratumOrder";
 import Terria from "../../Terria";
@@ -53,7 +60,10 @@ import {
   TimeSeriesFeatureInfoContext,
   TimeSeriesContext
 } from "../../../Table/tableFeatureInfoContext";
-import { CogRenderOptionsTraits } from "../../../Traits/TraitsClasses/CogCatalogItemTraits";
+import {
+  CogRenderOptionsTraits,
+  SingleRenderOptionsTraits
+} from "../../../Traits/TraitsClasses/CogCatalogItemTraits";
 import {
   CogPointSeriesProgress,
   CogValueTransform,
@@ -72,6 +82,7 @@ import {
   setCogProviderNativeDomain
 } from "./CogProviderFactory";
 import { applyCogNoDataColor } from "./CogRasterPostProcessor";
+import { createCogColorScaleDimension } from "./CogStyleDimensions";
 import {
   buildCogRenderOptions,
   CogEffectiveStyle,
@@ -166,6 +177,22 @@ function formatCogValue(value: number): string {
   return String(Number(value.toFixed(decimals)));
 }
 
+/**
+ * Value of a trait that some stratum actually sets, ignoring the trait's
+ * default — a model read cannot tell "unset" from "set to the default".
+ */
+function getExplicitTraitValue<T = unknown>(
+  model: BaseModel | undefined,
+  trait: string
+): T | undefined {
+  if (!model) return undefined;
+  for (const stratum of model.strataTopToBottom.values()) {
+    const value = (stratum as any)?.[trait];
+    if (value !== undefined) return value as T;
+  }
+  return undefined;
+}
+
 function escapeHtmlAttribute(value: string): string {
   return value
     .replace(/&/g, "&amp;")
@@ -219,10 +246,12 @@ class CogTimeSeriesStratum extends LoadableStratum(
 ) {
   static stratumName = "cog-time-series-stratum";
 
-  @observable
-  private _loadedTimeEntries:
-    | StratumFromTraits<CogTimeEntryTraits>[]
-    | undefined;
+  /** Time steps loaded from a JSON definition, keyed by that JSON's URL. */
+  @observable.shallow
+  private _loadedTimeEntries = new Map<
+    string,
+    StratumFromTraits<CogTimeEntryTraits>[]
+  >();
   private _loadedAreaValues: Map<
     string,
     Array<{ time: string; value: number }>
@@ -244,6 +273,11 @@ class CogTimeSeriesStratum extends LoadableStratum(
   get shortReport(): string | undefined {
     if (this.model.terria.currentViewer.type === "Leaflet") {
       return i18next.t("models.commonModelErrors.3dTypeIn2dMode", this);
+    }
+    const resolution = this.model.activeResolution;
+    if (resolution?.hint) return resolution.hint;
+    if (resolution?.partialCoverage) {
+      return i18next.t("models.cogTimeSeries.partialCoverageHint");
     }
     return undefined;
   }
@@ -293,20 +327,101 @@ class CogTimeSeriesStratum extends LoadableStratum(
     });
   }
 
+  /** URL of the JSON that lists the time steps currently in use. */
   @computed
-  get timeEntries(): StratumFromTraits<CogTimeEntryTraits>[] | undefined {
-    return this._loadedTimeEntries;
+  get timeEntriesUrl(): string | undefined {
+    const resolution = this.model.activeResolution;
+    return resolution ? resolution.url : this.model.url;
   }
 
   /**
+   * Time steps of the active resolution (or of the item when it has no
+   * resolutions): inline ones first, otherwise the ones loaded from its URL.
+   */
+  @computed
+  get timeEntries(): StratumFromTraits<CogTimeEntryTraits>[] | undefined {
+    const inline = this.model.activeResolution?.timeEntries;
+    if (inline && inline.length > 0) {
+      return inline.map((entry) =>
+        createStratumInstance(CogTimeEntryTraits, {
+          time: entry.time,
+          cogs: entry.cogs ? [...entry.cogs] : undefined,
+          tag: entry.tag
+        })
+      );
+    }
+    const url = this.timeEntriesUrl;
+    return url ? this._loadedTimeEntries.get(url) : undefined;
+  }
+
+  // What the active resolution sets applies while it is active. These sit in
+  // a load stratum, so anything configured on the item itself (definition) or
+  // edited by the user still wins.
+
+  @computed
+  get dateFormat(): string | undefined {
+    return this.model.activeResolution?.dateFormat;
+  }
+
+  @computed
+  get fromContinuous(): string | undefined {
+    return this.model.activeResolution?.fromContinuous;
+  }
+
+  @computed
+  get valueScale(): number | undefined {
+    return this.model.activeResolution?.valueScale;
+  }
+
+  @computed
+  get valueOffset(): number | undefined {
+    return this.model.activeResolution?.valueOffset;
+  }
+
+  @computed
+  get unit(): string | undefined {
+    return this.model.activeResolution?.unit;
+  }
+
+  @computed
+  get noDataValues(): number[] | undefined {
+    const values = this.model.activeResolution?.noDataValues;
+    return values && values.length > 0 ? [...values] : undefined;
+  }
+
+  /**
+   * Render options of the active resolution (typically its `single.domain`).
+   *
    * Time series are almost always continuous fields (indices, concentrations),
-   * where nearest-neighbour upsampling looks blocky. Catalogs with categorical
-   * rasters should set `renderOptions.resampleMethod: "nearest"`.
+   * where nearest-neighbour upsampling looks blocky, so resampling defaults to
+   * bilinear. Catalogs with categorical rasters should set
+   * `renderOptions.resampleMethod: "nearest"`.
    */
   @computed
   get renderOptions(): StratumFromTraits<CogRenderOptionsTraits> {
+    const options = this.model.activeResolution?.renderOptions;
+    const single = options?.single;
+
+    const singleValues: Record<string, unknown> = {};
+    if (single) {
+      for (const trait of Object.keys(SingleRenderOptionsTraits.traits)) {
+        const value = (single as any)[trait];
+        if (value === undefined) continue;
+        singleValues[trait] = Array.isArray(value) ? [...value] : value;
+      }
+    }
+
     return createStratumInstance(CogRenderOptionsTraits, {
-      resampleMethod: "bilinear"
+      // `resampleMethod` has a trait default, so only an explicit value counts.
+      resampleMethod:
+        getExplicitTraitValue(options, "resampleMethod") ?? "bilinear",
+      nodata: options?.nodata,
+      convertToRGB: options?.convertToRGB,
+      color: options?.color,
+      single:
+        Object.keys(singleValues).length > 0
+          ? createStratumInstance(SingleRenderOptionsTraits, singleValues)
+          : undefined
     });
   }
 
@@ -325,21 +440,26 @@ class CogTimeSeriesStratum extends LoadableStratum(
    * Load time entries from a remote JSON URL.
    */
   async loadTimeEntries(): Promise<void> {
-    if (!this.model.url) {
+    const sourceUrl = this.timeEntriesUrl;
+    // Each resolution's list is loaded once and kept, so switching back is instant.
+    if (!sourceUrl || this._loadedTimeEntries.has(sourceUrl)) {
       return;
     }
 
-    const url = proxyCatalogItemUrl(this.model, this.model.url);
+    const url = proxyCatalogItemUrl(this.model, sourceUrl);
     try {
       const json = await loadJson<TimeSeriesJsonDefinition>(url);
       if (json && Array.isArray(json.times)) {
         runInAction(() => {
-          this._loadedTimeEntries = json.times.map((entry) =>
-            createStratumInstance(CogTimeEntryTraits, {
-              time: entry.time,
-              cogs: entry.cogs as any,
-              tag: entry.tag
-            })
+          this._loadedTimeEntries.set(
+            sourceUrl,
+            json.times.map((entry) =>
+              createStratumInstance(CogTimeEntryTraits, {
+                time: entry.time,
+                cogs: entry.cogs as any,
+                tag: entry.tag
+              })
+            )
           );
         });
       }
@@ -347,7 +467,7 @@ class CogTimeSeriesStratum extends LoadableStratum(
       throw TerriaError.from(e, {
         title: i18next.t("models.cogTimeSeries.loadTimeEntriesErrorTitle"),
         message: i18next.t("models.cogTimeSeries.loadTimeEntriesErrorMessage", {
-          url: this.model.url
+          url: sourceUrl
         })
       });
     }
@@ -561,6 +681,20 @@ export default class CogTimeSeriesCatalogItem extends DiscretelyTimeVaryingMixin
       }
     );
 
+    // A different resolution means different time steps (usually not loaded
+    // yet) and different values at the clicked points.
+    reaction(
+      () => this.activeResolution?.id,
+      () => {
+        if (!this._hasLoadedSteps) return;
+        this._reportedStepErrors.clear();
+        this.loadMapItems(true).then((result) =>
+          result.raiseError(this.terria)
+        );
+        this._reloadPointSeries();
+      }
+    );
+
     // React to time changes. Keyed on the step's COG URLs rather than its tag,
     // so it also fires when the entries themselves change.
     reaction(
@@ -572,6 +706,40 @@ export default class CogTimeSeriesCatalogItem extends DiscretelyTimeVaryingMixin
         }
       }
     );
+  }
+
+  // ──────────────────────────────────────────────
+  // Temporal resolutions
+  // ──────────────────────────────────────────────
+
+  /**
+   * The resolution whose time steps and settings are in use, or `undefined`
+   * for an item without resolutions. Falls back to the first one when
+   * `activeResolutionId` is unset or unknown.
+   */
+  @computed
+  get activeResolution(): Model<CogSeriesResolutionTraits> | undefined {
+    const resolutions = this.resolutions;
+    if (!resolutions || resolutions.length === 0) return undefined;
+    return (
+      resolutions.find(
+        (resolution) => resolution.id === this.activeResolutionId
+      ) ?? resolutions[0]
+    );
+  }
+
+  /**
+   * Switch resolution. The date is left alone — the discrete-time mixin snaps
+   * it to the new steps (July 2024 becomes 2024 with `fromContinuous:
+   * "previous"`) — and built steps stay cached because they are keyed by COG
+   * URL. A colour range the user set belongs to the resolution they set it
+   * on, so it is cleared.
+   */
+  @action
+  setActiveResolution(stratumId: string, id: string | undefined): void {
+    if (id === this.activeResolution?.id) return;
+    this.setTrait(stratumId, "activeResolutionId", id);
+    this.renderOptions?.single?.setTrait(stratumId, "domain", undefined);
   }
 
   /** Time entries with a parseable time, in the same order as `discreteTimesAsSortedJulianDates`. */
@@ -635,7 +803,7 @@ export default class CogTimeSeriesCatalogItem extends DiscretelyTimeVaryingMixin
    */
   protected async forceLoadMapItems(): Promise<void> {
     // Load time entries from URL if not defined inline
-    if ((!this.timeEntries || this.timeEntries.length === 0) && this.url) {
+    if (!this.timeEntries || this.timeEntries.length === 0) {
       await this._stratum.loadTimeEntries();
     }
 
@@ -755,6 +923,122 @@ export default class CogTimeSeriesCatalogItem extends DiscretelyTimeVaryingMixin
         icon: { glyph: Icon.GLYPHS.layers }
       }
     ];
+  }
+
+  /**
+   * The controls people reach for while reviewing a series, on the workbench
+   * card itself: which resolution, which palette, and the colour range. The
+   * full "Edit style" workflow stays available from the item menu.
+   */
+  @override
+  get selectableDimensions(): SelectableDimension[] {
+    return filterOutUndefined([
+      ...super.selectableDimensions,
+      this._resolutionDimension,
+      this._isSingleBandStyle
+        ? createCogColorScaleDimension(this, { id: "cog-series-palette" })
+        : undefined,
+      this._colorRangeDimension
+    ]);
+  }
+
+  private get _isSingleBandStyle(): boolean {
+    return this.effectiveCogStyle?.isSingleBand !== false;
+  }
+
+  @computed
+  private get _resolutionDimension(): SelectableDimensionEnum | undefined {
+    const resolutions = this.resolutions;
+    if (!resolutions || resolutions.length < 2) return undefined;
+    return {
+      type: "select",
+      display: "pills",
+      placement: "top",
+      id: "cog-series-resolution",
+      name: i18next.t("models.cogTimeSeries.resolution"),
+      selectedId: this.activeResolution?.id,
+      options: resolutions
+        .filter((resolution) => resolution.id !== undefined)
+        .map((resolution) => ({
+          id: resolution.id!,
+          name: resolution.name ?? resolution.id!
+        })),
+      setDimensionValue: (stratumId, id) =>
+        this.setActiveResolution(stratumId, id)
+    };
+  }
+
+  /** Minimum / maximum of the colour scale, fit to the displayed date, reset. */
+  @computed
+  private get _colorRangeDimension(): SelectableDimensionGroup | undefined {
+    if (!this._isSingleBandStyle) return undefined;
+    const domain = this.effectiveCogStyle?.domain;
+    const unit = this.unit;
+
+    const setBound = (index: 0 | 1) =>
+      action((stratumId: string, value: number | undefined) => {
+        if (value === undefined || !Number.isFinite(value)) return;
+        const current = this.effectiveCogStyle?.domain;
+        const next: [number, number] = [
+          current?.[0] ?? Math.min(0, value),
+          current?.[1] ?? Math.max(1, value)
+        ];
+        next[index] = value;
+        if (next[0] >= next[1]) return;
+        if (!this.renderOptions.single) {
+          this.renderOptions.setTrait(stratumId, "single", undefined);
+        }
+        this.renderOptions.single!.setTrait(stratumId, "domain", next);
+      });
+
+    const dimensions: SelectableDimensionGroup["selectableDimensions"] = [
+      {
+        type: "numeric",
+        id: "cog-series-range-min",
+        name: i18next.t("models.cogStyling.minimumValue"),
+        value: domain?.[0],
+        setDimensionValue: setBound(0)
+      },
+      {
+        type: "numeric",
+        id: "cog-series-range-max",
+        name: i18next.t("models.cogStyling.maximumValue"),
+        value: domain?.[1],
+        setDimensionValue: setBound(1)
+      },
+      {
+        type: "button",
+        id: "cog-series-range-fit",
+        value: i18next.t("models.cogTimeSeries.fitRangeToDate"),
+        setDimensionValue: (stratumId) => {
+          this.fitDomainToCurrentStep(stratumId).catch((e) =>
+            this.terria.raiseErrorToUser(e)
+          );
+        }
+      },
+      {
+        type: "button",
+        id: "cog-series-range-reset",
+        value: i18next.t("models.cogTimeSeries.resetRange"),
+        // Only a range the user changed can be reset.
+        disable:
+          this.renderOptions?.single?.getTrait(CommonStrata.user, "domain") ===
+          undefined,
+        setDimensionValue: action((stratumId: string) => {
+          this.renderOptions?.single?.setTrait(stratumId, "domain", undefined);
+        })
+      }
+    ];
+
+    return {
+      type: "group",
+      id: "cog-series-range",
+      name: unit
+        ? `${i18next.t("models.cogTimeSeries.colorRange")} (${unit})`
+        : i18next.t("models.cogTimeSeries.colorRange"),
+      isOpen: false,
+      selectableDimensions: dimensions
+    };
   }
 
   // ──────────────────────────────────────────────
@@ -1302,6 +1586,36 @@ export default class CogTimeSeriesCatalogItem extends DiscretelyTimeVaryingMixin
     }
   }
 
+  /** Read the clicked points again, e.g. for the time steps of another resolution. */
+  @action
+  private _reloadPointSeries(): void {
+    for (const series of [...this._pointSeries]) {
+      this._pointSeriesAborts.get(series.key)?.abort();
+      const restarted: CogPointSeriesState = {
+        ...series,
+        status: "loading",
+        loaded: 0,
+        total: 0,
+        errors: 0,
+        noData: 0,
+        outside: 0,
+        points: []
+      };
+      this._replacePointSeries(restarted);
+      // The new resolution's steps may not be loaded yet.
+      this.loadMapItems()
+        .then(() => {
+          if (!this._pointSeries.some((s) => s.key === series.key)) return;
+          const ready = { ...restarted, total: this._sortedEntries.length };
+          this._replacePointSeries(ready);
+          return this._loadPointSeries(ready);
+        })
+        .catch((e) => {
+          console.error("COG time series: point series failed", e);
+        });
+    }
+  }
+
   /** Stop reading a point series; what was read so far stays on the chart. */
   @action
   cancelPointSeries(key: string): void {
@@ -1509,6 +1823,9 @@ export default class CogTimeSeriesCatalogItem extends DiscretelyTimeVaryingMixin
     };
 
     const key = this._currentStepKey;
+    // The steps of a newly selected resolution are still loading: keep what is
+    // on screen, the load publishes the right step when it finishes.
+    if (key === undefined && this._sortedEntries.length === 0) return;
     if (key === undefined || this._stepCache.has(key)) {
       run();
     } else {

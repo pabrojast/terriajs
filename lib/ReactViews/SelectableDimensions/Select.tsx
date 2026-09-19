@@ -11,9 +11,19 @@ import {
   SelectableDimensionEnum as SelectableDimensionEnumModel,
   SelectableDimensionMultiEnum as SelectableDimensionEnumMultiModel
 } from "../../Models/SelectableDimensions/SelectableDimensions";
+import { SelectableDimensionPills } from "./Pills";
 
 export const SelectableDimensionEnum: FC<{
   id: string;
+  dim: SelectableDimensionEnumModel;
+}> = observer(({ id, dim }) => {
+  if (dim.display === "pills") {
+    return <SelectableDimensionPills id={id} dim={dim} />;
+  }
+  return <SelectableDimensionDropdown dim={dim} />;
+});
+
+const SelectableDimensionDropdown: FC<{
   dim: SelectableDimensionEnumModel;
 }> = observer(({ dim }) => {
   const theme = useTheme();

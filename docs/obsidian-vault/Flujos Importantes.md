@@ -147,6 +147,16 @@ Flujo observado para `cog` y `cog-time-series`:
 - La fabrica tambien fija `provider.url` (necesario para que TerriaJS guarde `providerCoords` y restaure el pick desde un share) y registra el GeoTIFF abierto en `CogSourceCache`.
 - Series continuas usan `resampleMethod: "bilinear"` por defecto (load stratum). Catalogos categoricos deben fijar `nearest`. Los traits de nivel superior `cache` y `resampleMethod` estan obsoletos y se ignoran.
 
+### Resoluciones temporales (`cog-time-series`)
+
+- `resolutions[]` agrupa en un solo item varias resoluciones de la misma variable (p. ej. anual, mensual, diaria). Cada una trae `id`, `name`, `url` o `timeEntries`, y opcionalmente `dateFormat`, `fromContinuous`, `renderOptions`, `valueScale`, `valueOffset`, `unit`, `noDataValues`, `partialCoverage` y `hint`. `activeResolutionId` elige la activa; si falta o no existe, se usa la primera. Un item sin `resolutions` se comporta como antes (`url` / `timeEntries` del item).
+- `CogTimeSeriesStratum` (load stratum) expone los valores de la resolucion activa. Por orden de estratos, lo configurado en el item (definition) o editado por el usuario sigue ganando: lo comun a todas las resoluciones (paleta, banda, clamps) va en el item; lo propio de cada una (tipicamente `single.domain`) va dentro de `resolutions[]`. `resampleMethod` tiene default de trait, asi que solo cuenta si algun estrato lo fija (`getExplicitTraitValue`).
+- Las fechas de cada JSON se cargan una vez y se guardan por URL; volver a una resolucion no repite la peticion.
+- `setActiveResolution` cambia el trait y borra el `domain` del estrato indicado (un rango elegido por el usuario pertenece a la resolucion donde lo eligio). No toca `currentTime`: el mixin de tiempos discretos lo reajusta. Los agregados cuyo `time` es el inicio del periodo deben usar `fromContinuous: "previous"`; con `nearest`, julio de 2024 caeria en 2025 al pasar a anual. La cache de pasos sobrevive porque su clave son las URLs de los COG, y las series de los puntos clickeados se releen para la nueva resolucion.
+- `dateFormat` debe llevar el prefijo `UTC:` (`UTC:yyyy`, `UTC:mmm yyyy`). Sin el, `dateformat` usa la zona horaria del navegador y un `2023-01-01T00:00:00Z` se muestra como "Dec 2022" en zonas al oeste de UTC.
+- Controles en la tarjeta del workbench (`selectableDimensions` del item): resolucion como control segmentado arriba de la tarjeta (`display: "pills"`, `placement: "top"`), paleta (`createCogColorScaleDimension`, compartida con el workflow "Edit style") y un grupo "Rango de color" con minimo, maximo, "Ajustar a esta fecha" y "Restablecer rango". `display: "pills"` y el placement `top` son genericos de `SelectableDimensionEnum` y sirven a cualquier item.
+- Ejemplo de configuracion: `wwwroot/test/init/cog-time-series-example.json` (un spec lo valida).
+
 ### Valor en un punto y serie temporal (`cog-time-series`)
 
 - El item reemplaza `pickFeatures` del proveedor (`_installPick` / `_pickAt`). La version de la libreria lee un overview que depende del zoom, interpola lon/lat de forma lineal (incorrecto en COG proyectados), ignora el no-data, responde una vez por COG del mosaico y no pone `position`.

@@ -10,7 +10,7 @@
         "single": {
           "band": 1,
           "domain": [0, 1.65],
-          "colorScale": "viridis"
+          "colorScale": "portland"
         }
       }
     }
