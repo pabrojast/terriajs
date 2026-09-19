@@ -1479,6 +1479,98 @@ describe("CogTimeSeriesCatalogItem", function () {
   });
 
   // ════════════════════════════════════════════════
+  // Real providers: the library and GeoTIFF fixtures, nothing stubbed
+  // ════════════════════════════════════════════════
+
+  describe("with real imagery providers", function () {
+    const FIXTURE = "/test/cogs/4326.tif";
+
+    afterEach(function () {
+      item.clearAccumulatedSeries();
+      (item as any)._destroyAllProviders();
+    });
+
+    function configure(extra: Record<string, unknown> = {}) {
+      updateModelFromJson(item, CommonStrata.definition, {
+        name: "Fixture",
+        preloadAdjacentSteps: 0,
+        timeEntries: [
+          { time: "2024-01-01T00:00:00Z", cogs: [FIXTURE] },
+          { time: "2024-02-01T00:00:00Z", cogs: [FIXTURE] }
+        ],
+        ...extra
+      });
+    }
+
+    it("builds a step with a configured range without reading statistics, then computes them on demand", async function () {
+      configure({
+        renderOptions: { single: { colorScale: "ylgnbu", domain: [0, 500] } }
+      });
+      (await item.loadMapItems()).throwIfError();
+
+      expect(item.mapItems.length).toBe(1);
+      const provider = (item.mapItems[0] as any).imageryProvider;
+      expect(provider.plot.domain).toEqual([0, 500]);
+      expect(provider.url).toBe(FIXTURE);
+      expect(item.effectiveCogStyle?.domain).toEqual([0, 500]);
+      // Skipped at build time…
+      expect(item.effectiveCogStyle?.nativeDomain).toBeUndefined();
+
+      // …and available when asked for ("fit to this date").
+      const native = await item.loadNativeDomainForCurrentStep();
+      expect(native).toBeDefined();
+      expect(Number.isFinite(native![0])).toBe(true);
+      expect(native![0]).toBeLessThanOrEqual(native![1]);
+      expect(item.effectiveCogStyle?.nativeDomain).toEqual(native);
+      // The applied range is untouched.
+      expect(provider.plot.domain).toEqual([0, 500]);
+    });
+
+    it("uses the native range when none is configured", async function () {
+      configure({ renderOptions: { single: { colorScale: "ylgnbu" } } });
+      (await item.loadMapItems()).throwIfError();
+
+      const style = item.effectiveCogStyle;
+      expect(style?.nativeDomain).toBeDefined();
+      expect(style?.domain).toEqual(style?.nativeDomain);
+    });
+
+    it("picks the value under a click through the provider Cesium would call", async function () {
+      configure({
+        unit: "units",
+        renderOptions: { single: { colorScale: "ylgnbu", domain: [0, 500] } }
+      });
+      (await item.loadMapItems()).throwIfError();
+      const provider = (item.mapItems[0] as any).imageryProvider;
+      const rectangle = provider.rectangle;
+      const longitude = (rectangle.west + rectangle.east) / 2;
+      const latitude = (rectangle.south + rectangle.north) / 2;
+
+      const features = await provider.pickFeatures(
+        0,
+        0,
+        0,
+        longitude,
+        latitude
+      );
+
+      expect(features.length).toBe(1);
+      expect(features[0].position.longitude).toBeCloseTo(longitude, 9);
+      expect(features[0].data.cogTimeSeriesPick).toBe(true);
+      expect(features[0].data.unit).toBe("units");
+      // Far outside the image: nothing, so layers underneath can answer.
+      expect((await provider.pickFeatures(0, 0, 0, 0, 0)).length).toBe(0);
+
+      // The click also started the point series; both dates read the fixture.
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      const series = item.pointSeries[0];
+      expect(series.status).toBe("done");
+      expect(series.errors).toBe(0);
+      expect(series.loaded).toBe(2);
+    });
+  });
+
+  // ════════════════════════════════════════════════
   // Full JSON configuration (realistic examples)
   // ════════════════════════════════════════════════
 
