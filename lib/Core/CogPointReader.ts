@@ -234,11 +234,20 @@ export interface LoadCogPointSeriesOptions extends ReadCogPointOptions {
   concurrency?: number;
   /** Index of the entry to read first; the rest follow outwards from it. */
   startIndex?: number;
+  /**
+   * Stop once this many dates (the ones nearest to `startIndex`) were read
+   * without a single value. A click on land, or outside the water mask of a
+   * water-quality product, would otherwise cost two requests per date only to
+   * find nothing.
+   */
+  giveUpAfterEmpty?: number;
   onProgress?: (progress: CogPointSeriesProgress) => void;
 }
 
 export interface CogPointSeriesResult extends CogPointSeriesProgress {
   aborted: boolean;
+  /** True when the read stopped early because of `giveUpAfterEmpty`. */
+  gaveUp: boolean;
 }
 
 const DEFAULT_SERIES_CONCURRENCY = 6;
@@ -289,6 +298,8 @@ export async function loadCogPointSeries(
     options.startIndex ?? entries.length - 1
   );
   let next = 0;
+  let gaveUp = false;
+  const giveUpAfter = options.giveUpAfterEmpty;
 
   const readEntry = async (entry: CogPointSeriesEntry) => {
     for (let attempt = 0; ; attempt++) {
@@ -301,7 +312,7 @@ export async function loadCogPointSeries(
   };
 
   const worker = async () => {
-    while (next < order.length && !signal?.aborted) {
+    while (next < order.length && !signal?.aborted && !gaveUp) {
       const entry = entries[order[next++]];
       try {
         const read = await readEntry(entry);
@@ -323,6 +334,14 @@ export async function loadCogPointSeries(
         progress.errors++;
       }
       progress.loaded++;
+      if (
+        giveUpAfter !== undefined &&
+        progress.loaded >= giveUpAfter &&
+        progress.points.length === 0 &&
+        progress.errors === 0
+      ) {
+        gaveUp = true;
+      }
       onProgress?.(progress);
     }
   };
@@ -333,5 +352,5 @@ export async function loadCogPointSeries(
   );
   await Promise.all(Array.from({ length: concurrency }, () => worker()));
 
-  return { ...progress, aborted: signal?.aborted === true };
+  return { ...progress, aborted: signal?.aborted === true, gaveUp };
 }

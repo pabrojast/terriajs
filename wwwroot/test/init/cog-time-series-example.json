@@ -4,7 +4,7 @@
       "type": "cog-time-series",
       "id": "cog-time-series-example",
       "name": "COG time series example",
-      "description": "Minimal example of a `cog-time-series` item with two temporal resolutions. It uses the 1x1 test fixtures, so it shows the configuration rather than meaningful imagery. `domain`, the legend, clicked values and point series are in physical units (`stored * valueScale + valueOffset`). Do not set `renderOptions.nodata` unless the GeoTIFF does not declare its own no-data value: it replaces it.",
+      "description": "Minimal example of a `cog-time-series` item with two temporal resolutions. It uses the 1x1 test fixtures, so it shows the configuration rather than meaningful imagery. `domain`, the legend, clicked values and point series are in physical units (`stored * valueScale + valueOffset`). Do not set `renderOptions.nodata` unless the GeoTIFF does not declare its own no-data value: it replaces it. Resolutions can list `bands` (statistics of a multi-band COG, matched by `id` across resolutions), and the item can list `places` to jump to and chart by name. `pointSeriesMaxSteps` bounds the point series of long resolutions and `prefetchHeaders` halves its requests.",
       "unit": "mg m-3",
       "opacity": 0.9,
       "activeResolutionId": "monthly",
@@ -21,7 +21,11 @@
           "name": "Annual",
           "dateFormat": "UTC:yyyy",
           "fromContinuous": "previous",
-          "renderOptions": { "single": { "domain": [0, 60] } },
+          "renderOptions": {
+            "single": {
+              "domain": [0, 60]
+            }
+          },
           "timeEntries": [
             {
               "time": "2024-01-01T00:00:00Z",
@@ -41,7 +45,11 @@
           "dateFormat": "UTC:mmm yyyy",
           "fromContinuous": "previous",
           "valueScale": 0.1,
-          "renderOptions": { "single": { "domain": [0, 80] } },
+          "renderOptions": {
+            "single": {
+              "domain": [0, 80]
+            }
+          },
           "timeEntries": [
             {
               "time": "2024-06-01T00:00:00Z",
@@ -51,7 +59,38 @@
               "time": "2024-07-01T00:00:00Z",
               "cogs": ["/test/cogs/32756.tif"]
             }
+          ],
+          "pointSeriesMaxSteps": 120,
+          "bands": [
+            {
+              "id": "median",
+              "name": "Median",
+              "band": 1
+            },
+            {
+              "id": "n_obs",
+              "name": "Observations",
+              "band": 1,
+              "unit": "passes",
+              "renderOptions": {
+                "single": {
+                  "colorScaleMode": "named",
+                  "colorScale": "ylgnbu",
+                  "domain": [0, 10]
+                }
+              }
+            }
           ]
+        }
+      ],
+      "prefetchHeaders": false,
+      "places": [
+        {
+          "id": "fixture",
+          "name": "Fixture pixel",
+          "detail": "test location",
+          "latitude": -33.85,
+          "longitude": 151.2
         }
       ]
     }

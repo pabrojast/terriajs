@@ -36,6 +36,8 @@ export interface AccumulatedSeries {
     /** Degrees; set for `kind: "point"`. */
     lat?: number;
     lon?: number;
+    /** Name of the place, when the point is a named one rather than a click. */
+    label?: string;
   };
 }
 

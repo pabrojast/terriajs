@@ -55,7 +55,7 @@ export class CogTimeSeriesLegendStratum extends LoadableStratum(
     return createAutomaticCogLegends(
       this.catalogItem.effectiveCogStyle,
       this.catalogItem.renderOptions?.single?.numberOfBins,
-      this.catalogItem.unit
+      this.catalogItem.displayUnit
     );
   }
 }
@@ -72,6 +72,34 @@ export function createAutomaticCogLegends(
   const [minimum, maximum] = style.domain;
   const baseTitle = i18next.t("models.cog.legendTitle");
   const title = unit ? `${baseTitle} (${unit})` : baseTitle;
+
+  // Stops at real values (typically log-spaced): a linear ramp would squeeze
+  // most of them into its first tenth, so list them, highest first.
+  const stopValues = style.stopValues;
+  if (
+    style.type === "continuous" &&
+    stopValues &&
+    stopValues.length === style.stops.length &&
+    stopValues.length >= 2
+  ) {
+    const last = stopValues.length - 1;
+    const items = style.stops
+      .map((stop, index) =>
+        createStratumInstance(LegendItemTraits, {
+          color: stop.color,
+          title:
+            index === last && style.clampHigh
+              ? `≥ ${formatValue(stopValues[index])}`
+              : index === 0 && style.clampLow
+              ? `≤ ${formatValue(stopValues[index])}`
+              : formatValue(stopValues[index]),
+          value: stopValues[index]
+        })
+      )
+      .reverse();
+    return [createStratumInstance(LegendTraits, { title, items })];
+  }
+
   if (style.type === "continuous") {
     return [
       createStratumInstance(LegendTraits, {

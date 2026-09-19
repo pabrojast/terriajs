@@ -123,6 +123,100 @@ export class AreaCalculationTraits extends ModelTraits {
 }
 
 /**
+ * One band of a multi-band COG, offered as a statistic to choose from — e.g.
+ * the median, mean, 90th percentile and number of observations of a monthly
+ * composite.
+ */
+export class CogSeriesBandTraits extends ModelTraits {
+  @primitiveTrait({
+    type: "string",
+    name: "Id",
+    description:
+      "Identifier of the statistic, e.g. `median`. Use the same id for the same statistic in every resolution so the choice survives switching resolution."
+  })
+  id?: string;
+
+  @primitiveTrait({
+    type: "string",
+    name: "Name",
+    description: "Label shown in the statistic selector, e.g. `Median`."
+  })
+  name?: string;
+
+  @primitiveTrait({
+    type: "number",
+    name: "Band",
+    description: "Band number in the GeoTIFF, starting from 1."
+  })
+  band?: number;
+
+  @primitiveTrait({
+    type: "string",
+    name: "Unit",
+    description:
+      "Unit of this band when it differs from the item's, e.g. `months` for a count band."
+  })
+  unit?: string;
+
+  @objectTrait({
+    type: CogRenderOptionsTraits,
+    name: "Render Options",
+    description:
+      "Style of this band, applied over the resolution's. A count band typically needs its own palette and range."
+  })
+  renderOptions?: CogRenderOptionsTraits;
+}
+
+/** A named location worth jumping to: a lake, a reservoir, a station. */
+export class CogSeriesPlaceTraits extends ModelTraits {
+  @primitiveTrait({
+    type: "string",
+    name: "Id",
+    description: "Identifier of the place."
+  })
+  id?: string;
+
+  @primitiveTrait({
+    type: "string",
+    name: "Name",
+    description:
+      "Name shown in the place selector and used to label the place's time series."
+  })
+  name?: string;
+
+  @primitiveTrait({
+    type: "number",
+    name: "Latitude",
+    description:
+      "Latitude in degrees of the point to chart. It must fall on data (for a water body, a point inside it)."
+  })
+  latitude?: number;
+
+  @primitiveTrait({
+    type: "number",
+    name: "Longitude",
+    description: "Longitude in degrees of the point to chart."
+  })
+  longitude?: number;
+
+  @primitiveTrait({
+    type: "string",
+    name: "Detail",
+    description:
+      "Short note shown next to the name in the selector only, e.g. `lake, 32 km²`."
+  })
+  detail?: string;
+
+  @primitiveArrayTrait({
+    type: "number",
+    name: "Bounding box",
+    description:
+      "Optional `[west, south, east, north]` in degrees to zoom to. Defaults to a few kilometres around the point."
+  })
+  bbox?: number[];
+}
+
+/**
  * One temporal resolution (e.g. annual, monthly, daily) of the same variable.
  * Whatever is set here applies while this resolution is the active one.
  */
@@ -209,6 +303,22 @@ export class CogSeriesResolutionTraits extends ModelTraits {
   })
   noDataValues?: number[];
 
+  @objectArrayTrait({
+    type: CogSeriesBandTraits,
+    idProperty: "id",
+    name: "Bands",
+    description:
+      "Statistics (bands) of this resolution's COGs to choose from. The first one is shown by default."
+  })
+  bands?: CogSeriesBandTraits[];
+
+  @primitiveTrait({
+    type: "number",
+    name: "Point Series Max Steps",
+    description: "See the item's `pointSeriesMaxSteps`."
+  })
+  pointSeriesMaxSteps?: number;
+
   @primitiveTrait({
     type: "boolean",
     name: "Partial Coverage",
@@ -294,6 +404,48 @@ export default class CogTimeSeriesCatalogItemTraits extends mixTraits(
       "The `id` of the resolution to show. Defaults to the first one."
   })
   activeResolutionId?: string;
+
+  @objectArrayTrait({
+    type: CogSeriesBandTraits,
+    idProperty: "id",
+    name: "Bands",
+    description:
+      "Statistics (bands) to choose from, for an item without `resolutions`. With resolutions, list them in each resolution."
+  })
+  bands?: CogSeriesBandTraits[];
+
+  @primitiveTrait({
+    type: "string",
+    name: "Active Band Id",
+    description:
+      "The `id` of the statistic (band) to show. Defaults to the first one of the active resolution."
+  })
+  activeBandId?: string;
+
+  @objectArrayTrait({
+    type: CogSeriesPlaceTraits,
+    idProperty: "id",
+    name: "Places",
+    description:
+      "Named locations offered on the workbench. Choosing one moves the map there and charts the time series at its point, labelled with the place's name. Useful when the data are small features (lakes, reservoirs) that are hard to find at the scale of the layer."
+  })
+  places?: CogSeriesPlaceTraits[];
+
+  @primitiveTrait({
+    type: "number",
+    name: "Point Series Max Steps",
+    description:
+      "Reading the time series at a point costs about two requests per date. For long series (e.g. 1400 daily scenes) set this to read only the N dates closest to the displayed date; clicking again after moving far in time reads the new window. Unset reads every date."
+  })
+  pointSeriesMaxSteps?: number;
+
+  @primitiveTrait({
+    type: "boolean",
+    name: "Prefetch Headers",
+    description:
+      "Open every time step's GeoTIFF header in the background once the layer is on the map (one small request per file, two at a time). Reading the time series at a point then costs one request per date instead of two, which matters on storage that only speaks HTTP/1.1. Skipped for resolutions with more than 200 steps. Default is false."
+  })
+  prefetchHeaders?: boolean;
 
   @primitiveTrait({
     type: "string",

@@ -39,6 +39,7 @@ import DiscretelyTimeVaryingMixin, {
 } from "../../../ModelMixins/DiscretelyTimeVaryingMixin";
 import MappableMixin, { MapItem } from "../../../ModelMixins/MappableMixin";
 import CogTimeSeriesCatalogItemTraits, {
+  CogSeriesBandTraits,
   CogSeriesResolutionTraits
 } from "../../../Traits/TraitsClasses/CogTimeSeriesCatalogItemTraits";
 import { RectangleTraits } from "../../../Traits/TraitsClasses/MappableTraits";
@@ -68,9 +69,10 @@ import {
   CogPointSeriesProgress,
   CogValueTransform,
   loadCogPointSeries,
+  outwardOrder,
   readCogStepPointValue
 } from "../../../Core/CogPointReader";
-import { getCogBandStats } from "../../../Core/CogSourceCache";
+import { getCogBandStats, openCogSource } from "../../../Core/CogSourceCache";
 import type { ChartDockContext } from "../../ChartSeriesAccumulator";
 import { paletteColor } from "../../../ReactViews/Custom/Chart/ChartJs/chartJsPalette";
 import type { AccumulatedSeries } from "../../../ReactViews/Custom/Chart/ChartJs/ChartJsTypes";
@@ -132,6 +134,8 @@ interface CogPickData {
   date?: string;
   dateLabel?: string;
   band: number;
+  /** Name of the statistic (band) read, when the item offers several. */
+  statistic?: string;
 }
 
 /** Time series being read (or read) at a clicked point. */
@@ -152,12 +156,32 @@ export interface CogPointSeriesState {
   outside: number;
   /** Ascending by `x` (epoch milliseconds); `y` in physical units. */
   points: { x: number; y: number }[];
+  /** True when the label is a place name rather than an automatic P-number. */
+  named?: boolean;
+  /**
+   * Set when only the dates nearest to the displayed one were read
+   * (`pointSeriesMaxSteps`): the span read and how many dates exist in all.
+   */
+  window?: { firstX: number; lastX: number; available: number };
 }
 
 /** Same cap as the CSV accumulator: more lines than this stop being readable. */
 const MAX_POINT_SERIES = 12;
 /** Progress of a point series reaches the UI at most this often. */
 const POINT_SERIES_FLUSH_MS = 250;
+/**
+ * A point with no value on this many dates around the displayed one is not a
+ * data point (land, or outside the mask): stop reading and drop the series.
+ */
+const POINT_SERIES_GIVE_UP_AFTER = 12;
+/** …or this share of the dates to read, whichever is more (cloudy seasons). */
+const POINT_SERIES_GIVE_UP_SHARE = 0.1;
+/** Header prefetch: wait for the map to settle, stay off most connections. */
+const PREFETCH_DELAY_MS = 2500;
+const PREFETCH_CONCURRENCY = 2;
+const PREFETCH_MAX_STEPS = 200;
+/** Half-size of the view when a place has no `bbox` (~3 km at the equator). */
+const PLACE_ZOOM_MARGIN_DEGREES = 0.03;
 /** Picks of the same click by the other COGs of a mosaic arrive within this. */
 const PICK_DEDUPE_MS = 300;
 
@@ -311,8 +335,12 @@ class CogTimeSeriesStratum extends LoadableStratum(
         "</div>" +
         '<div style="font-size:12px;opacity:0.7;margin-bottom:6px">' +
         "{{#terria.timeSeries.pointLabel}}<strong>{{terria.timeSeries.pointLabel}}</strong> · {{/terria.timeSeries.pointLabel}}" +
+        "{{#terria.timeSeries.statistic}}{{terria.timeSeries.statistic}} · {{/terria.timeSeries.statistic}}" +
         "{{terria.timeSeries.coordinates}}" +
         "</div>" +
+        "{{#terria.timeSeries.windowNote}}" +
+        '<p style="font-size:12px;opacity:0.7"><em>{{terria.timeSeries.windowNote}}</em></p>' +
+        "{{/terria.timeSeries.windowNote}}" +
         // Series progress / problems
         "{{#terria.timeSeries.progress}}" +
         "<p><em>{{terria.timeSeries.progress}}</em></p>" +
@@ -385,6 +413,11 @@ class CogTimeSeriesStratum extends LoadableStratum(
   }
 
   @computed
+  get pointSeriesMaxSteps(): number | undefined {
+    return this.model.activeResolution?.pointSeriesMaxSteps;
+  }
+
+  @computed
   get noDataValues(): number[] | undefined {
     const values = this.model.activeResolution?.noDataValues;
     return values && values.length > 0 ? [...values] : undefined;
@@ -401,24 +434,33 @@ class CogTimeSeriesStratum extends LoadableStratum(
   @computed
   get renderOptions(): StratumFromTraits<CogRenderOptionsTraits> {
     const options = this.model.activeResolution?.renderOptions;
-    const single = options?.single;
+    const activeBand = this.model.activeBand;
+    const bandOptions = activeBand?.renderOptions;
 
+    // The active band's style goes over the resolution's, key by key, and the
+    // band number is the band's own.
     const singleValues: Record<string, unknown> = {};
-    if (single) {
+    for (const single of [options?.single, bandOptions?.single]) {
+      if (!single) continue;
       for (const trait of Object.keys(SingleRenderOptionsTraits.traits)) {
         const value = (single as any)[trait];
         if (value === undefined) continue;
-        singleValues[trait] = Array.isArray(value) ? [...value] : value;
+        singleValues[trait] = Array.isArray(value)
+          ? value.map((entry) => (Array.isArray(entry) ? [...entry] : entry))
+          : value;
       }
     }
+    if (activeBand?.band !== undefined) singleValues.band = activeBand.band;
 
     return createStratumInstance(CogRenderOptionsTraits, {
       // `resampleMethod` has a trait default, so only an explicit value counts.
       resampleMethod:
-        getExplicitTraitValue(options, "resampleMethod") ?? "bilinear",
-      nodata: options?.nodata,
-      convertToRGB: options?.convertToRGB,
-      color: options?.color,
+        getExplicitTraitValue(bandOptions, "resampleMethod") ??
+        getExplicitTraitValue(options, "resampleMethod") ??
+        "bilinear",
+      nodata: bandOptions?.nodata ?? options?.nodata,
+      convertToRGB: bandOptions?.convertToRGB ?? options?.convertToRGB,
+      color: bandOptions?.color ?? options?.color,
       single:
         Object.keys(singleValues).length > 0
           ? createStratumInstance(SingleRenderOptionsTraits, singleValues)
@@ -575,6 +617,8 @@ export default class CogTimeSeriesCatalogItem extends DiscretelyTimeVaryingMixin
   /** Bumped by `_destroyAllProviders` so builds in flight discard their result. */
   private _providerGeneration = 0;
   private _reportedStepErrors = new Set<string>();
+  /** Identifies the set of time steps whose headers were (or are being) prefetched. */
+  private _prefetchKey: string | undefined;
   /** False until the first load, and again after the providers are torn down. */
   private _hasLoadedSteps = false;
 
@@ -608,6 +652,8 @@ export default class CogTimeSeriesCatalogItem extends DiscretelyTimeVaryingMixin
   /** One controller per point series being read, so each can really be cancelled. */
   private _pointSeriesAborts = new Map<string, AbortController>();
   private _pointLabelCounter = 0;
+  /** Separate from the P-counter: named places take a colour but no number. */
+  private _nextPointColorIndex = 0;
 
   /** Last answered click, to answer once when several COGs of a mosaic are asked. */
   private _lastPick: { key: string; step: CachedStep; at: number } | undefined;
@@ -696,6 +742,15 @@ export default class CogTimeSeriesCatalogItem extends DiscretelyTimeVaryingMixin
       }
     );
 
+    // Another statistic is another band: the providers rebuild on their own
+    // (band is a build-time option); the clicked points must be read again.
+    reaction(
+      () => this.renderOptions?.single?.band,
+      () => {
+        if (this._pointSeries.length > 0) this._reloadPointSeries();
+      }
+    );
+
     // React to time changes. Keyed on the step's COG URLs rather than its tag,
     // so it also fires when the entries themselves change.
     reaction(
@@ -741,6 +796,55 @@ export default class CogTimeSeriesCatalogItem extends DiscretelyTimeVaryingMixin
     if (id === this.activeResolution?.id) return;
     this.setTrait(stratumId, "activeResolutionId", id);
     this.renderOptions?.single?.setTrait(stratumId, "domain", undefined);
+  }
+
+  // ──────────────────────────────────────────────
+  // Statistics (bands of a multi-band COG)
+  // ──────────────────────────────────────────────
+
+  /** Bands offered for the active resolution (or for an item without resolutions). */
+  @computed
+  get availableBands(): readonly Model<CogSeriesBandTraits>[] {
+    const resolution = this.activeResolution;
+    const bands = resolution ? resolution.bands : this.bands;
+    return (bands ?? []).filter((band) => band.band !== undefined);
+  }
+
+  /**
+   * The statistic being shown: the band with `activeBandId` in the active
+   * resolution, else its first band. Matching by id (not by band number) is
+   * what keeps "median" selected across resolutions that store it in
+   * different bands.
+   */
+  @computed
+  get activeBand(): Model<CogSeriesBandTraits> | undefined {
+    const bands = this.availableBands;
+    if (bands.length === 0) return undefined;
+    return bands.find((band) => band.id === this.activeBandId) ?? bands[0];
+  }
+
+  /**
+   * Unit of the values on screen. A band's own unit (a count band is not in
+   * mg m-3) wins even over a unit configured on the item, which the usual
+   * strata order would not allow.
+   */
+  @computed
+  get displayUnit(): string | undefined {
+    return this.activeBand?.unit ?? this.unit;
+  }
+
+  /**
+   * The choice is always recorded, even when it is the band already shown by
+   * default, so it survives a switch to a resolution with another default. A
+   * colour range set by hand belongs to the statistic it was set on.
+   */
+  @action
+  setActiveBand(stratumId: string, id: string | undefined): void {
+    const changes = id !== this.activeBand?.id;
+    this.setTrait(stratumId, "activeBandId", id);
+    if (changes) {
+      this.renderOptions?.single?.setTrait(stratumId, "domain", undefined);
+    }
   }
 
   /** Time entries with a parseable time, in the same order as `discreteTimesAsSortedJulianDates`. */
@@ -936,6 +1040,8 @@ export default class CogTimeSeriesCatalogItem extends DiscretelyTimeVaryingMixin
     return filterOutUndefined([
       ...super.selectableDimensions,
       this._resolutionDimension,
+      this._bandDimension,
+      this._placeDimension,
       this._isSingleBandStyle
         ? createCogColorScaleDimension(this, { id: "cog-series-palette" })
         : undefined,
@@ -969,12 +1075,97 @@ export default class CogTimeSeriesCatalogItem extends DiscretelyTimeVaryingMixin
     };
   }
 
+  /** Which statistic (band) of a multi-band COG to show. */
+  @computed
+  private get _bandDimension(): SelectableDimensionEnum | undefined {
+    const bands = this.availableBands;
+    if (bands.length < 2) return undefined;
+    return {
+      type: "select",
+      id: "cog-series-band",
+      name: i18next.t("models.cogTimeSeries.statistic"),
+      selectedId: this.activeBand?.id,
+      options: bands
+        .filter((band) => band.id !== undefined)
+        .map((band) => ({ id: band.id!, name: band.name ?? band.id! })),
+      setDimensionValue: (stratumId, id) => this.setActiveBand(stratumId, id)
+    };
+  }
+
+  /**
+   * Jump to a named place and chart it. An action rather than a setting: the
+   * selector always reads "Go to a place…" and nothing is persisted but the
+   * resulting series.
+   */
+  @computed
+  private get _placeDimension(): SelectableDimensionEnum | undefined {
+    const places = (this.places ?? []).filter(
+      (place) =>
+        place.id !== undefined &&
+        place.latitude !== undefined &&
+        place.longitude !== undefined
+    );
+    if (places.length === 0) return undefined;
+    return {
+      type: "select",
+      id: "cog-series-place",
+      name: i18next.t("models.cogTimeSeries.places"),
+      selectedId: undefined,
+      allowUndefined: true,
+      undefinedLabel: i18next.t("models.cogTimeSeries.goToPlace"),
+      options: places.map((place) => ({
+        id: place.id!,
+        name: place.detail
+          ? `${place.name ?? place.id} — ${place.detail}`
+          : place.name ?? place.id!
+      })),
+      setDimensionValue: (_stratumId, id) => {
+        if (id !== undefined) this.goToPlace(id);
+      }
+    };
+  }
+
+  /**
+   * Move the map to a place and start its time series, labelled with the
+   * place's name. Small features (a lake in a country-sized layer) are hard to
+   * find and to hit by hand.
+   */
+  @action
+  goToPlace(placeId: string): void {
+    const place = this.places?.find((candidate) => candidate.id === placeId);
+    if (
+      !place ||
+      place.latitude === undefined ||
+      place.longitude === undefined
+    ) {
+      return;
+    }
+    const bbox = place.bbox;
+    const rectangle =
+      bbox && bbox.length === 4 && bbox.every((value) => Number.isFinite(value))
+        ? Rectangle.fromDegrees(bbox[0], bbox[1], bbox[2], bbox[3])
+        : Rectangle.fromDegrees(
+            place.longitude - PLACE_ZOOM_MARGIN_DEGREES,
+            place.latitude - PLACE_ZOOM_MARGIN_DEGREES,
+            place.longitude + PLACE_ZOOM_MARGIN_DEGREES,
+            place.latitude + PLACE_ZOOM_MARGIN_DEGREES
+          );
+    this.terria.currentViewer
+      .zoomTo(rectangle, 1.5)
+      .catch((e) => console.warn("COG time series: could not zoom", e));
+    this.addPointSeries(
+      place.latitude,
+      place.longitude,
+      place.name ?? place.id
+    );
+  }
+
   /** Minimum / maximum of the colour scale, fit to the displayed date, reset. */
   @computed
   private get _colorRangeDimension(): SelectableDimensionGroup | undefined {
     if (!this._isSingleBandStyle) return undefined;
     const domain = this.effectiveCogStyle?.domain;
-    const unit = this.unit;
+    const unit = this.displayUnit;
 
     const setBound = (index: 0 | 1) =>
       action((stratumId: string, value: number | undefined) => {
@@ -1432,10 +1623,11 @@ export default class CogTimeSeriesCatalogItem extends DiscretelyTimeVaryingMixin
         longitude: lon,
         latitude: lat,
         value: read.status === "value" ? read.value : null,
-        unit: this.unit,
+        unit: this.displayUnit,
         date,
         dateLabel,
-        band
+        band,
+        statistic: this.activeBand?.name
       };
 
       const info = new ImageryLayerFeatureInfo();
@@ -1479,28 +1671,40 @@ export default class CogTimeSeriesCatalogItem extends DiscretelyTimeVaryingMixin
    * around the displayed one first.
    */
   @action
-  addPointSeries(lat: number, lon: number): string {
+  addPointSeries(lat: number, lon: number, label?: string): string {
     const key = this._pointKey(lat, lon);
     const existing = this._pointSeries.find((series) => series.key === key);
-    // A cancelled or failed series is read again; anything else is reused.
+    // A cancelled or failed series is read again, and so is a windowed one
+    // when the displayed date has moved out of the dates it read. Anything
+    // else is reused.
+    const currentTime = this.currentDiscreteJulianDate;
+    const currentX = currentTime
+      ? JulianDate.toDate(currentTime).getTime()
+      : undefined;
+    const outsideWindow =
+      existing?.window !== undefined &&
+      currentX !== undefined &&
+      (currentX < existing.window.firstX || currentX > existing.window.lastX);
     if (
       existing &&
       existing.status !== "cancelled" &&
-      existing.status !== "error"
+      existing.status !== "error" &&
+      !outsideWindow
     ) {
       return key;
     }
 
-    const entries = this._sortedEntries;
+    const named = label !== undefined || existing?.named === true;
     const state: CogPointSeriesState = {
       key,
-      label: existing?.label ?? `P${++this._pointLabelCounter}`,
+      label: label ?? existing?.label ?? `P${++this._pointLabelCounter}`,
+      named,
       lat,
       lon,
-      color: existing?.color ?? paletteColor(this._pointLabelCounter - 1),
+      color: existing?.color ?? paletteColor(this._nextPointColorIndex++),
       status: "loading",
       loaded: 0,
-      total: entries.length,
+      total: this._pointSeriesWindow().entries.length,
       errors: 0,
       noData: 0,
       outside: 0,
@@ -1532,15 +1736,29 @@ export default class CogTimeSeriesCatalogItem extends DiscretelyTimeVaryingMixin
     const controller = new AbortController();
     this._pointSeriesAborts.set(key, controller);
 
-    const sorted = this._sortedEntries;
-    const entries = sorted.map((entry) => ({
+    const window = this._pointSeriesWindow();
+    const entries = window.entries.map((entry) => ({
       time: JulianDate.toIso8601(entry.time),
       cogs: entry.cogs.map((url) => proxyCatalogItemUrl(this, url))
     }));
+    const readWindow =
+      window.entries.length < window.available && window.entries.length > 0
+        ? {
+            firstX: JulianDate.toDate(window.entries[0].time).getTime(),
+            lastX: JulianDate.toDate(
+              window.entries[window.entries.length - 1].time
+            ).getTime(),
+            available: window.available
+          }
+        : undefined;
 
     // Publish progress at most every POINT_SERIES_FLUSH_MS: each publish
     // re-renders the chart, so per-step updates would cost O(n²).
-    let latest = initial;
+    let latest: CogPointSeriesState = {
+      ...initial,
+      total: entries.length,
+      window: readWindow
+    };
     let lastFlush = 0;
     const publish = (progress: CogPointSeriesProgress, force: boolean) => {
       const now = Date.now();
@@ -1568,11 +1786,26 @@ export default class CogTimeSeriesCatalogItem extends DiscretelyTimeVaryingMixin
         band: this.renderOptions?.single?.band ?? 1,
         noDataValues: this.noDataValues,
         transform: this.valueTransform,
-        startIndex: this.currentDiscreteTimeIndex,
+        startIndex: window.startIndex,
+        // A place was chosen on purpose; a click may simply have missed the data.
+        giveUpAfterEmpty: initial.named
+          ? undefined
+          : Math.max(
+              POINT_SERIES_GIVE_UP_AFTER,
+              Math.ceil(entries.length * POINT_SERIES_GIVE_UP_SHARE)
+            ),
         signal: controller.signal,
         onProgress: (progress) => publish(progress, false)
       });
       if (result.aborted) return;
+      // Nothing at this point: a click on land, or outside the data mask.
+      if (
+        result.gaveUp ||
+        (!initial.named && result.points.length === 0 && result.errors === 0)
+      ) {
+        this._dropEmptyPointSeries(key);
+        return;
+      }
       publish(result, true);
       latest = {
         ...latest,
@@ -1585,6 +1818,52 @@ export default class CogTimeSeriesCatalogItem extends DiscretelyTimeVaryingMixin
         this._pointSeriesAborts.delete(key);
       }
     }
+  }
+
+  /**
+   * The time steps a point series reads: all of them, or with
+   * `pointSeriesMaxSteps` the N closest to the displayed date.
+   */
+  private _pointSeriesWindow(): {
+    entries: SortedTimeEntry[];
+    /** Index, within `entries`, of the displayed date. */
+    startIndex: number | undefined;
+    available: number;
+  } {
+    const all = this._sortedEntries;
+    const current = this.currentDiscreteTimeIndex;
+    const max = this.pointSeriesMaxSteps;
+    if (
+      max === undefined ||
+      !Number.isFinite(max) ||
+      max < 1 ||
+      all.length <= max
+    ) {
+      return { entries: all, startIndex: current, available: all.length };
+    }
+    const size = Math.floor(max);
+    const centre = current ?? all.length - 1;
+    const start = Math.max(
+      0,
+      Math.min(all.length - size, centre - Math.floor(size / 2))
+    );
+    return {
+      entries: all.slice(start, start + size),
+      startIndex: centre - start,
+      available: all.length
+    };
+  }
+
+  /** A click that found no data is not a series: forget it (and its P-number). */
+  @action
+  private _dropEmptyPointSeries(key: string): void {
+    const series = this._pointSeries.find((s) => s.key === key);
+    if (!series) return;
+    if (!series.named && series.label === `P${this._pointLabelCounter}`) {
+      this._pointLabelCounter--;
+      this._nextPointColorIndex = Math.max(0, this._nextPointColorIndex - 1);
+    }
+    this._pointSeries = this._pointSeries.filter((s) => s.key !== key);
   }
 
   /** Read the clicked points again, e.g. for the time steps of another resolution. */
@@ -1636,13 +1915,21 @@ export default class CogTimeSeriesCatalogItem extends DiscretelyTimeVaryingMixin
   get accumulatedChartSeries(): AccumulatedSeries[] {
     return this._pointSeries.map((series) => ({
       key: series.key,
-      name: `${series.label} (${series.lat.toFixed(4)}, ${series.lon.toFixed(
-        4
-      )})`,
-      units: this.unit,
+      // A place is known by its name; an anonymous point by where it is.
+      name: series.named
+        ? series.label
+        : `${series.label} (${series.lat.toFixed(4)}, ${series.lon.toFixed(
+            4
+          )})`,
+      units: this.displayUnit,
       color: series.color,
       points: series.points,
-      meta: { kind: "point" as const, lat: series.lat, lon: series.lon }
+      meta: {
+        kind: "point" as const,
+        lat: series.lat,
+        lon: series.lon,
+        ...(series.named ? { label: series.label } : {})
+      }
     }));
   }
 
@@ -1652,16 +1939,20 @@ export default class CogTimeSeriesCatalogItem extends DiscretelyTimeVaryingMixin
     const lat = series.meta?.lat;
     const lon = series.meta?.lon;
     if (lat === undefined || lon === undefined) return;
+    const placeName = series.meta?.label;
     const label = /^P(\d+)/.exec(series.name)?.[1];
-    if (label) {
+    if (!placeName && label) {
       this._pointLabelCounter = Math.max(
         this._pointLabelCounter,
         Number(label)
       );
     }
+    this._nextPointColorIndex++;
     this._replacePointSeries({
       key: series.key,
-      label: label ? `P${label}` : `P${++this._pointLabelCounter}`,
+      label:
+        placeName ?? (label ? `P${label}` : `P${++this._pointLabelCounter}`),
+      named: placeName !== undefined,
       lat,
       lon,
       color: series.color,
@@ -1688,6 +1979,7 @@ export default class CogTimeSeriesCatalogItem extends DiscretelyTimeVaryingMixin
     this._pointSeriesAborts.clear();
     this._pointSeries = [];
     this._pointLabelCounter = 0;
+    this._nextPointColorIndex = 0;
   }
 
   /** Clicked points always feed the Chart.js dock. */
@@ -1773,7 +2065,7 @@ export default class CogTimeSeriesCatalogItem extends DiscretelyTimeVaryingMixin
       const series = this._pointSeries.find(
         (s) => s.key === this._pointKey(pick.latitude, pick.longitude)
       );
-      const unit = this.unit;
+      const unit = this.displayUnit;
 
       // Follow the timeline: once the series is read, the headline value is the
       // one of the displayed date rather than of the date that was clicked.
@@ -1803,8 +2095,15 @@ export default class CogTimeSeriesCatalogItem extends DiscretelyTimeVaryingMixin
         coordinates: `${pick.latitude.toFixed(5)}, ${pick.longitude.toFixed(
           5
         )}`,
-        pointLabel: series?.label
+        pointLabel: series?.label,
+        statistic: pick.statistic
       };
+      if (series?.window) {
+        timeSeries.windowNote = i18next.t(
+          "models.cogTimeSeries.pointSeriesWindow",
+          { read: series.total, available: series.window.available }
+        );
+      }
 
       if (series) {
         if (series.status === "loading") {
@@ -1948,8 +2247,57 @@ export default class CogTimeSeriesCatalogItem extends DiscretelyTimeVaryingMixin
     );
     if (step && step.providers.length > 0) {
       this._updateRectangleFromProviders(step.providers);
+      this._schedulePrefetchHeaders();
     }
     this._evictSteps();
+  }
+
+  /**
+   * Opt-in (`prefetchHeaders`): open every time step's GeoTIFF in the
+   * background so a later point series only fetches the pixel's tile. Polite on
+   * purpose — it waits for the map to settle and uses two connections, leaving
+   * the rest of the browser's per-host budget to the imagery.
+   */
+  private _schedulePrefetchHeaders(): void {
+    const entries = this._sortedEntries;
+    if (
+      this.prefetchHeaders !== true ||
+      entries.length === 0 ||
+      entries.length > PREFETCH_MAX_STEPS
+    ) {
+      return;
+    }
+    const key = `${entries.length}|${entries[0].cogs[0]}`;
+    if (this._prefetchKey === key) return;
+    this._prefetchKey = key;
+
+    const generation = this._providerGeneration;
+    const order = outwardOrder(
+      entries.length,
+      this.currentDiscreteTimeIndex ?? entries.length - 1
+    );
+    setTimeout(() => {
+      let next = 0;
+      const worker = async () => {
+        while (next < order.length) {
+          if (
+            generation !== this._providerGeneration ||
+            this._prefetchKey !== key
+          ) {
+            return;
+          }
+          for (const url of entries[order[next++]].cogs) {
+            // A header that fails now is simply fetched when it is needed.
+            await openCogSource(proxyCatalogItemUrl(this, url)).catch(
+              () => undefined
+            );
+          }
+        }
+      };
+      Promise.all(
+        Array.from({ length: PREFETCH_CONCURRENCY }, () => worker())
+      ).catch(() => undefined);
+    }, PREFETCH_DELAY_MS);
   }
 
   /** Build a step once, however many callers ask for it concurrently. */
@@ -2227,6 +2575,7 @@ export default class CogTimeSeriesCatalogItem extends DiscretelyTimeVaryingMixin
     this._stepToken++;
     this._hasLoadedSteps = false;
     this._lastPick = undefined;
+    this._prefetchKey = undefined;
     if (this._stepDebounce !== undefined) clearTimeout(this._stepDebounce);
     if (this._preloadTimer !== undefined) clearTimeout(this._preloadTimer);
     this._stepDebounce = undefined;

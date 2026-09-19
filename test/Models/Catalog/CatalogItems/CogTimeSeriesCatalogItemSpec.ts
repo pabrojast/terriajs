@@ -1012,6 +1012,54 @@ describe("CogTimeSeriesCatalogItem", function () {
       expect(promoted.alpha).toBe(0.7);
     });
 
+    it("opens every step's header in the background only when asked to", async function () {
+      const requested: string[] = [];
+      spyOn(window, "fetch").and.callFake(((input: any) => {
+        requested.push(String(input));
+        return Promise.reject(new Error("offline"));
+      }) as any);
+
+      // File names of their own: timers of earlier specs (a delayed preload)
+      // may still fire here and must not be mistaken for a prefetch.
+      const build = (id: string, prefix: string, prefetchHeaders?: boolean) => {
+        const model = new CogTimeSeriesCatalogItem(id, terria);
+        updateModelFromJson(model, CommonStrata.definition, {
+          prefetchHeaders,
+          preloadAdjacentSteps: 0,
+          timeEntries: TIMES.map((time, index) => ({
+            time,
+            cogs: [`${prefix}${index}.tif`]
+          }))
+        });
+        spyOn<any>(model as any, "_createImageryProvider").and.callFake(
+          async () => makeStyleProvider([0, 10])
+        );
+        model.setTrait(CommonStrata.user, "currentTime", TIMES[1]);
+        return model;
+      };
+
+      const quiet = build("quiet", "quiet");
+      await quiet.loadMapItems();
+      await new Promise((resolve) => setTimeout(resolve, 2800));
+      expect(requested.filter((url) => url.includes("quiet"))).toEqual([]);
+
+      const eager = build("eager", "prefetch", true);
+      await eager.loadMapItems();
+      await new Promise((resolve) => setTimeout(resolve, 3200));
+
+      const opened = new Set(
+        requested
+          .map((url) => /prefetch(\d)\.tif/.exec(url)?.[1])
+          .filter((index) => index !== undefined)
+      );
+      expect([...opened].sort()).toEqual(["0", "1", "2", "3"]);
+      // Outwards from the displayed date: that one first.
+      expect(requested.find((url) => url.includes("prefetch"))).toContain(
+        "prefetch1.tif"
+      );
+      clearCogSourceCache();
+    });
+
     it("rebuilds every step when a build-time option changes", async function () {
       configure();
       const { providers, spy } = stubProviders();
@@ -1475,6 +1523,322 @@ describe("CogTimeSeriesCatalogItem", function () {
       } finally {
         jasmine.Ajax.uninstall();
       }
+    });
+  });
+
+  // ════════════════════════════════════════════════
+  // Statistics (bands), places and windowed point series
+  // ════════════════════════════════════════════════
+
+  describe("statistics, places and long series", function () {
+    const RAMP = [
+      [2, "#e3f4ec"],
+      [20, "#45ad8a"],
+      [200, "#064a36"]
+    ];
+    const VALUE_STYLE = {
+      colorScaleMode: "custom",
+      useRealValue: true,
+      colors: RAMP,
+      domain: [2, 200]
+    };
+    const COUNT_STYLE = {
+      colorScaleMode: "named",
+      colorScale: "ylgnbu",
+      domain: [0, 12]
+    };
+    const DAYS = [1, 2, 3, 4, 5, 6, 7].map(
+      (day) => `2024-07-0${day}T00:00:00Z`
+    );
+
+    const CONFIG = {
+      name: "CHL",
+      unit: "mg m-3",
+      preloadAdjacentSteps: 0,
+      activeResolutionId: "monthly",
+      resolutions: [
+        {
+          id: "annual",
+          name: "Annual",
+          fromContinuous: "previous",
+          timeEntries: [{ time: "2024-01-01T00:00:00Z", cogs: ["y2024.tif"] }],
+          bands: [
+            {
+              id: "mean",
+              name: "Mean",
+              band: 1,
+              renderOptions: { single: VALUE_STYLE }
+            },
+            {
+              id: "median",
+              name: "Median",
+              band: 2,
+              renderOptions: { single: VALUE_STYLE }
+            },
+            {
+              id: "n_months",
+              name: "Months with data",
+              band: 4,
+              unit: "months",
+              renderOptions: { single: COUNT_STYLE }
+            }
+          ]
+        },
+        {
+          id: "monthly",
+          name: "Monthly",
+          fromContinuous: "previous",
+          timeEntries: [
+            { time: "2024-07-01T00:00:00Z", cogs: ["m202407.tif"] }
+          ],
+          bands: [
+            {
+              id: "median",
+              name: "Median",
+              band: 1,
+              renderOptions: { single: VALUE_STYLE }
+            },
+            {
+              id: "p90",
+              name: "P90",
+              band: 3,
+              renderOptions: { single: VALUE_STYLE }
+            }
+          ]
+        },
+        {
+          id: "daily",
+          name: "Daily",
+          pointSeriesMaxSteps: 3,
+          renderOptions: { single: { ...VALUE_STYLE, band: 1 } },
+          timeEntries: DAYS.map((time, index) => ({
+            time,
+            cogs: [`d${index}.tif`]
+          }))
+        }
+      ],
+      places: [
+        {
+          id: "itasy",
+          name: "Lake Itasy",
+          detail: "lake, 32 km²",
+          latitude: 50.5,
+          longitude: 30.5,
+          bbox: [30.4, 50.4, 30.6, 50.6]
+        },
+        { id: "nowhere", name: "No bbox", latitude: 50.2, longitude: 30.2 }
+      ]
+    };
+
+    function fakeTiff(raw: number, noData: number | null = null): any {
+      const image = {
+        getOrigin: () => [30, 51, 0],
+        getResolution: () => [0.1, -0.1, 0],
+        getWidth: () => 10,
+        getHeight: () => 10,
+        getGeoKeys: () => ({ GeographicTypeGeoKey: 4326 }),
+        getGDALNoData: () => noData,
+        readRasters: async () => [new Float32Array([raw])]
+      };
+      return { getImage: async () => image };
+    }
+
+    const settle = () => new Promise((resolve) => setTimeout(resolve, 60));
+
+    afterEach(function () {
+      item.clearAccumulatedSeries();
+      clearCogSourceCache();
+    });
+
+    it("takes band number, style and unit from the active statistic", function () {
+      updateModelFromJson(item, CommonStrata.definition, CONFIG);
+
+      expect(item.activeBand?.id).toBe("median");
+      expect(item.renderOptions.single?.band).toBe(1);
+      expect(item.displayUnit).toBe("mg m-3");
+      expect(item.renderOptions.single?.colorScaleMode).toBe("custom");
+
+      item.setActiveResolution(CommonStrata.user, "annual");
+      item.setActiveBand(CommonStrata.user, "n_months");
+      expect(item.renderOptions.single?.band).toBe(4);
+      // The band's unit wins even over the unit configured on the item.
+      expect(item.unit).toBe("mg m-3");
+      expect(item.displayUnit).toBe("months");
+      expect(item.renderOptions.single?.colorScale).toBe("ylgnbu");
+      expect(item.renderOptions.single?.domain as any).toEqual([0, 12]);
+    });
+
+    it("keeps the chosen statistic across resolutions that store it in another band", function () {
+      updateModelFromJson(item, CommonStrata.definition, CONFIG);
+      item.setActiveBand(CommonStrata.user, "median");
+      expect(item.renderOptions.single?.band).toBe(1);
+
+      item.setActiveResolution(CommonStrata.user, "annual");
+      // Median is band 2 of the annual composite.
+      expect(item.activeBand?.id).toBe("median");
+      expect(item.renderOptions.single?.band).toBe(2);
+
+      // A statistic the resolution does not have falls back to its first band.
+      item.setActiveBand(CommonStrata.user, "n_months");
+      item.setActiveResolution(CommonStrata.user, "monthly");
+      expect(item.activeBand?.id).toBe("median");
+    });
+
+    it("offers the statistic only when there is a choice, and drops a hand-set range with it", function () {
+      updateModelFromJson(item, CommonStrata.definition, CONFIG);
+      const dimension = (item.selectableDimensions as any[]).find(
+        (dim) => dim.id === "cog-series-band"
+      );
+      expect(dimension.options.map((option: any) => option.name)).toEqual([
+        "Median",
+        "P90"
+      ]);
+
+      item.renderOptions.single!.setTrait(CommonStrata.user, "domain", [1, 9]);
+      dimension.setDimensionValue(CommonStrata.user, "p90");
+      expect(item.activeBand?.id).toBe("p90");
+      expect(item.renderOptions.single?.domain as any).toEqual([2, 200]);
+
+      item.setActiveResolution(CommonStrata.user, "daily");
+      expect(
+        (item.selectableDimensions as any[]).some(
+          (dim) => dim.id === "cog-series-band"
+        )
+      ).toBe(false);
+    });
+
+    it("reads the clicked points again when the statistic changes", function () {
+      updateModelFromJson(item, CommonStrata.definition, CONFIG);
+      spyOn<any>(item as any, "_loadPointSeries").and.returnValue(
+        new Promise(() => {})
+      );
+      const reload = spyOn<any>(item as any, "_reloadPointSeries");
+      item.addPointSeries(50.5, 30.5);
+
+      item.setActiveBand(CommonStrata.user, "p90");
+
+      expect(reload).toHaveBeenCalled();
+    });
+
+    it("lists real-value colour stops in the legend instead of a linear ramp", async function () {
+      updateModelFromJson(item, CommonStrata.definition, CONFIG);
+      spyOn<any>(item as any, "_createImageryProvider").and.callFake(async () =>
+        makeStyleProvider([0, 500])
+      );
+      await item.loadMapItems();
+
+      const legend = item.legends?.[0];
+      expect(legend?.url).toBeUndefined();
+      expect(legend?.items?.map((entry) => entry.title)).toEqual([
+        "≥ 200",
+        "20",
+        "≤ 2"
+      ]);
+      expect(legend?.items?.map((entry) => entry.color)).toEqual([
+        "#064a36",
+        "#45ad8a",
+        "#e3f4ec"
+      ]);
+    });
+
+    it("jumps to a place, charts it under its name and shares that name", async function () {
+      updateModelFromJson(item, CommonStrata.definition, CONFIG);
+      adoptCogSource("m202407.tif", fakeTiff(12));
+      const zoomTo = spyOn(terria.currentViewer, "zoomTo").and.returnValue(
+        Promise.resolve()
+      );
+      const dimension = (item.selectableDimensions as any[]).find(
+        (dim) => dim.id === "cog-series-place"
+      );
+      expect(dimension.selectedId).toBeUndefined();
+      // The detail helps choosing; the series keeps the short name.
+      expect(dimension.options.map((option: any) => option.name)).toEqual([
+        "Lake Itasy — lake, 32 km²",
+        "No bbox"
+      ]);
+
+      dimension.setDimensionValue(CommonStrata.user, "itasy");
+      await settle();
+
+      const rectangle: any = zoomTo.calls.mostRecent().args[0];
+      expect((rectangle.west * 180) / Math.PI).toBeCloseTo(30.4, 6);
+      expect((rectangle.north * 180) / Math.PI).toBeCloseTo(50.6, 6);
+      expect(item.pointSeries.length).toBe(1);
+      expect(item.pointSeries[0].label).toBe("Lake Itasy");
+      expect(item.pointSeries[0].points).toEqual([
+        { x: Date.parse("2024-07-01T00:00:00Z"), y: 12 }
+      ]);
+
+      const shared = item.accumulatedChartSeries[0];
+      expect(shared.name).toBe("Lake Itasy");
+      expect(shared.meta?.label).toBe("Lake Itasy");
+
+      // A clicked point still starts at P1: places take no number.
+      item.addPointSeries(50.55, 30.55);
+      expect(item.pointSeries[1].label).toBe("P1");
+
+      // …and the name survives a share link.
+      const restored = new CogTimeSeriesCatalogItem("restored", terria);
+      restored.addAccumulatedSeries(shared);
+      expect(restored.pointSeries[0].label).toBe("Lake Itasy");
+      expect(restored.accumulatedChartSeries[0].name).toBe("Lake Itasy");
+    });
+
+    it("reads only the dates nearest to the displayed one for long series", async function () {
+      updateModelFromJson(item, CommonStrata.definition, CONFIG);
+      item.setActiveResolution(CommonStrata.user, "daily");
+      DAYS.forEach((_, index) =>
+        adoptCogSource(`d${index}.tif`, fakeTiff(10 + index))
+      );
+      item.setTrait(CommonStrata.user, "currentTime", DAYS[4]);
+
+      const key = item.addPointSeries(50.5, 30.5);
+      await settle();
+
+      let series = item.pointSeries.find((s) => s.key === key)!;
+      expect(series.status).toBe("done");
+      expect(series.total).toBe(3);
+      // 3 of 7 dates, centred on the 5th.
+      expect(series.points.map((point) => point.y)).toEqual([13, 14, 15]);
+      expect(series.window).toEqual({
+        firstX: Date.parse(DAYS[3]),
+        lastX: Date.parse(DAYS[5]),
+        available: 7
+      });
+
+      // Still inside the dates read: reused.
+      item.setTrait(CommonStrata.user, "currentTime", DAYS[5]);
+      item.addPointSeries(50.5, 30.5);
+      await settle();
+      expect(item.pointSeries[0].points.map((point) => point.y)).toEqual([
+        13, 14, 15
+      ]);
+
+      // Moved out of them: the same click reads the new period, same label.
+      item.setTrait(CommonStrata.user, "currentTime", DAYS[0]);
+      item.addPointSeries(50.5, 30.5);
+      await settle();
+      series = item.pointSeries.find((s) => s.key === key)!;
+      expect(series.label).toBe("P1");
+      expect(series.points.map((point) => point.y)).toEqual([10, 11, 12]);
+    });
+
+    it("forgets a click that finds no data, number included", async function () {
+      updateModelFromJson(item, CommonStrata.definition, {
+        ...CONFIG,
+        activeResolutionId: "annual"
+      });
+      adoptCogSource("y2024.tif", fakeTiff(-9999, -9999));
+
+      item.addPointSeries(50.5, 30.5);
+      expect(item.pointSeries.length).toBe(1);
+      await settle();
+
+      expect(item.pointSeries.length).toBe(0);
+      adoptCogSource("m202407.tif", fakeTiff(7));
+      item.setActiveResolution(CommonStrata.user, "monthly");
+      item.addPointSeries(50.5, 30.5);
+      expect(item.pointSeries[0].label).toBe("P1");
     });
   });
 

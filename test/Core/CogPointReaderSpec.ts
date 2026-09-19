@@ -221,6 +221,49 @@ describe("CogPointReader", function () {
       expect(progressCalls.length).toBe(5);
     });
 
+    it("gives up on a point with no data near the starting date", async function () {
+      const entries = Array.from({ length: 30 }, (_, index) => {
+        adoptCogSource(`empty${index}.tif`, fakeTiff(-9999, -9999));
+        return {
+          time: new Date(Date.UTC(2024, 0, index + 1)).toISOString(),
+          cogs: [`empty${index}.tif`]
+        };
+      });
+
+      const result = await loadCogPointSeries({
+        entries,
+        lon: 30.5,
+        lat: 50.5,
+        concurrency: 1,
+        startIndex: 15,
+        giveUpAfterEmpty: 5
+      });
+
+      expect(result.gaveUp).toBe(true);
+      expect(result.loaded).toBe(5);
+      expect(result.points.length).toBe(0);
+
+      // One value among the nearest dates is enough to keep reading.
+      clearCogSourceCache();
+      entries.forEach((entry, index) =>
+        adoptCogSource(
+          entry.cogs[0],
+          index === 15 ? fakeTiff(42) : fakeTiff(-9999, -9999)
+        )
+      );
+      const kept = await loadCogPointSeries({
+        entries,
+        lon: 30.5,
+        lat: 50.5,
+        concurrency: 1,
+        startIndex: 15,
+        giveUpAfterEmpty: 5
+      });
+      expect(kept.gaveUp).toBe(false);
+      expect(kept.loaded).toBe(30);
+      expect(kept.points.length).toBe(1);
+    });
+
     it("stops reading when aborted", async function () {
       const controller = new AbortController();
       const entries = Array.from({ length: 20 }, (_, index) => {

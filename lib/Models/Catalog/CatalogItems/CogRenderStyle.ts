@@ -34,6 +34,12 @@ export interface CogEffectiveStyle {
   reverseColorScale: boolean;
   colorScaleName?: string;
   stops: CogColorStop[];
+  /**
+   * Set when the palette is custom stops at real values: those values, in the
+   * order of `stops`. Such scales are usually non-linear (e.g. logarithmic), so
+   * a legend lists the stops instead of drawing a linear ramp.
+   */
+  stopValues?: number[];
 }
 
 export interface CogSingleStyleInput {
@@ -199,6 +205,10 @@ export function finalizeCogProviders(
 
   const mode = getColorScaleMode(single);
   invalidateCogRenderedTiles(providers);
+  const stopValues =
+    mode === "custom" && single?.useRealValue === true && domain
+      ? stops.map((stop) => domain[0] + stop.position * (domain[1] - domain[0]))
+      : undefined;
   return {
     isSingleBand: singleProviders.length === providers.length,
     domain,
@@ -218,7 +228,8 @@ export function finalizeCogProviders(
         : mode === "default"
         ? "blackwhite"
         : undefined,
-    stops
+    stops,
+    stopValues
   };
 }
 

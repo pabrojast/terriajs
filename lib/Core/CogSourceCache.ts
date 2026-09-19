@@ -8,8 +8,11 @@ import { getSharedGeotiffPool } from "./CogSharedPools";
  * all share the same opened file (and its block cache) through this module.
  */
 
-/** Maximum number of opened GeoTIFFs kept alive. */
-const MAX_SOURCES = 64;
+/**
+ * Maximum number of opened GeoTIFFs kept alive. Sized for a prefetched monthly
+ * series plus a window of daily scenes; an idle source is its header block.
+ */
+const MAX_SOURCES = 320;
 /** 64 KiB blocks kept per source opened here (imagery providers keep their own). */
 const SOURCE_BLOCK_CACHE_SIZE = 24;
 /** Largest file that may be fetched whole when the server ignores `Range`. */
