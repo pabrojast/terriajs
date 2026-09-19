@@ -71,6 +71,7 @@ import {
   readCogStepPointValue
 } from "../../../Core/CogPointReader";
 import { getCogBandStats } from "../../../Core/CogSourceCache";
+import type { ChartDockContext } from "../../ChartSeriesAccumulator";
 import { paletteColor } from "../../../ReactViews/Custom/Chart/ChartJs/chartJsPalette";
 import type { AccumulatedSeries } from "../../../ReactViews/Custom/Chart/ChartJs/ChartJsTypes";
 import {
@@ -1687,6 +1688,48 @@ export default class CogTimeSeriesCatalogItem extends DiscretelyTimeVaryingMixin
     this._pointSeriesAborts.clear();
     this._pointSeries = [];
     this._pointLabelCounter = 0;
+  }
+
+  /** Clicked points always feed the Chart.js dock. */
+  get isChartSeriesAccumulationActive(): boolean {
+    return true;
+  }
+
+  /**
+   * Ties the dock's chart to the map: a marker at the displayed date, a click
+   * on the chart moves the map to that date, and the progress of the point
+   * series still being read (with a way to stop them).
+   */
+  @computed
+  get chartDock(): ChartDockContext {
+    const current = this.currentDiscreteJulianDate;
+    const loading = this._pointSeries.filter(
+      (series) => series.status === "loading"
+    );
+    return {
+      activeX: current ? JulianDate.toDate(current).getTime() : undefined,
+      activeXLabel: this.currentStepLabel,
+      onSelectX: (x: number) => {
+        runInAction(() => {
+          this.setTrait(
+            CommonStrata.user,
+            "currentTime",
+            new Date(x).toISOString()
+          );
+        });
+      },
+      status: {
+        loading: loading.length > 0,
+        loaded: loading.reduce((sum, series) => sum + series.loaded, 0),
+        total: loading.reduce((sum, series) => sum + series.total, 0),
+        errors: this._pointSeries.reduce(
+          (sum, series) => sum + series.errors,
+          0
+        ),
+        cancel: () =>
+          loading.forEach((series) => this.cancelPointSeries(series.key))
+      }
+    };
   }
 
   @computed

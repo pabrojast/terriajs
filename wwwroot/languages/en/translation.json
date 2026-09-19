@@ -733,6 +733,18 @@
     "seriesLabel": "series",
     "viewAll": "View all series",
     "clearSeries": "Clear",
+    "cancel": "Stop",
+    "readingSeries": "Reading time series… {{loaded}}/{{total}} dates",
+    "seriesReadErrors": "{{count}} date could not be read.",
+    "seriesReadErrors_plural": "{{count}} dates could not be read.",
+    "kpi": {
+      "current": "Displayed date",
+      "mean": "Mean",
+      "max": "Maximum",
+      "trend": "Trend",
+      "perYear": "per year",
+      "perYearWithUnit": "{{unit}} per year"
+    },
     "collapse": "Collapse",
     "dragToMove": "Drag to move",
     "resize": "Drag to resize"
@@ -2220,6 +2232,15 @@
       "band": "Band",
       "clampLow": "Clamp below color scale",
       "clampHigh": "Clamp above color scale"
+    },
+    "cogCalculation": {
+      "toolName": "COG zonal statistics",
+      "toolTitle": "Calculate statistics of a COG layer inside a polygon",
+      "needThreePoints": "A polygon needs at least 3 points.",
+      "selectLayerAndPolygon": "Select a layer and draw a polygon first.",
+      "calculationError": "The calculation failed.",
+      "noCogs": "This layer has no COG files to read.",
+      "noTimeEntries": "This layer has no time steps to read."
     },
     "cogTimeSeries": {
       "loadTimeEntriesErrorTitle": "Error loading COG Time Series",

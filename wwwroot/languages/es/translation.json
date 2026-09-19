@@ -482,6 +482,15 @@
       "clampLow": "Ajustar Valores Bajos",
       "clampHigh": "Ajustar Valores Altos"
     },
+    "cogCalculation": {
+      "toolName": "Estadísticas zonales COG",
+      "toolTitle": "Calcular estadísticas de una capa COG dentro de un polígono",
+      "needThreePoints": "Un polígono necesita al menos 3 puntos.",
+      "selectLayerAndPolygon": "Primero selecciona una capa y dibuja un polígono.",
+      "calculationError": "El cálculo falló.",
+      "noCogs": "Esta capa no tiene archivos COG para leer.",
+      "noTimeEntries": "Esta capa no tiene fechas para leer."
+    },
     "cogTimeSeries": {
       "loadTimeEntriesErrorTitle": "Error al cargar la serie temporal COG",
       "loadTimeEntriesErrorMessage": "No se pudo cargar la definición de la serie temporal desde {{url}}.",
@@ -537,6 +546,18 @@
     "hideWorkbench": "Ocultar Banco de Trabajo"
   },
   "chart": {
+    "cancel": "Detener",
+    "readingSeries": "Leyendo serie temporal… {{loaded}}/{{total}} fechas",
+    "seriesReadErrors": "No se pudo leer {{count}} fecha.",
+    "seriesReadErrors_plural": "No se pudieron leer {{count}} fechas.",
+    "kpi": {
+      "current": "Fecha mostrada",
+      "mean": "Media",
+      "max": "Máximo",
+      "trend": "Tendencia",
+      "perYear": "por año",
+      "perYearWithUnit": "{{unit}} por año"
+    },
     "download": "Descargar",
     "expand": "Expandir",
     "closePanel": "Cerrar panel",

@@ -31,8 +31,11 @@ export function getCogWorkerPoolSize(): number {
 /** Lazily created geotiff decoder pool. Never destroyed: it lives for the session. */
 export function getSharedGeotiffPool(): Promise<Pool> {
   if (!sharedGeotiffPool) {
+    // Without Web Workers (Node, some test runners) a pool of size 0 decodes
+    // on the calling thread instead of failing to spawn.
+    const size = typeof Worker === "undefined" ? 0 : getCogWorkerPoolSize();
     sharedGeotiffPool = import("geotiff").then(
-      ({ Pool: GeotiffPool }) => new GeotiffPool(getCogWorkerPoolSize())
+      ({ Pool: GeotiffPool }) => new GeotiffPool(size)
     );
   }
   return sharedGeotiffPool;

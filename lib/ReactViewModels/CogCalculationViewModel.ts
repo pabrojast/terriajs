@@ -4,6 +4,7 @@
  * Coordinates the workflow: drawing → configuring → calculating → results.
  */
 
+import i18next from "i18next";
 import {
   action,
   computed,
@@ -32,6 +33,7 @@ import {
   TimeStepResult,
   TimeSeriesProgress
 } from "../Core/CogTimeSeriesCalculator";
+import proxyCatalogItemUrl from "../Models/Catalog/proxyCatalogItemUrl";
 import UserDrawing from "../Models/UserDrawing";
 import { BaseModel } from "../Models/Definition/Model";
 import Terria from "../Models/Terria";
@@ -209,7 +211,7 @@ export default class CogCalculationViewModel {
   @action
   private _onDrawingComplete(points: Cartesian3[]): void {
     if (points.length < 3) {
-      this.error = "Se necesitan al menos 3 puntos para formar un polígono";
+      this.error = i18next.t("models.cogCalculation.needThreePoints");
       this.phase = "error";
       return;
     }
@@ -269,7 +271,7 @@ export default class CogCalculationViewModel {
   @action
   async startCalculation(): Promise<void> {
     if (!this.polygon || !this.selectedItem) {
-      this.error = "Selecciona una capa y dibuja un polígono primero";
+      this.error = i18next.t("models.cogCalculation.selectLayerAndPolygon");
       this.phase = "error";
       return;
     }
@@ -299,7 +301,8 @@ export default class CogCalculationViewModel {
           this.error = undefined;
         } else {
           this.phase = "error";
-          this.error = e?.message ?? "Error durante el cálculo";
+          this.error =
+            e?.message ?? i18next.t("models.cogCalculation.calculationError");
         }
         this.isCalculating = false;
       });
@@ -316,9 +319,12 @@ export default class CogCalculationViewModel {
       // Shouldn't happen but handle it
       const entries = item.timeEntries;
       if (!entries || entries.length === 0)
-        throw new Error("No hay COGs disponibles");
+        throw new Error(i18next.t("models.cogCalculation.noCogs"));
       cogUrl = entries[0].cogs[0];
     }
+    // Same URL the imagery uses: a cross-origin COG that renders through the
+    // proxy must be read through it too, or the calculation fails on CORS.
+    cogUrl = proxyCatalogItemUrl(item, cogUrl);
 
     const result = await calculateZonalStatistics({
       cogUrl,
@@ -347,11 +353,17 @@ export default class CogCalculationViewModel {
     const item = this.selectedItem as any;
     const entries = item.timeEntries;
     if (!entries || entries.length === 0) {
-      throw new Error("No hay time entries disponibles");
+      throw new Error(i18next.t("models.cogCalculation.noTimeEntries"));
     }
 
     const results = await calculateTimeSeriesZonalStatistics({
-      timeEntries: entries,
+      timeEntries: entries.map((entry: any) => ({
+        time: entry.time,
+        tag: entry.tag,
+        cogs: (entry.cogs ?? []).map((url: string) =>
+          proxyCatalogItemUrl(item, url)
+        )
+      })),
       polygon: this.polygon!,
       band: this.selectedBand,
       startDate: this.startDate,

@@ -10,12 +10,16 @@ import {
 } from "react";
 import { useTranslation } from "react-i18next";
 import styled from "styled-components";
-import CsvCatalogItem from "../../../../Models/Catalog/CatalogItems/CsvCatalogItem";
+import {
+  ChartSeriesAccumulator,
+  isChartSeriesAccumulator
+} from "../../../../Models/ChartSeriesAccumulator";
 import Terria from "../../../../Models/Terria";
 import { RawButton } from "../../../../Styled/Button";
 import Icon, { StyledIcon } from "../../../../Styled/Icon";
 import { ChartStatusText } from "../FeatureInfoPanelChart";
 import { ChartJsErrorBoundary } from "./ChartJsFeatureInfoChart";
+import ChartJsKpiTiles from "./ChartJsKpiTiles";
 import ChartJsModal from "./ChartJsModal";
 
 // Reuse the SAME lazy chunk as the feature-info wrapper so webpack emits a
@@ -135,14 +139,43 @@ interface ChartJsSeriesDockProps {
   terria: Terria;
 }
 
-/** Is this workbench item an actively-accumulating Chart.js CSV item? */
-function isActiveAccumulatingItem(item: unknown): item is CsvCatalogItem {
+/**
+ * Is this workbench item feeding the dock? Works for any accumulator (CSV
+ * features, COG time series points…), and stays true while its first series
+ * is still being read so the dock can show progress instead of popping in late.
+ */
+function isActiveAccumulatingItem(
+  item: unknown
+): item is ChartSeriesAccumulator {
   return (
-    item instanceof CsvCatalogItem &&
-    item.useChartJsTimeSeries === true &&
-    item.accumulatedChartSeries.length > 0
+    isChartSeriesAccumulator(item) &&
+    item.isChartSeriesAccumulationActive &&
+    (item.accumulatedChartSeries.length > 0 ||
+      item.chartDock?.status?.loading === true)
   );
 }
+
+const StatusRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 10px;
+  font-size: 12px;
+  color: ${(props) => props.theme.textLight};
+  opacity: 0.85;
+`;
+
+const dateFormatter =
+  typeof Intl !== "undefined"
+    ? new Intl.DateTimeFormat(undefined, {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+        timeZone: "UTC"
+      })
+    : undefined;
+const formatKpiDate = (x: number) =>
+  dateFormatter ? dateFormatter.format(new Date(x)) : new Date(x).toISOString();
 
 /**
  * Non-blocking bottom panel that accumulates per-feature time-series for a CSV
@@ -223,9 +256,9 @@ const ChartJsSeriesDock: FC<ChartJsSeriesDockProps> = observer((props) => {
     return () => node.removeEventListener("touchstart", onTouchStart);
   }, []);
 
-  // First workbench item that is an active accumulating Chart.js CSV item.
+  // First workbench item that is actively feeding the dock.
   const item = props.terria.workbench.items.find(isActiveAccumulatingItem) as
-    | CsvCatalogItem
+    | ChartSeriesAccumulator
     | undefined;
 
   if (!item) {
@@ -233,6 +266,12 @@ const ChartJsSeriesDock: FC<ChartJsSeriesDockProps> = observer((props) => {
   }
 
   const chartItems = item.accumulatedChartItems;
+  const dock = item.chartDock;
+  const status = dock?.status;
+  // The tiles describe the most recently added series that has data.
+  const kpiSeries = [...item.accumulatedChartSeries]
+    .reverse()
+    .find((series) => series.points.length > 0);
   const title = `${item.name ?? t("chart.sectionLabel")} — ${t(
     "chart.seriesLabel"
   )}`;
@@ -310,9 +349,37 @@ const ChartJsSeriesDock: FC<ChartJsSeriesDockProps> = observer((props) => {
             <StyledIcon glyph={Icon.GLYPHS.close} styledWidth="14px" light />
           </DockIconButton>
         </DockHeader>
+        {collapsed || !status?.loading ? null : (
+          <StatusRow role="status">
+            <span>
+              {t("chart.readingSeries", {
+                loaded: status.loaded,
+                total: status.total
+              })}
+            </span>
+            {status.cancel ? (
+              <DockButton type="button" onClick={status.cancel}>
+                {t("chart.cancel")}
+              </DockButton>
+            ) : null}
+          </StatusRow>
+        )}
+        {collapsed || status?.loading || !status?.errors ? null : (
+          <StatusRow role="status">
+            {t("chart.seriesReadErrors", { count: status.errors })}
+          </StatusRow>
+        )}
+        {collapsed || !kpiSeries ? null : (
+          <ChartJsKpiTiles
+            series={kpiSeries}
+            activeX={dock?.activeX}
+            activeXLabel={dock?.activeXLabel}
+            formatDate={formatKpiDate}
+          />
+        )}
         {collapsed ? null : (
           <DockBody>
-            {modalOpen ? null : (
+            {modalOpen || chartItems.length === 0 ? null : (
               <ChartJsErrorBoundary fallback={errorFallback}>
                 <Suspense fallback={loadingFallback}>
                   <ChartJsLineChart
@@ -320,6 +387,8 @@ const ChartJsSeriesDock: FC<ChartJsSeriesDockProps> = observer((props) => {
                     variant="dock"
                     height={INLINE_CHART_HEIGHT}
                     onRemoveSeries={(key) => item.removeAccumulatedSeries(key)}
+                    activeX={dock?.activeX}
+                    onSelectX={dock?.onSelectX}
                   />
                 </Suspense>
               </ChartJsErrorBoundary>
@@ -342,6 +411,8 @@ const ChartJsSeriesDock: FC<ChartJsSeriesDockProps> = observer((props) => {
               showDataTable
               height="100%"
               onRemoveSeries={(key) => item.removeAccumulatedSeries(key)}
+              activeX={dock?.activeX}
+              onSelectX={dock?.onSelectX}
             />
           </Suspense>
         </ChartJsErrorBoundary>

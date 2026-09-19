@@ -72,6 +72,16 @@ export interface ChartJsChartProps {
    * omitted, the legend's remove button is not rendered.
    */
   onRemoveSeries?: (key: string) => void;
+  /**
+   * x value (epoch ms on a time axis) to mark with a vertical line — e.g. the
+   * date currently displayed on the map.
+   */
+  activeX?: number;
+  /**
+   * Called with the x of the nearest point when the chart is clicked, e.g. to
+   * move the map to that date.
+   */
+  onSelectX?: (x: number) => void;
 }
 
 /**

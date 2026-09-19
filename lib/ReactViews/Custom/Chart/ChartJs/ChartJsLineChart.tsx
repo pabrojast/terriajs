@@ -1,5 +1,5 @@
 import type { Chart as ChartJsInstance } from "chart.js";
-import { ChartData, ChartOptions } from "chart.js";
+import { ChartData, ChartOptions, Plugin } from "chart.js";
 import moment from "moment";
 import { observer } from "mobx-react";
 import {
@@ -22,6 +22,7 @@ import MappableMixin from "../../../../ModelMixins/MappableMixin";
 import { ChartStatusText } from "../FeatureInfoPanelChart";
 import ChartDataTable from "./ChartDataTable";
 import { buildCsv, slugifyFilename } from "./chartJsExport";
+import { computeSeriesStats } from "./chartJsStats";
 import ChartJsLegend from "./ChartJsLegend";
 import { seriesDash, withAlpha } from "./chartJsPalette";
 import ChartJsToolbar from "./ChartJsToolbar";
@@ -99,9 +100,14 @@ const FillColumn = styled.div`
   min-height: 0;
 `;
 
-const ChartArea = styled.div<{ $fill: boolean; $height: number }>`
+const ChartArea = styled.div<{
+  $fill: boolean;
+  $height: number;
+  $clickable?: boolean;
+}>`
   position: relative;
   width: 100%;
+  ${(props) => (props.$clickable ? `cursor: pointer;` : ``)}
   ${(props) =>
     props.$fill ? `flex: 1; min-height: 0;` : `height: ${props.$height}px;`}
 `;
@@ -171,6 +177,7 @@ const ChartJsLineChart: FC<ChartJsChartProps> = observer((props) => {
 
   const chartItemsOverride = props.chartItemsOverride;
 
+  const observedChartItems = (catalogItem as any)?.chartItems;
   const lineChartItems = useMemo(() => {
     // When the caller supplies pre-resolved series (the accumulating dock),
     // render them directly and skip the `item.chartItems` derivation.
@@ -190,13 +197,9 @@ const ChartJsLineChart: FC<ChartJsChartProps> = observer((props) => {
       }
     }
     return all;
+    // `observedChartItems` is read only so a new chartItems array recomputes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    catalogItem,
-    (catalogItem as any)?.chartItems,
-    props.yColumn,
-    chartItemsOverride
-  ]);
+  }, [catalogItem, observedChartItems, props.yColumn, chartItemsOverride]);
 
   // Determine a single common x-axis type. Use "time" only when every series is
   // time-based, otherwise fall back to linear.
@@ -269,6 +272,40 @@ const ChartJsLineChart: FC<ChartJsChartProps> = observer((props) => {
     highlightedId
   ]);
 
+  // Read through refs so a new date or handler never rebuilds the chart.
+  const activeXRef = useRef<number | undefined>(props.activeX);
+  activeXRef.current = props.activeX;
+  const onSelectXRef = useRef(props.onSelectX);
+  onSelectXRef.current = props.onSelectX;
+
+  /** Vertical line at `activeX`: the date the map is showing. */
+  const activeXMarkerPlugin = useMemo<Plugin<"line">>(
+    () => ({
+      id: "terriaActiveXMarker",
+      afterDatasetsDraw(chart) {
+        const x = activeXRef.current;
+        if (x === undefined || !Number.isFinite(x)) return;
+        const { ctx, chartArea, scales } = chart;
+        const pixel = scales.x.getPixelForValue(x);
+        if (pixel < chartArea.left || pixel > chartArea.right) return;
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(pixel, chartArea.top);
+        ctx.lineTo(pixel, chartArea.bottom);
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([4, 3]);
+        ctx.strokeStyle = textColor;
+        ctx.stroke();
+        ctx.restore();
+      }
+    }),
+    [textColor]
+  );
+
+  useEffect(() => {
+    chartRef.current?.draw();
+  }, [props.activeX]);
+
   const options = useMemo<ChartOptions<"line">>(() => {
     const firstItem = lineChartItems[0];
     const units = firstItem?.units;
@@ -276,6 +313,21 @@ const ChartJsLineChart: FC<ChartJsChartProps> = observer((props) => {
       animation: false,
       responsive: true,
       maintainAspectRatio: false,
+      onClick: (event, _elements, chart) => {
+        const onSelectX = onSelectXRef.current;
+        if (!onSelectX || !event.native) return;
+        const nearest = chart.getElementsAtEventForMode(
+          event.native,
+          "nearest",
+          { axis: "x", intersect: false },
+          false
+        )[0];
+        if (!nearest) return;
+        const point = chart.data.datasets[nearest.datasetIndex]?.data[
+          nearest.index
+        ] as LinePoint | undefined;
+        if (point && Number.isFinite(point.x)) onSelectX(point.x);
+      },
       interaction: {
         mode: "index",
         intersect: false
@@ -391,7 +443,6 @@ const ChartJsLineChart: FC<ChartJsChartProps> = observer((props) => {
     });
 
     return { columns, rows };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lineChartItems, xScaleType, props.xAxisLabel]);
 
   // Base filename for downloads.
@@ -493,23 +544,8 @@ const ChartJsLineChart: FC<ChartJsChartProps> = observer((props) => {
   const seriesStats = useMemo<Record<string, SeriesStats>>(() => {
     const stats: Record<string, SeriesStats> = {};
     lineChartItems.forEach((chartItem) => {
-      let min = Infinity;
-      let max = -Infinity;
-      let sum = 0;
-      let count = 0;
-      for (const point of chartItem.points) {
-        const y = Number(point.y);
-        if (!Number.isFinite(y)) {
-          continue;
-        }
-        if (y < min) min = y;
-        if (y > max) max = y;
-        sum += y;
-        count++;
-      }
-      if (count > 0) {
-        stats[chartItem.id] = { min, max, mean: sum / count, count };
-      }
+      const itemStats = computeSeriesStats(chartItem.points);
+      if (itemStats) stats[chartItem.id] = itemStats;
     });
     return stats;
   }, [lineChartItems]);
@@ -597,10 +633,16 @@ const ChartJsLineChart: FC<ChartJsChartProps> = observer((props) => {
       ref={chartAreaRef}
       $fill={fillHeight}
       $height={pixelHeight}
+      $clickable={props.onSelectX !== undefined}
       role="img"
       aria-label={ariaLabel}
     >
-      <Line ref={chartRef} data={data} options={options} />
+      <Line
+        ref={chartRef}
+        data={data}
+        options={options}
+        plugins={[activeXMarkerPlugin]}
+      />
     </ChartArea>
   );
 
@@ -632,6 +674,7 @@ const ChartJsLineChart: FC<ChartJsChartProps> = observer((props) => {
           onZoomIn={zoomIn}
           onZoomOut={zoomOut}
           onResetZoom={resetZoom}
+          onDownloadCsv={downloadCsv}
         />
         {chartElement}
         {legend}

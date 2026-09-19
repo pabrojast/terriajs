@@ -1,4 +1,4 @@
-import { runInAction } from "mobx";
+import { autorun, runInAction } from "mobx";
 import AugmentedVirtuality from "../../../Models/AugmentedVirtuality";
 import ViewerMode from "../../../Models/ViewerMode";
 import ViewState from "../../../ReactViewModels/ViewState";
@@ -185,12 +185,20 @@ export const registerMapNavigations = (viewState: ViewState) => {
   });
   mapNavigationModel.addItem({
     id: COG_CALCULATION_TOOL_ID,
-    name: "COG Zonal Statistics",
-    title: "Calculate zonal statistics on COG layers",
+    name: "translate#models.cogCalculation.toolName",
+    title: "translate#models.cogCalculation.toolTitle",
     location: "TOP",
     screenSize: "medium",
     controller: cogCalculationToolController,
     order: 7
+  });
+  // The tool only works on COG layers: offer it once one is on the workbench
+  // instead of leading to an empty "no COG layers" panel.
+  autorun(() => {
+    const hasCogLayer = terria.workbench.items.some(
+      (item) => item.type === "cog" || item.type === "cog-time-series"
+    );
+    cogCalculationToolController.setVisible(hasCogLayer);
   });
 
   const feedbackController = new FeedbackButtonController(viewState);

@@ -105,6 +105,12 @@ export default class CsvCatalogItem
     }
   }
 
+  /** Feeds the Chart.js dock while the interactive renderer is enabled. */
+  @computed
+  get isChartSeriesAccumulationActive(): boolean {
+    return this.useChartJsTimeSeries === true;
+  }
+
   /** Remove all accumulated per-feature series. */
   @action
   clearAccumulatedSeries() {
