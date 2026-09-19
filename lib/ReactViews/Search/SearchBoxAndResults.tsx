@@ -83,6 +83,7 @@ export const SearchBoxAndResults: FC<SearchBoxAndResultsProps> = observer(
 
     const viewState = useViewState();
     const theme = useTheme();
+    const { t } = useTranslation();
 
     useEffect(() => {
       viewState.updateAppRef(LOCATION_SEARCH_INPUT_NAME, locationSearchRef);
@@ -151,7 +152,7 @@ export const SearchBoxAndResults: FC<SearchBoxAndResultsProps> = observer(
               <button
                 type="button"
                 onClick={search}
-                aria-label="Search locations"
+                aria-label={t("search.submitLocations")}
                 style={{
                   padding: "6px 12px",
                   cursor: "pointer",
@@ -163,7 +164,7 @@ export const SearchBoxAndResults: FC<SearchBoxAndResultsProps> = observer(
                   backgroundColor: theme.colorPrimary
                 }}
               >
-                Search
+                {t("search.submit")}
               </button>
             </Box>
             {viewState.terria.searchBarModel.locationSearchProvidersArray.some(
@@ -242,6 +243,7 @@ export const SearchBoxAndResults: FC<SearchBoxAndResultsProps> = observer(
                     isWaitingForSearchToStart={
                       searchState.isWaitingToStartLocationSearch
                     }
+                    waitingHint={t("search.submitHint")}
                   />
                 ))}
               </Box>

@@ -42,6 +42,8 @@ interface LocationSearchResultsProps {
   search: SearchProviderResults;
   onLocationClick: (result: SearchResultModel) => void;
   locationSearchText: string;
+  /** Set when the search only runs on Enter/button: replaces the waiting loader */
+  waitingHint?: string;
 }
 
 const LocationSearchResults: React.FC<LocationSearchResultsProps> = observer(
@@ -50,7 +52,8 @@ const LocationSearchResults: React.FC<LocationSearchResultsProps> = observer(
     terria,
     isWaitingForSearchToStart,
     locationSearchText,
-    onLocationClick
+    onLocationClick,
+    waitingHint
   }: LocationSearchResultsProps) => {
     const [isExpanded, setIsExpanded] = useState(false);
 
@@ -118,7 +121,9 @@ const LocationSearchResults: React.FC<LocationSearchResultsProps> = observer(
               length={validResults?.length}
               isOpen={isOpen}
               search={search}
-              isWaitingForSearchToStart={isWaitingForSearchToStart}
+              isWaitingForSearchToStart={
+                isWaitingForSearchToStart && !waitingHint
+              }
             />
             <StyledIcon
               styledWidth={"9px"}
@@ -132,6 +137,7 @@ const LocationSearchResults: React.FC<LocationSearchResultsProps> = observer(
               <SearchHeader
                 searchResults={search}
                 isWaitingForSearchToStart={isWaitingForSearchToStart}
+                waitingHint={waitingHint}
               />
               <Ul column fullWidth>
                 {results.map((result: SearchResultModel, i: number) => (

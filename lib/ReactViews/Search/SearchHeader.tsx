@@ -10,13 +10,28 @@ import Loader from "../Loader";
 interface SearchHeaderProps {
   searchResults: SearchProviderResults;
   isWaitingForSearchToStart: boolean;
+  /** Shown instead of the loader while waiting, for searches the user submits explicitly */
+  waitingHint?: string;
 }
 
 const SearchHeader: FC<SearchHeaderProps> = observer(
   (props: SearchHeaderProps) => {
     const { i18n } = useTranslation();
 
-    if (props.searchResults.isSearching || props.isWaitingForSearchToStart) {
+    if (
+      props.isWaitingForSearchToStart &&
+      !props.searchResults.isSearching &&
+      props.waitingHint
+    ) {
+      return (
+        <BoxSpan paddedRatio={2}>
+          <Text key="hint">{props.waitingHint}</Text>
+        </BoxSpan>
+      );
+    } else if (
+      props.searchResults.isSearching ||
+      props.isWaitingForSearchToStart
+    ) {
       return (
         <div key="loader">
           <Loader boxProps={{ padded: true }} />

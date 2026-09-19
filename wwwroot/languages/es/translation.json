@@ -612,7 +612,10 @@
     "viewLess": "Ver menos resultados de {{name}}",
     "placeholder": "Buscar lugares",
     "searchCatalogue": "Buscar en el catálogo",
-    "searchInDataCatalog": "Buscar '{{locationSearchText}}'en el Catálogo de Datos"
+    "searchInDataCatalog": "Buscar '{{locationSearchText}}'en el Catálogo de Datos",
+    "submit": "Buscar",
+    "submitLocations": "Buscar lugares",
+    "submitHint": "Pulse Enter o haga clic en Buscar para buscar este lugar."
   },
   "addData": {
     "back": "Atrás",
