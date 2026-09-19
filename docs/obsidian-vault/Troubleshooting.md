@@ -41,6 +41,14 @@ yarn gulp docs
 - Para apps consumidoras, revisar `allowProxyFor`, `corsProxyBaseUrl` y `serverConfig`.
 - Material fuente: `doc/connecting-to-data/cross-origin-resource-sharing.md`
 
+## Mapa base o capa de teselas carga a pedazos, o no carga en 3D
+
+- Sintoma: en 2D las teselas llegan por tandas y en 3D el globo queda sin imagen; en la red aparecen `429` sobre `proxy/...`.
+- Causa observada (2026-09-19, produccion): las teselas pasaban por el proxy de `terriajs-server` y el frontal HTTP (Varnish) aplica un limite global de peticiones por IP; un globo 3D pide cientos de teselas de golpe.
+- `CorsProxy.shouldUseProxy` proxifica **siempre** un recurso `http://` desde una pagina `https`, aunque el host este en `corsDomains`. Algunos WMTS (p. ej. EOX `tiles.maps.eox.at`) publican plantillas `ResourceURL` en `http://` pese a servir el capabilities por `https`.
+- `WebMapTileServiceCatalogItem` usa `matchCapabilitiesProtocol`: si el capabilities se cargo por `https` y la plantilla apunta al mismo host en `http://`, las teselas se piden por `https`. Con el host en `corsDomains` del init, el navegador las pide directo al servidor de teselas y no pasan por el proxy.
+- Para otros servidores: comprobar que envian `Access-Control-Allow-Origin` en las teselas antes de agregarlos a `corsDomains`.
+
 ## Cambios en TerriaJS no se reflejan al probar con TerriaMap
 
 - Evitar `npm link`.

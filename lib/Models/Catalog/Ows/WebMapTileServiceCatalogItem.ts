@@ -795,7 +795,10 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
           templateMatchesTileMatrixSet(candidate.template, tileMatrixSet)
         );
         if (preferredTemplate?.template) {
-          baseUrl = preferredTemplate.template;
+          baseUrl = matchCapabilitiesProtocol(
+            preferredTemplate.template,
+            this.url
+          );
           templateTokens = extractTemplateTokens(preferredTemplate.template);
         }
       }
@@ -2602,6 +2605,28 @@ class CustomWebMercatorTilingScheme {
   ): any {
     return this.baseScheme.tileXYToNativeRectangle(x, y, level, result);
   }
+}
+
+/**
+ * Some servers advertise `http://` ResourceURL templates even when their
+ * capabilities were fetched over https. An http tile on an https page is
+ * always proxied (mixed content), so every tile would go through the
+ * terriajs-server proxy. When the template points at the host that served the
+ * capabilities over https, use https for the tiles too.
+ */
+export function matchCapabilitiesProtocol(
+  template: string,
+  capabilitiesUrl: string | undefined
+): string {
+  const match = /^http:\/\/([^/]+)/i.exec(template);
+  if (!match || !capabilitiesUrl) {
+    return template;
+  }
+  const capabilities = new URI(capabilitiesUrl);
+  return capabilities.protocol() === "https" &&
+    capabilities.host().toLowerCase() === match[1].toLowerCase()
+    ? "https://" + template.slice("http://".length)
+    : template;
 }
 
 function extractTemplateTokens(template: string | undefined): string[] {
