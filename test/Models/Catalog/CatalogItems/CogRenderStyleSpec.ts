@@ -2,6 +2,8 @@ import { applyCogNoDataColor } from "../../../../lib/Models/Catalog/CatalogItems
 import {
   buildCogRenderOptions,
   finalizeCogProviders,
+  getCogRebuildReactionSnapshot,
+  getCogStyleReactionSnapshot,
   getValidDisplayRange,
   getValidDomain,
   inclusiveProviderMaximum,
@@ -23,6 +25,77 @@ describe("CogRenderStyle", function () {
     expect(options.single.domain).toBeUndefined();
     expect(options.single.displayRange).toBeUndefined();
     expect(options.single.applyDisplayRange).toBe(false);
+  });
+
+  it("passes a construction domain only when the caller opts in", function () {
+    const options = buildCogRenderOptions(
+      { single: { colorScale: "ylgnbu", domain: [0, 200] } },
+      { constructionDomain: [0, 200] }
+    );
+    expect(options.single.domain).toEqual([0, 200]);
+
+    // An expression has no single band range the provider could reuse.
+    const withExpression = buildCogRenderOptions(
+      { single: { expression: "b1 * 2" } },
+      { constructionDomain: [0, 200] }
+    );
+    expect(withExpression.single.domain).toBeUndefined();
+  });
+
+  it("takes the native range from the tracked value, not the provider, after a construction domain", function () {
+    // Built with `single.domain`, the provider reports that domain as its band
+    // statistics and plot domain — neither is the data's native range.
+    const provider = makeProvider([0, 200]);
+    provider._terriaCogConstructionDomain = true;
+
+    const lazy = finalizeCogProviders([provider], { domain: [0, 200] });
+    expect(lazy?.domain).toEqual([0, 200]);
+    expect(lazy?.nativeDomain).toBeUndefined();
+
+    provider._terriaCogNativeDomain = [3, 87];
+    const known = finalizeCogProviders([provider], { domain: [0, 200] });
+    expect(known?.domain).toEqual([0, 200]);
+    expect(known?.nativeDomain).toEqual([3, 87]);
+
+    // Without a configured domain the tracked native range is what is shown.
+    expect(finalizeCogProviders([provider], {})?.domain).toEqual([3, 87]);
+  });
+
+  it("separates options that restyle live from options that need a rebuild", function () {
+    const options = {
+      single: { band: 2, colorScale: "jet" as const, domain: [0, 5] },
+      nodata: -9999,
+      resampleMethod: "bilinear" as const
+    };
+    const live = getCogStyleReactionSnapshot(options) as any;
+    const rebuild = getCogRebuildReactionSnapshot(options);
+
+    expect(live.colorScale).toBe("jet");
+    expect(live.domain1).toBe(5);
+    expect(live.band).toBeUndefined();
+    expect(live.nodata).toBeUndefined();
+    expect(rebuild).toEqual({
+      band: 2,
+      expression: undefined,
+      nodata: -9999,
+      convertToRGB: undefined,
+      resampleMethod: "bilinear"
+    });
+  });
+
+  it("does nothing for a fully transparent no-data colour", function () {
+    const provider: any = {
+      _loadTile: async () => ({ data: [], width: 1, height: 1 }),
+      requestImage: async () => undefined
+    };
+    const loadTile = provider._loadTile;
+    const requestImage = provider.requestImage;
+
+    applyCogNoDataColor(provider, 1, "rgba(0,0,0,0)");
+
+    // The provider already renders no-data as transparent: no per-tile work.
+    expect(provider._loadTile).toBe(loadTile);
+    expect(provider.requestImage).toBe(requestImage);
   });
 
   it("selects a named palette over inherited custom colors explicitly", function () {

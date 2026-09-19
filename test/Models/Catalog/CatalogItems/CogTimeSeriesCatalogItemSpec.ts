@@ -2,6 +2,10 @@ import CogTimeSeriesCatalogItem from "../../../../lib/Models/Catalog/CatalogItem
 import CommonStrata from "../../../../lib/Models/Definition/CommonStrata";
 import updateModelFromJson from "../../../../lib/Models/Definition/updateModelFromJson";
 import Terria from "../../../../lib/Models/Terria";
+import {
+  adoptCogSource,
+  clearCogSourceCache
+} from "../../../../lib/Core/CogSourceCache";
 
 // ─── Sample remote JSON payloads ───
 
@@ -854,6 +858,383 @@ describe("CogTimeSeriesCatalogItem", function () {
       });
       // No providers have been created (no loadMapItems called)
       expect(item.mapItems.length).toBe(0);
+    });
+  });
+
+  // ════════════════════════════════════════════════
+  // Time stepping: step cache, staleness, preload
+  // ════════════════════════════════════════════════
+
+  describe("time stepping", function () {
+    const TIMES = [
+      "2024-01-01T00:00:00Z",
+      "2024-02-01T00:00:00Z",
+      "2024-03-01T00:00:00Z",
+      "2024-04-01T00:00:00Z"
+    ];
+
+    function configure(extra: Record<string, unknown> = {}) {
+      updateModelFromJson(item, CommonStrata.definition, {
+        // Same tag on every entry: steps must be keyed by COG URLs, not tags.
+        timeEntries: TIMES.map((time, index) => ({
+          time,
+          tag: "same label",
+          cogs: [`step${index}.tif`]
+        })),
+        renderOptions: { single: { colorScale: "ylgnbu", domain: [0, 10] } },
+        preloadAdjacentSteps: 0,
+        ...extra
+      });
+    }
+
+    function stubProviders() {
+      const providers: Record<string, any> = {};
+      const spy = spyOn<any>(
+        item as any,
+        "_createImageryProvider"
+      ).and.callFake(async (url: string) => {
+        providers[url] = makeStyleProvider([0, 10]);
+        spyOn(providers[url], "destroy").and.callThrough();
+        return providers[url];
+      });
+      return { providers, spy };
+    }
+
+    async function stepTo(time: string) {
+      item.setTrait(CommonStrata.user, "currentTime", time);
+      await (item as any)._updateProvidersForCurrentTime();
+    }
+
+    it("reuses a built step when returning to its date", async function () {
+      configure();
+      const { providers, spy } = stubProviders();
+      item.setTrait(CommonStrata.user, "currentTime", TIMES[0]);
+      await item.loadMapItems();
+      await stepTo(TIMES[1]);
+      await stepTo(TIMES[0]);
+
+      expect(spy.calls.count()).toBe(2);
+      expect(item.mapItems.length).toBe(1);
+      expect((item.mapItems[0] as any).imageryProvider).toBe(
+        providers["step0.tif"]
+      );
+    });
+
+    it("does not publish a build that was overtaken by a newer date", async function () {
+      configure();
+      const resolvers: Record<string, (provider: any) => void> = {};
+      spyOn<any>(item as any, "_createImageryProvider").and.callFake(
+        (url: string) =>
+          new Promise((resolve) => {
+            resolvers[url] = resolve;
+          })
+      );
+
+      item.setTrait(CommonStrata.user, "currentTime", TIMES[0]);
+      const first = (item as any)._updateProvidersForCurrentTime();
+      item.setTrait(CommonStrata.user, "currentTime", TIMES[1]);
+      const second = (item as any)._updateProvidersForCurrentTime();
+      expect(item.isSteppingTime).toBe(true);
+      expect(item.isLoading).toBe(true);
+
+      const late = makeStyleProvider([0, 10]);
+      const wanted = makeStyleProvider([0, 10]);
+      resolvers["step1.tif"](wanted);
+      await second;
+      resolvers["step0.tif"](late);
+      await first;
+
+      expect((item.mapItems[0] as any).imageryProvider).toBe(wanted);
+      expect(item.isSteppingTime).toBe(false);
+      // The overtaken step is kept so going back to it is instant.
+      expect((item as any)._stepCache.has("step0.tif")).toBe(true);
+    });
+
+    it("keeps the other dates built across a live restyle", async function () {
+      configure();
+      const { providers } = stubProviders();
+      item.setTrait(CommonStrata.user, "currentTime", TIMES[0]);
+      await item.loadMapItems();
+      await stepTo(TIMES[1]);
+      const clipBefore = (item.mapItems[0] as any).clippingRectangle;
+
+      item.renderOptions.single!.setTrait(CommonStrata.user, "domain", [0, 50]);
+
+      expect((item as any)._stepCache.size).toBe(2);
+      expect(providers["step0.tif"].destroy).not.toHaveBeenCalled();
+      expect(providers["step0.tif"].plot.domain).toEqual([0, 50]);
+      expect(providers["step1.tif"].plot.domain).toEqual([0, 50]);
+      // A new clip rectangle identity makes Cesium drop the stale tiles.
+      expect((item.mapItems[0] as any).clippingRectangle).not.toBe(clipBefore);
+    });
+
+    it("evicts least recently used steps but never the displayed one", async function () {
+      configure({ providerCacheSize: 2 });
+      const { providers } = stubProviders();
+      item.setTrait(CommonStrata.user, "currentTime", TIMES[0]);
+      await item.loadMapItems();
+      await stepTo(TIMES[1]);
+      await stepTo(TIMES[2]);
+
+      expect((item as any)._stepCache.size).toBe(2);
+      expect(providers["step0.tif"].destroy).toHaveBeenCalledTimes(1);
+      expect(providers["step2.tif"].destroy).not.toHaveBeenCalled();
+      expect((item.mapItems[0] as any).imageryProvider).toBe(
+        providers["step2.tif"]
+      );
+    });
+
+    it("preloads neighbouring steps invisibly and promotes them without a new layer", async function () {
+      configure({ preloadAdjacentSteps: 1, opacity: 0.7 });
+      const { providers } = stubProviders();
+      item.setTrait(CommonStrata.user, "currentTime", TIMES[1]);
+      await item.loadMapItems();
+      // Preloading waits for the displayed step to start loading its tiles.
+      await new Promise((resolve) => setTimeout(resolve, 700));
+
+      const parts = item.mapItems as any[];
+      expect(parts.length).toBe(3);
+      expect(parts[0].imageryProvider).toBe(providers["step1.tif"]);
+      expect(parts[0].alpha).toBe(0.7);
+      expect(parts.slice(1).map((part) => part.alpha)).toEqual([0, 0]);
+
+      const next = parts.find(
+        (part) => part.imageryProvider === providers["step2.tif"]
+      );
+      expect(next).toBeDefined();
+
+      await stepTo(TIMES[2]);
+      const promoted = (item.mapItems as any[])[0];
+      // Same provider and same rectangle identity: Cesium keeps the layer
+      // (and its already loaded tiles) instead of creating a new one.
+      expect(promoted.imageryProvider).toBe(next.imageryProvider);
+      expect(promoted.clippingRectangle).toBe(next.clippingRectangle);
+      expect(promoted.alpha).toBe(0.7);
+    });
+
+    it("rebuilds every step when a build-time option changes", async function () {
+      configure();
+      const { providers, spy } = stubProviders();
+      item.setTrait(CommonStrata.user, "currentTime", TIMES[0]);
+      await item.loadMapItems();
+      const original = providers["step0.tif"];
+
+      item.renderOptions.setTrait(CommonStrata.user, "nodata", -9999);
+      await item.loadMapItems();
+
+      expect(original.destroy).toHaveBeenCalledTimes(1);
+      expect(spy.calls.count()).toBe(2);
+    });
+  });
+
+  // ════════════════════════════════════════════════
+  // Value at a point: item-owned pick + point series
+  // ════════════════════════════════════════════════
+
+  describe("value at a point", function () {
+    const LON = 30.5;
+    const LAT = 50.5;
+    const toRadians = (degrees: number) => (degrees * Math.PI) / 180;
+
+    /** Stand-in for a GeoTIFF covering 30–31°E, 50–51°N with one value. */
+    function fakeTiff(raw: number, noData: number | null = null): any {
+      const image = {
+        getOrigin: () => [30, 51, 0],
+        getResolution: () => [0.1, -0.1, 0],
+        getWidth: () => 10,
+        getHeight: () => 10,
+        getGeoKeys: () => ({ GeographicTypeGeoKey: 4326 }),
+        getGDALNoData: () => noData,
+        readRasters: async () => [new Float32Array([raw])]
+      };
+      return { getImage: async () => image };
+    }
+
+    function configure(extra: Record<string, unknown> = {}) {
+      updateModelFromJson(item, CommonStrata.definition, {
+        name: "CHL",
+        unit: "mg m-3",
+        dateFormat: "UTC:mmm yyyy",
+        timeEntries: [
+          { time: "2024-01-01T00:00:00Z", cogs: ["jan.tif"] },
+          { time: "2024-02-01T00:00:00Z", cogs: ["feb-a.tif", "feb-b.tif"] },
+          { time: "2024-03-01T00:00:00Z", cogs: ["mar.tif"] }
+        ],
+        renderOptions: { single: { colorScale: "ylgnbu", domain: [0, 100] } },
+        preloadAdjacentSteps: 0,
+        ...extra
+      });
+      adoptCogSource("jan.tif", fakeTiff(120, 65535));
+      adoptCogSource("feb-a.tif", fakeTiff(65535, 65535));
+      adoptCogSource("feb-b.tif", fakeTiff(437, 65535));
+      adoptCogSource("mar.tif", fakeTiff(65535, 65535));
+    }
+
+    /** Build real-looking providers through the item's own factory hook. */
+    function stubProviders() {
+      const providers: Record<string, any> = {};
+      const original = (item as any)._installPick.bind(item);
+      spyOn<any>(item as any, "_createImageryProvider").and.callFake(
+        async (url: string) => {
+          const provider = makeStyleProvider([0, 100]);
+          provider.url = url;
+          original(provider);
+          providers[url] = provider;
+          return provider;
+        }
+      );
+      return providers;
+    }
+
+    function pick(provider: any, lon = LON, lat = LAT) {
+      return provider.pickFeatures(0, 0, 0, toRadians(lon), toRadians(lat));
+    }
+
+    afterEach(function () {
+      item.clearAccumulatedSeries();
+      clearCogSourceCache();
+    });
+
+    it("returns one positioned feature with the physical value, unit and date", async function () {
+      configure({ valueScale: 0.1 });
+      const providers = stubProviders();
+      item.setTrait(CommonStrata.user, "currentTime", "2024-01-01T00:00:00Z");
+      await item.loadMapItems();
+
+      const features = await pick(providers["jan.tif"]);
+
+      expect(features.length).toBe(1);
+      const feature = features[0];
+      expect(feature.name).toBe("CHL — Jan 2024");
+      expect(feature.position.longitude).toBeCloseTo(toRadians(LON), 9);
+      expect(feature.position.latitude).toBeCloseTo(toRadians(LAT), 9);
+      expect(feature.data.value).toBeCloseTo(12, 6);
+      expect(feature.data.unit).toBe("mg m-3");
+      expect(feature.data.date).toContain("2024-01-01");
+      expect(feature.data.longitude).toBeCloseTo(LON, 9);
+      expect(feature.properties.cogTimeSeriesPick).toBeUndefined();
+    });
+
+    it("answers a mosaic click once, with the tile that has data", async function () {
+      configure({ valueScale: 0.1 });
+      const providers = stubProviders();
+      item.setTrait(CommonStrata.user, "currentTime", "2024-02-01T00:00:00Z");
+      await item.loadMapItems();
+
+      // Cesium asks every COG of the mosaic about the same click.
+      const [first, second] = await Promise.all([
+        pick(providers["feb-a.tif"]),
+        pick(providers["feb-b.tif"])
+      ]);
+
+      expect(first.length + second.length).toBe(1);
+      expect([...first, ...second][0].data.value).toBeCloseTo(43.7, 6);
+    });
+
+    it("reports no-data as a feature without a value, and nothing outside the imagery", async function () {
+      configure();
+      const providers = stubProviders();
+      item.setTrait(CommonStrata.user, "currentTime", "2024-03-01T00:00:00Z");
+      await item.loadMapItems();
+
+      const noData = await pick(providers["mar.tif"]);
+      expect(noData.length).toBe(1);
+      expect(noData[0].data.value).toBeNull();
+
+      expect((await pick(providers["mar.tif"], 10, 10)).length).toBe(0);
+    });
+
+    it("never rejects and never answers for a step that is not displayed", async function () {
+      configure();
+      const providers = stubProviders();
+      item.setTrait(CommonStrata.user, "currentTime", "2024-01-01T00:00:00Z");
+      await item.loadMapItems();
+      const january = providers["jan.tif"];
+      item.setTrait(CommonStrata.user, "currentTime", "2024-03-01T00:00:00Z");
+      await (item as any)._updateProvidersForCurrentTime();
+
+      // January is still cached but no longer on screen.
+      expect((await pick(january)).length).toBe(0);
+
+      adoptCogSource("broken.tif", {
+        getImage: async () => {
+          throw new Error("corrupt");
+        }
+      } as any);
+      providers["mar.tif"].url = "broken.tif";
+      spyOn(console, "error");
+      expect((await pick(providers["mar.tif"], 30.2, 50.2)).length).toBe(0);
+    });
+
+    it("reads the time series of a clicked point and exposes it to the chart dock", async function () {
+      configure({ valueScale: 0.1 });
+      const providers = stubProviders();
+      item.setTrait(CommonStrata.user, "currentTime", "2024-02-01T00:00:00Z");
+      await item.loadMapItems();
+
+      await pick(providers["feb-b.tif"]);
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      expect(item.pointSeries.length).toBe(1);
+      const series = item.pointSeries[0];
+      expect(series.label).toBe("P1");
+      expect(series.status).toBe("done");
+      expect(series.noData).toBe(1);
+      expect(series.errors).toBe(0);
+      // Ascending ISO dates on x; values in physical units.
+      expect(series.points).toEqual([
+        { x: Date.parse("2024-01-01T00:00:00Z"), y: 120 * 0.1 },
+        { x: Date.parse("2024-02-01T00:00:00Z"), y: 437 * 0.1 }
+      ]);
+
+      const accumulated = item.accumulatedChartSeries;
+      expect(accumulated.length).toBe(1);
+      expect(accumulated[0].name).toContain("P1");
+      expect(accumulated[0].units).toBe("mg m-3");
+      expect(accumulated[0].meta).toEqual({
+        kind: "point",
+        lat: LAT,
+        lon: LON
+      });
+      expect(item.accumulatedChartItems[0].points.length).toBe(2);
+
+      // Clicking the same place again reuses the series.
+      item.addPointSeries(LAT, LON);
+      expect(item.pointSeries.length).toBe(1);
+
+      item.removeAccumulatedSeries(series.key);
+      expect(item.pointSeries.length).toBe(0);
+    });
+
+    it("restores a shared point series without reading it again", function () {
+      configure();
+      item.addAccumulatedSeries({
+        key: "50.50000,30.50000",
+        name: "P3 (50.5000, 30.5000)",
+        color: "#0072B2",
+        points: [{ x: 1, y: 2 }],
+        meta: { kind: "point", lat: LAT, lon: LON }
+      });
+
+      expect(item.pointSeries.length).toBe(1);
+      expect(item.pointSeries[0].label).toBe("P3");
+      expect(item.pointSeries[0].status).toBe("done");
+      // The next clicked point continues the numbering.
+      item.addPointSeries(51, 31);
+      expect(item.pointSeries[1].label).toBe("P4");
+    });
+
+    it("applies the colour range in stored units and shows it in physical units", async function () {
+      configure({ valueScale: 0.1 });
+      const providers = stubProviders();
+      item.setTrait(CommonStrata.user, "currentTime", "2024-01-01T00:00:00Z");
+      await item.loadMapItems();
+
+      // domain [0, 100] mg m-3 over a raster that stores tenths.
+      expect(providers["jan.tif"].plot.domain).toEqual([0, 1000]);
+      expect(item.effectiveCogStyle?.domain).toEqual([0, 100]);
+      expect(item.legends?.[0].items?.[0].value).toBe(100);
+      expect(item.legends?.[0].title).toContain("mg m-3");
     });
   });
 

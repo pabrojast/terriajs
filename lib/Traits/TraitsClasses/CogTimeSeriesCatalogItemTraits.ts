@@ -197,14 +197,16 @@ export default class CogTimeSeriesCatalogItemTraits extends mixTraits(
   @primitiveTrait({
     type: "number",
     name: "Cache",
-    description: "Cache survival time in milliseconds."
+    description:
+      "Deprecated and ignored. Use `providerCacheSize` and `tileCacheSize`."
   })
   cache?: number;
 
   @primitiveTrait({
     type: "string",
     name: "Resample Method",
-    description: "Geotiff resample method."
+    description:
+      "Deprecated and ignored. Use `renderOptions.resampleMethod`, which defaults to `bilinear` for time series."
   })
   resampleMethod?: "nearest" | "bilinear" | "linear";
 
@@ -212,17 +214,59 @@ export default class CogTimeSeriesCatalogItemTraits extends mixTraits(
     type: "number",
     name: "Provider Cache Size",
     description:
-      "Number of TIFFImageryProvider instances to keep cached for recently-viewed time steps. Default is 3."
+      "Number of time steps whose imagery providers are kept ready (the displayed step and its preloaded neighbours always stay). Default is 6."
   })
   providerCacheSize?: number;
+
+  @primitiveTrait({
+    type: "number",
+    name: "Preload Adjacent Steps",
+    description:
+      "How many time steps before and after the displayed one are loaded invisibly so stepping through time is instant. Set to 0 to disable. Default is 1."
+  })
+  preloadAdjacentSteps?: number;
+
+  @primitiveTrait({
+    type: "number",
+    name: "Tile Cache Size",
+    description:
+      "Number of rendered tiles each time step keeps in memory. Default is 64."
+  })
+  tileCacheSize?: number;
 
   @primitiveArrayTrait({
     type: "number",
     name: "NoData Values",
     description:
-      "Additional pixel values to treat as NoData when extracting time series on click. " +
-      "Common sentinel values like -999, -9999, etc. The TIFF metadata nodata and " +
-      "renderOptions.nodata are always checked automatically."
+      "Additional stored pixel values to treat as NoData when reading the value at a point. " +
+      "The GeoTIFF's own no-data value is always honoured; list here only sentinels the " +
+      "file does not declare. Values are never guessed."
   })
   noDataValues?: number[];
+
+  @primitiveTrait({
+    type: "string",
+    name: "Unit",
+    description:
+      "Unit of the physical values (e.g. `mg m-3`), shown in the legend, feature info and charts."
+  })
+  unit?: string;
+
+  @primitiveTrait({
+    type: "number",
+    name: "Value Scale",
+    description:
+      "Multiplier converting stored pixel values to physical values (`physical = stored * valueScale + valueOffset`), " +
+      "e.g. 0.1 for a UInt16 raster storing tenths. The colour range (`domain`), legend, picked values and " +
+      "time series are all expressed in physical values. Default is 1."
+  })
+  valueScale?: number;
+
+  @primitiveTrait({
+    type: "number",
+    name: "Value Offset",
+    description:
+      "Offset converting stored pixel values to physical values. See `valueScale`. Default is 0."
+  })
+  valueOffset?: number;
 }

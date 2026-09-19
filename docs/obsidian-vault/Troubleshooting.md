@@ -49,6 +49,13 @@ yarn gulp docs
 - `WebMapTileServiceCatalogItem` usa `matchCapabilitiesProtocol`: si el capabilities se cargo por `https` y la plantilla apunta al mismo host en `http://`, las teselas se piden por `https`. Con el host en `corsDomains` del init, el navegador las pide directo al servidor de teselas y no pasan por el proxy.
 - Para otros servidores: comprobar que envian `Access-Control-Allow-Origin` en las teselas antes de agregarlos a `corsDomains`.
 
+## Un COG pinta toda la tierra con el color mas bajo de la paleta
+
+- Causa habitual: `renderOptions.nodata` en el catalogo. Ese valor reemplaza al no-data declarado en el GeoTIFF (p. ej. `nodata: 0` pisa un `-9999` real). Con `clampLow` activo (por defecto), los pixeles sin dato caen bajo el dominio y se pintan con el primer color.
+- Solucion: quitar `renderOptions.nodata` y dejar que se use el no-data del archivo (`gdalinfo` lo muestra como `NoData Value`). Configurarlo solo cuando el archivo no lo declara.
+- Un `noDataColor` transparente es innecesario: el no-data ya se pinta transparente.
+- Si los valores se ven fuera de escala, revisar si el raster trae `Scale`/`Offset` (`gdalinfo`): en `cog-time-series` van en `valueScale` / `valueOffset`, y `domain` se escribe en unidades fisicas.
+
 ## Cambios en TerriaJS no se reflejan al probar con TerriaMap
 
 - Evitar `npm link`.

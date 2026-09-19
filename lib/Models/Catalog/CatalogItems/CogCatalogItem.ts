@@ -31,11 +31,16 @@ import { ViewingControl } from "../../ViewingControls";
 import { runWorkflow } from "../../Workflows/SelectableDimensionWorkflow";
 import CogStylingWorkflow from "../../Workflows/CogStylingWorkflow";
 import { CogLegendStratum } from "./CogLegendStratum";
+import {
+  createCogImageryProvider,
+  destroyCogImageryProvider
+} from "./CogProviderFactory";
 import { applyCogNoDataColor } from "./CogRasterPostProcessor";
 import {
   buildCogRenderOptions,
   CogEffectiveStyle,
   finalizeCogProviders,
+  getCogRebuildReactionSnapshot,
   getCogStyleReactionSnapshot
 } from "./CogRenderStyle";
 
@@ -148,7 +153,7 @@ export default class CogCatalogItem extends MappableMixin(
     // mapItems becoming observed or unobserved.
     onBecomeUnobserved(this, "mapItems", () => {
       if (this._imageryProvider) {
-        this._imageryProvider.destroy();
+        destroyCogImageryProvider(this._imageryProvider);
         this._imageryProvider = undefined;
         this._effectiveCogStyle = undefined;
         this._styleClipRectangle = undefined;
@@ -169,6 +174,17 @@ export default class CogCatalogItem extends MappableMixin(
       () => getCogStyleReactionSnapshot(this.renderOptions),
       () => {
         if (this._applyLiveCogStyle()) return;
+        if (this._imageryProvider && !this.isLoadingMapItems) {
+          this.loadMapItems(true);
+        }
+      }
+    );
+
+    // Options the provider only reads while being built (band, no-data,
+    // resampling) cannot be restyled in place.
+    reaction(
+      () => getCogRebuildReactionSnapshot(this.renderOptions),
+      () => {
         if (this._imageryProvider && !this.isLoadingMapItems) {
           this.loadMapItems(true);
         }
@@ -217,10 +233,15 @@ export default class CogCatalogItem extends MappableMixin(
     const url = proxyCatalogItemUrl(this, this.url);
     const { imageryProvider, effectiveStyle } =
       await this.createImageryProvider(url);
+    const previous = this._imageryProvider;
     runInAction(() => {
       this._imageryProvider = imageryProvider;
       this._effectiveCogStyle = effectiveStyle;
     });
+    // A reload replaces the provider; free the old one's tiles and GL state.
+    if (previous && previous !== imageryProvider) {
+      destroyCogImageryProvider(previous);
+    }
   }
 
   @computed get mapItems(): MapItem[] {
@@ -267,25 +288,19 @@ export default class CogCatalogItem extends MappableMixin(
     imageryProvider: TIFFImageryProvider;
     effectiveStyle: CogEffectiveStyle | undefined;
   }> {
-    const [{ default: TIFFImageryProvider }, { default: proj4 }] =
-      await Promise.all([
-        import("terriajs-tiff-imagery-provider"),
-        import("proj4-fully-loaded")
-      ]);
+    const { default: proj4 } = await import("proj4-fully-loaded");
     const renderOptions = buildCogRenderOptions(this.renderOptions);
 
-    const imageryProvider = await runInAction(() =>
-      TIFFImageryProvider.fromUrl(url, {
-        credit: this.credit,
-        tileSize: this.tileSize,
-        maximumLevel: this.maximumLevel,
-        minimumLevel: this.minimumLevel,
-        enablePickFeatures: this.allowFeaturePicking,
-        hasAlphaChannel: this.hasAlphaChannel,
-        projFunc: this.reprojector(proj4),
-        renderOptions
-      })
-    );
+    const imageryProvider = await createCogImageryProvider(url, {
+      credit: this.credit,
+      tileSize: this.tileSize,
+      maximumLevel: this.maximumLevel,
+      minimumLevel: this.minimumLevel,
+      enablePickFeatures: this.allowFeaturePicking,
+      hasAlphaChannel: this.hasAlphaChannel,
+      projFunc: this.reprojector(proj4),
+      renderOptions
+    });
     const effectiveStyle = finalizeCogProviders(
       [imageryProvider],
       this.renderOptions?.single

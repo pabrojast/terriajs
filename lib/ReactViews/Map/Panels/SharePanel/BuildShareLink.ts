@@ -469,7 +469,8 @@ function addAccumulatedChartSeries(terria: Terria, initSource: InitSourceData) {
           name: series.name,
           units: series.units,
           color: series.color,
-          points: series.points.map((p) => ({ x: p.x, y: p.y }))
+          points: series.points.map((p) => ({ x: p.x, y: p.y })),
+          ...(series.meta ? { meta: { ...series.meta } } : {})
         })
       );
     }

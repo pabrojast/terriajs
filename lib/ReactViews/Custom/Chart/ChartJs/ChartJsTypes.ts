@@ -27,6 +27,16 @@ export interface AccumulatedSeries {
   color: string;
   /** Ascending-by-x points; `x` is epoch milliseconds. */
   points: { x: number; y: number }[];
+  /**
+   * Where the series comes from, when it is not a table feature. Lets a source
+   * such as a COG time series rebuild its own state from a share link.
+   */
+  meta?: {
+    kind: "point" | "area";
+    /** Degrees; set for `kind: "point"`. */
+    lat?: number;
+    lon?: number;
+  };
 }
 
 /**

@@ -481,6 +481,17 @@
       "band": "Banda",
       "clampLow": "Ajustar Valores Bajos",
       "clampHigh": "Ajustar Valores Altos"
+    },
+    "cogTimeSeries": {
+      "loadTimeEntriesErrorTitle": "Error al cargar la serie temporal COG",
+      "loadTimeEntriesErrorMessage": "No se pudo cargar la definición de la serie temporal desde {{url}}.",
+      "loadImageryErrorTitle": "Error al cargar las imágenes COG",
+      "loadImageryErrorMessage": "No se pudieron cargar uno o más archivos COG de la fecha actual.",
+      "noTimeEntries": "Este conjunto de datos no tiene fechas disponibles.",
+      "noDataAtPoint": "Sin datos aquí",
+      "pointSeriesLoading": "Leyendo serie temporal… {{loaded}}/{{total}} fechas",
+      "pointSeriesErrors": "No se pudo leer {{count}} fecha.",
+      "pointSeriesErrors_plural": "No se pudieron leer {{count}} fechas."
     }
   },
   "analytics": {

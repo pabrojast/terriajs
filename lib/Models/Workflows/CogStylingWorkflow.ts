@@ -1420,21 +1420,31 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
    *  `domain` so the colour scale (and legend) stay fixed at that range. */
   @computed
   private get autoFitTimestepButton(): SelectableDimensionButton | undefined {
-    if (!(this.item instanceof CogTimeSeriesCatalogItem)) return undefined;
-    const nativeDomain = this.item.effectiveCogStyle?.nativeDomain;
-    if (!nativeDomain) return undefined;
+    const item = this.item;
+    if (!(item instanceof CogTimeSeriesCatalogItem)) return undefined;
+    // Only single-band renders have a colour range to fit.
+    if (item.effectiveCogStyle?.isSingleBand === false) return undefined;
     return {
       type: "button",
       id: "auto-fit-timestep",
       value: i18next.t("models.cogStyling.timeSeries.autoFit"),
       setDimensionValue: action((stratumId: string) => {
-        if (!this.item.renderOptions.single) {
-          this.item.renderOptions.setTrait(stratumId, "single", undefined);
+        const nativeDomain = item.effectiveCogStyle?.nativeDomain;
+        if (nativeDomain) {
+          if (!item.renderOptions.single) {
+            item.renderOptions.setTrait(stratumId, "single", undefined);
+          }
+          item.renderOptions.single!.setTrait(stratumId, "domain", [
+            nativeDomain[0],
+            nativeDomain[1]
+          ]);
+          return;
         }
-        this.item.renderOptions.single!.setTrait(stratumId, "domain", [
-          nativeDomain[0],
-          nativeDomain[1]
-        ]);
+        // Steps built with a configured range skip the statistics read, so
+        // the native range of this date is computed on demand.
+        item
+          .fitDomainToCurrentStep(stratumId)
+          .catch((e) => item.terria.raiseErrorToUser(e));
       })
     };
   }

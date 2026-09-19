@@ -4,7 +4,12 @@ import {
   CogColorScaleMode,
   ColorScaleNames
 } from "../../../Traits/TraitsClasses/CogCatalogItemTraits";
+import type { CogValueTransform } from "../../../Core/CogPointReader";
 import { COG_COLOR_SCALES, COG_DEFAULT_COLOR_SCALE } from "./CogColorScales";
+import {
+  getCogProviderNativeDomain,
+  hasCogConstructionDomain
+} from "./CogProviderFactory";
 
 export type CogRange = [number, number];
 
@@ -56,9 +61,20 @@ export interface CogRenderOptionsInput {
   resampleMethod?: "nearest" | "bilinear";
 }
 
+export interface BuildCogRenderOptionsExtras {
+  /**
+   * Passed to the provider as `single.domain` so it skips its statistics read
+   * (a full read of the smallest overview on every build). Only use together
+   * with `createCogImageryProvider`, which tracks the real native range
+   * separately — the provider reports this value as its band statistics.
+   */
+  constructionDomain?: CogRange;
+}
+
 /** Build only options understood by terriajs-tiff-imagery-provider. */
 export function buildCogRenderOptions(
-  options: CogRenderOptionsInput | undefined
+  options: CogRenderOptionsInput | undefined,
+  extras?: BuildCogRenderOptionsExtras
 ): any | undefined {
   if (!options) return undefined;
 
@@ -80,11 +96,18 @@ export function buildCogRenderOptions(
     }
 
     if (single?.type !== undefined) singleOptions.type = single.type;
-    // Do not pass `domain` at construction. The provider overwrites band
-    // statistics with it, so auto-range and later scale edits lose the real
-    // min/max. finalizeCogProviders applies domain after metadata is ready.
+    // Do not pass the configured `domain` at construction by default. The
+    // provider overwrites band statistics with it, so auto-range and later
+    // scale edits lose the real min/max. finalizeCogProviders applies domain
+    // after metadata is ready. Callers that track the native range themselves
+    // opt in through `extras.constructionDomain` to skip the statistics read.
     if (single?.expression !== undefined)
       singleOptions.expression = single.expression;
+    else if (extras?.constructionDomain)
+      singleOptions.domain = [
+        extras.constructionDomain[0],
+        extras.constructionDomain[1]
+      ];
 
     const clampLow = single?.clampLow ?? true;
     singleOptions.clampLow = clampLow;
@@ -105,21 +128,34 @@ export function buildCogRenderOptions(
   return Object.keys(renderOptions).length > 0 ? renderOptions : undefined;
 }
 
+export interface FinalizeCogProvidersExtras {
+  /**
+   * Conversion from stored to physical values. Everything a person sees or
+   * configures (`domain`, `displayRange`, the legend) is physical; only the
+   * plot, which renders stored values, is given raw ranges.
+   */
+  valueTransform?: CogValueTransform;
+}
+
 /**
  * Applies the final shared domain, palette and inclusive display range after
  * every provider in a (possibly mosaicked) timestep has loaded its metadata.
  */
 export function finalizeCogProviders(
   providers: readonly TIFFImageryProvider[],
-  single: CogSingleStyleInput | undefined
+  single: CogSingleStyleInput | undefined,
+  extras?: FinalizeCogProvidersExtras
 ): CogEffectiveStyle | undefined {
   const singleProviders = providers.filter((provider) => provider.plot);
   if (singleProviders.length === 0) return undefined;
 
+  const transform = extras?.valueTransform;
   const configuredDomain = getValidDomain(single?.domain);
-  const nativeDomain =
+  const nativeDomain = toPhysicalRange(
     getAggregateBandDomain(singleProviders, single?.band) ??
-    getAggregateProviderDomain(singleProviders, single?.band);
+      getAggregateProviderDomain(singleProviders, single?.band),
+    transform
+  );
   const domain = configuredDomain ?? nativeDomain;
   const invalidDomain = single?.domain !== undefined && !configuredDomain;
   const configuredDisplayRange = getValidDisplayRange(single?.displayRange);
@@ -135,9 +171,11 @@ export function finalizeCogProviders(
   const type = single?.type ?? "continuous";
   const stops = resolveCogColorStops(single, domain);
 
+  const rawDomain = toRawRange(domain, transform);
+  const rawDisplayRange = toRawRange(displayRange, transform);
   for (const provider of singleProviders) {
     const plot = provider.plot!;
-    if (domain) plot.setDomain(domain.slice());
+    if (rawDomain) plot.setDomain(rawDomain.slice());
     plot.setClamp(clampLow, clampHigh);
     plot.setColorType(type);
 
@@ -149,10 +187,10 @@ export function finalizeCogProviders(
       plot.setColorScaleImage(canvas);
     }
 
-    if (displayRange) {
+    if (rawDisplayRange) {
       plot.setDisplayRange([
-        displayRange[0],
-        inclusiveProviderMaximum(displayRange[1], !!(plot as any).gl)
+        rawDisplayRange[0],
+        inclusiveProviderMaximum(rawDisplayRange[1], !!(plot as any).gl)
       ]);
     } else {
       plot.applyDisplayRange = false;
@@ -184,6 +222,37 @@ export function finalizeCogProviders(
   };
 }
 
+/** Physical range → the stored-value range the plot renders. */
+export function toRawRange(
+  range: CogRange | undefined,
+  transform: CogValueTransform | undefined
+): CogRange | undefined {
+  if (!range || !transform || !isUsableTransform(transform)) return range;
+  const a = (range[0] - transform.offset) / transform.scale;
+  const b = (range[1] - transform.offset) / transform.scale;
+  // A negative scale flips the order.
+  return a <= b ? [a, b] : [b, a];
+}
+
+/** Stored-value range → physical range. */
+export function toPhysicalRange(
+  range: CogRange | undefined,
+  transform: CogValueTransform | undefined
+): CogRange | undefined {
+  if (!range || !transform || !isUsableTransform(transform)) return range;
+  const a = range[0] * transform.scale + transform.offset;
+  const b = range[1] * transform.scale + transform.offset;
+  return a <= b ? [a, b] : [b, a];
+}
+
+function isUsableTransform(transform: CogValueTransform): boolean {
+  return (
+    Number.isFinite(transform.scale) &&
+    transform.scale !== 0 &&
+    Number.isFinite(transform.offset)
+  );
+}
+
 /** Observable snapshot so style reactions track array *contents*, not identity. */
 export function getCogStyleReactionSnapshot(
   options: CogRenderOptionsInput | undefined
@@ -199,10 +268,8 @@ export function getCogStyleReactionSnapshot(
   applyDisplayRange?: boolean;
   clampLow?: boolean;
   clampHigh?: boolean;
-  band?: number;
   reverseColorScale?: boolean;
   noDataColor?: string;
-  nodata?: number;
 } {
   const single = options?.single;
   return {
@@ -217,10 +284,31 @@ export function getCogStyleReactionSnapshot(
     applyDisplayRange: single?.applyDisplayRange,
     clampLow: single?.clampLow,
     clampHigh: single?.clampHigh,
-    band: single?.band,
     reverseColorScale: single?.reverseColorScale,
-    noDataColor: single?.noDataColor,
-    nodata: options?.nodata
+    noDataColor: single?.noDataColor
+  };
+}
+
+/**
+ * Options the provider only reads while it is being built (which samples to
+ * decode, the no-data value, resampling). Restyling the plot in place cannot
+ * apply them, so a change here must rebuild the providers.
+ */
+export function getCogRebuildReactionSnapshot(
+  options: CogRenderOptionsInput | undefined
+): {
+  band?: number;
+  expression?: string;
+  nodata?: number;
+  convertToRGB?: boolean;
+  resampleMethod?: CogRenderOptionsInput["resampleMethod"];
+} {
+  return {
+    band: options?.single?.band,
+    expression: options?.single?.expression,
+    nodata: options?.nodata,
+    convertToRGB: options?.convertToRGB,
+    resampleMethod: options?.resampleMethod
   };
 }
 
@@ -296,7 +384,10 @@ export function resolveCogColorStops(
       domain
     );
   } else if (mode === "named" && single?.colorScale) {
-    const definition = COG_COLOR_SCALES[single.colorScale];
+    // An unknown name (a typo, or a palette from another library such as
+    // "viridis") falls back to the default ramp instead of throwing.
+    const definition =
+      COG_COLOR_SCALES[single.colorScale] ?? warnUnknownColorScale(single);
     stops = definition.positions!.map((position, index) => ({
       position,
       color: definition.colors[index]
@@ -356,6 +447,20 @@ export function inclusiveProviderMaximum(
   webGl: boolean
 ): number {
   return webGl ? nextFloat32(maximum) : nextFloat64(maximum);
+}
+
+const warnedColorScales = new Set<string>();
+function warnUnknownColorScale(single: CogSingleStyleInput) {
+  const name = String(single.colorScale);
+  if (!warnedColorScales.has(name)) {
+    warnedColorScales.add(name);
+    console.warn(
+      `COG: unknown colorScale "${name}", using the default. Valid names: ${Object.keys(
+        COG_COLOR_SCALES
+      ).join(", ")}`
+    );
+  }
+  return COG_DEFAULT_COLOR_SCALE;
 }
 
 function hasSingleRenderIntent(
@@ -456,6 +561,9 @@ function getProviderDomain(
   provider: TIFFImageryProvider,
   band: number
 ): CogRange | undefined {
+  // Built with a construction domain: plot.domain is that configured value,
+  // not data, so only the separately tracked native range counts.
+  if (hasCogConstructionDomain(provider)) return getBandDomain(provider, band);
   const plotDomain = getFiniteProviderRange(provider.plot?.domain);
   if (plotDomain) return plotDomain;
   return getBandDomain(provider, band);
@@ -465,6 +573,9 @@ function getBandDomain(
   provider: TIFFImageryProvider,
   band: number
 ): CogRange | undefined {
+  if (hasCogConstructionDomain(provider)) {
+    return getFiniteProviderRange(getCogProviderNativeDomain(provider));
+  }
   const bandStats = provider.bands?.[band];
   return getFiniteProviderRange(
     bandStats ? [Number(bandStats.min), Number(bandStats.max)] : undefined

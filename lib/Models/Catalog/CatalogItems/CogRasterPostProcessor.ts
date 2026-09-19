@@ -26,22 +26,40 @@ interface MutableImageData {
 }
 
 const NO_DATA_POST_PROCESSING_FLAG = Symbol("cogNoDataPostProcessing");
+const NO_DATA_FILL = Symbol("cogNoDataFill");
+
+interface NoDataFill {
+  band: number | undefined;
+  /** Undefined when there is nothing to paint (no colour, or fully transparent). */
+  color: RgbaTuple | undefined;
+}
 
 /**
  * Add support for the TerriaJS-only noDataColor option. The upstream provider
  * exposes no no-data fill color, so raw tile samples are retained until its
  * rendered image is available and only true no-data pixels are recolored.
+ *
+ * Safe to call again after a style edit: the fill colour is stored on the
+ * provider and read per tile, so it changes live. A fully transparent colour
+ * is what the provider already renders for no-data, so it costs nothing.
  */
 export function applyCogNoDataColor(
   imageryProvider: TIFFImageryProvider,
   band: number | undefined,
   cssColor: string | undefined
 ): void {
-  const color = parseCssColorToRgba(cssColor);
-  if (!color) return;
+  const parsed = parseCssColorToRgba(cssColor);
+  const color = parsed && parsed[3] > 0 ? parsed : undefined;
 
   const providerWithInternals = imageryProvider as any;
-  if (providerWithInternals[NO_DATA_POST_PROCESSING_FLAG]) return;
+  const fill: NoDataFill = { band, color };
+  if (providerWithInternals[NO_DATA_POST_PROCESSING_FLAG]) {
+    providerWithInternals[NO_DATA_FILL] = fill;
+    return;
+  }
+  // Nothing to paint and nothing installed yet: leave the provider untouched.
+  if (!color) return;
+  providerWithInternals[NO_DATA_FILL] = fill;
 
   const originalLoadTile =
     typeof providerWithInternals._loadTile === "function"
@@ -52,9 +70,15 @@ export function applyCogNoDataColor(
   providerWithInternals[NO_DATA_POST_PROCESSING_FLAG] = true;
   const tileDataCache = new Map<string, RawCogTile>();
 
+  const currentFill = (): NoDataFill | undefined =>
+    providerWithInternals[NO_DATA_FILL];
+
   providerWithInternals._loadTile = async (x: number, y: number, z: number) => {
     const tile: RawCogTile = await originalLoadTile(x, y, z);
-    tileDataCache.set(buildTileCacheKey(x, y, z), tile);
+    // Raw samples are only needed while there is a colour to paint.
+    if (currentFill()?.color) {
+      tileDataCache.set(buildTileCacheKey(x, y, z), tile);
+    }
     return tile;
   };
 
@@ -65,8 +89,15 @@ export function applyCogNoDataColor(
     try {
       const result = await originalRequestImage(x, y, z);
       const rawTile = tileDataCache.get(cacheKey);
-      if (rawTile && result) {
-        fillNoDataPixels(imageryProvider, rawTile, result, band, color);
+      const fill = currentFill();
+      if (rawTile && result && fill?.color) {
+        fillNoDataPixels(
+          imageryProvider,
+          rawTile,
+          result,
+          fill.band,
+          fill.color
+        );
       }
       return result;
     } finally {

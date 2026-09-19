@@ -1,3 +1,4 @@
+import dateFormat from "dateformat";
 import i18next from "i18next";
 import {
   action,
@@ -10,9 +11,11 @@ import {
   reaction,
   runInAction
 } from "mobx";
+import Cartographic from "terriajs-cesium/Source/Core/Cartographic";
 import CesiumMath from "terriajs-cesium/Source/Core/Math";
 import JulianDate from "terriajs-cesium/Source/Core/JulianDate";
 import Rectangle from "terriajs-cesium/Source/Core/Rectangle";
+import ImageryLayerFeatureInfo from "terriajs-cesium/Source/Scene/ImageryLayerFeatureInfo";
 import type TIFFImageryProvider from "terriajs-tiff-imagery-provider";
 import Icon from "../../../Styled/Icon";
 import { ViewingControl } from "../../ViewingControls";
@@ -50,28 +53,135 @@ import {
   TimeSeriesFeatureInfoContext,
   TimeSeriesContext
 } from "../../../Table/tableFeatureInfoContext";
+import { CogRenderOptionsTraits } from "../../../Traits/TraitsClasses/CogCatalogItemTraits";
+import {
+  CogPointSeriesProgress,
+  CogValueTransform,
+  loadCogPointSeries,
+  readCogStepPointValue
+} from "../../../Core/CogPointReader";
+import { getCogBandStats } from "../../../Core/CogSourceCache";
+import { paletteColor } from "../../../ReactViews/Custom/Chart/ChartJs/chartJsPalette";
+import type { AccumulatedSeries } from "../../../ReactViews/Custom/Chart/ChartJs/ChartJsTypes";
+import {
+  createCogImageryProvider,
+  destroyCogImageryProvider,
+  getCogProviderNativeDomain,
+  getCogProviderUrl,
+  hasCogConstructionDomain,
+  setCogProviderNativeDomain
+} from "./CogProviderFactory";
 import { applyCogNoDataColor } from "./CogRasterPostProcessor";
 import {
   buildCogRenderOptions,
   CogEffectiveStyle,
+  CogRange,
   finalizeCogProviders,
-  getCogStyleReactionSnapshot
+  getCogRebuildReactionSnapshot,
+  getCogStyleReactionSnapshot,
+  getValidDomain,
+  toRawRange
 } from "./CogRenderStyle";
 import { CogTimeSeriesLegendStratum } from "./CogLegendStratum";
 
 /**
- * Cached imagery provider entry for a specific time step.
+ * A built time step: the imagery providers of every COG in it, ready to show.
  */
-interface CachedProvider {
-  /** The time step key (ISO 8601 string) */
-  timeKey: string;
+interface CachedStep {
+  /**
+   * Identity of the step: its COG URLs. Never the display tag — tags such as
+   * "Jan 2023" are labels, can repeat, and change between resolutions.
+   */
+  key: string;
   /** One or more TIFFImageryProviders (one per COG URL in the mosaic) */
   providers: TIFFImageryProvider[];
   /** Resolved domain and palette shared by every COG in the timestep. */
   effectiveStyle: CogEffectiveStyle | undefined;
-  /** Timestamp of last access for LRU eviction */
+  /** Monotonic counter of last use, for LRU eviction */
   lastAccess: number;
 }
+
+/** A time entry with its parsed time, in the mixin's sorted order. */
+interface SortedTimeEntry {
+  time: JulianDate;
+  cogs: readonly string[];
+}
+
+/** What an item-owned pick stores on the picked feature's `data`. */
+interface CogPickData {
+  cogTimeSeriesPick: true;
+  /** Degrees. */
+  longitude: number;
+  latitude: number;
+  /** Physical value at the displayed date; null when the pixel holds no data. */
+  value: number | null;
+  unit?: string;
+  /** ISO 8601 time of the displayed step. */
+  date?: string;
+  dateLabel?: string;
+  band: number;
+}
+
+/** Time series being read (or read) at a clicked point. */
+export interface CogPointSeriesState {
+  /** Rounded "lat,lon". */
+  key: string;
+  /** P1, P2… */
+  label: string;
+  lat: number;
+  lon: number;
+  color: string;
+  status: "loading" | "done" | "error" | "cancelled";
+  loaded: number;
+  total: number;
+  /** Time steps that could not be read (network, CORS…). */
+  errors: number;
+  noData: number;
+  outside: number;
+  /** Ascending by `x` (epoch milliseconds); `y` in physical units. */
+  points: { x: number; y: number }[];
+}
+
+/** Same cap as the CSV accumulator: more lines than this stop being readable. */
+const MAX_POINT_SERIES = 12;
+/** Progress of a point series reaches the UI at most this often. */
+const POINT_SERIES_FLUSH_MS = 250;
+/** Picks of the same click by the other COGs of a mosaic arrive within this. */
+const PICK_DEDUPE_MS = 300;
+
+function getCogPickData(feature: TerriaFeature): CogPickData | undefined {
+  const data = feature.data as Partial<CogPickData> | undefined;
+  return data?.cogTimeSeriesPick === true &&
+    typeof data.latitude === "number" &&
+    typeof data.longitude === "number"
+    ? (data as CogPickData)
+    : undefined;
+}
+
+/** Up to four significant decimals, without trailing zeros. */
+function formatCogValue(value: number): string {
+  if (!Number.isFinite(value)) return "";
+  const abs = Math.abs(value);
+  const decimals = abs >= 100 ? 1 : abs >= 1 ? 2 : 4;
+  return String(Number(value.toFixed(decimals)));
+}
+
+function escapeHtmlAttribute(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+/** Steps whose providers are kept built. */
+const DEFAULT_PROVIDER_CACHE_SIZE = 6;
+/** Rendered tiles kept per provider (the library default of 100 is ~100 MB at 512px). */
+const DEFAULT_TILE_CACHE_SIZE = 64;
+/** Wait this long before building an uncached step, so scrubbing skips intermediate dates. */
+const STEP_BUILD_DEBOUNCE_MS = 150;
+/** Let the displayed step start loading its tiles before neighbours compete for the network. */
+const PRELOAD_DELAY_MS = 500;
 
 /**
  * Structure expected when loading time entries from a remote JSON URL.
@@ -94,52 +204,10 @@ interface PrecalculatedValuesJson {
   }>;
 }
 
-/**
- * State for a point-based time series extracted on click.
- */
-interface PointTimeSeriesState {
-  loading: boolean;
-  totalSteps: number;
-  loadedSteps: number;
-  data: Array<{ time: string; tag?: string; value: number }>;
-}
-
 interface TemporaryAreaChartState {
   name: string;
   unit?: string;
   values: Array<{ time: string; value: number }>;
-}
-
-/** Max concurrent COG pixel reads for time series extraction */
-const POINT_TS_CONCURRENCY = 8;
-
-/**
- * Run async tasks with a concurrency limit, calling onResult for each completed item.
- */
-async function mapWithConcurrency<T, R>(
-  items: T[],
-  concurrency: number,
-  fn: (item: T, index: number) => Promise<R>,
-  onResult?: (result: R, index: number) => void
-): Promise<R[]> {
-  const results: R[] = new Array(items.length);
-  let nextIndex = 0;
-
-  async function worker() {
-    while (nextIndex < items.length) {
-      const idx = nextIndex++;
-      const result = await fn(items[idx], idx);
-      results[idx] = result;
-      onResult?.(result, idx);
-    }
-  }
-
-  const workers = Array.from(
-    { length: Math.min(concurrency, items.length) },
-    () => worker()
-  );
-  await Promise.all(workers);
-  return results;
 }
 
 /**
@@ -188,23 +256,38 @@ class CogTimeSeriesStratum extends LoadableStratum(
   get featureInfoTemplate(): StratumFromTraits<FeatureInfoTemplateTraits> {
     return createStratumInstance(FeatureInfoTemplateTraits, {
       template:
-        '<div style="min-height:80px">' +
-        // Current value header
+        '<div style="min-height:64px">' +
+        // Headline: value at the displayed date
+        '<div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-bottom:4px">' +
         "{{#terria.timeSeries.currentValue}}" +
-        '<div style="display:flex;align-items:baseline;gap:8px;margin-bottom:6px">' +
-        '<span style="font-size:22px;font-weight:700;color:#4a9df8">{{terria.timeSeries.currentValue}}</span>' +
+        '<span style="font-size:22px;font-weight:700">{{terria.timeSeries.currentValue}}</span>' +
+        "{{#terria.timeSeries.unit}}" +
+        '<span style="font-size:13px">{{terria.timeSeries.unit}}</span>' +
+        "{{/terria.timeSeries.unit}}" +
+        "{{/terria.timeSeries.currentValue}}" +
+        "{{#terria.timeSeries.noValue}}" +
+        '<span style="font-size:16px;font-weight:600;opacity:0.75">' +
+        i18next.t("models.cogTimeSeries.noDataAtPoint") +
+        "</span>" +
+        "{{/terria.timeSeries.noValue}}" +
         "{{#terria.timeSeries.currentDate}}" +
         '<span style="font-size:12px;opacity:0.7">{{terria.timeSeries.currentDate}}</span>' +
         "{{/terria.timeSeries.currentDate}}" +
         "</div>" +
-        "{{/terria.timeSeries.currentValue}}" +
-        // Chart
+        '<div style="font-size:12px;opacity:0.7;margin-bottom:6px">' +
+        "{{#terria.timeSeries.pointLabel}}<strong>{{terria.timeSeries.pointLabel}}</strong> · {{/terria.timeSeries.pointLabel}}" +
+        "{{terria.timeSeries.coordinates}}" +
+        "</div>" +
+        // Series progress / problems
+        "{{#terria.timeSeries.progress}}" +
+        "<p><em>{{terria.timeSeries.progress}}</em></p>" +
+        "{{/terria.timeSeries.progress}}" +
+        "{{#terria.timeSeries.warning}}" +
+        "<p><em>{{terria.timeSeries.warning}}</em></p>" +
+        "{{/terria.timeSeries.warning}}" +
+        // Chart, once the series is complete
         "{{#terria.timeSeries.chart}}" +
         "{{{terria.timeSeries.chart}}}" +
-        "{{/terria.timeSeries.chart}}" +
-        // Loading placeholder
-        "{{^terria.timeSeries.chart}}" +
-        "<p><em>Click to load time series…</em></p>" +
         "{{/terria.timeSeries.chart}}" +
         "</div>"
     });
@@ -213,6 +296,18 @@ class CogTimeSeriesStratum extends LoadableStratum(
   @computed
   get timeEntries(): StratumFromTraits<CogTimeEntryTraits>[] | undefined {
     return this._loadedTimeEntries;
+  }
+
+  /**
+   * Time series are almost always continuous fields (indices, concentrations),
+   * where nearest-neighbour upsampling looks blocky. Catalogs with categorical
+   * rasters should set `renderOptions.resampleMethod: "nearest"`.
+   */
+  @computed
+  get renderOptions(): StratumFromTraits<CogRenderOptionsTraits> {
+    return createStratumInstance(CogRenderOptionsTraits, {
+      resampleMethod: "bilinear"
+    });
   }
 
   @computed
@@ -317,37 +412,84 @@ export default class CogTimeSeriesCatalogItem extends DiscretelyTimeVaryingMixin
 ) {
   static readonly type = "cog-time-series";
 
-  /** Cache of TIFFImageryProviders keyed by time step */
-  private _providerCache: CachedProvider[] = [];
+  /** Built time steps, keyed by their COG URLs. */
+  private _stepCache = new Map<string, CachedStep>();
 
-  /** Currently active imagery providers for the displayed time step */
+  /** Steps being built, so concurrent requests for a step share one build. */
+  private _inflightSteps = new Map<string, Promise<CachedStep | undefined>>();
+
+  /** The displayed time step. */
+  @observable.ref
+  private _currentStep: CachedStep | undefined;
+
+  /** Neighbouring steps published invisibly so their tiles are already loaded. */
+  @observable.ref
+  private _preloadedSteps: readonly CachedStep[] = [];
+
+  /** True while the step for a newly selected date is being built. */
   @observable
-  private _currentProviders: TIFFImageryProvider[] = [];
+  private _isSteppingTime = false;
 
   @observable.ref
   private _effectiveCogStyle: CogEffectiveStyle | undefined;
 
-  /** New rectangle identity forces Cesium to drop cached tiles after a restyle. */
-  @observable.ref
-  private _styleClipRectangles: (Rectangle | undefined)[] = [];
+  /**
+   * Clip rectangle per provider. A new rectangle identity makes Cesium drop the
+   * layer's tiles (needed after a restyle); a stable one lets a preloaded step
+   * keep its layer and loaded tiles when it becomes the displayed step.
+   */
+  private _clipRectangles = new WeakMap<TIFFImageryProvider, Rectangle>();
+
+  /** Bumped when `_clipRectangles` changes, since a WeakMap is not observable. */
+  @observable
+  private _clipRectangleVersion = 0;
+
+  /** Only the latest step request may publish; older ones still get cached. */
+  private _stepToken = 0;
+  private _stepDebounce: ReturnType<typeof setTimeout> | undefined;
+  private _preloadTimer: ReturnType<typeof setTimeout> | undefined;
+  private _lastStepIndex: number | undefined;
+  private _stepDirection: 1 | -1 = 1;
+  private _accessCounter = 0;
+  /** Bumped by `_destroyAllProviders` so builds in flight discard their result. */
+  private _providerGeneration = 0;
+  private _reportedStepErrors = new Set<string>();
+  /** False until the first load, and again after the providers are torn down. */
+  private _hasLoadedSteps = false;
 
   @computed
   get effectiveCogStyle(): CogEffectiveStyle | undefined {
     return this._effectiveCogStyle;
   }
 
+  private get _currentProviders(): TIFFImageryProvider[] {
+    return this._currentStep?.providers ?? [];
+  }
+
+  /** True while imagery for a newly selected date is loading. */
+  @computed
+  get isSteppingTime(): boolean {
+    return this._isSteppingTime;
+  }
+
+  @override
+  get isLoading(): boolean {
+    return super.isLoading || this._isSteppingTime;
+  }
+
   /** The stratum handling data loading */
   private _stratum: CogTimeSeriesStratum;
 
-  /**
-   * Observable cache for point-click time series extraction.
-   * Key: "lat,lon" rounded to 6 decimals.
-   */
+  /** Time series of the clicked points (P1, P2…). Entries are replaced, never mutated. */
   @observable.shallow
-  private _pointTimeSeriesCache = new Map<string, PointTimeSeriesState>();
+  private _pointSeries: CogPointSeriesState[] = [];
 
-  /** Track which point load is in progress so we can ignore stale results */
-  private _activePointLoadKey: string | undefined;
+  /** One controller per point series being read, so each can really be cancelled. */
+  private _pointSeriesAborts = new Map<string, AbortController>();
+  private _pointLabelCounter = 0;
+
+  /** Last answered click, to answer once when several COGs of a mosaic are asked. */
+  private _lastPick: { key: string; step: CachedStep; at: number } | undefined;
 
   /** Ephemeral zonal-statistics chart data produced by the calculation tool. */
   @observable.ref
@@ -391,10 +533,14 @@ export default class CogTimeSeriesCatalogItem extends DiscretelyTimeVaryingMixin
       }
     });
 
-    // Restyle the current providers in place. Rebuilding every COG is only
-    // needed when there is nothing loaded yet (or after a full destroy).
+    // Restyle every built step in place. Rebuilding every COG is only needed
+    // when there is nothing loaded yet (or after a full destroy).
     reaction(
-      () => getCogStyleReactionSnapshot(this.renderOptions),
+      () => ({
+        ...getCogStyleReactionSnapshot(this.renderOptions),
+        valueScale: this.valueScale,
+        valueOffset: this.valueOffset
+      }),
       () => {
         if (this._applyLiveCogStyle()) return;
         if (this._currentProviders.length > 0 && !this.isLoadingMapItems) {
@@ -404,15 +550,58 @@ export default class CogTimeSeriesCatalogItem extends DiscretelyTimeVaryingMixin
       }
     );
 
-    // React to time changes
+    // Options the provider only reads while being built (band, no-data,
+    // resampling): every built step is stale, so rebuild.
     reaction(
-      () => this.currentDiscreteTimeTag,
+      () => getCogRebuildReactionSnapshot(this.renderOptions),
       () => {
-        if (!this.isLoadingMapItems) {
-          this._updateProvidersForCurrentTime();
+        if (this._stepCache.size === 0 || this.isLoadingMapItems) return;
+        this._destroyAllProviders();
+        this.loadMapItems(true);
+      }
+    );
+
+    // React to time changes. Keyed on the step's COG URLs rather than its tag,
+    // so it also fires when the entries themselves change.
+    reaction(
+      () => this._currentStepKey,
+      () => {
+        // Nothing to update until the item has been loaded onto a map.
+        if (this._hasLoadedSteps && !this.isLoadingMapItems) {
+          this._scheduleStepUpdate();
         }
       }
     );
+  }
+
+  /** Time entries with a parseable time, in the same order as `discreteTimesAsSortedJulianDates`. */
+  @computed
+  private get _sortedEntries(): SortedTimeEntry[] {
+    const sorted: SortedTimeEntry[] = [];
+    for (const entry of this.timeEntries ?? []) {
+      if (entry.time === undefined) continue;
+      try {
+        sorted.push({
+          time: JulianDate.fromIso8601(entry.time),
+          cogs: entry.cogs ?? []
+        });
+      } catch {
+        // The mixin skips unparseable times too; stay index-aligned with it.
+      }
+    }
+    sorted.sort((a, b) => JulianDate.compare(a.time, b.time));
+    return sorted;
+  }
+
+  private _stepKeyAt(index: number | undefined): string | undefined {
+    if (index === undefined) return undefined;
+    const cogs = this._sortedEntries[index]?.cogs;
+    return cogs && cogs.length > 0 ? cogs.join("|") : undefined;
+  }
+
+  @computed
+  private get _currentStepKey(): string | undefined {
+    return this._stepKeyAt(this.currentDiscreteTimeIndex);
   }
 
   // ──────────────────────────────────────────────
@@ -454,7 +643,14 @@ export default class CogTimeSeriesCatalogItem extends DiscretelyTimeVaryingMixin
     await this._stratum.loadAreaCalculationValues();
 
     // Create imagery providers for the current time step
+    this._hasLoadedSteps = true;
     await this._updateProvidersForCurrentTime();
+
+    // The date may have changed while loading (the time reaction stands down
+    // during a load), so make sure the displayed step is the current one.
+    if (this._currentStepKey !== this._currentStep?.key) {
+      this._scheduleStepUpdate();
+    }
   }
 
   /**
@@ -465,65 +661,80 @@ export default class CogTimeSeriesCatalogItem extends DiscretelyTimeVaryingMixin
    */
   @computed
   get mapItems(): MapItem[] {
-    if (this._currentProviders.length === 0) {
+    const current = this._currentStep;
+    if (!current || current.providers.length === 0) {
       return [];
     }
+    // The clip rectangles live in a WeakMap; this makes their changes observable.
+    void this._clipRectangleVersion;
 
-    return this._currentProviders
+    const toParts = (provider: TIFFImageryProvider, alpha: number) => ({
+      show: this.show,
+      alpha,
+      imageryProvider: provider as any,
+      clippingRectangle:
+        this._clipRectangles.get(provider) ?? provider.rectangle
+    });
+
+    const items: MapItem[] = current.providers
       .filter((provider) => provider.rectangle !== undefined)
-      .map((provider, index) => ({
-        show: this.show,
-        alpha: this.opacity,
-        imageryProvider: provider as any,
-        clippingRectangle:
-          this._styleClipRectangles[index] ?? provider.rectangle
-      }));
+      .map((provider) => toParts(provider, this.opacity));
+
+    // Neighbouring steps, fully transparent: Cesium loads their tiles now, and
+    // because the (provider, rectangle) pair keeps its identity the same layer
+    // is reused — tiles included — when that step becomes the displayed one.
+    for (const step of this._preloadedSteps) {
+      if (step === current) continue;
+      for (const provider of step.providers) {
+        if (provider.rectangle !== undefined) items.push(toParts(provider, 0));
+      }
+    }
+    return items;
   }
 
+  /**
+   * Restyle every built step in place. Steps other than the displayed one stay
+   * cached, so a palette or range edit does not throw away the dates the user
+   * already loaded.
+   */
   @action
   private _applyLiveCogStyle(): boolean {
-    const providers = this._currentProviders.filter(
-      (provider) => provider.plot
-    );
-    if (providers.length === 0) return false;
+    const current = this._currentStep;
+    if (!current || !current.providers.some((provider) => provider.plot)) {
+      return false;
+    }
 
-    const effectiveStyle = finalizeCogProviders(
-      providers,
-      this.renderOptions?.single
+    for (const step of this._stepCache.values()) {
+      this._finalizeStep(step);
+      // Painted tiles are stale: a new clip rectangle makes Cesium drop them.
+      for (const provider of step.providers) {
+        if (provider.rectangle) {
+          this._clipRectangles.set(
+            provider,
+            Rectangle.clone(provider.rectangle)
+          );
+        }
+      }
+    }
+    this._clipRectangleVersion++;
+    this._effectiveCogStyle = current.effectiveStyle;
+    return true;
+  }
+
+  /** Apply the shared domain, palette and no-data colour to a built step. */
+  private _finalizeStep(step: CachedStep): void {
+    step.effectiveStyle = finalizeCogProviders(
+      step.providers,
+      this.renderOptions?.single,
+      { valueTransform: this.valueTransform }
     );
-    for (const provider of providers) {
+    for (const provider of step.providers) {
       applyCogNoDataColor(
         provider,
         this.renderOptions?.single?.band,
         this.renderOptions?.single?.noDataColor
       );
     }
-
-    this._effectiveCogStyle = effectiveStyle;
-    this._styleClipRectangles = this._currentProviders
-      .filter((provider) => provider.rectangle !== undefined)
-      .map((provider) => Rectangle.clone(provider.rectangle!));
-
-    const currentTime = this.currentDiscreteTimeTag;
-    const current = this._currentProviders;
-    for (const cached of this._providerCache) {
-      if (cached.providers.some((provider) => current.includes(provider))) {
-        cached.effectiveStyle = effectiveStyle;
-      } else {
-        cached.providers.forEach((provider) => provider.destroy());
-      }
-    }
-    this._providerCache = currentTime
-      ? [
-          {
-            timeKey: currentTime,
-            providers: current,
-            effectiveStyle,
-            lastAccess: Date.now()
-          }
-        ]
-      : [];
-    return true;
   }
 
   /**
@@ -822,311 +1033,456 @@ export default class CogTimeSeriesCatalogItem extends DiscretelyTimeVaryingMixin
   }
 
   // ──────────────────────────────────────────────
-  // Feature Info — click to extract time series
+  // Value at a point — item-owned pick
+  // ──────────────────────────────────────────────
+
+  /** Conversion from stored pixel values to physical values. */
+  @computed
+  get valueTransform(): CogValueTransform {
+    const scale = this.valueScale;
+    const offset = this.valueOffset;
+    return {
+      scale:
+        scale !== undefined && Number.isFinite(scale) && scale !== 0
+          ? scale
+          : 1,
+      offset: offset !== undefined && Number.isFinite(offset) ? offset : 0
+    };
+  }
+
+  /** Label of a time step: `dateFormat` when configured, else its tag, else the date. */
+  private _formatStepLabel(time: JulianDate, tag: string | undefined): string {
+    const date = JulianDate.toDate(time);
+    if (this.dateFormat) {
+      try {
+        return dateFormat(date, this.dateFormat);
+      } catch {
+        // Fall through to the defaults on a malformed format string.
+      }
+    }
+    const iso = JulianDate.toIso8601(time);
+    if (tag && tag !== iso && !/^\d{4}-\d{2}-\d{2}T/.test(tag)) return tag;
+    return iso.slice(0, 10);
+  }
+
+  /** Label of the displayed time step. */
+  @computed
+  get currentStepLabel(): string | undefined {
+    const index = this.currentDiscreteTimeIndex;
+    const step =
+      index !== undefined
+        ? this.discreteTimesAsSortedJulianDates?.[index]
+        : undefined;
+    return step ? this._formatStepLabel(step.time, step.tag) : undefined;
+  }
+
+  /**
+   * Replace the provider's own `pickFeatures`. The library's version reads a
+   * zoom-dependent overview with a lon/lat interpolation that is wrong for
+   * projected COGs, ignores no-data, answers once per COG of a mosaic and sets
+   * no position. This one reads the full-resolution pixel of the displayed step
+   * through the shared, cached GeoTIFFs.
+   */
+  private _installPick(provider: TIFFImageryProvider): void {
+    (provider as any).pickFeatures = (
+      _x: number,
+      _y: number,
+      _level: number,
+      longitude: number,
+      latitude: number
+    ) => this._pickAt(provider, longitude, latitude);
+  }
+
+  /**
+   * @param longitude Radians, as Cesium passes them.
+   * @param latitude Radians.
+   *
+   * Never rejects: TerriaJS awaits the picks of every layer together, so a
+   * rejection here would lose the features of all other layers too.
+   */
+  private async _pickAt(
+    provider: TIFFImageryProvider,
+    longitude: number,
+    latitude: number
+  ): Promise<ImageryLayerFeatureInfo[]> {
+    try {
+      if (!this.allowFeaturePicking) return [];
+      const step = this._currentStep;
+      // Preloaded (invisible) steps must not answer.
+      if (!step || !step.providers.includes(provider)) return [];
+
+      // Every COG of a mosaic is asked about the same click: answer once.
+      const clickKey = `${longitude.toFixed(9)},${latitude.toFixed(9)}`;
+      const now = Date.now();
+      if (
+        this._lastPick &&
+        this._lastPick.key === clickKey &&
+        this._lastPick.step === step &&
+        now - this._lastPick.at < PICK_DEDUPE_MS
+      ) {
+        return [];
+      }
+      this._lastPick = { key: clickKey, step, at: now };
+
+      const lon = CesiumMath.toDegrees(longitude);
+      const lat = CesiumMath.toDegrees(latitude);
+      const urls = filterOutUndefined(
+        step.providers.map((p) => getCogProviderUrl(p))
+      );
+      const band = this.renderOptions?.single?.band ?? 1;
+      const read = await readCogStepPointValue(urls, lon, lat, {
+        band,
+        noDataValues: this.noDataValues,
+        transform: this.valueTransform
+      });
+      // Not over this step's imagery: let the layers underneath answer.
+      if (read.status === "outside") return [];
+
+      const dateLabel = this.currentStepLabel;
+      const date = this.currentDiscreteJulianDate
+        ? JulianDate.toIso8601(this.currentDiscreteJulianDate)
+        : undefined;
+      const data: CogPickData = {
+        cogTimeSeriesPick: true,
+        longitude: lon,
+        latitude: lat,
+        value: read.status === "value" ? read.value : null,
+        unit: this.unit,
+        date,
+        dateLabel,
+        band
+      };
+
+      const info = new ImageryLayerFeatureInfo();
+      info.name = dateLabel
+        ? `${this.name ?? "COG"} — ${dateLabel}`
+        : this.name ?? "COG";
+      info.position = new Cartographic(longitude, latitude, 0);
+      info.data = data;
+      info.properties = { ...data };
+      delete (info.properties as any).cogTimeSeriesPick;
+
+      // A click while drawing (zonal polygon, measure tool) is not a request
+      // for a time series.
+      if (this.terria.mapInteractionModeStack.length === 0) {
+        this.addPointSeries(lat, lon);
+      }
+      return [info];
+    } catch (e) {
+      console.error("COG time series: failed to read the clicked value", e);
+      return [];
+    }
+  }
+
+  // ──────────────────────────────────────────────
+  // Time series at a point — read in the browser
+  // ──────────────────────────────────────────────
+
+  /** Series of the points clicked so far (P1, P2…), newest last. */
+  @computed
+  get pointSeries(): readonly CogPointSeriesState[] {
+    return this._pointSeries;
+  }
+
+  private _pointKey(lat: number, lon: number): string {
+    return `${lat.toFixed(5)},${lon.toFixed(5)}`;
+  }
+
+  /**
+   * Start (or reuse) the time series at a coordinate. Returns its key.
+   * Values are read from every time step entirely in the browser, the dates
+   * around the displayed one first.
+   */
+  @action
+  addPointSeries(lat: number, lon: number): string {
+    const key = this._pointKey(lat, lon);
+    const existing = this._pointSeries.find((series) => series.key === key);
+    // A cancelled or failed series is read again; anything else is reused.
+    if (
+      existing &&
+      existing.status !== "cancelled" &&
+      existing.status !== "error"
+    ) {
+      return key;
+    }
+
+    const entries = this._sortedEntries;
+    const state: CogPointSeriesState = {
+      key,
+      label: existing?.label ?? `P${++this._pointLabelCounter}`,
+      lat,
+      lon,
+      color: existing?.color ?? paletteColor(this._pointLabelCounter - 1),
+      status: "loading",
+      loaded: 0,
+      total: entries.length,
+      errors: 0,
+      noData: 0,
+      outside: 0,
+      points: []
+    };
+    this._replacePointSeries(state);
+    if (this._pointSeries.length > MAX_POINT_SERIES) {
+      this._pointSeries
+        .slice(0, this._pointSeries.length - MAX_POINT_SERIES)
+        .forEach((dropped) => this.removeAccumulatedSeries(dropped.key));
+    }
+
+    this._loadPointSeries(state).catch((e) => {
+      console.error("COG time series: point series failed", e);
+    });
+    return key;
+  }
+
+  @action
+  private _replacePointSeries(state: CogPointSeriesState): void {
+    const index = this._pointSeries.findIndex((s) => s.key === state.key);
+    if (index >= 0) this._pointSeries.splice(index, 1, state);
+    else this._pointSeries.push(state);
+  }
+
+  private async _loadPointSeries(initial: CogPointSeriesState): Promise<void> {
+    const key = initial.key;
+    this._pointSeriesAborts.get(key)?.abort();
+    const controller = new AbortController();
+    this._pointSeriesAborts.set(key, controller);
+
+    const sorted = this._sortedEntries;
+    const entries = sorted.map((entry) => ({
+      time: JulianDate.toIso8601(entry.time),
+      cogs: entry.cogs.map((url) => proxyCatalogItemUrl(this, url))
+    }));
+
+    // Publish progress at most every POINT_SERIES_FLUSH_MS: each publish
+    // re-renders the chart, so per-step updates would cost O(n²).
+    let latest = initial;
+    let lastFlush = 0;
+    const publish = (progress: CogPointSeriesProgress, force: boolean) => {
+      const now = Date.now();
+      if (!force && now - lastFlush < POINT_SERIES_FLUSH_MS) return;
+      lastFlush = now;
+      if (!this._pointSeries.some((s) => s.key === key)) return;
+      latest = {
+        ...latest,
+        loaded: progress.loaded,
+        errors: progress.errors,
+        noData: progress.noData,
+        outside: progress.outside,
+        points: progress.points
+          .map((point) => ({ x: point.x, y: point.y }))
+          .sort((a, b) => a.x - b.x)
+      };
+      this._replacePointSeries(latest);
+    };
+
+    try {
+      const result = await loadCogPointSeries({
+        entries,
+        lon: initial.lon,
+        lat: initial.lat,
+        band: this.renderOptions?.single?.band ?? 1,
+        noDataValues: this.noDataValues,
+        transform: this.valueTransform,
+        startIndex: this.currentDiscreteTimeIndex,
+        signal: controller.signal,
+        onProgress: (progress) => publish(progress, false)
+      });
+      if (result.aborted) return;
+      publish(result, true);
+      latest = {
+        ...latest,
+        status:
+          result.points.length === 0 && result.errors > 0 ? "error" : "done"
+      };
+      this._replacePointSeries(latest);
+    } finally {
+      if (this._pointSeriesAborts.get(key) === controller) {
+        this._pointSeriesAborts.delete(key);
+      }
+    }
+  }
+
+  /** Stop reading a point series; what was read so far stays on the chart. */
+  @action
+  cancelPointSeries(key: string): void {
+    this._pointSeriesAborts.get(key)?.abort();
+    this._pointSeriesAborts.delete(key);
+    const series = this._pointSeries.find((s) => s.key === key);
+    if (series && series.status === "loading") {
+      this._replacePointSeries({ ...series, status: "cancelled" });
+    }
+  }
+
+  // The four members below are the duck-typed contract the Chart.js dock and
+  // the share link use (see BuildShareLink / Terria.applyInitData).
+
+  /** Point series in the shape the Chart.js dock and share links understand. */
+  @computed
+  get accumulatedChartSeries(): AccumulatedSeries[] {
+    return this._pointSeries.map((series) => ({
+      key: series.key,
+      name: `${series.label} (${series.lat.toFixed(4)}, ${series.lon.toFixed(
+        4
+      )})`,
+      units: this.unit,
+      color: series.color,
+      points: series.points,
+      meta: { kind: "point" as const, lat: series.lat, lon: series.lon }
+    }));
+  }
+
+  /** Restore a series from a share link: shown at once, no re-reading. */
+  @action
+  addAccumulatedSeries(series: AccumulatedSeries): void {
+    const lat = series.meta?.lat;
+    const lon = series.meta?.lon;
+    if (lat === undefined || lon === undefined) return;
+    const label = /^P(\d+)/.exec(series.name)?.[1];
+    if (label) {
+      this._pointLabelCounter = Math.max(
+        this._pointLabelCounter,
+        Number(label)
+      );
+    }
+    this._replacePointSeries({
+      key: series.key,
+      label: label ? `P${label}` : `P${++this._pointLabelCounter}`,
+      lat,
+      lon,
+      color: series.color,
+      status: "done",
+      loaded: series.points.length,
+      total: series.points.length,
+      errors: 0,
+      noData: 0,
+      outside: 0,
+      points: series.points.map((point) => ({ x: point.x, y: point.y }))
+    });
+  }
+
+  @action
+  removeAccumulatedSeries(key: string): void {
+    this._pointSeriesAborts.get(key)?.abort();
+    this._pointSeriesAborts.delete(key);
+    this._pointSeries = this._pointSeries.filter((s) => s.key !== key);
+  }
+
+  @action
+  clearAccumulatedSeries(): void {
+    this._pointSeriesAborts.forEach((controller) => controller.abort());
+    this._pointSeriesAborts.clear();
+    this._pointSeries = [];
+    this._pointLabelCounter = 0;
+  }
+
+  @computed
+  get accumulatedChartItems(): ChartItem[] {
+    return this.accumulatedChartSeries.map((series) => ({
+      id: series.key,
+      name: series.name,
+      key: series.key,
+      item: this,
+      type: "line" as const,
+      units: series.units,
+      showInChartPanel: true,
+      isSelectedInWorkbench: false,
+      xAxis: { name: "Date", scale: "time" as const },
+      points: series.points.map((p) => ({ x: p.x, y: p.y })),
+      domain: {
+        x: series.points.map((p) => p.x),
+        y: series.points.map((p) => p.y)
+      },
+      getColor: () => series.color,
+      updateIsSelectedInWorkbench: () => {}
+    }));
+  }
+
+  // ──────────────────────────────────────────────
+  // Feature Info
   // ──────────────────────────────────────────────
 
   /**
-   * Implements FeatureInfoContext.
-   * When the user clicks on the map, reads the pixel value at that point
-   * from every time step and returns a chart with the time series.
+   * Implements FeatureInfoContext: the value under the click for the displayed
+   * date, and the progress / chart of that point's time series.
    */
   @computed
   get featureInfoContext(): (
     feature: TerriaFeature
   ) => TimeSeriesFeatureInfoContext {
     return (feature: TerriaFeature): TimeSeriesFeatureInfoContext => {
-      const latLon = this._extractLatLonFromFeature(feature);
-      if (!latLon) return {};
+      const pick = getCogPickData(feature);
+      if (!pick) return {};
 
-      const key = `${latLon.lat.toFixed(6)},${latLon.lon.toFixed(6)}`;
-      const cached = this._pointTimeSeriesCache.get(key);
-
-      if (!cached) {
-        // Schedule loading outside the MobX computed derivation
-        queueMicrotask(() =>
-          this._loadPointTimeSeries(latLon.lat, latLon.lon, key)
-        );
-        return this._buildLoadingContext("Loading…");
-      }
-
-      if (cached.data.length === 0 && cached.loading) {
-        return this._buildLoadingContext(`Loading… (0/${cached.totalSteps})`);
-      }
-
-      // Build CSV from collected data
-      const sorted = [...cached.data].sort((a, b) =>
-        a.time.localeCompare(b.time)
+      const series = this._pointSeries.find(
+        (s) => s.key === this._pointKey(pick.latitude, pick.longitude)
       );
-      const csvLines = [
-        "time,value",
-        ...sorted.map((d) => `${d.tag || d.time},${d.value.toFixed(4)}`)
-      ];
-      const csvData = csvLines.join("\n");
-      const title = this.name || "Time Series";
-      const featureId = `cog-ts-${key}`;
-      const progress = cached.loading
-        ? ` (${cached.loadedSteps}/${cached.totalSteps})`
-        : "";
+      const unit = this.unit;
 
-      const chartTitle = title + progress;
-
-      // Find value for the current time step
-      const currentTag = this.currentDiscreteTimeTag;
-      let currentValue: string | undefined;
-      let currentDate: string | undefined;
-      if (currentTag && sorted.length > 0) {
-        const currentTagDate = currentTag.slice(0, 10);
-        const match = sorted.find(
-          (d) =>
-            d.time === currentTag ||
-            d.time.slice(0, 10) === currentTagDate ||
-            (d.tag && d.tag === currentTag) ||
-            (d.tag && d.tag.slice(0, 10) === currentTagDate)
-        );
+      // Follow the timeline: once the series is read, the headline value is the
+      // one of the displayed date rather than of the date that was clicked.
+      let value = pick.value;
+      let dateLabel = pick.dateLabel;
+      const currentTime = this.currentDiscreteJulianDate;
+      if (series && currentTime) {
+        const x = JulianDate.toDate(currentTime).getTime();
+        const match = series.points.find((point) => point.x === x);
         if (match) {
-          currentValue = match.value.toFixed(4);
-          currentDate = currentTagDate;
+          value = match.y;
+          dateLabel = this.currentStepLabel;
+        } else if (series.status === "done") {
+          value = null;
+          dateLabel = this.currentStepLabel;
         }
       }
 
-      const timeSeries: TimeSeriesContext & {
-        currentValue?: string;
-        currentDate?: string;
-      } = {
-        title: chartTitle,
-        xName: "time",
-        yName: "value",
-        id: featureId,
-        data: csvData,
-        chart: `<chart identifier="${featureId}" title="${chartTitle}">${csvData}</chart>`,
-        ...(currentValue !== undefined && { currentValue }),
-        ...(currentDate !== undefined && { currentDate })
+      const timeSeries: TimeSeriesContext & Record<string, any> = {
+        title: this.name ?? "",
+        xName: "Date",
+        yName: unit ? `Value (${unit})` : "Value",
+        currentValue: value !== null ? formatCogValue(value) : undefined,
+        noValue: value === null,
+        unit,
+        currentDate: dateLabel,
+        coordinates: `${pick.latitude.toFixed(5)}, ${pick.longitude.toFixed(
+          5
+        )}`,
+        pointLabel: series?.label
       };
+
+      if (series) {
+        if (series.status === "loading") {
+          timeSeries.progress = i18next.t(
+            "models.cogTimeSeries.pointSeriesLoading",
+            { loaded: series.loaded, total: series.total }
+          );
+        } else if (series.errors > 0) {
+          timeSeries.warning = i18next.t(
+            "models.cogTimeSeries.pointSeriesErrors",
+            { count: series.errors }
+          );
+        }
+
+        // Only once complete, with a stable identifier and ISO dates: a chart
+        // rebuilt on every progress tick is what used to make this crawl.
+        if (series.status !== "loading" && series.points.length > 1) {
+          const csv = [
+            `Date,${timeSeries.yName}`,
+            ...series.points.map(
+              (point) =>
+                `${new Date(point.x).toISOString()},${formatCogValue(point.y)}`
+            )
+          ].join("\n");
+          const id = `cog-ts-${this.uniqueId}-${series.key}`;
+          timeSeries.id = id;
+          timeSeries.data = csv;
+          timeSeries.chart = `<chart identifier="${id}" title="${escapeHtmlAttribute(
+            `${this.name ?? ""} ${series.label}`.trim()
+          )}" renderer="chartjs">${csv}</chart>`;
+        }
+      }
 
       return { terria: { timeSeries } };
     };
-  }
-
-  /**
-   * Build a loading placeholder context for the feature info template.
-   */
-  private _buildLoadingContext(message: string): TimeSeriesFeatureInfoContext {
-    return {
-      terria: {
-        timeSeries: {
-          title: message,
-          data: "",
-          chart: ""
-        }
-      }
-    };
-  }
-
-  /**
-   * Extract lat/lon in degrees from the picked feature.
-   * TIFFImageryProvider sets feature.name to "lon:X.XXXXXX, lat:Y.YYYYYY".
-   */
-  private _extractLatLonFromFeature(
-    feature: TerriaFeature
-  ): { lat: number; lon: number } | undefined {
-    // Entity.name typing varies across Cesium versions
-    const name = (feature as any).name as string | undefined;
-    if (!name) return undefined;
-
-    const match = name.match(/lon:\s*([-\d.]+),\s*lat:\s*([-\d.]+)/);
-    if (match) {
-      return { lon: parseFloat(match[1]), lat: parseFloat(match[2]) };
-    }
-    return undefined;
-  }
-
-  /**
-   * Load pixel values from all time step COGs at the given lat/lon.
-   * Updates `_pointTimeSeriesCache` progressively so the chart refreshes.
-   */
-  private async _loadPointTimeSeries(
-    lat: number,
-    lon: number,
-    key: string
-  ): Promise<void> {
-    const entries = this.timeEntries;
-    if (!entries || entries.length === 0) return;
-
-    // Mark this as the active load
-    this._activePointLoadKey = key;
-
-    // Initialize state
-    const state: PointTimeSeriesState = {
-      loading: true,
-      totalSteps: entries.length,
-      loadedSteps: 0,
-      data: []
-    };
-
-    runInAction(() => {
-      // Keep only this key in cache to avoid memory bloat
-      this._pointTimeSeriesCache.clear();
-      this._pointTimeSeriesCache.set(key, state);
-    });
-
-    // Build task list: one item per time entry, first COG in each mosaic.
-    // Reversed so the most recent time steps load first.
-    const tasks = entries
-      .filter((e) => e.time && e.cogs && e.cogs.length > 0)
-      .map((e) => ({
-        time: e.time!,
-        tag: e.tag,
-        cogUrl: e.cogs![0]
-      }))
-      .reverse();
-
-    const band = this.renderOptions?.single?.band ?? 1;
-    const nodata = this.renderOptions?.nodata;
-    const extraNoData = this.noDataValues ? [...this.noDataValues] : undefined;
-
-    await mapWithConcurrency(
-      tasks,
-      POINT_TS_CONCURRENCY,
-      async (task) => {
-        // Abort if a newer load started
-        if (this._activePointLoadKey !== key) return undefined;
-
-        try {
-          const value = await this._readPixelFromCog(
-            task.cogUrl,
-            lat,
-            lon,
-            band,
-            nodata,
-            extraNoData
-          );
-          return value !== undefined
-            ? { time: task.time, tag: task.tag, value }
-            : undefined;
-        } catch {
-          return undefined;
-        }
-      },
-      (result) => {
-        if (this._activePointLoadKey !== key) return;
-        runInAction(() => {
-          state.loadedSteps++;
-          if (result !== undefined) {
-            state.data.push(result);
-          }
-          // Replace entry to trigger MobX shallow observation
-          this._pointTimeSeriesCache.set(key, { ...state });
-        });
-      }
-    );
-
-    if (this._activePointLoadKey !== key) return;
-
-    runInAction(() => {
-      state.loading = false;
-      this._pointTimeSeriesCache.set(key, { ...state });
-    });
-  }
-
-  /**
-   * Common sentinel/fill values used by various raster datasets.
-   * These are checked in addition to TIFF metadata nodata and user-configured values.
-   */
-  private static readonly COMMON_NODATA = new Set([
-    -999, -9999, -99999, -3.4e38, -3.4028235e38, -1e10, -1e38, 9999, 99999,
-    1e10, 3.4028235e38, 255, 65535
-  ]);
-
-  /**
-   * Read a single pixel value from a COG at the given WGS84 lat/lon.
-   * Uses geotiff.js with HTTP range requests — only transfers the
-   * TIFF header + the one tile containing the pixel.
-   *
-   * NoData filtering order:
-   * 1. renderOptions.nodata (user-configured)
-   * 2. TIFF GDAL metadata nodata
-   * 3. noDataValues trait (extra user-configured values)
-   * 4. Common sentinel values (-999, -9999, etc.)
-   * 5. NaN / Infinity
-   */
-  private async _readPixelFromCog(
-    cogUrl: string,
-    lat: number,
-    lon: number,
-    band: number = 1,
-    nodata?: number,
-    extraNoData?: number[]
-  ): Promise<number | undefined> {
-    const proxiedUrl = proxyCatalogItemUrl(this, cogUrl);
-
-    const [{ fromUrl }, proj4Module] = await Promise.all([
-      import("geotiff"),
-      import("proj4-fully-loaded")
-    ]);
-    const proj4 = proj4Module.default;
-
-    const tiff = await fromUrl(proxiedUrl, { allowFullFile: true });
-    const image = await tiff.getImage(0);
-
-    // Determine CRS
-    const geoKeys = image.getGeoKeys();
-    const epsg =
-      geoKeys.ProjectedCSTypeGeoKey ?? geoKeys.GeographicTypeGeoKey ?? 4326;
-
-    // Reproject click point from WGS84 to COG CRS
-    let geoX = lon;
-    let geoY = lat;
-    if (epsg !== 4326) {
-      try {
-        const projector = proj4("EPSG:4326", `EPSG:${epsg}`);
-        [geoX, geoY] = projector.forward([lon, lat]);
-      } catch {
-        return undefined;
-      }
-    }
-
-    // Geo transform
-    const origin = image.getOrigin();
-    const resolution = image.getResolution();
-    const px = Math.floor((geoX - origin[0]) / resolution[0]);
-    const py = Math.floor((geoY - origin[1]) / resolution[1]);
-
-    const width = image.getWidth();
-    const height = image.getHeight();
-    if (px < 0 || px >= width || py < 0 || py >= height) {
-      return undefined;
-    }
-
-    const rasters = await image.readRasters({
-      window: [px, py, px + 1, py + 1],
-      samples: [band - 1]
-    });
-
-    const val = (rasters[0] as ArrayLike<number>)[0];
-
-    // Filter nodata / sentinel values
-    if (!isFinite(val)) return undefined;
-
-    // Check explicit nodata from renderOptions
-    if (nodata !== undefined && val === nodata) return undefined;
-
-    // Check TIFF metadata nodata
-    const gdalNoData = image.getGDALNoData();
-    if (gdalNoData !== null && gdalNoData !== undefined && val === gdalNoData) {
-      return undefined;
-    }
-
-    // Check user-configured extra nodata values
-    if (extraNoData && extraNoData.length > 0 && extraNoData.includes(val)) {
-      return undefined;
-    }
-
-    // Check common sentinel values
-    if (CogTimeSeriesCatalogItem.COMMON_NODATA.has(val)) {
-      return undefined;
-    }
-
-    return val;
   }
 
   // ──────────────────────────────────────────────
@@ -1134,127 +1490,344 @@ export default class CogTimeSeriesCatalogItem extends DiscretelyTimeVaryingMixin
   // ──────────────────────────────────────────────
 
   /**
-   * Update imagery providers for the current time step.
+   * React to a change of the displayed step. A step that is already built is
+   * published straight away (instant when it was preloaded); an uncached one
+   * waits for the timeline to settle so scrubbing does not build every date it
+   * passes over. The previous imagery stays on screen in the meantime.
    */
-  @action
+  private _scheduleStepUpdate(): void {
+    if (this._stepDebounce !== undefined) {
+      clearTimeout(this._stepDebounce);
+      this._stepDebounce = undefined;
+    }
+
+    const run = () => {
+      this._stepDebounce = undefined;
+      this._updateProvidersForCurrentTime().catch((e) =>
+        this._reportStepError(e)
+      );
+    };
+
+    const key = this._currentStepKey;
+    if (key === undefined || this._stepCache.has(key)) {
+      run();
+    } else {
+      // Invalidate any build in flight for a date the user already left.
+      this._stepToken++;
+      runInAction(() => {
+        this._isSteppingTime = true;
+      });
+      this._stepDebounce = setTimeout(run, STEP_BUILD_DEBOUNCE_MS);
+    }
+  }
+
+  /** Tell the user once per step; the previous imagery stays visible. */
+  private _reportStepError(e: unknown): void {
+    const key = this._currentStepKey ?? "";
+    if (this._reportedStepErrors.has(key)) return;
+    this._reportedStepErrors.add(key);
+    this.terria.raiseErrorToUser(e);
+  }
+
+  /**
+   * Build (or reuse) the imagery providers of the current time step and
+   * publish them. Only the most recent call publishes; an overtaken build is
+   * still cached so returning to that date is instant.
+   */
   private async _updateProvidersForCurrentTime(): Promise<void> {
-    const currentTime = this.currentDiscreteTimeTag;
-    if (!currentTime) {
-      runInAction(() => {
-        this._currentProviders = [];
-        this._effectiveCogStyle = undefined;
-        this._styleClipRectangles = [];
-      });
+    const token = ++this._stepToken;
+    const index = this.currentDiscreteTimeIndex;
+    const key = this._stepKeyAt(index);
+
+    if (index === undefined || key === undefined) {
+      this._publishStep(undefined);
       return;
     }
 
-    const cogUrls = this._getCogUrlsForTime(currentTime);
-    if (!cogUrls || cogUrls.length === 0) {
-      runInAction(() => {
-        this._currentProviders = [];
-        this._effectiveCogStyle = undefined;
-        this._styleClipRectangles = [];
-      });
-      return;
+    if (this._lastStepIndex !== undefined && index !== this._lastStepIndex) {
+      this._stepDirection = index > this._lastStepIndex ? 1 : -1;
     }
+    this._lastStepIndex = index;
 
-    // Check cache first
-    const cached = this._providerCache.find((c) => c.timeKey === currentTime);
-    if (cached) {
-      cached.lastAccess = Date.now();
+    let step = this._stepCache.get(key);
+    if (!step) {
       runInAction(() => {
-        this._currentProviders = cached.providers;
-        this._effectiveCogStyle = cached.effectiveStyle;
-        this._styleClipRectangles = [];
+        this._isSteppingTime = true;
       });
-      this._updateRectangleFromProviders(cached.providers);
-      return;
-    }
-
-    // Create new providers for all COG URLs in this time step
-    try {
-      const providers = await Promise.all(
-        cogUrls.map((url) => this._createImageryProvider(url))
-      );
-
-      const validProviders = providers.filter(
-        (p): p is TIFFImageryProvider => p !== undefined
-      );
-
-      const effectiveStyle = finalizeCogProviders(
-        validProviders,
-        this.renderOptions?.single
-      );
-      for (const provider of validProviders) {
-        applyCogNoDataColor(
-          provider,
-          this.renderOptions?.single?.band,
-          this.renderOptions?.single?.noDataColor
-        );
+      try {
+        step = await this._ensureStep(key, this._sortedEntries[index].cogs);
+      } catch (e) {
+        if (token === this._stepToken) {
+          runInAction(() => {
+            this._isSteppingTime = false;
+          });
+        }
+        throw TerriaError.from(e, {
+          title: i18next.t("models.cogTimeSeries.loadImageryErrorTitle"),
+          message: i18next.t("models.cogTimeSeries.loadImageryErrorMessage")
+        });
       }
+    }
 
-      // Cache them
-      this._addToCache(currentTime, validProviders, effectiveStyle);
+    // A newer request took over while this one was building.
+    if (token !== this._stepToken) return;
 
-      runInAction(() => {
-        this._currentProviders = validProviders;
-        this._effectiveCogStyle = effectiveStyle;
-        this._styleClipRectangles = [];
+    this._publishStep(step);
+    this._schedulePreload(token, index);
+  }
+
+  @action
+  private _publishStep(step: CachedStep | undefined): void {
+    this._isSteppingTime = false;
+    if (step) step.lastAccess = ++this._accessCounter;
+    this._currentStep = step;
+    this._effectiveCogStyle = step?.effectiveStyle;
+    // A preloaded step that is now displayed no longer counts as preloaded.
+    this._preloadedSteps = this._preloadedSteps.filter(
+      (preloaded) => preloaded !== step
+    );
+    if (step && step.providers.length > 0) {
+      this._updateRectangleFromProviders(step.providers);
+    }
+    this._evictSteps();
+  }
+
+  /** Build a step once, however many callers ask for it concurrently. */
+  private _ensureStep(
+    key: string,
+    cogUrls: readonly string[]
+  ): Promise<CachedStep | undefined> {
+    const cached = this._stepCache.get(key);
+    if (cached) return Promise.resolve(cached);
+
+    let inflight = this._inflightSteps.get(key);
+    if (!inflight) {
+      inflight = this._buildStep(key, cogUrls).finally(() => {
+        this._inflightSteps.delete(key);
       });
+      this._inflightSteps.set(key, inflight);
+    }
+    return inflight;
+  }
 
-      if (validProviders.length > 0) {
-        this._updateRectangleFromProviders(validProviders);
+  private async _buildStep(
+    key: string,
+    cogUrls: readonly string[]
+  ): Promise<CachedStep | undefined> {
+    const generation = this._providerGeneration;
+    const providers = (
+      await Promise.all(cogUrls.map((url) => this._createImageryProvider(url)))
+    ).filter((p): p is TIFFImageryProvider => p !== undefined);
+
+    // The item was torn down (removed from the map, or a rebuild-only option
+    // changed) while this step was building.
+    if (generation !== this._providerGeneration) {
+      providers.forEach((provider) => destroyCogImageryProvider(provider));
+      return undefined;
+    }
+
+    const step: CachedStep = {
+      key,
+      providers,
+      effectiveStyle: undefined,
+      lastAccess: ++this._accessCounter
+    };
+    this._finalizeStep(step);
+    this._stepCache.set(key, step);
+    this._evictSteps();
+    return step;
+  }
+
+  /**
+   * Evict least-recently-used steps beyond `providerCacheSize`. Steps that are
+   * on the map (displayed or preloaded) are never evicted: destroying a
+   * provider Cesium is still rendering breaks its tile requests.
+   */
+  private _evictSteps(): void {
+    const maxSize = Math.max(
+      1,
+      this.providerCacheSize ?? DEFAULT_PROVIDER_CACHE_SIZE
+    );
+    const isPublished = (step: CachedStep) =>
+      step === this._currentStep || this._preloadedSteps.includes(step);
+
+    while (this._stepCache.size > maxSize) {
+      let oldest: CachedStep | undefined;
+      for (const step of this._stepCache.values()) {
+        if (isPublished(step)) continue;
+        if (!oldest || step.lastAccess < oldest.lastAccess) oldest = step;
       }
-    } catch (e) {
-      throw TerriaError.from(e, {
-        title: i18next.t("models.cogTimeSeries.loadImageryErrorTitle"),
-        message: i18next.t("models.cogTimeSeries.loadImageryErrorMessage")
-      });
+      if (!oldest) return;
+      this._stepCache.delete(oldest.key);
+      oldest.providers.forEach((provider) =>
+        destroyCogImageryProvider(provider)
+      );
     }
   }
 
   /**
-   * Get the COG URLs for a given time step.
+   * Once the displayed step had a moment to request its tiles, build its
+   * neighbours (in the direction of travel first) and publish them invisibly.
    */
-  private _getCogUrlsForTime(timeTag: string): readonly string[] | undefined {
-    const entries = this.timeEntries;
-    if (!entries) return undefined;
+  private _schedulePreload(token: number, index: number): void {
+    if (this._preloadTimer !== undefined) {
+      clearTimeout(this._preloadTimer);
+      this._preloadTimer = undefined;
+    }
 
-    const entry = entries.find((e) => e.time === timeTag || e.tag === timeTag);
-    return entry?.cogs;
+    const count = Math.max(0, Math.floor(this.preloadAdjacentSteps ?? 1));
+    const indices: number[] = [];
+    for (let distance = 1; distance <= count; distance++) {
+      indices.push(index + this._stepDirection * distance);
+      indices.push(index - this._stepDirection * distance);
+    }
+    const wanted = indices
+      .map((i) => ({
+        key: this._stepKeyAt(i),
+        cogs: this._sortedEntries[i]?.cogs
+      }))
+      .filter(
+        (w): w is { key: string; cogs: readonly string[] } =>
+          w.key !== undefined && w.cogs !== undefined
+      );
+
+    // Drop preloaded steps that are no longer neighbours right away.
+    const wantedKeys = new Set(wanted.map((w) => w.key));
+    runInAction(() => {
+      this._preloadedSteps = this._preloadedSteps.filter((step) =>
+        wantedKeys.has(step.key)
+      );
+    });
+    if (wanted.length === 0) return;
+
+    this._preloadTimer = setTimeout(async () => {
+      this._preloadTimer = undefined;
+      // One at a time: the displayed step keeps most of the bandwidth.
+      for (const { key, cogs } of wanted) {
+        if (token !== this._stepToken) return;
+        let step: CachedStep | undefined;
+        try {
+          step = await this._ensureStep(key, cogs);
+        } catch {
+          // A neighbour that fails to load is reported if the user steps to it.
+          continue;
+        }
+        if (token !== this._stepToken) return;
+        if (!step || step === this._currentStep) continue;
+        const preloaded = step;
+        runInAction(() => {
+          if (!this._preloadedSteps.includes(preloaded)) {
+            this._preloadedSteps = [...this._preloadedSteps, preloaded];
+          }
+        });
+      }
+    }, PRELOAD_DELAY_MS);
   }
 
   /**
    * Create a TIFFImageryProvider for a single COG URL.
-   * Reuses the same logic as CogCatalogItem.
+   *
+   * The provider is handed a domain at construction so it does not read a whole
+   * overview for band statistics on every build: the configured domain when
+   * there is one, otherwise the native range (computed once per URL and
+   * cached). The native range is tracked separately — see CogProviderFactory.
    */
   private async _createImageryProvider(
     url: string
   ): Promise<TIFFImageryProvider | undefined> {
     const proxiedUrl = proxyCatalogItemUrl(this, url);
+    const { default: proj4 } = await import("proj4-fully-loaded");
 
-    const [{ default: TIFFImageryProvider }, { default: proj4 }] =
-      await Promise.all([
-        import("terriajs-tiff-imagery-provider"),
-        import("proj4-fully-loaded")
-      ]);
+    const single = this.renderOptions?.single;
+    const band = single?.band ?? 1;
+    const configuredDomain = getValidDomain(single?.domain);
+    let nativeDomain: CogRange | undefined;
+    if (!configuredDomain && !single?.expression) {
+      nativeDomain = await getCogBandStats(proxiedUrl, band).catch(
+        () => undefined
+      );
+    }
+    // `domain` is configured in physical units; the provider renders stored
+    // values. The native statistics are already stored values.
+    const constructionDomain =
+      toRawRange(configuredDomain, this.valueTransform) ?? nativeDomain;
 
-    const renderOptions = buildCogRenderOptions(this.renderOptions);
+    const renderOptions = buildCogRenderOptions(this.renderOptions, {
+      constructionDomain
+    });
 
-    const imageryProvider = await runInAction(() =>
-      TIFFImageryProvider.fromUrl(proxiedUrl, {
-        credit: this.credit,
-        tileSize: this.tileSize,
-        maximumLevel: this.maximumLevel,
-        minimumLevel: this.minimumLevel,
-        enablePickFeatures: this.allowFeaturePicking,
-        hasAlphaChannel: this.hasAlphaChannel,
-        projFunc: this.reprojector(proj4),
-        renderOptions
+    const provider = await createCogImageryProvider(proxiedUrl, {
+      credit: this.credit,
+      tileSize: this.tileSize,
+      maximumLevel: this.maximumLevel,
+      minimumLevel: this.minimumLevel,
+      enablePickFeatures: this.allowFeaturePicking,
+      hasAlphaChannel: this.hasAlphaChannel,
+      projFunc: this.reprojector(proj4),
+      renderOptions,
+      tileCacheSize: this.tileCacheSize ?? DEFAULT_TILE_CACHE_SIZE,
+      nativeDomain
+    });
+    this._installPick(provider);
+    return provider;
+  }
+
+  /**
+   * Native value range of the displayed step. Steps built with a configured
+   * domain skip the statistics read, so it is computed here on demand (and
+   * cached per COG) — e.g. for "fit colour range to this date".
+   */
+  async loadNativeDomainForCurrentStep(): Promise<CogRange | undefined> {
+    const step = this._currentStep;
+    if (!step) return undefined;
+    const known = step.effectiveStyle?.nativeDomain;
+    if (known) return known;
+
+    const band = this.renderOptions?.single?.band ?? 1;
+    await Promise.all(
+      step.providers.map(async (provider) => {
+        if (
+          !hasCogConstructionDomain(provider) ||
+          getCogProviderNativeDomain(provider)
+        ) {
+          return;
+        }
+        const url = getCogProviderUrl(provider);
+        if (!url) return;
+        const stats = await getCogBandStats(url, band).catch(() => undefined);
+        setCogProviderNativeDomain(provider, stats);
       })
     );
 
-    return imageryProvider;
+    if (this._stepCache.get(step.key) !== step) return undefined;
+    // Refresh the style so `nativeDomain` is visible; nothing is repainted
+    // differently because the applied domain is unchanged.
+    runInAction(() => {
+      this._finalizeStep(step);
+      if (this._currentStep === step) {
+        this._effectiveCogStyle = step.effectiveStyle;
+      }
+    });
+    return step.effectiveStyle?.nativeDomain;
+  }
+
+  /**
+   * Fix the colour range to the native range of the displayed date, so the
+   * colours (and legend) stay comparable while stepping through time.
+   */
+  async fitDomainToCurrentStep(stratumId: string): Promise<boolean> {
+    const nativeDomain = await this.loadNativeDomainForCurrentStep();
+    if (!nativeDomain) return false;
+    runInAction(() => {
+      if (!this.renderOptions.single) {
+        this.renderOptions.setTrait(stratumId, "single", undefined);
+      }
+      this.renderOptions.single!.setTrait(stratumId, "domain", [
+        nativeDomain[0],
+        nativeDomain[1]
+      ]);
+    });
+    return true;
   }
 
   /**
@@ -1287,56 +1860,28 @@ export default class CogTimeSeriesCatalogItem extends DiscretelyTimeVaryingMixin
   }
 
   /**
-   * Add providers to the LRU cache, evicting old entries if needed.
-   */
-  private _addToCache(
-    timeKey: string,
-    providers: TIFFImageryProvider[],
-    effectiveStyle: CogEffectiveStyle | undefined
-  ): void {
-    const maxSize = this.providerCacheSize ?? 3;
-
-    // Remove existing entry for this time key
-    const existingIdx = this._providerCache.findIndex(
-      (c) => c.timeKey === timeKey
-    );
-    if (existingIdx >= 0) {
-      const old = this._providerCache.splice(existingIdx, 1)[0];
-      old.providers.forEach((p) => p.destroy());
-    }
-
-    // Evict oldest if at capacity
-    while (this._providerCache.length >= maxSize) {
-      const oldest = this._providerCache.reduce((min, c) =>
-        c.lastAccess < min.lastAccess ? c : min
-      );
-      const idx = this._providerCache.indexOf(oldest);
-      if (idx >= 0) {
-        this._providerCache.splice(idx, 1);
-        oldest.providers.forEach((p) => p.destroy());
-      }
-    }
-
-    this._providerCache.push({
-      timeKey,
-      providers,
-      effectiveStyle,
-      lastAccess: Date.now()
-    });
-  }
-
-  /**
    * Destroy all cached providers and clear the cache.
    */
   private _destroyAllProviders(): void {
-    for (const cached of this._providerCache) {
-      cached.providers.forEach((p) => p.destroy());
+    this._providerGeneration++;
+    this._stepToken++;
+    this._hasLoadedSteps = false;
+    this._lastPick = undefined;
+    if (this._stepDebounce !== undefined) clearTimeout(this._stepDebounce);
+    if (this._preloadTimer !== undefined) clearTimeout(this._preloadTimer);
+    this._stepDebounce = undefined;
+    this._preloadTimer = undefined;
+    this._lastStepIndex = undefined;
+
+    for (const step of this._stepCache.values()) {
+      step.providers.forEach((provider) => destroyCogImageryProvider(provider));
     }
-    this._providerCache = [];
+    this._stepCache.clear();
     runInAction(() => {
-      this._currentProviders = [];
+      this._currentStep = undefined;
+      this._preloadedSteps = [];
       this._effectiveCogStyle = undefined;
-      this._styleClipRectangles = [];
+      this._isSteppingTime = false;
     });
   }
 }

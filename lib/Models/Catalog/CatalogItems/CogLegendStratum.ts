@@ -54,21 +54,24 @@ export class CogTimeSeriesLegendStratum extends LoadableStratum(
   get legends(): StratumFromTraits<LegendTraits>[] | undefined {
     return createAutomaticCogLegends(
       this.catalogItem.effectiveCogStyle,
-      this.catalogItem.renderOptions?.single?.numberOfBins
+      this.catalogItem.renderOptions?.single?.numberOfBins,
+      this.catalogItem.unit
     );
   }
 }
 
 export function createAutomaticCogLegends(
   style: CogEffectiveStyle | undefined,
-  numberOfBinsOverride?: number
+  numberOfBinsOverride?: number,
+  unit?: string
 ): StratumFromTraits<LegendTraits>[] | undefined {
   if (!style?.isSingleBand || !style.domain || style.stops.length === 0) {
     return undefined;
   }
 
   const [minimum, maximum] = style.domain;
-  const title = i18next.t("models.cog.legendTitle");
+  const baseTitle = i18next.t("models.cog.legendTitle");
+  const title = unit ? `${baseTitle} (${unit})` : baseTitle;
   if (style.type === "continuous") {
     return [
       createStratumInstance(LegendTraits, {
