@@ -22,6 +22,7 @@ import "tinymce/plugins/autolink";
 // Extra css to enable proper behaviour of tinymce, including image resize handles
 import contentCss from "tinymce/skins/content/default/content.min.css";
 import contentUiCss from "tinymce/skins/ui/oxide/content.min.css";
+import { uploadStoryImage } from "./uploadStoryImage";
 
 export default function TinyEditor(props) {
   const editorRef = useRef(null);
@@ -59,7 +60,46 @@ export default function TinyEditor(props) {
         toolbar,
         content_css: false,
         content_style: contentStyles.join("\n"),
-        image_dimensions: false,
+        image_dimensions: true,
+        image_caption: true,
+        convert_urls: false,
+        ...(props.terria?.configParameters.storyImageUploadUrl
+          ? {
+              paste_data_images: true,
+              automatic_uploads: true,
+              images_upload_handler: (blobInfo, progress) =>
+                uploadStoryImage(
+                  props.terria.configParameters.storyImageUploadUrl,
+                  blobInfo.blob(),
+                  blobInfo.filename(),
+                  progress
+                ),
+              file_picker_types: "image",
+              file_picker_callback: (callback) => {
+                const input = document.createElement("input");
+                input.type = "file";
+                input.accept = "image/jpeg,image/png,image/webp,image/gif";
+                input.onchange = async () => {
+                  const file = input.files?.[0];
+                  const editor = editorRef.current;
+                  if (!file || !editor) return;
+                  const reader = new FileReader();
+                  reader.onload = () => {
+                    const cache = editor.editorUpload.blobCache;
+                    const blob = cache.create(
+                      "story-" + crypto.randomUUID(),
+                      file,
+                      String(reader.result).split(",")[1]
+                    );
+                    cache.add(blob);
+                    callback(blob.blobUri(), { alt: file.name });
+                  };
+                  reader.readAsDataURL(file);
+                };
+                input.click();
+              }
+            }
+          : {}),
         setup,
         ...(props.customElements
           ? { custom_elements: props.customElements }

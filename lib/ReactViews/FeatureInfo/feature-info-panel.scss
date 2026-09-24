@@ -54,6 +54,8 @@
   width: 100%;
   height: 100%;
   flex-direction: column;
+  max-height: inherit;
+  min-width: 0;
 
   a {
     @include mixins.link(variables.$feature-info-bg);
@@ -75,6 +77,7 @@
 }
 
 .header {
+  flex-shrink: 0;
   background: variables.$feature-info-header-bg;
   padding-right: variables.$input-height;
   line-height: variables.$modal-header-height;
@@ -138,12 +141,31 @@
 
   flex: 1 1 auto;
   min-height: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
   overflow-y: auto;
   overflow-x: auto;
   max-height: calc(
     80vh - #{variables.$padding * 2 + variables.$btn-default-line-height}
   );
   font-size: variables.$font-size-feature-info;
+
+  img,
+  video,
+  canvas {
+    max-width: 100%;
+  }
+  img,
+  video {
+    height: auto;
+  }
+}
+
+.wrapper:not([data-size-mode="manual"]) .panel {
+  height: auto;
+}
+.wrapper[data-size-mode="manual"] .body {
+  max-height: none;
 }
 
 .location {

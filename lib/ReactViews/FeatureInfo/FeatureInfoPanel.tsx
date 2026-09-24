@@ -173,6 +173,7 @@ class FeatureInfoPanel extends Component<Props> {
   panelResizeTimeout?: ReturnType<typeof setTimeout> = undefined;
   panelSyncFrame?: number = undefined;
   windowResizeFrame?: number = undefined;
+  manualResize = false;
 
   constructor(props: Props) {
     super(props);
@@ -180,8 +181,8 @@ class FeatureInfoPanel extends Component<Props> {
   }
 
   componentDidMount() {
-    const { t } = this.props;
-    const terria = this.props.viewState.terria;
+    const { t, viewState } = this.props;
+    const terria = viewState.terria;
 
     this.pickedFeaturesReactionDisposer = reaction(
       () => terria.pickedFeatures,
@@ -266,14 +267,14 @@ class FeatureInfoPanel extends Component<Props> {
     );
 
     this.panelVisibilityReactionDisposer = reaction(
-      () => this.props.viewState.featureInfoPanelIsVisible,
+      () => viewState.featureInfoPanelIsVisible,
       () => {
         this.syncPanelLayout();
       }
     );
 
     this.panelCollapsedReactionDisposer = reaction(
-      () => this.props.viewState.featureInfoPanelIsCollapsed,
+      () => viewState.featureInfoPanelIsCollapsed,
       () => {
         this.syncPanelLayout();
       }
@@ -286,7 +287,8 @@ class FeatureInfoPanel extends Component<Props> {
         }
 
         this.panelResizeTimeout = setTimeout(() => {
-          this.savePanelState();
+          this.constrainToBounds();
+          if (this.manualResize) this.savePanelState();
         }, RESIZE_SAVE_DEBOUNCE_MS);
       });
       this.panelResizeObserver.observe(this.panelWrapperRef.current);
@@ -555,6 +557,7 @@ class FeatureInfoPanel extends Component<Props> {
   private isValidDragHandle(target: EventTarget | null): boolean {
     const wrapper = this.panelWrapperRef.current;
     if (!wrapper || !target) return false;
+    if ((target as Element).closest("button, a, input")) return false;
 
     const handle = wrapper.querySelector(".drag-handle");
     return handle
@@ -640,8 +643,16 @@ class FeatureInfoPanel extends Component<Props> {
       ...(bounds ? getRelativePosition(x, y, bounds) : {})
     };
 
+    const sizeMode =
+      this.manualResize ||
+      currentState?.sizeMode === "manual" ||
+      (currentState?.dimensions && !currentState.sizeMode)
+        ? "manual"
+        : "auto";
     const dimensions: DraggableElementDimensions | undefined =
-      viewState.featureInfoPanelIsCollapsed
+      sizeMode === "auto"
+        ? undefined
+        : viewState.featureInfoPanelIsCollapsed
         ? currentState?.dimensions
         : {
             width: rect.width,
@@ -649,6 +660,7 @@ class FeatureInfoPanel extends Component<Props> {
           };
 
     const nextState: FeatureInfoPanelState = {
+      sizeMode,
       position,
       ...(dimensions ? { dimensions } : {})
     };
@@ -662,11 +674,22 @@ class FeatureInfoPanel extends Component<Props> {
     const wrapper = this.panelWrapperRef.current;
     if (!wrapper) return;
 
-    if (state.dimensions) {
-      wrapper.style.width = `${state.dimensions.width}px`;
+    const manual =
+      state.sizeMode === "manual" || (!state.sizeMode && !!state.dimensions);
+    wrapper.dataset.sizeMode = manual ? "manual" : "auto";
+    this.manualResize = manual;
+    if (manual && state.dimensions) {
+      const viewport = getViewportSize();
+      wrapper.style.width = `${Math.min(
+        state.dimensions.width,
+        viewport.width - DRAG_MARGIN * 2
+      )}px`;
       wrapper.style.height = this.props.viewState.featureInfoPanelIsCollapsed
         ? ""
-        : `${state.dimensions.height}px`;
+        : `${Math.min(
+            state.dimensions.height,
+            viewport.height - DRAG_MARGIN * 2
+          )}px`;
     } else {
       wrapper.style.width = "";
       wrapper.style.height = "";
@@ -742,6 +765,8 @@ class FeatureInfoPanel extends Component<Props> {
         return;
       }
 
+      this.applyStoredPanelState(panelState);
+
       const currentPosition = parseTranslate(wrapper.style.transform);
       const bounds = getDragBounds(
         wrapper,
@@ -765,6 +790,27 @@ class FeatureInfoPanel extends Component<Props> {
       }
 
       this.savePanelState();
+    });
+  };
+
+  private beginResize = (event: React.PointerEvent<HTMLDivElement>) => {
+    const wrapper = this.panelWrapperRef.current;
+    if (!wrapper || this.props.viewState.featureInfoPanelIsCollapsed) return;
+    const rect = wrapper.getBoundingClientRect();
+    if (event.clientX < rect.right - 22 || event.clientY < rect.bottom - 22)
+      return;
+    this.manualResize = true;
+    wrapper.dataset.sizeMode = "manual";
+    wrapper.style.height = `${rect.height}px`;
+  };
+
+  private resetAutomaticSize = () => {
+    this.manualResize = false;
+    runInAction(() => {
+      this.props.viewState.terria.featureInfoPanelState = {
+        sizeMode: "auto",
+        position: this.props.viewState.terria.featureInfoPanelState?.position
+      };
     });
   };
 
@@ -907,6 +953,15 @@ class FeatureInfoPanel extends Component<Props> {
               <span>{t("featureInfo.panelHeading")}</span>
               <button
                 type="button"
+                onClick={this.resetAutomaticSize}
+                title={t("featureInfo.autoSize", "Reset automatic size")}
+                aria-label={t("featureInfo.autoSize", "Reset automatic size")}
+                style={{ marginLeft: 8, cursor: "pointer" }}
+              >
+                ↔
+              </button>
+              <button
+                type="button"
                 onClick={this.toggleCollapsed}
                 className={Styles.btnToggleFeature}
               >
@@ -981,6 +1036,7 @@ class FeatureInfoPanel extends Component<Props> {
           [Styles.wrapperVisible]: viewState.featureInfoPanelIsVisible
         })}
         onMouseDown={this.handleMouseDown}
+        onPointerDown={this.beginResize}
         onTouchStart={this.handleTouchStart}
       >
         {panelContent}

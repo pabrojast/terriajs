@@ -491,6 +491,7 @@ function cloneFeatureInfoPanelState(
   state: FeatureInfoPanelState
 ): FeatureInfoPanelState {
   return {
+    ...(state.sizeMode ? { sizeMode: state.sizeMode } : {}),
     ...(state.position
       ? {
           position: {

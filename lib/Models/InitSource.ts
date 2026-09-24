@@ -37,6 +37,7 @@ export interface DraggableElementDimensions {
 }
 
 export interface FeatureInfoPanelState {
+  sizeMode?: "auto" | "manual";
   position?: DraggableElementPosition;
   dimensions?: DraggableElementDimensions;
 }

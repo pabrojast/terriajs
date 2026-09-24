@@ -94,7 +94,7 @@ describe("FeatureInfoPanel", function () {
         const width = parseFloat(this.style.width || "500");
         const height = parseFloat(this.style.height || "260");
         const transform = this.style.transform.match(
-          /translate3d\(([^,]+)px,\s*([^,]+)px,\s*0\)/
+          /translate3d\(([^,]+)px,\s*([^,]+)px,\s*0(?:px)?\)/
         );
         const x = transform ? parseFloat(transform[1]) : 0;
         const y = transform ? parseFloat(transform[2]) : 0;
@@ -130,9 +130,29 @@ describe("FeatureInfoPanel", function () {
     const wrapper = container.firstElementChild as HTMLElement;
 
     await waitFor(() => {
-      expect(wrapper.style.width).toBe("320px");
-      expect(wrapper.style.height).toBe("240px");
-      expect(wrapper.style.transform).toBe("translate3d(20px, 30px, 0)");
+      if (wrapper.dataset.sizeMode !== "manual")
+        throw new Error("Waiting for stored panel layout");
+    });
+    expect(wrapper.style.width).toBe("320px");
+    expect(wrapper.style.height).toBe("240px");
+    expect(wrapper.style.transform).toBe("translate3d(20px, 30px, 0px)");
+  });
+
+  it("does not freeze the loading panel dimensions in automatic mode", async function () {
+    viewState.featureInfoPanelIsVisible = true;
+    runInAction(() => {
+      terria.featureInfoPanelState = { sizeMode: "auto" };
+    });
+    const { container } = render(
+      <FeatureInfoPanel viewState={viewState} t={(key) => key} />
+    );
+    await waitFor(() => {
+      const wrapper = container.querySelector<HTMLElement>(
+        '[data-size-mode="auto"]'
+      );
+      if (!wrapper) throw new Error("Waiting for automatic panel layout");
+      expect(wrapper!.style.height).toBe("");
+      expect(terria.featureInfoPanelState?.dimensions).toBeUndefined();
     });
   });
 

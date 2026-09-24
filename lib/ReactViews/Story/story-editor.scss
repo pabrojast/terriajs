@@ -24,6 +24,8 @@
   .inner {
     max-width: 800px;
     width: 80vw;
+    max-height: calc(100dvh - 2rem);
+    overflow-y: auto;
     background: variables.$dark;
     z-index: 9999;
     margin: 0 auto;

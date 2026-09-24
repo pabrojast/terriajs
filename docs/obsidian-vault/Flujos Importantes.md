@@ -276,3 +276,11 @@ Limites conocidos:
 ## Escenas de Data Stories y búsqueda explícita
 
 El bridge applyScene confirma received al recibir la solicitud y complete al terminar. createSceneQueue ejecuta una aplicación a la vez, mantiene solo la última pendiente y confirma las descartadas con superseded. Las búsquedas de lugares se envían con Enter/botón; SearchBox admite searchOnChange=false sin alterar el autocompletado del catálogo. Mientras el texto no se ha enviado, `SearchState.isWaitingToStartLocationSearch` queda en `true`; `SearchBoxAndResults` pasa `waitingHint` a `LocationSearchResults`/`SearchHeader` para mostrar la indicación "Pulse Enter o haga clic en Buscar" en lugar del spinner (sin ella el panel parecía cargar indefinidamente). La búsqueda móvil conserva el comportamiento anterior. El proveedor Nominatim muestra atribución OpenStreetMap y puede apuntar al proxy CKAN.
+
+## Imágenes narrativas y tamaño de Feature Info
+
+`storyImageUploadUrl` habilita en TinyMCE selección, pegado y arrastre de fotos hacia `/pages_upload` del mismo origen. Primero obtiene sesión/CSRF y límite del portal; luego sube el archivo con progreso. JPEG/PNG estáticos se reducen proporcionalmente a 1600 px; GIF/APNG conservan su animación. El guardado espera las subidas y mantiene el borrador si fallan, evitando persistir URLs `blob:` temporales. Las URLs externas y las imágenes de historias existentes siguen siendo legibles. StoryBody limita el ancho y conserva la proporción.
+
+Feature Info usa `featureInfoPanelState.sizeMode = auto|manual`. En automático el contenido tardío (COG, tablas, gráficos, imágenes) puede aumentar el alto hasta el límite del viewport. ResizeObserver ya no convierte la altura inicial del loader en tamaño persistente. El gesto de resize activa manual; el botón de ajuste automático restaura auto. Dimensiones antiguas sin modo se interpretan como manual para conservar las preferencias guardadas. El share conserva modo y posición; la cabecera sigue accesible y el cuerpo tiene scroll.
+
+El contenedor auxiliar de TinyMCE (diálogos de imagen/media/enlaces) usa z-index 100000, por encima del panel StoryBuilder (99999). Antes aparecía detrás del editor y no recibía clics. El popup de edición limita su altura al viewport y permite scroll para mantener Guardar accesible en pantallas pequeñas.

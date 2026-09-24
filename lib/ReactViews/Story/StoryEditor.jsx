@@ -3,7 +3,6 @@ import PropTypes from "prop-types";
 import classNames from "classnames";
 import Styles from "./story-editor.scss";
 import { withTranslation } from "react-i18next";
-import tinymce from "tinymce";
 import isDefined from "../../Core/isDefined";
 import { getName } from "../../ModelMixins/CatalogMemberMixin";
 import hasTraits from "../../Models/Definition/hasTraits";
@@ -125,18 +124,39 @@ class StoryEditor extends Component {
     this._updateDirty(event.target.value, this.state.text);
   }
 
-  saveStory() {
-    this.props.saveStory({
-      title: this.state.title,
-      text: this.state.text,
-      id: this.state.id
-    });
+  async saveStory() {
+    if (this.state.saving) return;
+    this.setState({ saving: true, uploadError: null });
+    try {
+      const results = await this.editor?.uploadImages();
+      if (
+        results?.some((result) => !result.status) ||
+        this.editor
+          ?.getBody()
+          .querySelector('img[src^="blob:"],img[src^="data:"]')
+      )
+        throw new Error(
+          "Some images have not uploaded. Retry the upload before saving; your draft has been kept."
+        );
+      const text = this.editor?.getContent() ?? this.state.text;
+      this.props.saveStory({
+        title: this.state.title,
+        text,
+        id: this.state.id
+      });
 
-    this.setState({
-      isPopupEditorOpen: false
-    });
-    // Saved — clear dirty flag
-    this.props.viewState.setStoryHasUnsavedChanges(false);
+      this.setState({
+        isPopupEditorOpen: false
+      });
+      // Saved — clear dirty flag
+      this.props.viewState.setStoryHasUnsavedChanges(false);
+    } catch (error) {
+      this.setState({
+        uploadError: error.message || "Unable to upload images. Please retry."
+      });
+    } finally {
+      this.setState({ saving: false });
+    }
   }
 
   cancelEditing() {
@@ -241,7 +261,6 @@ class StoryEditor extends Component {
 
   render() {
     const { t } = this.props;
-    const maxImageHeight = "350px"; // TODO: where to put this to reduce coupling?
     return (
       <div
         onKeyDown={this.onKeyDown}
@@ -279,23 +298,31 @@ class StoryEditor extends Component {
               <Editor
                 html={this.state.text}
                 onChange={(_newValue, editor) => {
-                  // TODO: This makes StoryEditor tightly coupled to Editor. How to reduce coupling?
-                  tinymce.activeEditor.dom.setStyles(
-                    tinymce.activeEditor.dom.select("img"),
-                    { "max-height": `${maxImageHeight}`, width: "auto" }
-                  );
                   const text = editor.getBody().innerHTML;
                   this.setState({ text });
+                  this._updateDirty(this.state.title, text);
                 }}
                 terria={this.props.terria}
                 toolbarItems="legend"
-                setup={this.setupEditor}
+                setup={(editor) => {
+                  this.editor = editor;
+                  this.setupEditor(editor);
+                }}
                 customElements={LEGEND_TAG}
                 extendedValidElements={`${LEGEND_TAG}[data-id|data-title]`}
-                contentStyle={LEGEND_EDITOR_STYLE}
+                contentStyle={
+                  LEGEND_EDITOR_STYLE +
+                  " img { max-width: 100%; height: auto; }"
+                }
               />
             </Suspense>
           </div>
+          {this.state.uploadError && (
+            <p role="alert">{this.state.uploadError}</p>
+          )}
+          {this.state.saving && (
+            <p role="status">Uploading images and saving…</p>
+          )}
           <Box centered gap={3}>
             <Button
               styledWidth={"240px"}
@@ -313,7 +340,7 @@ class StoryEditor extends Component {
             <Button
               styledWidth={"240px"}
               primary
-              disabled={!this.state.title.length}
+              disabled={!this.state.title.length || this.state.saving}
               onClick={this.saveStory}
               type="button"
               title={t("story.editor.saveBtn")}

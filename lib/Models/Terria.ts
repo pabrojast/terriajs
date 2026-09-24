@@ -385,6 +385,8 @@ export interface ConfigParameters {
    * be relative paths ("/api/terria/..."), never proxied.
    */
   ckanSession?: CkanSessionConfig;
+  /** Same-origin CKAN image upload endpoint for story photos. */
+  storyImageUploadUrl?: string;
 }
 
 interface StartOptions {
@@ -570,6 +572,7 @@ export default class Terria {
     experimentalFeatures: undefined,
     magdaReferenceHeaders: undefined,
     ckanSession: undefined,
+    storyImageUploadUrl: undefined,
     locationSearchBoundingBox: undefined,
     googleAnalyticsKey: undefined,
     errorService: undefined,
@@ -2576,13 +2579,17 @@ function featureInfoPanelStateFromJson(
     featureInfoPanel.dimensions
   );
 
-  if (!position && !dimensions) {
+  if (!position && !dimensions && featureInfoPanel.sizeMode !== "auto") {
     return undefined;
   }
 
   return {
     ...(position ? { position } : {}),
-    ...(dimensions ? { dimensions } : {})
+    ...(dimensions ? { dimensions } : {}),
+    ...(featureInfoPanel.sizeMode === "auto" ||
+    featureInfoPanel.sizeMode === "manual"
+      ? { sizeMode: featureInfoPanel.sizeMode }
+      : {})
   };
 }
 

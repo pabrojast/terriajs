@@ -24,6 +24,8 @@ const StoryContainer = styled(Box).attrs((props: { isCollapsed: boolean }) => ({
 
   img {
     max-width: 100%;
+    height: auto !important;
+    object-fit: contain;
   }
   * {
     max-width: 100%;
