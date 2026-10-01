@@ -387,6 +387,8 @@ export interface ConfigParameters {
   ckanSession?: CkanSessionConfig;
   /** Same-origin CKAN image upload endpoint for story photos. */
   storyImageUploadUrl?: string;
+  /** Same-origin CKAN image library picker. */
+  storyImageLibraryUrl?: string;
 }
 
 interface StartOptions {
@@ -573,6 +575,7 @@ export default class Terria {
     magdaReferenceHeaders: undefined,
     ckanSession: undefined,
     storyImageUploadUrl: undefined,
+    storyImageLibraryUrl: undefined,
     locationSearchBoundingBox: undefined,
     googleAnalyticsKey: undefined,
     errorService: undefined,

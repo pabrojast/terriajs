@@ -23,13 +23,18 @@ import "tinymce/plugins/autolink";
 import contentCss from "tinymce/skins/content/default/content.min.css";
 import contentUiCss from "tinymce/skins/ui/oxide/content.min.css";
 import { uploadStoryImage } from "./uploadStoryImage";
+import { chooseStoryImage } from "./storyImageLibrary";
 
 export default function TinyEditor(props) {
   const editorRef = useRef(null);
   const defaultToolbar =
     "blocks | bold italic forecolor | align |" +
     " bullist numlist table |" +
-    "image media link |" +
+    "image " +
+    (props.terria?.configParameters.storyImageLibraryUrl
+      ? "storyimages "
+      : "") +
+    "media link |" +
     "undo redo | removeformat";
   const toolbar = props.toolbarItems
     ? `${defaultToolbar} | ${props.toolbarItems}`
@@ -39,6 +44,42 @@ export default function TinyEditor(props) {
     contentStyles.push(props.contentStyle);
   }
   const setup = (editor) => {
+    if (props.terria?.configParameters.storyImageLibraryUrl) {
+      editor.ui.registry.addButton("storyimages", {
+        text: "My images",
+        tooltip: "Insert from My images",
+        onAction: async () => {
+          const bookmark = editor.selection.getBookmark(2, true);
+          try {
+            const image = await chooseStoryImage(
+              props.terria.configParameters.storyImageLibraryUrl
+            );
+            if (!image || editor.removed) return;
+            editor.focus();
+            editor.selection.moveToBookmark(bookmark);
+            const photo = document.createElement("img");
+            photo.src = image.url;
+            photo.alt = image.alt;
+            let html = photo.outerHTML;
+            if (image.caption || image.credit) {
+              const figure = document.createElement("figure");
+              const caption = document.createElement("figcaption");
+              caption.textContent = [image.caption, image.credit]
+                .filter(Boolean)
+                .join(" — ");
+              figure.append(photo, caption);
+              html = figure.outerHTML;
+            }
+            editor.insertContent(html);
+          } catch (error) {
+            editor.notificationManager.open({
+              text: error.message,
+              type: "error"
+            });
+          }
+        }
+      });
+    }
     if (props.setup) {
       props.setup(editor);
     }

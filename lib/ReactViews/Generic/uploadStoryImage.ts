@@ -23,38 +23,8 @@ export async function uploadStoryImage(
       "Sign in to CKAN before uploading images. Your draft has been kept."
     );
   const settings = await response.json();
-  let blob = original;
-  // Keep animations intact; optimize static photos without enlarging them.
-  const bytes = new Uint8Array(await original.slice(0, 65536).arrayBuffer());
-  const animatedPng =
-    original.type === "image/png" &&
-    new TextDecoder("latin1").decode(bytes).includes("acTL");
-  if (["image/jpeg", "image/png"].includes(original.type) && !animatedPng) {
-    const bitmap = await createImageBitmap(original);
-    try {
-      const ratio = Math.min(1, 1600 / Math.max(bitmap.width, bitmap.height));
-      if (ratio < 1) {
-        const canvas = document.createElement("canvas");
-        canvas.width = Math.round(bitmap.width * ratio);
-        canvas.height = Math.round(bitmap.height * ratio);
-        canvas
-          .getContext("2d")!
-          .drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-        blob = await new Promise<Blob>((resolve, reject) =>
-          canvas.toBlob(
-            (value) =>
-              value
-                ? resolve(value)
-                : reject(new Error("Unable to prepare this image.")),
-            original.type,
-            0.86
-          )
-        );
-      }
-    } finally {
-      bitmap.close();
-    }
-  }
+  // CKAN validates and optimizes once, identically for all editors.
+  const blob = original;
   if (Number.isFinite(settings.max_bytes) && blob.size > settings.max_bytes)
     throw new Error(
       "This image exceeds the portal upload limit. Choose a smaller image."

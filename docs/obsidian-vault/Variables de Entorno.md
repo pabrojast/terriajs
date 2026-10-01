@@ -78,3 +78,7 @@ Ejemplo (dentro de `parameters` del `config.json` de TerriaMap):
 ## Nota
 
 - **Inferencia:** para trabajo cotidiano en este repo normalmente basta con `NODE_OPTIONS`; el resto de variables se usan en CI/CD o despliegues de TerriaMap.
+
+## Biblioteca de imagenes de stories
+
+`ConfigParameters.storyImageUploadUrl` y `storyImageLibraryUrl` son opcionales y no tienen valor predeterminado. TerriaMap/IHP configura `/story-images/upload` y `/story-images/library` respectivamente. Ambos endpoints deben compartir origen con el visor para utilizar la sesion CKAN. El selector es independiente del endpoint de subida; ninguno envia cookies a otro origen ni pasa por el proxy de Terria.

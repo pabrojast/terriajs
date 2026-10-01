@@ -115,3 +115,7 @@ afterEach(function () {
 `test/ReactViews/Story/StoryImageUploadSpec.ts` verifica origen permitido, sesión expirada y URL persistente con CSRF. `FeatureInfoPanelSpec.tsx` comprueba dimensiones antiguas y que el modo automático no persiste el tamaño del loader. Ejecutar junto a `StoryPanel/StoryBodySpec.tsx` en navegador con Karma. `tsc --noEmit --skipLibCheck` evita incompatibilidades preexistentes de tipos de Jasmine de terceros; no sustituye la prueba de navegador.
 
 En dev comprobar guardar/recargar imágenes con sesión CKAN, error y reintento, panel con carga asíncrona y vuelta de manual a automático. TerriaMap debe fijar el commit de esta biblioteca y configurar `storyImageUploadUrl` en el mismo origen que CKAN.
+
+## Biblioteca de imagenes (2026-10-01)
+
+`StoryImageLibrarySpec.ts` comprueba origen, ventana emisora y cancelacion del selector. Ejecutar junto a `StoryImageUploadSpec.ts` y `StoryPanel/StoryBodySpec.tsx` en Karma. Compilar TerriaMap con la revision de esta biblioteca. La comprobacion integrada requiere CKAN del mismo origen y una sesion real: subir, insertar desde biblioteca, guardar/recargar y abrir el share sin sesion; probar ademas expiracion/reintento y 390 px.
