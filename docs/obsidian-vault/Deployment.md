@@ -62,6 +62,19 @@ Flujo observado:
 - La documentacion de `doc/deploying/*.md` describe sobre todo despliegues de TerriaMap y `terriajs-server`.
 - **Inferencia:** para consumidores, el patron recomendado sigue siendo desplegar una app TerriaMap o equivalente que use este paquete.
 
+## Entrega IHP de biblioteca de imagenes (2026-10-01)
+
+El codigo funcional `2ac905a5c` esta publicado en `dev/cog-series` y `production`.
+Git no permite crear `dev` mientras existen ramas `dev/*`; se conserva la rama
+de desarrollo de la que parte esta entrega. TerriaMap fija ese commit en
+`634903f`, publicado en sus ramas `dev` y `production`. La compilacion Docker
+verificada en DEV se promueve con el mismo digest, despues del backend CKAN.
+Los pins y la evidencia del despliegue viven en
+`ckan-unesco-docker/deploy/docker/story-images-production.md`.
+
+La CI de publicacion detecto una directiva ESLint obsoleta en `chartJsExport.ts`;
+se elimina solo ese comentario, sin cambios en el comportamiento compilado.
+
 ## Vacios detectados
 
 - `server-side-config.md` en `doc/customizing/` dice "Coming soon!".

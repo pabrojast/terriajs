@@ -30,7 +30,6 @@ export function slugifyFilename(name: string, fallback = "chart"): string {
 }
 
 /** Characters that trigger formula evaluation when a cell leads with them. */
-// eslint-disable-next-line no-control-regex
 const FORMULA_INJECTION_PREFIX = /^[=+\-@\t\r]/;
 
 /** Characters that require a CSV cell to be quoted. */
