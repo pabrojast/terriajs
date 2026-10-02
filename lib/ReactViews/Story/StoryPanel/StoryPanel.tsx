@@ -1,380 +1,72 @@
-import ComposedStoryPanel from "./ComposedStoryPanel";
-import classNames from "classnames";
+import { useEffect, useCallback } from "react";
 import { runInAction } from "mobx";
 import { observer } from "mobx-react";
-import { Component, RefObject, createRef, type ReactNode } from "react";
-import { WithTranslation, withTranslation } from "react-i18next";
-import { useSwipeable, type SwipeableProps } from "react-swipeable";
-import { DefaultTheme, withTheme } from "styled-components";
-import {
-  Category,
-  StoryAction
-} from "../../../Core/AnalyticEvents/analyticEvents";
-import { animateEnd } from "../../../Core/animation";
-import getPath from "../../../Core/getPath";
 import TerriaError from "../../../Core/TerriaError";
-import Terria from "../../../Models/Terria";
-import Box from "../../../Styled/Box";
-import { WithViewState, withViewState } from "../../Context";
-import { onStoryButtonClick } from "../../Map/MenuBar/StoryButton/StoryButton";
-import { Story } from "../Story";
-import Styles from "../story-panel.scss";
-import StoryBody from "./StoryBody";
-import FooterBar from "./StoryFooterBar";
-import TitleBar from "./TitleBar";
+import { StoryData } from "../../../Models/InitSource";
+import { storyPresentation } from "../../../Models/StoryComposition";
+import { useViewState } from "../../Context";
+import ComposedStoryPanel from "./ComposedStoryPanel";
 import DraggableStoryPanel from "./DraggableStoryPanel";
+import { storySceneQueue } from "./storyScene";
 
-/**
- *
- * @param {any} story
- * @param {Terria} terria
- */
-
-export async function activateStory(scene: Story, terria: Terria) {
-  terria.analytics?.logEvent(
-    Category.story,
-    StoryAction.viewScene,
-    JSON.stringify(scene)
+const StoryPanel = observer(function StoryPanel() {
+  const viewState = useViewState();
+  const terria = viewState.terria;
+  const stories = terria.stories;
+  const index = Math.max(
+    0,
+    Math.min(viewState.currentStoryId, stories.length - 1)
+  );
+  const story = stories[index];
+  const presentation = storyPresentation(story);
+  const queue = storySceneQueue(terria);
+  const activate = useCallback(
+    (scene: StoryData) => {
+      void queue(scene).catch((error) =>
+        terria.raiseErrorToUser(TerriaError.from(error))
+      );
+    },
+    [queue, terria]
   );
 
-  if (scene.shareData) {
-    const errors: TerriaError[] = [];
-    await Promise.all(
-      scene.shareData.initSources.map(async (initSource: any) => {
-        try {
-          await terria.applyInitData({
-            initData: initSource,
-            replaceStratum: true,
-            canUnsetFeaturePickingState: true
-          });
-        } catch (e) {
-          errors.push(TerriaError.from(e));
-        }
-      })
-    );
-    if (errors.length > 0) {
-      terria.raiseErrorToUser(
-        TerriaError.combine(errors, {
-          title: { key: "story.loadSceneErrorTitle" },
-          message: {
-            key: "story.loadSceneErrorMessage",
-            parameters: { title: scene.title ?? scene.id }
-          }
-        })
-      );
-    }
-  }
-
-  terria.workbench.items.forEach((item) => {
-    terria.analytics?.logEvent(
-      Category.story,
-      StoryAction.datasetView,
-      getPath(item)
-    );
-  });
-}
-
-interface Props extends WithTranslation, WithViewState {
-  theme: DefaultTheme;
-}
-
-interface State {
-  inView: boolean;
-  isCollapsed: boolean;
-}
-
-const Swipeable = ({
-  children,
-  ...props
-}: { children: ReactNode } & SwipeableProps) => {
-  const handlers = useSwipeable(props);
-
-  return <div {...handlers}>{children}</div>;
-};
-
-@observer
-class StoryPanel extends Component<Props, State> {
-  keydownListener: EventListener | undefined;
-  slideRef: RefObject<HTMLElement>;
-  dragRef: RefObject<HTMLDivElement>;
-  resizeObserver: ResizeObserver | undefined;
-
-  constructor(props: Props) {
-    super(props);
-    this.state = {
-      isCollapsed: false,
-      inView: false
+  useEffect(() => {
+    const previous = viewState.isMapFullScreen;
+    viewState.setIsMapFullScreen(true);
+    return () => {
+      viewState.setIsMapFullScreen(previous);
     };
-    this.slideRef = createRef();
-    this.dragRef = createRef();
-  }
-
-  componentDidMount() {
-    // Ensure workbench is hidden while story is shown, and restore later
-    const prevIsFull = this.props.viewState.isMapFullScreen;
-    if (!prevIsFull) {
-      this.props.viewState.setIsMapFullScreen(true);
-    }
-    // Store previous state on the instance for cleanup
-    (this as any)._prevIsMapFullScreen = prevIsFull;
-
-    const stories = this.props.viewState.terria.stories || [];
-    if (
-      this.props.viewState.currentStoryId > stories.length - 1 ||
-      this.props.viewState.currentStoryId < 0
-    ) {
-      this.props.viewState.currentStoryId = 0;
-    }
-    if (stories.some((story) => story.composition?.version === 1)) return;
-    this.activateStory(stories[this.props.viewState.currentStoryId]);
-
-    this.slideIn();
-
-    this.keydownListener = (e: Event) => {
-      // Use else if for keydown events so only first one is recognised in case of multiple key presses
-      if ((e as KeyboardEvent).key === "Escape") {
-        this.exitStory();
-      } else if (
-        (e as KeyboardEvent).key === "ArrowRight" ||
-        (e as KeyboardEvent).key === "ArrowDown"
-      ) {
-        if (this.props.viewState.currentStoryId + 1 !== stories.length) {
-          this.goToNextStory();
-        }
-      } else if (
-        (e as KeyboardEvent).key === "ArrowLeft" ||
-        (e as KeyboardEvent).key === "ArrowUp"
-      ) {
-        if (this.props.viewState.currentStoryId !== 0) {
-          this.goToPrevStory();
-        }
-      }
-    };
-
-    window.addEventListener("keydown", this.keydownListener, true);
-  }
-
-  slideIn() {
-    this.setState({
-      inView: true
-    });
-  }
-
-  slideOut() {
-    this.setState({
-      inView: false
-    });
-  }
-
-  toggleCollapse() {
-    this.setState({
-      isCollapsed: !this.state.isCollapsed
-    });
-  }
-
-  onClickContainer() {
+  }, [viewState]);
+  useEffect(() => {
     runInAction(() => {
-      this.props.viewState.topElement = "StoryPanel";
+      viewState.currentStoryId = index;
     });
-  }
+  }, [index, viewState]);
+  // Geometry edits do not reload a map. The composed reader owns its references.
+  useEffect(() => {
+    if (presentation === "classic" && story) activate(story);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activate, presentation, story?.id, story?.shareData]);
 
-  componentWillUnmount() {
-    if (this.keydownListener) {
-      window.removeEventListener("keydown", this.keydownListener, true);
-    }
-    // Restore workbench visibility if we changed it on mount
-    if ((this as any)._prevIsMapFullScreen === false) {
-      this.props.viewState.setIsMapFullScreen(false);
-    }
-  }
+  if (!story) return null;
+  if (presentation === "composed") return <ComposedStoryPanel />;
+  return (
+    <DraggableStoryPanel
+      key={story.id}
+      stories={stories}
+      currentStoryId={index}
+      onStoryChange={(next) => {
+        runInAction(() => {
+          viewState.currentStoryId = next;
+        });
+      }}
+      onClose={() => {
+        runInAction(() => {
+          viewState.storyShown = false;
+        });
+      }}
+      onActivateStory={activate}
+    />
+  );
+});
 
-  navigateStory(index: number) {
-    if (index < 0) {
-      index = this.props.viewState.terria.stories.length - 1;
-    } else if (index >= this.props.viewState.terria.stories.length) {
-      index = 0;
-    }
-    if (index !== this.props.viewState.currentStoryId) {
-      runInAction(() => {
-        this.props.viewState.currentStoryId = index;
-      });
-      if (index < (this.props.viewState.terria.stories || []).length) {
-        this.activateStory(this.props.viewState.terria.stories[index]);
-      }
-    }
-  }
-
-  // This is in StoryPanel and StoryBuilder
-  activateStory(_story: Story | any) {
-    const story = _story ? _story : this.props.viewState.terria.stories[0];
-    activateStory(story, this.props.viewState.terria);
-  }
-
-  onCenterScene(story: Story) {
-    activateStory(story, this.props.viewState.terria);
-  }
-
-  goToPrevStory() {
-    this.navigateStory(this.props.viewState.currentStoryId - 1);
-  }
-
-  goToNextStory() {
-    this.navigateStory(this.props.viewState.currentStoryId + 1);
-  }
-
-  exitStory() {
-    animateEnd(this.slideRef.current).finally(() => {
-      runInAction(() => {
-        this.props.viewState.storyShown = false;
-      });
-      this.props.viewState.terria.currentViewer.notifyRepaintRequired();
-    });
-    this.slideOut();
-  }
-
-  render() {
-    const stories = this.props.viewState.terria.stories || [];
-
-    if (stories.some((story) => story.composition?.version === 1))
-      return <ComposedStoryPanel />;
-
-    // Use the new draggable component if stories exist
-    if (stories.length > 0) {
-      return (
-        <DraggableStoryPanel
-          stories={stories}
-          currentStoryId={this.props.viewState.currentStoryId}
-          onStoryChange={(index: number) => {
-            runInAction(() => {
-              this.props.viewState.currentStoryId = index;
-            });
-          }}
-          onClose={() => {
-            runInAction(() => {
-              this.props.viewState.storyShown = false;
-            });
-          }}
-          onActivateStory={(story: any) => this.activateStory(story)}
-        />
-      );
-    }
-
-    // Fallback to original implementation
-    const story = stories[this.props.viewState.currentStoryId];
-
-    return (
-      <Swipeable
-        onSwipedLeft={() => this.goToNextStory()}
-        onSwipedRight={() => this.goToPrevStory()}
-      >
-        <Box
-          className={classNames(
-            this.props.viewState.topElement === "StoryPanel"
-              ? "top-element"
-              : ""
-          )}
-          centered
-          fullWidth
-          paddedHorizontally={4}
-          position="absolute"
-          onClick={() => this.onClickContainer()}
-          css={`
-            transition: padding, 0.2s;
-            bottom: ${this.props.viewState.terria.timelineStack.top !==
-            undefined
-              ? "146px"
-              : "80px"};
-            pointer-events: none;
-            ${!this.props.viewState.storyShown && "display: none;"}
-            @media (min-width: 992px) {
-              ${this.props.viewState.isMapFullScreen &&
-              `
-                transition-delay: 0.5s;
-              `}
-              ${!this.props.viewState.isMapFullScreen &&
-              `
-                padding-left: calc(30px + ${this.props.theme.workbenchWidth}px);
-                padding-right: 50px;
-              `}
-              bottom: ${this.props.viewState.terria.timelineStack.top !==
-              undefined
-                ? "146px"
-                : "80px"};
-            }
-          `}
-        >
-          <Box
-            column
-            rounded
-            className={classNames(Styles.storyContainer, {
-              [Styles.isMounted]: this.state.inView
-            })}
-            key={story?.id}
-            ref={this.slideRef as RefObject<HTMLDivElement>}
-            css={`
-              @media (min-width: 992px) {
-                max-width: 36vw;
-              }
-              border-radius: 6px;
-              overflow: hidden;
-            `}
-          >
-            <Box
-              backgroundColor={this.props.theme.dark}
-              css={{ color: "white" }}
-              paddedRatio={3}
-              column
-            >
-              <TitleBar
-                title={story?.title}
-                isCollapsed={this.state.isCollapsed}
-                collapseHandler={() => this.toggleCollapse()}
-                closeHandler={() => this.exitStory()}
-              />
-            </Box>
-            <Box
-              css={{
-                backgroundColor: "rgba(255, 255, 255, 0.85)",
-                backdropFilter: this.props.theme.blur
-              }}
-            >
-              <StoryBody
-                isCollapsed={this.state.isCollapsed}
-                story={story}
-                terria={this.props.viewState.terria}
-              />
-            </Box>
-            <Box
-              backgroundColor={this.props.theme.dark}
-              css={{ color: "white" }}
-              paddedHorizontally={3}
-              fullWidth
-            >
-              <FooterBar
-                goPrev={() => this.goToPrevStory()}
-                goNext={() => this.goToNextStory()}
-                jumpToStory={(index: number) => this.navigateStory(index)}
-                zoomTo={() => this.onCenterScene(story)}
-                currentHumanIndex={this.props.viewState.currentStoryId + 1}
-                totalStories={stories.length}
-                listStories={() => {
-                  runInAction(() => {
-                    this.props.viewState.storyShown = false;
-                  });
-                  onStoryButtonClick({
-                    terria: this.props.viewState.terria,
-                    theme: this.props.theme,
-                    viewState: this.props.viewState,
-                    animationDuration: 250
-                  })();
-                }}
-              />
-            </Box>
-          </Box>
-        </Box>
-      </Swipeable>
-    );
-  }
-}
-
-export default withTranslation()(withViewState(withTheme(StoryPanel)));
+export default StoryPanel;

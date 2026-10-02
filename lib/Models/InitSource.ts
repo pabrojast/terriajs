@@ -1,4 +1,8 @@
-import { StoryComposition, StoryOptions } from "./StoryComposition";
+import {
+  StoryComposition,
+  StoryOptions,
+  StoryPresentation
+} from "./StoryComposition";
 import { JsonObject } from "../Core/Json";
 import Result from "../Core/Result";
 import { TerriaErrorSeverity } from "../Core/TerriaError";
@@ -56,6 +60,7 @@ export interface ModelJson extends JsonObject {
 }
 
 export interface StoryData {
+  presentation?: StoryPresentation;
   composition?: StoryComposition;
   title: string;
   text: string;

@@ -41,6 +41,27 @@ export interface StoryOptions {
   version: 1;
   displayMode: "storymap" | "slides";
 }
+export type StoryPresentation = "classic" | "composed";
+
+/** Old shares keep their original presentation; new chapters start classic. */
+export function storyPresentation(story?: {
+  presentation?: StoryPresentation;
+  composition?: StoryComposition;
+}): StoryPresentation {
+  if (story?.presentation === "classic" || story?.presentation === "composed")
+    return story.presentation;
+  return story?.composition?.version === 1 ? "composed" : "classic";
+}
+
+/** Keep the saved scroll preference while mixed journeys use manual slides. */
+export function storyReadingMode(
+  stories: Parameters<typeof storyPresentation>[0][],
+  options: StoryOptions
+): StoryOptions["displayMode"] {
+  return stories.some((story) => storyPresentation(story) === "classic")
+    ? "slides"
+    : options.displayMode;
+}
 export const emptyDashboardState = (): StoryDashboardState => ({
   filters: [],
   widgetId: null

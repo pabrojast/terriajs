@@ -388,6 +388,7 @@
     "dismissText": "Close message and don't show me this again"
   },
   "story": {
+    "mixedManualHelp": "This story includes classic windows. Use Previous and Next to read at your own pace.",
     "panelTitle": "Story editor",
     "panelBody": "Create and share interactive stories directly from your map",
     "gettingStarted": "Getting started",
@@ -417,6 +418,11 @@
     "captureScene": "Capture Scene",
     "editor": {
       "modalHeader": "Story Editor - Scene capture",
+      "presentationLabel": "Presentation",
+      "presentationClassic": "Classic window",
+      "presentationComposed": "Composition",
+      "presentationClassicHelp": "Drag the title bar and resize the window from its lower corner. Side panels and interactive references are available in Composition; their settings are kept when you switch formats.",
+      "presentationComposedHelp": "Place text beside maps, dashboards and media. You can return to the classic window without losing these settings.",
       "titleLabel": "Title (required)",
       "descriptionLabel": "Description",
       "placeholder": "Enter a title here",

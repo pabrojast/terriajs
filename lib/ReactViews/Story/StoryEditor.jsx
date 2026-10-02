@@ -1,4 +1,7 @@
-import { storyComposition } from "../../Models/StoryComposition";
+import {
+  storyComposition,
+  storyPresentation
+} from "../../Models/StoryComposition";
 import StoryCompositionEditor from "./StoryCompositionEditor";
 import editStoryReference from "./editStoryReference";
 import { lazy, Component, Suspense } from "react";
@@ -82,6 +85,7 @@ class StoryEditor extends Component {
       title: story.title,
       text: story.text,
       id: story.id,
+      presentation: storyPresentation(story),
       composition: storyComposition(story.composition)
     });
   }
@@ -147,10 +151,11 @@ class StoryEditor extends Component {
         title: this.state.title,
         text,
         id: this.state.id,
+        presentation: this.state.presentation,
         composition:
           this.props.story.composition ||
           this.state.compositionDirty ||
-          !this.state.id
+          this.state.presentation === "composed"
             ? this.state.composition
             : undefined
       });
@@ -217,6 +222,7 @@ class StoryEditor extends Component {
     const dirty =
       (title || "") !== (initial.title || "") ||
       (text || "") !== (initial.text || "") ||
+      this.state.presentation !== storyPresentation(initial) ||
       JSON.stringify(this.state.composition) !==
         JSON.stringify(storyComposition(initial.composition));
     this.props.viewState.setStoryHasUnsavedChanges(Boolean(dirty));
@@ -230,6 +236,7 @@ class StoryEditor extends Component {
   }
 
   async linkVisualization() {
+    if (this.state.presentation !== "composed") return;
     const editor = this.editor;
     if (
       !editor ||
@@ -274,7 +281,14 @@ class StoryEditor extends Component {
   setupEditor(editor) {
     editor.ui.registry.addButton("storyreference", {
       text: "Link visualization",
-      onAction: () => this.linkVisualization()
+      onAction: () => this.linkVisualization(),
+      onSetup: (api) => {
+        this.referenceButton = api;
+        api.setEnabled(this.state.presentation === "composed");
+        return () => {
+          this.referenceButton = undefined;
+        };
+      }
     });
     editor.ui.registry.addMenuButton("legend", {
       text: this.props.t("story.editor.legend.insert"),
@@ -348,6 +362,43 @@ class StoryEditor extends Component {
             value={this.state.title}
             onChange={this.updateTitle}
           />
+          <label htmlFor="story-presentation">
+            <Text small textGreyLighter>
+              {t("story.editor.presentationLabel")}
+            </Text>
+          </label>
+          <select
+            id="story-presentation"
+            className={Styles.field}
+            value={this.state.presentation}
+            aria-describedby="story-presentation-help"
+            onChange={(event) => {
+              const presentation = event.target.value;
+              this.referenceButton?.setEnabled(presentation === "composed");
+              this.setState({ presentation }, () =>
+                this._updateDirty(this.state.title, this.state.text)
+              );
+            }}
+          >
+            <option value="classic">
+              {t("story.editor.presentationClassic")}
+            </option>
+            <option value="composed">
+              {t("story.editor.presentationComposed")}
+            </option>
+          </select>
+          <Text
+            small
+            textGreyLighter
+            id="story-presentation-help"
+            css={{ marginBottom: "16px" }}
+          >
+            {t(
+              this.state.presentation === "classic"
+                ? "story.editor.presentationClassicHelp"
+                : "story.editor.presentationComposedHelp"
+            )}
+          </Text>
           <div className={Styles.body}>
             <Text small textGreyLighter css={{ marginBottom: "8px" }}>
               {t("story.editor.descriptionLabel")}
@@ -375,7 +426,7 @@ class StoryEditor extends Component {
               />
             </Suspense>
           </div>
-          {this.state.composition && (
+          {this.state.presentation === "composed" && this.state.composition && (
             <StoryCompositionEditor
               value={this.state.composition}
               terria={this.props.terria}

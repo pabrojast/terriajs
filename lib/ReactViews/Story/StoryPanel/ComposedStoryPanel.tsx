@@ -10,10 +10,13 @@ import { observer } from "mobx-react";
 import { runInAction } from "mobx";
 import styled from "styled-components";
 import { useViewState } from "../../Context";
-import { StoryData } from "../../../Models/InitSource";
+import { storySceneQueue } from "./storyScene";
+import { useTranslation } from "react-i18next";
 import {
   StoryReference,
   storyComposition,
+  storyReadingMode,
+  storyPresentation,
   videoEmbedUrl
 } from "../../../Models/StoryComposition";
 import StoryBody from "./StoryBody";
@@ -253,40 +256,6 @@ const Reader = styled.section`
   }
 `;
 
-/** Latest requested scene wins; applying a native scene never replaces the story document. */
-export function nativeSceneCoordinator(
-  apply: (scene: StoryData) => Promise<void>
-) {
-  let running = false;
-  let pending:
-    | {
-        scene: StoryData;
-        resolve: (applied: boolean) => void;
-        reject: (error: unknown) => void;
-      }
-    | undefined;
-  async function drain() {
-    running = true;
-    while (pending) {
-      const current = pending;
-      pending = undefined;
-      try {
-        await apply(current.scene);
-        current.resolve(!pending);
-      } catch (error) {
-        current.reject(error);
-      }
-    }
-    running = false;
-  }
-  return (scene: StoryData) =>
-    new Promise<boolean>((resolve, reject) => {
-      pending?.resolve(false);
-      pending = { scene, resolve, reject };
-      if (!running) void drain();
-    });
-}
-
 const ComposedStoryPanel = observer(function ComposedStoryPanel() {
   const viewState = useViewState();
   const terria = viewState.terria;
@@ -300,7 +269,9 @@ const ComposedStoryPanel = observer(function ComposedStoryPanel() {
     () => storyComposition(story?.composition),
     [story?.composition]
   );
-  const mode = terria.storyOptions.displayMode;
+  const { t } = useTranslation();
+  const manualOnly = stories.some((s) => storyPresentation(s) === "classic");
+  const mode = storyReadingMode(stories, terria.storyOptions);
   const [reference, setReference] = useState<StoryReference>();
   const [playing, setPlaying] = useState(false);
   const [mapBusy, setMapBusy] = useState(true);
@@ -322,28 +293,14 @@ const ComposedStoryPanel = observer(function ComposedStoryPanel() {
       ?.querySelectorAll<HTMLMediaElement>("video, audio")
       .forEach((media) => media.pause());
   }, [index, mode]);
-  const sceneQueue = useMemo(
-    () =>
-      nativeSceneCoordinator(async (scene) => {
-        for (const source of scene.shareData?.initSources || []) {
-          if (typeof source === "string")
-            throw new Error(
-              "Capture this scene again before linking it; external initialization files are not a saved scene."
-            );
-          const {
-            stories: _stories,
-            storyOptions: _options,
-            ...initData
-          } = source;
-          await terria.applyInitData({
-            initData,
-            replaceStratum: true,
-            canUnsetFeaturePickingState: true
-          });
-        }
-      }),
-    [terria]
-  );
+  useEffect(() => {
+    const reader = root.current;
+    return () =>
+      reader
+        ?.querySelectorAll<HTMLMediaElement>("video, audio")
+        .forEach((media) => media.pause());
+  }, []);
+  const sceneQueue = storySceneQueue(terria);
   const hasMap = !["full", "dashboard", "media"].includes(composition.layout);
   const dashboard =
     composition.dashboards.find((d) => d.id === reference?.dashboard_id) ||
@@ -370,7 +327,7 @@ const ComposedStoryPanel = observer(function ComposedStoryPanel() {
           Math.min(stories.length - 1, next)
         );
       });
-      if (scroll && viewState.terria.storyOptions.displayMode === "storymap")
+      if (scroll && mode === "storymap")
         requestAnimationFrame(() => {
           narrative.current
             ?.querySelector(
@@ -379,7 +336,7 @@ const ComposedStoryPanel = observer(function ComposedStoryPanel() {
             ?.scrollIntoView({ block: "start" });
         });
     },
-    [viewState, stories.length]
+    [viewState, stories.length, mode]
   );
   const link = useCallback(
     (ref: StoryReference, manual = true) => {
@@ -453,6 +410,7 @@ const ComposedStoryPanel = observer(function ComposedStoryPanel() {
   useEffect(() => {
     if (
       !playing ||
+      manualOnly ||
       mode !== "slides" ||
       mapBusy ||
       (hasDashboard && dashboardBusy) ||
@@ -464,14 +422,14 @@ const ComposedStoryPanel = observer(function ComposedStoryPanel() {
       else go(index + 1, true);
     }, composition.duration * 1000);
     return () => clearTimeout(timer);
-  }, [playing, mode, mapBusy, hasDashboard, dashboardBusy, error, index, stories.length, composition.duration, go]);
+  }, [playing, manualOnly, mode, mapBusy, hasDashboard, dashboardBusy, error, index, stories.length, composition.duration, go]);
   useEffect(() => {
     const visibility = () => {
       if (document.hidden) setPlaying(false);
     };
     const keyboard = (event: KeyboardEvent) => {
       if (
-        (event.target as Element)?.closest(
+        (event.target as Element)?.closest?.(
           "input,textarea,select,[contenteditable=true],dialog"
         ) ||
         event.altKey ||
@@ -650,6 +608,8 @@ const ComposedStoryPanel = observer(function ComposedStoryPanel() {
         <select
           aria-label="Reading mode"
           value={mode}
+          disabled={manualOnly}
+          title={manualOnly ? t("story.mixedManualHelp") : undefined}
           onChange={(e) => {
             setPlaying(false);
             runInAction(() => {
@@ -668,7 +628,7 @@ const ComposedStoryPanel = observer(function ComposedStoryPanel() {
           <option value="slides">Slides</option>
           <option value="storymap">Scroll</option>
         </select>
-        {mode === "slides" && (
+        {mode === "slides" && !manualOnly && (
           <button
             type="button"
             aria-pressed={playing}
@@ -707,6 +667,11 @@ const ComposedStoryPanel = observer(function ComposedStoryPanel() {
           <span aria-hidden="true">×</span>
         </button>
       </nav>
+      {manualOnly && (
+        <div className="story-composition-status">
+          {t("story.mixedManualHelp")}
+        </div>
+      )}
       {(error || mapBusy || dashboardBusy) && (
         <div
           className="story-composition-status"

@@ -289,7 +289,7 @@ El contenedor auxiliar de TinyMCE (diálogos de imagen/media/enlaces) usa z-inde
 
 ## Composiciones de Stories (2026-10-02)
 
-El editor nativo permite texto + mapa, dashboard, mapa/dashboard, imagen/multimedia y narrativa completa. Guarda `StoryData.composition` opcional, version 1: layout, lado/ancho narrativo, duracion (10 s por defecto, 1–600 s), dashboards, multimedia y referencias con IDs estables. `InitSourceData.storyOptions` conserva Slides/Scroll en shares. Editar texto antiguo no convierte automaticamente su presentacion; elegir una plantilla o crear una referencia si activa la composicion.
+El editor nativo permite texto + mapa, dashboard, mapa/dashboard, imagen/multimedia y narrativa completa. Guarda `StoryData.composition` opcional, version 1: layout, lado/ancho narrativo, duracion (10 s por defecto, 1–600 s), dashboards, multimedia y referencias con IDs estables. `InitSourceData.storyOptions` conserva Slides/Scroll en shares. Cada capitulo guarda `presentation: classic|composed`. Las escenas nuevas empiezan como ventana clasica; el selector Presentacion permite activar Composicion. Sin campo explicito, los shares con `composition.version = 1` siguen usando Composicion y los demas conservan la ventana clasica. Cambiar de formato no elimina la composicion ni las dimensiones/posicion anteriores.
 
 El selector `/story-dashboards/picker` pertenece a Pages y devuelve `ckan-story-dashboard-selected`, version 1. Solo se acepta su ventana y el origen actual. Los embeds `/dashboard/<UUID>/embed` conservan el protocolo dashboard v1 y filtros temporales; no se guardan tokens ni HTML de dashboard. Se mantienen hasta tres iframes.
 
@@ -303,4 +303,12 @@ El lector compuesto usa controles de al menos 44 px, selector de capitulo en una
 
 Las referencias `on_enter` se activan cuando su enlace entra en la zona visible del capitulo activo, incluso si el titulo ocupa varias lineas. Solo se consideran los enlaces con activacion automatica; las referencias manuales siguen requiriendo un click.
 
-Durante una composicion, el menu del mapa usa el ancho real de su columna, permite varias filas y reserva espacio para los controles de navegacion. El texto conserva los espacios entre etiquetas inline y referencias; el parser mantiene el comportamiento previo fuera de las composiciones y sigue omitiendo whitespace estructural en tablas.
+Durante una composicion, el menu del mapa usa el ancho real de su columna, permite varias filas y reserva espacio para los controles de navegacion. El texto conserva los espacios entre etiquetas inline y referencias; el parser preserva tambien los espacios en ventanas clasicas y sigue omitiendo whitespace estructural en tablas.
+
+### Ventanas clasicas y recorridos mixtos (2026-10-02)
+
+`StoryPanel` elige el lector por el capitulo activo. La ventana clasica conserva texto enriquecido, mapa capturado, arrastre por la cabecera y resize desde la esquina inferior. Guarda geometria solo al completar un gesto; resize del viewport, montaje, colapso y clicks ajenos no sobrescriben preferencias. CSS limita el tamaño visible en movil y vuelve al tamaño elegido en escritorio. Editar, recapturar y compartir mantienen esos campos por capitulo.
+
+Los paneles laterales y referencias interactivas requieren Composicion. En la ventana clasica los enlaces `#story-ref-*` se presentan como texto con su formato, conservando el HTML almacenado para recuperar las interacciones al volver a Composicion. El editor explica la diferencia y desactiva Link visualization en formato clasico.
+
+Si algun capitulo es clasico, el recorrido usa Slides con avance manual y oculta Play. Conserva la preferencia Scroll guardada para recuperarla si todos los capitulos vuelven a Composicion. Ambos lectores usan `storyScene.ts`: una cola compartida por Terria aplica los snapshots en orden y descarta solicitudes pendientes superadas; excluye `stories` y `storyOptions` de las escenas capturadas. Al cambiar de lector se restauran las dimensiones del mapa, se retiran listeners y se pausan los medios del lector anterior.

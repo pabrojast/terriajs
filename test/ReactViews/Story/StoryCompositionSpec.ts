@@ -1,9 +1,14 @@
 import {
   dashboardState,
   storyComposition,
+  storyPresentation,
+  storyReadingMode,
   videoEmbedUrl
 } from "../../../lib/Models/StoryComposition";
-import { nativeSceneCoordinator } from "../../../lib/ReactViews/Story/StoryPanel/ComposedStoryPanel";
+import {
+  nativeSceneCoordinator,
+  applyStoryScene
+} from "../../../lib/ReactViews/Story/StoryPanel/storyScene";
 import chooseStoryDashboard from "../../../lib/ReactViews/Story/chooseStoryDashboard";
 import { StoryData } from "../../../lib/Models/InitSource";
 import Terria from "../../../lib/Models/Terria";
@@ -16,6 +21,47 @@ describe("Story compositions", function () {
     title: id,
     text: "",
     shareData: { version: "8", initSources: [] }
+  });
+  it("infers legacy chapters and keeps an explicit classic choice with composition metadata", function () {
+    expect(storyPresentation()).toBe("classic");
+    expect(storyPresentation(scene("old"))).toBe("classic");
+    expect(storyPresentation({ composition: storyComposition() })).toBe(
+      "composed"
+    );
+    const classic = {
+      presentation: "classic" as const,
+      composition: storyComposition()
+    };
+    expect(storyPresentation(classic)).toBe("classic");
+    const options = { version: 1 as const, displayMode: "storymap" as const };
+    expect(
+      storyReadingMode([classic, { presentation: "composed" }], options)
+    ).toBe("slides");
+    expect(
+      storyReadingMode([{ ...classic, presentation: "composed" }], options)
+    ).toBe("storymap");
+    expect(options.displayMode).toBe("storymap");
+  });
+  it("applies captured sources sequentially without replacing the journey", async function () {
+    const terria = new Terria({ baseUrl: "./" });
+    const apply = spyOn(terria, "applyInitData").and.returnValue(
+      Promise.resolve()
+    );
+    const captured = scene("captured");
+    captured.shareData.initSources = [
+      {
+        stories: [scene("unwanted")],
+        storyOptions: { version: 1, displayMode: "storymap" },
+        viewerMode: "2d"
+      },
+      { viewerMode: "3d" }
+    ];
+    await applyStoryScene(captured, terria);
+    expect(apply.calls.allArgs().map(([arg]) => arg.initData)).toEqual([
+      { viewerMode: "2d" },
+      { viewerMode: "3d" }
+    ]);
+    expect((captured.shareData.initSources[0] as any).stories.length).toBe(1);
   });
   it("serializes scenes and discards superseded pending navigation", async function () {
     let finish!: () => void;
@@ -51,6 +97,9 @@ describe("Story compositions", function () {
     const terria = new Terria({ baseUrl: "./" });
     const story = {
       ...scene("saved"),
+      presentation: "classic" as const,
+      dimensions: { width: 620, height: 430 },
+      position: { x: 200, y: 90, xRatio: 0.6, yRatio: 0.3 },
       composition: { ...storyComposition(), duration: 7 }
     };
     runInAction(() => {
@@ -62,6 +111,9 @@ describe("Story compositions", function () {
     for (const initData of shared.initSources)
       await restored.applyInitData({ initData });
     expect(restored.stories[0].composition).toEqual(story.composition);
+    expect(restored.stories[0].presentation).toBe("classic");
+    expect(restored.stories[0].dimensions).toEqual(story.dimensions);
+    expect(restored.stories[0].position).toEqual(story.position);
     expect(restored.storyOptions.displayMode).toBe("storymap");
     const capture = JSON.parse(
       JSON.stringify(

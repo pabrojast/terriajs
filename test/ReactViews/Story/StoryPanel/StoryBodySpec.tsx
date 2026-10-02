@@ -10,6 +10,33 @@ import {
 describe("StoryBody", function () {
   let testRenderer: ReactTestRenderer;
 
+  it("renders composition references as formatted text in classic windows without changing the saved HTML", function () {
+    const story = {
+      id: "classic",
+      title: "Classic",
+      presentation: "classic" as const,
+      composition: storyComposition(),
+      text: '<p>Explore <a href="#story-ref-map"><strong>the map</strong></a> here.</p>'
+    };
+    act(() => {
+      testRenderer = create(<StoryBody isCollapsed={false} story={story} />);
+    });
+    expect(testRenderer.root.findAllByType("a").length).toBe(0);
+    expect(testRenderer.root.findByType("strong").children).toEqual([
+      "the map"
+    ]);
+    expect(story.text).toContain('href="#story-ref-map"');
+    act(() => {
+      testRenderer.update(
+        <StoryBody
+          isCollapsed={false}
+          story={{ ...story, presentation: "composed" }}
+        />
+      );
+    });
+    expect(testRenderer.root.findAllByType("a").length).toBe(1);
+  });
+
   it("preserves spaces around narrative references without adding table whitespace", function () {
     act(() => {
       testRenderer = create(

@@ -11,20 +11,11 @@ import {
 import { useTranslation } from "react-i18next";
 import { useSwipeable, type SwipeableProps } from "react-swipeable";
 import { useTheme } from "styled-components";
-import {
-  Category,
-  StoryAction
-} from "../../../Core/AnalyticEvents/analyticEvents";
-import { animateEnd } from "../../../Core/animation";
-import getPath from "../../../Core/getPath";
-import TerriaError from "../../../Core/TerriaError";
-import Terria from "../../../Models/Terria";
 import { StoryData } from "../../../Models/InitSource";
 import Box from "../../../Styled/Box";
 import { useViewState } from "../../Context";
 import { useDraggable } from "../../Drag/useDraggable";
 import { onStoryButtonClick } from "../../Map/MenuBar/StoryButton/StoryButton";
-import { Story } from "../Story";
 import Styles from "../story-panel.scss";
 import StoryBody from "./StoryBody";
 import FooterBar from "./StoryFooterBar";
@@ -119,55 +110,6 @@ const getPositionFromRelative = (
   };
 };
 
-/**
- *
- * @param {any} story
- * @param {Terria} terria
- */
-export async function activateStory(scene: Story, terria: Terria) {
-  terria.analytics?.logEvent(
-    Category.story,
-    StoryAction.viewScene,
-    JSON.stringify(scene)
-  );
-
-  if (scene.shareData) {
-    const errors: TerriaError[] = [];
-    await Promise.all(
-      scene.shareData.initSources.map(async (initSource: any) => {
-        try {
-          await terria.applyInitData({
-            initData: initSource,
-            replaceStratum: true,
-            canUnsetFeaturePickingState: true
-          });
-        } catch (e) {
-          errors.push(TerriaError.from(e));
-        }
-      })
-    );
-    if (errors.length > 0) {
-      terria.raiseErrorToUser(
-        TerriaError.combine(errors, {
-          title: { key: "story.loadSceneErrorTitle" },
-          message: {
-            key: "story.loadSceneErrorMessage",
-            parameters: { title: scene.title ?? scene.id }
-          }
-        })
-      );
-    }
-  }
-
-  terria.workbench.items.forEach((item) => {
-    terria.analytics?.logEvent(
-      Category.story,
-      StoryAction.datasetView,
-      getPath(item)
-    );
-  });
-}
-
 const Swipeable = ({
   children,
   ...props
@@ -181,7 +123,7 @@ interface DraggableStoryPanelProps {
   currentStoryId: number;
   onStoryChange: (index: number) => void;
   onClose: () => void;
-  onActivateStory: (story: Story) => void;
+  onActivateStory: (story: StoryData) => void;
 }
 
 const DraggableStoryPanel = observer(
@@ -199,7 +141,6 @@ const DraggableStoryPanel = observer(
     const [isCollapsed, setIsCollapsed] = useState(false);
     const [inView, setInView] = useState(false);
 
-    const slideRef = useRef<HTMLDivElement>(null);
     const panelRef = useRef<HTMLDivElement | null>(null);
     const [dragRef, dragControls] = useDraggable({
       handleSelector: ".story-drag-handle"
@@ -214,40 +155,45 @@ const DraggableStoryPanel = observer(
 
     const story = stories[currentStoryId];
 
-    // Save story position and dimensions
-    const saveStoryPosition = useCallback(() => {
-      if (!panelRef.current) return;
+    // Persist only a completed user gesture, never viewport constraints.
+    const saveStoryPosition = useCallback(
+      (resize: boolean) => {
+        if (!panelRef.current) return;
 
-      const currentStory = viewState.terria.stories[currentStoryId];
-      if (!currentStory) return;
+        const currentStory = viewState.terria.stories[currentStoryId];
+        if (!currentStory) return;
 
-      const element = panelRef.current;
-      const rect = element.getBoundingClientRect();
-      const { x, y } = parseTranslate(element.style.transform);
-      const bounds = getDragBounds(element, x, y);
-      const relative = bounds ? getRelativePosition(x, y, bounds) : undefined;
+        const element = panelRef.current;
+        const rect = element.getBoundingClientRect();
+        const { x, y } = parseTranslate(element.style.transform);
+        const bounds = getDragBounds(element, x, y);
+        const relative = bounds ? getRelativePosition(x, y, bounds) : undefined;
 
-      // Update story position in place
-      const updatedStory = {
-        ...currentStory,
-        position: {
-          x,
-          y,
-          ...(relative ? relative : {})
-        },
-        dimensions: {
-          width: rect.width,
-          height: rect.height
-        }
-      };
+        // Update story position in place
+        const updatedStory = {
+          ...currentStory,
+          position: {
+            x,
+            y,
+            ...(relative ? relative : {})
+          },
+          dimensions: resize
+            ? {
+                width: rect.width,
+                height: rect.height
+              }
+            : currentStory.dimensions
+        };
 
-      // Update the stories array
-      runInAction(() => {
-        const updatedStories = [...viewState.terria.stories];
-        updatedStories[currentStoryId] = updatedStory;
-        viewState.terria.stories = updatedStories;
-      });
-    }, [currentStoryId, viewState.terria]);
+        // Update the stories array
+        runInAction(() => {
+          const updatedStories = [...viewState.terria.stories];
+          updatedStories[currentStoryId] = updatedStory;
+          viewState.terria.stories = updatedStories;
+        });
+      },
+      [currentStoryId, viewState.terria]
+    );
 
     // Apply saved position to draggable element
     const applySavedPosition = useCallback(() => {
@@ -298,125 +244,81 @@ const DraggableStoryPanel = observer(
       }
     }, [dragControls, story?.position]);
 
-    // Set up drag end handler to save position
+    // CSS resize and title-bar drag both finish on pointer release. Unrelated
+    // clicks, collapse and responsive layout must not change saved geometry.
     useEffect(() => {
-      if (!panelRef.current) return;
-
+      const element = panelRef.current;
+      if (!element) return;
+      let start:
+        | { width: number; height: number; transform: string; resize: boolean }
+        | undefined;
       let frame: number | undefined;
-
-      const handleDragEnd = () => {
-        if (frame !== undefined) {
-          cancelAnimationFrame(frame);
-        }
+      const down = (event: PointerEvent) => {
+        if (
+          event.button !== 0 ||
+          (event.target as Element).closest("button,a,input,select,textarea")
+        )
+          return;
+        const rect = element.getBoundingClientRect();
+        const resize =
+          event.clientX >= rect.right - 24 && event.clientY >= rect.bottom - 24;
+        if (!resize && !(event.target as Element).closest(".story-drag-handle"))
+          return;
+        start = {
+          width: rect.width,
+          height: rect.height,
+          transform: element.style.transform,
+          resize
+        };
+      };
+      const up = () => {
+        const initial = start;
+        start = undefined;
+        if (!initial) return;
         frame = requestAnimationFrame(() => {
-          saveStoryPosition();
+          const rect = element.getBoundingClientRect();
+          const resized =
+            initial.resize &&
+            (rect.width !== initial.width || rect.height !== initial.height);
+          if (resized || element.style.transform !== initial.transform)
+            saveStoryPosition(resized);
         });
       };
-
-      // Listen for mouseup and touchend on document to catch drag end
-      const handleMouseUp = () => handleDragEnd();
-      const handleTouchEnd = () => handleDragEnd();
-
-      document.addEventListener("mouseup", handleMouseUp);
-      document.addEventListener("touchend", handleTouchEnd);
-
+      const cancel = () => {
+        start = undefined;
+      };
+      element.addEventListener("pointerdown", down);
+      document.addEventListener("pointerup", up);
+      document.addEventListener("pointercancel", cancel);
       return () => {
-        document.removeEventListener("mouseup", handleMouseUp);
-        document.removeEventListener("touchend", handleTouchEnd);
-        if (frame !== undefined) {
-          cancelAnimationFrame(frame);
-        }
+        element.removeEventListener("pointerdown", down);
+        document.removeEventListener("pointerup", up);
+        document.removeEventListener("pointercancel", cancel);
+        if (frame !== undefined) cancelAnimationFrame(frame);
       };
     }, [saveStoryPosition]);
 
-    // Apply saved position when story changes
+    // Apply requested dimensions before calculating relative position. CSS only
+    // constrains the visible size on small screens; desktop preferences survive.
     useEffect(() => {
+      const element = panelRef.current;
+      if (!element) return;
+      if (story?.dimensions) {
+        element.style.width = `${story.dimensions.width}px`;
+        element.style.height = `${story.dimensions.height}px`;
+      }
       applySavedPosition();
-    }, [applySavedPosition, currentStoryId]);
-
-    // Keep position relative on viewport resize
-    useEffect(() => {
-      let frame: number | undefined;
-
-      const handleResize = () => {
-        if (!panelRef.current) return;
-
-        if (frame !== undefined) {
-          cancelAnimationFrame(frame);
-        }
-        frame = requestAnimationFrame(() => {
-          const currentStory = viewState.terria.stories[currentStoryId];
-          if (!currentStory) return;
-
-          const element = panelRef.current;
-          if (!element) return;
-          const { x: currentX, y: currentY } = parseTranslate(
-            element.style.transform
-          );
-          const bounds = getDragBounds(element, currentX, currentY);
-          if (!bounds) return;
-
-          if (
-            currentStory.position &&
-            Number.isFinite(currentStory.position.xRatio) &&
-            Number.isFinite(currentStory.position.yRatio)
-          ) {
-            const nextPosition = getPositionFromRelative(
-              bounds,
-              currentStory.position.xRatio as number,
-              currentStory.position.yRatio as number
-            );
-            dragControls?.setPosition?.(nextPosition.x, nextPosition.y, true);
-          } else {
-            dragControls?.constrainToBounds?.();
-          }
-
-          saveStoryPosition();
-        });
-      };
-
-      window.addEventListener("resize", handleResize);
+      const resize = () => applySavedPosition();
+      window.addEventListener("resize", resize);
+      const observer = new ResizeObserver(() =>
+        dragControls.constrainToBounds()
+      );
+      observer.observe(element);
       return () => {
-        if (frame !== undefined) {
-          cancelAnimationFrame(frame);
-        }
-        window.removeEventListener("resize", handleResize);
+        observer.disconnect();
+        window.removeEventListener("resize", resize);
       };
-    }, [currentStoryId, dragControls, saveStoryPosition, viewState.terria]);
-
-    // Apply saved dimensions
-    useEffect(() => {
-      if (!panelRef.current || !story?.dimensions) return;
-
-      const element = panelRef.current;
-      const { width, height } = story.dimensions;
-      element.style.width = `${width}px`;
-      element.style.height = `${height}px`;
-      // Keep minHeight fixed at 200px to allow shrinking the window
-      element.style.minHeight = "200px";
-    }, [story?.dimensions]);
-
-    // Observe size changes to persist dimensions
-    useEffect(() => {
-      if (!panelRef.current) return;
-      const element = panelRef.current;
-      if (typeof ResizeObserver === "undefined") return;
-
-      let resizeTimeout: NodeJS.Timeout | undefined;
-      const ro = new ResizeObserver(() => {
-        // Debounce to avoid too many saves while resizing
-        if (resizeTimeout) clearTimeout(resizeTimeout);
-        resizeTimeout = setTimeout(() => {
-          saveStoryPosition();
-        }, 100);
-      });
-
-      ro.observe(element);
-      return () => {
-        ro.disconnect();
-        if (resizeTimeout) clearTimeout(resizeTimeout);
-      };
-    }, [saveStoryPosition]);
+    }, [applySavedPosition, dragControls, story?.dimensions]);
 
     const slideIn = useCallback(() => {
       setInView(true);
@@ -446,12 +348,9 @@ const DraggableStoryPanel = observer(
         }
         if (newIndex !== currentStoryId) {
           onStoryChange(newIndex);
-          if (newIndex < stories.length) {
-            onActivateStory(stories[newIndex]);
-          }
         }
       },
-      [stories, currentStoryId, onStoryChange, onActivateStory]
+      [stories, currentStoryId, onStoryChange]
     );
 
     const goToPrevStory = useCallback(() => {
@@ -463,15 +362,13 @@ const DraggableStoryPanel = observer(
     }, [navigateStory, currentStoryId]);
 
     const exitStory = useCallback(() => {
-      animateEnd(slideRef.current).finally(() => {
-        onClose();
-        viewState.terria.currentViewer.notifyRepaintRequired();
-      });
       slideOut();
+      onClose();
+      viewState.terria.currentViewer.notifyRepaintRequired();
     }, [onClose, viewState.terria, slideOut]);
 
     const onCenterScene = useCallback(
-      (story: Story) => {
+      (story: StoryData) => {
         onActivateStory(story);
       },
       [onActivateStory]
@@ -480,6 +377,25 @@ const DraggableStoryPanel = observer(
     // Set up keyboard listeners
     useEffect(() => {
       const keydownListener = (e: KeyboardEvent) => {
+        if (
+          (e.target as Element)?.closest?.(
+            "input,textarea,select,[contenteditable=true],dialog"
+          ) ||
+          e.altKey ||
+          e.ctrlKey ||
+          e.metaKey
+        )
+          return;
+        if (
+          [
+            "Escape",
+            "ArrowRight",
+            "ArrowDown",
+            "ArrowLeft",
+            "ArrowUp"
+          ].includes(e.key)
+        )
+          e.preventDefault();
         if (e.key === "Escape") {
           exitStory();
         } else if (e.key === "ArrowRight" || e.key === "ArrowDown") {
@@ -510,24 +426,6 @@ const DraggableStoryPanel = observer(
       slideIn();
     }, [slideIn]);
 
-    // Hide workbench (enter fullscreen) while story is shown, then restore
-    useEffect(() => {
-      const prev = viewState.isMapFullScreen;
-      let changed = false;
-      if (!prev) {
-        // Only change if workbench is currently visible
-        viewState.setIsMapFullScreen(true);
-        changed = true;
-      }
-      return () => {
-        if (changed) {
-          viewState.setIsMapFullScreen(false);
-        }
-      };
-      // Run on mount/unmount only
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
-
     if (!story) return null;
 
     return (
@@ -549,6 +447,8 @@ const DraggableStoryPanel = observer(
         >
           <Box
             ref={setRefs}
+            role="region"
+            aria-label="Story window"
             column
             rounded
             className={classNames(Styles.storyContainer, {
@@ -560,16 +460,17 @@ const DraggableStoryPanel = observer(
               display: flex;
               flex-direction: column;
               width: 400px;
-              max-width: 800px;
-              min-width: 300px;
-              max-height: 80vh;
+              max-width: min(800px, calc(100vw - 16px));
+              min-width: min(300px, calc(100vw - 16px));
+              max-height: calc(100dvh - 86px);
               border-radius: 6px;
               overflow: hidden;
               pointer-events: auto;
               box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-              cursor: move;
+              cursor: auto;
+              transition: opacity 0.2s;
               resize: both;
-              min-height: 200px;
+              min-height: min(200px, calc(100dvh - 86px));
               direction: ltr;
 
               /* Style the resize handle */
@@ -610,6 +511,8 @@ const DraggableStoryPanel = observer(
                 color: white;
                 cursor: move;
                 user-select: none;
+                touch-action: none;
+                flex-shrink: 0;
               `}
             >
               <TitleBar
@@ -624,14 +527,19 @@ const DraggableStoryPanel = observer(
                 backgroundColor: "rgba(255, 255, 255, 0.95)",
                 backdropFilter: theme.blur,
                 overflow: "auto",
+                minHeight: 0,
                 flex: 1
               }}
             >
-              <StoryBody isCollapsed={isCollapsed} story={story} />
+              <StoryBody
+                isCollapsed={isCollapsed}
+                story={story}
+                terria={viewState.terria}
+              />
             </Box>
             <Box
               backgroundColor={theme.dark}
-              css={{ color: "white" }}
+              css={{ color: "white", flexShrink: 0 }}
               paddedHorizontally={3}
               fullWidth
             >

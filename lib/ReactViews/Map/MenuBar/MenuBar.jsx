@@ -1,3 +1,4 @@
+import { storyPresentation } from "../../../Models/StoryComposition";
 import classNames from "classnames";
 import { runInAction } from "mobx";
 import { observer } from "mobx-react";
@@ -62,7 +63,8 @@ const MenuBar = observer((props) => {
       trainerBarVisible={viewState.trainerBarVisible}
       $composedStory={
         viewState.storyShown &&
-        terria.stories.some((story) => story.composition?.version === 1)
+        storyPresentation(terria.stories[viewState.currentStoryId]) ===
+          "composed"
       }
     >
       <section>

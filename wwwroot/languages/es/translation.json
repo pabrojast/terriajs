@@ -700,8 +700,14 @@
     "bodyV": "Puedes aplicar una serie de estilos, como el falso color, a las imágenes de satélite haciendo clic en el menú desplegable de estilos de el banco de trabajo de datos."
   },
   "story": {
+    "mixedManualHelp": "Esta historia incluye ventanas clásicas. Usa Anterior y Siguiente para avanzar a tu ritmo.",
     "story": "Historia",
     "editor": {
+      "presentationLabel": "Presentación",
+      "presentationClassic": "Ventana clásica",
+      "presentationComposed": "Composición",
+      "presentationClassicHelp": "Arrastra la barra del título y cambia el tamaño desde la esquina inferior. Los paneles laterales y las referencias interactivas están disponibles en Composición; su configuración se conserva al cambiar de formato.",
+      "presentationComposedHelp": "Combina texto con mapas, dashboards y multimedia. Puedes volver a la ventana clásica sin perder esta configuración.",
       "saveStory": "Guardar",
       "saveBtn": "guardar",
       "cancelBtn": "cancelar",

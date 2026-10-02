@@ -1,8 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 export const useDraggable = (options?: { handleSelector?: string }) => {
   const [node, setNode] = useState<HTMLElement | null>();
   // Use refs to track current values without triggering rerenders
+  const cleanupGesture = useRef<(() => void) | undefined>();
+  useEffect(() => () => cleanupGesture.current?.(), []);
   const dxRef = useRef(0);
   const dyRef = useRef(0);
   const handleSelectorRef = useRef(options?.handleSelector);
@@ -74,6 +76,8 @@ export const useDraggable = (options?: { handleSelector?: string }) => {
   // Function to check if the event target is the handle or within the handle
   const isValidDragHandle = useCallback(
     (target: EventTarget | null): boolean => {
+      if ((target as Element)?.closest("button,a,input,select,textarea"))
+        return false;
       if (!handleSelectorRef.current || !node || !target) return true;
 
       // If we have a handle selector, check if the target matches or is within a matching element
@@ -135,6 +139,7 @@ export const useDraggable = (options?: { handleSelector?: string }) => {
     (e: MouseEvent) => {
       // Check if the event target is a valid drag handle
       if (!isValidDragHandle(e.target)) return;
+      cleanupGesture.current?.();
 
       const dragResult = startDrag(e.clientX, e.clientY);
 
@@ -151,6 +156,10 @@ export const useDraggable = (options?: { handleSelector?: string }) => {
         document.removeEventListener("mouseup", handleMouseUp);
       };
 
+      cleanupGesture.current = () => {
+        document.removeEventListener("mousemove", handleMouseMove);
+        document.removeEventListener("mouseup", handleMouseUp);
+      };
       document.addEventListener("mousemove", handleMouseMove);
       document.addEventListener("mouseup", handleMouseUp);
     },
@@ -161,6 +170,7 @@ export const useDraggable = (options?: { handleSelector?: string }) => {
     (e: TouchEvent) => {
       // Check if the event target is a valid drag handle
       if (!isValidDragHandle(e.target)) return;
+      cleanupGesture.current?.();
 
       const touch = e.touches[0];
       const dragResult = startDrag(touch.clientX, touch.clientY);
@@ -177,8 +187,15 @@ export const useDraggable = (options?: { handleSelector?: string }) => {
         endHandler();
         document.removeEventListener("touchmove", handleTouchMove);
         document.removeEventListener("touchend", handleTouchEnd);
+        document.removeEventListener("touchcancel", handleTouchEnd);
       };
 
+      cleanupGesture.current = () => {
+        document.removeEventListener("touchmove", handleTouchMove);
+        document.removeEventListener("touchend", handleTouchEnd);
+        document.removeEventListener("touchcancel", handleTouchEnd);
+      };
+      document.addEventListener("touchcancel", handleTouchEnd);
       document.addEventListener("touchmove", handleTouchMove);
       document.addEventListener("touchend", handleTouchEnd);
     },
@@ -223,5 +240,9 @@ export const useDraggable = (options?: { handleSelector?: string }) => {
     [updateElementPosition, constrainToBounds]
   );
 
-  return [ref, { setPosition, constrainToBounds }] as const;
+  const controls = useMemo(
+    () => ({ setPosition, constrainToBounds }),
+    [setPosition, constrainToBounds]
+  );
+  return [ref, controls] as const;
 };

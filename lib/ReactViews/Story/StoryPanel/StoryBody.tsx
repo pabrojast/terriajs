@@ -1,3 +1,4 @@
+import { storyPresentation } from "../../../Models/StoryComposition";
 import { Story } from "../Story";
 import parseCustomHtmlToReact from "../../Custom/parseCustomHtmlToReact";
 import styled from "styled-components";
@@ -74,12 +75,20 @@ function sourceBasedParse(story: Story, terria?: Terria) {
     addTags.push("iframe");
   }
 
+  let text = story.text;
+  if (storyPresentation(story) === "classic" && text.includes("#story-ref-")) {
+    const document = new DOMParser().parseFromString(text, "text/html");
+    document.querySelectorAll('a[href^="#story-ref-"]').forEach((anchor) => {
+      anchor.replaceWith(...Array.from(anchor.childNodes));
+    });
+    text = document.body.innerHTML;
+  }
   return parseCustomHtmlToReact(
-    story.text,
+    text,
     {
       showExternalLinkWarning: true,
       terria,
-      preserveInlineWhitespace: story.composition?.version === 1
+      preserveInlineWhitespace: true
     },
     false,
     {

@@ -137,3 +137,9 @@ Guia, documentos reutilizables y evidencia del despliegue: [demo en ckan-unesco-
 La correccion final del menu y los espacios paso 16 specs de Stories en Chromium, incluido un caso que conserva separadores entre referencias y sigue omitiendo whitespace de la estructura de tablas. TypeScript y ESLint de los archivos cambiados pasaron.
 
 El CI global de esta revision sigue fallando por 14 warnings previos fuera de los archivos de Stories; ver [[Backlog Documentacion]]. Los controles focalizados no equivalen a un CI global verde.
+
+## Ventanas clasicas y recorridos mixtos (2026-10-02)
+
+22 specs de Stories pasan en Chromium. `StoryCompositionSpec.ts` comprueba inferencia de shares antiguos, prioridad de la presentacion explicita, Scroll conservado, geometria compartida y aplicacion de snapshots sin reemplazar la narrativa. `StoryPanelSpec.tsx` monta ambos lectores y verifica una activacion por capitulo, cambio con teclado, navegacion rapida serializada, restauracion del mapa/fullscreen y ausencia de escrituras al recibir resize o pointerup ajenos. `StoryBodySpec.tsx` comprueba referencias inactivas como texto y recuperacion al volver a Composicion.
+
+Prueba de navegador local: resize real de 520 x 390 a 593 x 443, arrastre de cabecera, viewport de 390 px con ventana contenida y retorno a 1440 px conservando dimensiones/posicion. Las capturas se guardan en `output/playwright/classic-*.png` (artefactos locales). El build local usa el checkout de TerriaJS enlazado desde TerriaMap; no equivale a desplegar.
