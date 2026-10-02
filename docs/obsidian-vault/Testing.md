@@ -151,3 +151,9 @@ El run [37016518841](https://github.com/pabrojast/terriajs/actions/runs/37016518
 La autoria se comprobo en escritorio. StoryBuilder se desmonta bajo el breakpoint movil por una condicion anterior en StandardUserInterface; ver [[Backlog Documentacion]].
 
 Verificacion final sobre DEV: [workflow 37016628398](https://github.com/pabrojast/ckan-unesco-docker/actions/runs/37016628398) correcto, TerriaMap `b90881cb` con TerriaJS `3f5b9704e`, pod Ready y sin reinicios. Sesion limpia: ventana inicial compartida, filtro Chile = 3.334, retorno de composicion a clasica con mapa completo, movil a 390 px y recuperacion de dimensiones de escritorio; sin errores de pagina ni alertas durante el recorrido. Digest y recursos preservados registrados en la guia de demo de Docker.
+
+## Demos en ingles (2026-10-02)
+
+Ediciones publicas independientes en DEV: [CKAN Slides](https://data.dev-wins.com/data-stories/demo-web-stories-en#storymap), [CKAN Scroll](https://data.dev-wins.com/data-stories/demo-web-stories-en-scroll#storymap), [Terria Compositions](https://data.dev-wins.com/terria/#share=g-2cb6e9b74fe8fa93c7ea1b7d031dc315) y [Terria con ventanas clasicas](https://data.dev-wins.com/terria/#share=g-eb6ece82cac01c3239002db57fc1140c). Los textos, dashboard, ilustraciones y video estan en ingles; las demos anteriores se conservan.
+
+Las dos ediciones de nueve composiciones pasaron 45 combinaciones de capitulo y viewport cada una (1440, 1024, 768, 390 y 360 px), sin desbordamiento horizontal ni controles de navegacion menores de 44 px. Se verifico reproduccion de video y pausa al navegar, y fin del avance opcional en Terria. La guia de Docker incluye el recorrido en ingles, documentos JSON reutilizables y las comprobaciones de referencias, mapas y ventanas. Son cambios de contenido sobre el runtime DEV ya desplegado, sin cambios en produccion.
