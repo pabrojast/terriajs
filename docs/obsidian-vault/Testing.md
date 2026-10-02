@@ -135,3 +135,5 @@ La revision de Chromium sobre TerriaJS `367781b0e` y TerriaMap `a32476d` cubrio 
 Guia, documentos reutilizables y evidencia del despliegue: [demo en ckan-unesco-docker](https://github.com/pabrojast/ckan-unesco-docker/blob/miserver-2.10/docs/story-showcase-dev.md). Para capturar el mapa, esperar las teselas despues de aplicar la escena; el texto del placeholder de `TerriaViewerWrapper` sigue en el DOM detras del canvas y no sirve como condicion de finalizacion.
 
 La correccion final del menu y los espacios paso 16 specs de Stories en Chromium, incluido un caso que conserva separadores entre referencias y sigue omitiendo whitespace de la estructura de tablas. TypeScript y ESLint de los archivos cambiados pasaron.
+
+El CI global de esta revision sigue fallando por 14 warnings previos fuera de los archivos de Stories; ver [[Backlog Documentacion]]. Los controles focalizados no equivalen a un CI global verde.
