@@ -125,7 +125,12 @@ function getProcessingInstructions(context: ParseCustomHtmlToReactContext) {
 
   // Process all other nodes as normal.
   processingInstructions.push({
-    shouldProcessNode: shouldProcessEveryNodeExceptWhiteSpace,
+    shouldProcessNode: (node) =>
+      shouldProcessEveryNodeExceptWhiteSpace(node) ||
+      (context.preserveInlineWhitespace === true &&
+        /^(p|span|a|strong|em|b|i|li|td|th|h[1-6])$/.test(
+          node.parent?.name || ""
+        )),
     processNode: processNodeDefinitions.processDefaultNode
   });
   return processingInstructions;
@@ -135,6 +140,8 @@ export type ParseCustomHtmlToReactContext = ProcessNodeContext & {
   disableExternalLinkIcon?: boolean;
   /** Show warning prompt for external links */
   showExternalLinkWarning?: boolean;
+  /** Keep word separators in narrative prose, excluding table structure. */
+  preserveInlineWhitespace?: boolean;
 };
 
 /**

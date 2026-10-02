@@ -299,4 +299,8 @@ Reproducir es siempre una accion del lector. Espera confirmacion de los estados 
 
 ### Lectura de composiciones en movil (2026-10-02)
 
-El lector compuesto usa controles de al menos 44 px, selector de capitulo en una fila propia en movil y texto con ancho legible. En las plantillas de imagen/multimedia, texto y medios comparten el desplazamiento vertical movil para evitar un panel vacio. Los videos usan controles nativos, `playsInline` y precarga de metadatos; cambiar de capitulo o modo pausa los medios nativos. Los embeds externos conservan sus propios controles.
+El lector compuesto usa controles de al menos 44 px, selector de capitulo en una fila propia en movil y texto con ancho legible. En Slides, las plantillas de imagen/multimedia comparten el desplazamiento vertical de texto y medios en movil para evitar un panel vacio. Scroll conserva su panel de lectura y seguimiento de capitulos. Los videos usan controles nativos, `playsInline` y precarga de metadatos; cambiar de capitulo o modo pausa los medios nativos. Los embeds externos conservan sus propios controles.
+
+Las referencias `on_enter` se activan cuando su enlace entra en la zona visible del capitulo activo, incluso si el titulo ocupa varias lineas. Solo se consideran los enlaces con activacion automatica; las referencias manuales siguen requiriendo un click.
+
+Durante una composicion, el menu del mapa usa el ancho real de su columna, permite varias filas y reserva espacio para los controles de navegacion. El texto conserva los espacios entre etiquetas inline y referencias; el parser mantiene el comportamiento previo fuera de las composiciones y sigue omitiendo whitespace estructural en tablas.

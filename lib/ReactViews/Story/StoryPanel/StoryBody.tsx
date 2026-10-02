@@ -76,7 +76,11 @@ function sourceBasedParse(story: Story, terria?: Terria) {
 
   return parseCustomHtmlToReact(
     story.text,
-    { showExternalLinkWarning: true, terria },
+    {
+      showExternalLinkWarning: true,
+      terria,
+      preserveInlineWhitespace: story.composition?.version === 1
+    },
     false,
     {
       ADD_TAGS: addTags,

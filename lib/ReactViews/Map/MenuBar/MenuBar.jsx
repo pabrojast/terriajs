@@ -18,6 +18,18 @@ import Styles from "./menu-bar.scss";
 const StyledMenuBar = styled.div`
   pointer-events: none;
   ${(p) =>
+    p.$composedStory &&
+    `
+    left: 16px;
+    right: 76px;
+    margin-left: 0;
+    > section {
+      min-width: 0;
+      max-width: 100%;
+      flex-wrap: wrap;
+    }
+  `}
+  ${(p) =>
     p.trainerBarVisible &&
     `
     top: ${Number(p.theme.trainerHeight) + Number(p.theme.mapButtonTop)}px;
@@ -48,6 +60,10 @@ const MenuBar = observer((props) => {
       )}
       onClick={handleClick}
       trainerBarVisible={viewState.trainerBarVisible}
+      $composedStory={
+        viewState.storyShown &&
+        terria.stories.some((story) => story.composition?.version === 1)
+      }
     >
       <section>
         <ul className={classNames(Styles.menu)}>

@@ -125,3 +125,13 @@ En dev comprobar guardar/recargar imágenes con sesión CKAN, error y reintento,
 `StoryCompositionSpec.ts` cubre cola de escenas y solicitudes superadas, recuperacion, medios seguros, filtros y ventana/origen del selector de dashboards. Ejecutar junto a los specs de imagenes y StoryBody en Chromium; `tsc --noEmit --skipLibCheck` y ESLint sobre los archivos cambiados comprueban los contratos.
 
 La validacion integrada requiere CKAN y TerriaMap del mismo origen. Comprobar crear/guardar/reabrir una composicion, compartirla, importar sus escenas en CKAN, activar referencias y filtros, recapturar COG series, pausa/final y Scroll/Slides. Revisar escritorio y 390 px, el tamaño efectivo del mapa y que volver a un dashboard conserve su iframe. El modo anterior sin `composition` debe mantener su panel y dimensiones.
+
+## Demo de composiciones en DEV (2026-10-02)
+
+[El agua tambien se cuenta](https://data.dev-wins.com/terria/#share=g-0e9d02c035f26e47ed759004559fe9a0) contiene nueve capitulos con imagenes de CKAN, escenas COG mensual/anual, dashboard, referencias manuales y `on_enter`, grafico, video y cierre. Los valores del dashboard y la animacion son simulados y se distinguen de la fuente COG.
+
+La revision de Chromium sobre TerriaJS `367781b0e` y TerriaMap `a32476d` cubrio los nueve capitulos a 1440, 1024, 768, 390 y 360 px: 45 casos sin desbordamiento ni controles de navegacion menores de 44 px. Tambien comprobo filtros/restablecimiento, referencias automaticas en Slides/Scroll, llegada al ultimo capitulo por scroll, pausa real del video al navegar y parada de la reproduccion opcional al final. Se inspeccionaron capturas de mapa, narrativa y medios; los viewports moviles no sustituyen dispositivos fisicos ni Safari.
+
+Guia, documentos reutilizables y evidencia del despliegue: [demo en ckan-unesco-docker](https://github.com/pabrojast/ckan-unesco-docker/blob/miserver-2.10/docs/story-showcase-dev.md). Para capturar el mapa, esperar las teselas despues de aplicar la escena; el texto del placeholder de `TerriaViewerWrapper` sigue en el DOM detras del canvas y no sirve como condicion de finalizacion.
+
+La correccion final del menu y los espacios paso 16 specs de Stories en Chromium, incluido un caso que conserva separadores entre referencias y sigue omitiendo whitespace de la estructura de tablas. TypeScript y ESLint de los archivos cambiados pasaron.
