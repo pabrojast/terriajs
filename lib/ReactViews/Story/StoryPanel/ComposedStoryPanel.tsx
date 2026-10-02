@@ -119,6 +119,11 @@ const Reader = styled.section`
   .story-composition-narrative p {
     margin: 0 0 16px;
   }
+  .story-composition-narrative p,
+  .story-composition-narrative li {
+    font-size: 16px;
+    line-height: 1.65;
+  }
   .story-composition-narrative a {
     color: #0069aa;
     text-decoration: underline;
@@ -226,15 +231,15 @@ const Reader = styled.section`
     .story-composition-narrative {
       padding: 24px 20px;
     }
-    &[data-layout="media"] .story-composition-columns {
+    &[data-layout="media"][data-mode="slides"] .story-composition-columns {
       overflow-y: auto;
     }
-    &[data-layout="media"] .story-composition-narrative,
-    &[data-layout="media"] .story-composition-visuals {
+    &[data-layout="media"][data-mode="slides"] .story-composition-narrative,
+    &[data-layout="media"][data-mode="slides"] .story-composition-visuals {
       flex: 0 0 auto;
       overflow: visible;
     }
-    &[data-layout="media"] .story-composition-media {
+    &[data-layout="media"][data-mode="slides"] .story-composition-media {
       overflow: visible;
       padding: 0 20px 24px;
       border: 0;
@@ -678,13 +683,15 @@ const ComposedStoryPanel = observer(function ComposedStoryPanel() {
         )}
         <button
           type="button"
+          aria-label="Close story"
+          title="Close story"
           onClick={() => {
             runInAction(() => {
               viewState.storyShown = false;
             });
           }}
         >
-          Close story
+          <span aria-hidden="true">×</span>
         </button>
       </nav>
       {(error || mapBusy || dashboardBusy) && (
