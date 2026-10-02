@@ -221,7 +221,9 @@ const ComposedStoryPanel = observer(function ComposedStoryPanel() {
   const [playing, setPlaying] = useState(false);
   const [mapBusy, setMapBusy] = useState(true);
   const [dashboardBusy, setDashboardBusy] = useState(false);
-  const [error, setError] = useState("");
+  const [sceneError, setError] = useState("");
+  const [dashboardError, setDashboardError] = useState("");
+  const error = sceneError || dashboardError;
   const [retry, setRetry] = useState(0);
   const [choice, setChoice] = useState<"map" | "dashboard" | "both">(() =>
     innerWidth <= 1440 ? "map" : "both"
@@ -271,6 +273,7 @@ const ComposedStoryPanel = observer(function ComposedStoryPanel() {
       setReference(undefined);
       activeParagraph.current = null;
       setError("");
+      setDashboardError("");
       setDashboardBusy(false);
       runInAction(() => {
         viewState.currentStoryId = Math.max(
@@ -293,6 +296,7 @@ const ComposedStoryPanel = observer(function ComposedStoryPanel() {
     (ref: StoryReference, manual = true) => {
       if (manual) setPlaying(false);
       setError("");
+      setDashboardError("");
       if (
         (ref.scene_id && !stories.some((s) => s.id === ref.scene_id)) ||
         (ref.dashboard_id &&
@@ -352,8 +356,8 @@ const ComposedStoryPanel = observer(function ComposedStoryPanel() {
   }, [sceneQueue, story, stories, reference?.scene_id, hasMap, retry]);
   const dashboardStatus = useCallback((pending: boolean, failure?: string) => {
     setDashboardBusy(pending);
+    setDashboardError(failure || "");
     if (failure) {
-      setError(failure);
       setPlaying(false);
     }
   }, []);
@@ -449,10 +453,17 @@ const ComposedStoryPanel = observer(function ComposedStoryPanel() {
         const chapters = [
           ...container.querySelectorAll<HTMLElement>("[data-story-index]")
         ];
-        const current =
-          chapters
-            .filter((el) => el.getBoundingClientRect().top <= top)
-            .pop() || chapters[0];
+        const atEnd =
+          container.scrollTop > 0 &&
+          container.scrollHeight -
+            container.scrollTop -
+            container.clientHeight <=
+            4;
+        const current = atEnd
+          ? chapters[chapters.length - 1]
+          : chapters
+              .filter((el) => el.getBoundingClientRect().top <= top)
+              .pop() || chapters[0];
         if (current && Number(current.dataset.storyIndex) !== index) {
           go(Number(current.dataset.storyIndex), false, false);
           return;
@@ -603,6 +614,7 @@ const ComposedStoryPanel = observer(function ComposedStoryPanel() {
               type="button"
               onClick={() => {
                 setError("");
+                setDashboardError("");
                 setRetry((n) => n + 1);
               }}
             >
