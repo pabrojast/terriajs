@@ -23,3 +23,8 @@ Pendiente: corregir esos warnings en una tarea propia y volver a ejecutar CI glo
 
 - Verificado: `StandardUserInterface.tsx` condiciona StoryBuilder a `!useSmallScreenInterface`. Al reducir el viewport de escritorio a 390 px, un editor abierto se desmonta; esta regla precede a la presentacion por capitulo. La prueba responsive de esta entrega corresponde al lector, no a autoria movil.
 - Pendiente por confirmar: alcance de un editor movil y conservacion de borradores al cruzar el breakpoint. La autoria completa sigue disponible en escritorio; no se modifico este flujo en la recuperacion de ventanas clasicas.
+
+## Revalidacion de referencias en la demo inglesa (2026-10-02)
+
+- Verificado: 45 combinaciones de capitulo/viewport en Terria, video, fin del avance opcional, filtro Chile visible y drag/resize/restauracion de las ventanas clasicas. La misma edicion en CKAN paso referencias de mapas, dashboard y activacion al entrar al texto.
+- Pendiente por confirmar: repetir el ciclo completo Chile → todos → activacion al entrar y Scroll en la nueva URL nativa inglesa. Los intentos adicionales agotaron el tiempo del navegador; una apertura limpia tambien presento `ERR_NETWORK_CHANGED` y timeout de navegacion. Los endpoints publicos respondieron HTTP 200 y los pods DEV siguieron Ready. No atribuir estos fallos al codigo sin reproducirlos con conectividad estable. La publicacion solo modifica contenido; evidencia y URLs en la guia de demos de Docker enlazada desde [[Testing]].
