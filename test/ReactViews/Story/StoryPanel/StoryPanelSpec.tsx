@@ -120,6 +120,40 @@ describe("Mixed story readers", function () {
     });
     expect(JSON.stringify(terria.stories[0])).toBe(before);
   });
+  it("does not navigate when a touch gesture moves the title bar", async function () {
+    spyOn(terria, "applyInitData").and.returnValue(Promise.resolve());
+    await mount();
+    const swipe = async (target: Element) =>
+      act(async () => {
+        const touch = (x: number) =>
+          new Touch({ identifier: 1, target, clientX: x, clientY: 80 });
+        target.dispatchEvent(
+          new TouchEvent("touchstart", {
+            bubbles: true,
+            touches: [touch(200)],
+            changedTouches: [touch(200)]
+          })
+        );
+        target.dispatchEvent(
+          new TouchEvent("touchmove", {
+            bubbles: true,
+            touches: [touch(100)],
+            changedTouches: [touch(100)]
+          })
+        );
+        target.dispatchEvent(
+          new TouchEvent("touchend", {
+            bubbles: true,
+            touches: [],
+            changedTouches: [touch(100)]
+          })
+        );
+      });
+    await swipe(container.querySelector(".story-drag-handle")!);
+    expect(viewState.currentStoryId).toBe(0);
+    await swipe(container.querySelector("p")!);
+    expect(viewState.currentStoryId).toBe(1);
+  });
   it("keeps scene loads serialized when switching from classic through composed back to classic", async function () {
     let finish!: () => void;
     const apply = spyOn(terria, "applyInitData").and.callFake(() => {

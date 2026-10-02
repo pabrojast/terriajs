@@ -114,7 +114,22 @@ const Swipeable = ({
   children,
   ...props
 }: { children: ReactNode } & SwipeableProps) => {
-  const handlers = useSwipeable(props);
+  const handlers = useSwipeable({
+    ...props,
+    onSwiped: (data) => {
+      // Moving the window or using a control is not chapter navigation.
+      if (
+        (data.event.target as Element)?.closest?.(
+          ".story-drag-handle,button,a,input,select,textarea"
+        )
+      )
+        return;
+      if (data.dir === "Left") props.onSwipedLeft?.(data);
+      if (data.dir === "Right") props.onSwipedRight?.(data);
+    },
+    onSwipedLeft: undefined,
+    onSwipedRight: undefined
+  });
   return <div {...handlers}>{children}</div>;
 };
 
