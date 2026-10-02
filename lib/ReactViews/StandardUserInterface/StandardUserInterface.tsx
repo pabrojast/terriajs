@@ -226,7 +226,7 @@ const StandardUserInterfaceBase: FC<StandardUserInterfaceProps> = observer(
                   </div>
                 </Medium>
 
-                <section className={Styles.map}>
+                <section className={Styles.map} data-story-map>
                   <MapColumn
                     customElements={customElements}
                     animationDuration={animationDuration}

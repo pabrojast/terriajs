@@ -1,3 +1,6 @@
+import { storyComposition } from "../../Models/StoryComposition";
+import StoryCompositionEditor from "./StoryCompositionEditor";
+import editStoryReference from "./editStoryReference";
 import { lazy, Component, Suspense } from "react";
 import PropTypes from "prop-types";
 import classNames from "classnames";
@@ -78,7 +81,8 @@ class StoryEditor extends Component {
     this.setState({
       title: story.title,
       text: story.text,
-      id: story.id
+      id: story.id,
+      composition: storyComposition(story.composition)
     });
   }
 
@@ -142,7 +146,13 @@ class StoryEditor extends Component {
       this.props.saveStory({
         title: this.state.title,
         text,
-        id: this.state.id
+        id: this.state.id,
+        composition:
+          this.props.story.composition ||
+          this.state.compositionDirty ||
+          !this.state.id
+            ? this.state.composition
+            : undefined
       });
 
       this.setState({
@@ -206,7 +216,9 @@ class StoryEditor extends Component {
     const initial = this.props.story || { title: "", text: "" };
     const dirty =
       (title || "") !== (initial.title || "") ||
-      (text || "") !== (initial.text || "");
+      (text || "") !== (initial.text || "") ||
+      JSON.stringify(this.state.composition) !==
+        JSON.stringify(storyComposition(initial.composition));
     this.props.viewState.setStoryHasUnsavedChanges(Boolean(dirty));
   }
 
@@ -217,7 +229,53 @@ class StoryEditor extends Component {
     }
   }
 
+  async linkVisualization() {
+    const editor = this.editor;
+    if (
+      !editor ||
+      (!editor.selection.getContent({ format: "text" }).trim() &&
+        !editor.dom.getParent(
+          editor.selection.getNode(),
+          'a[href^="#story-ref-"]'
+        ))
+    ) {
+      this.setState({
+        uploadError: "Select the narrative text to link first."
+      });
+      return;
+    }
+    const bookmark = editor.selection.getBookmark(2, true);
+    const anchor = editor.dom.getParent(
+      editor.selection.getNode(),
+      'a[href^="#story-ref-"]'
+    );
+    const selectedId = anchor?.getAttribute("href")?.replace("#story-ref-", "");
+    const result = await editStoryReference(
+      this.state.composition,
+      this.props.terria.stories,
+      selectedId
+    );
+    if (!result) return;
+    editor.selection.moveToBookmark(bookmark);
+    if (result.reference)
+      editor.execCommand("mceInsertLink", false, {
+        href: "#story-ref-" + result.reference.id
+      });
+    else editor.execCommand("unlink");
+    this.setState({
+      composition: result.composition,
+      compositionDirty: true,
+      text: editor.getContent(),
+      uploadError: null
+    });
+    this.props.viewState.setStoryHasUnsavedChanges(true);
+  }
+
   setupEditor(editor) {
+    editor.ui.registry.addButton("storyreference", {
+      text: "Link visualization",
+      onAction: () => this.linkVisualization()
+    });
     editor.ui.registry.addMenuButton("legend", {
       text: this.props.t("story.editor.legend.insert"),
       fetch: (callback) => {
@@ -303,7 +361,7 @@ class StoryEditor extends Component {
                   this._updateDirty(this.state.title, text);
                 }}
                 terria={this.props.terria}
-                toolbarItems="legend"
+                toolbarItems="legend storyreference"
                 setup={(editor) => {
                   this.editor = editor;
                   this.setupEditor(editor);
@@ -317,6 +375,17 @@ class StoryEditor extends Component {
               />
             </Suspense>
           </div>
+          {this.state.composition && (
+            <StoryCompositionEditor
+              value={this.state.composition}
+              terria={this.props.terria}
+              onReference={() => this.linkVisualization()}
+              onChange={(composition) => {
+                this.setState({ composition, compositionDirty: true });
+                this.props.viewState.setStoryHasUnsavedChanges(true);
+              }}
+            />
+          )}
           {this.state.uploadError && (
             <p role="alert">{this.state.uploadError}</p>
           )}

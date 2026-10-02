@@ -1,3 +1,4 @@
+import { StoryComposition, StoryOptions } from "./StoryComposition";
 import { JsonObject } from "../Core/Json";
 import Result from "../Core/Result";
 import { TerriaErrorSeverity } from "../Core/TerriaError";
@@ -55,6 +56,7 @@ export interface ModelJson extends JsonObject {
 }
 
 export interface StoryData {
+  composition?: StoryComposition;
   title: string;
   text: string;
   id: string;
@@ -75,6 +77,7 @@ export interface InitSourceData {
   catalog?: JsonObject[];
   elements?: Map<string, IElementConfig>;
   stories?: StoryData[];
+  storyOptions?: StoryOptions;
   viewerMode?: ViewModeJson;
   baseMaps?: BaseMapsJson;
   homeCamera?: JsonObject;

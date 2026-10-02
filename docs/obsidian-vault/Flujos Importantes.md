@@ -286,3 +286,13 @@ El bridge applyScene confirma received al recibir la solicitud y complete al ter
 Feature Info usa `featureInfoPanelState.sizeMode = auto|manual`. En automático el contenido tardío (COG, tablas, gráficos, imágenes) puede aumentar el alto hasta el límite del viewport. ResizeObserver ya no convierte la altura inicial del loader en tamaño persistente. El gesto de resize activa manual; el botón de ajuste automático restaura auto. Dimensiones antiguas sin modo se interpretan como manual para conservar las preferencias guardadas. El share conserva modo y posición; la cabecera sigue accesible y el cuerpo tiene scroll.
 
 El contenedor auxiliar de TinyMCE (diálogos de imagen/media/enlaces) usa z-index 100000, por encima del panel StoryBuilder (99999). Antes aparecía detrás del editor y no recibía clics. El popup de edición limita su altura al viewport y permite scroll para mantener Guardar accesible en pantallas pequeñas.
+
+## Composiciones de Stories (2026-10-02)
+
+El editor nativo permite texto + mapa, dashboard, mapa/dashboard, imagen/multimedia y narrativa completa. Guarda `StoryData.composition` opcional, version 1: layout, lado/ancho narrativo, duracion (10 s por defecto, 1–600 s), dashboards, multimedia y referencias con IDs estables. `InitSourceData.storyOptions` conserva Slides/Scroll en shares. Editar texto antiguo no convierte automaticamente su presentacion; elegir una plantilla o crear una referencia si activa la composicion.
+
+El selector `/story-dashboards/picker` pertenece a Pages y devuelve `ckan-story-dashboard-selected`, version 1. Solo se acepta su ventana y el origen actual. Los embeds `/dashboard/<UUID>/embed` conservan el protocolo dashboard v1 y filtros temporales; no se guardan tokens ni HTML de dashboard. Se mantienen hasta tres iframes.
+
+El lector compuesto reserva un espacio para el lienzo Terria existente; no monta un segundo mapa. Aplica snapshots secuencialmente, conserva la ultima solicitud pendiente y no reemplaza el documento narrativo. Una referencia seleccionada en TinyMCE puede aplicar una escena y/o filtros y resaltar un widget; `on_enter` activa la misma referencia al alcanzar el texto. IDs eliminados producen un aviso recuperable.
+
+Reproducir es siempre una accion del lector. Espera confirmacion de los estados visuales, admite pausa y duracion por escena, se pausa al navegar o esconder la pestaña y se detiene al final. El desplazamiento conserva navegacion manual. Las URLs de imagen usan la biblioteca CKAN; video admite YouTube/Vimeo y archivos de video/audio.

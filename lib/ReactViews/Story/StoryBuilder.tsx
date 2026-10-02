@@ -157,6 +157,7 @@ class StoryBuilder extends Component<
   onSave(_story: StoryData) {
     const story = {
       title: _story.title,
+      composition: _story.composition,
       text: _story.text,
       id: _story.id ? _story.id : createGuid()
     };

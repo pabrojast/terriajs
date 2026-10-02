@@ -119,3 +119,9 @@ En dev comprobar guardar/recargar imágenes con sesión CKAN, error y reintento,
 ## Biblioteca de imagenes (2026-10-01)
 
 `StoryImageLibrarySpec.ts` comprueba origen, ventana emisora y cancelacion del selector. Ejecutar junto a `StoryImageUploadSpec.ts` y `StoryPanel/StoryBodySpec.tsx` en Karma. Compilar TerriaMap con la revision de esta biblioteca. La comprobacion integrada requiere CKAN del mismo origen y una sesion real: subir, insertar desde biblioteca, guardar/recargar y abrir el share sin sesion; probar ademas expiracion/reintento y 390 px.
+
+## Composiciones de Stories
+
+`StoryCompositionSpec.ts` cubre cola de escenas y solicitudes superadas, recuperacion, medios seguros, filtros y ventana/origen del selector de dashboards. Ejecutar junto a los specs de imagenes y StoryBody en Chromium; `tsc --noEmit --skipLibCheck` y ESLint sobre los archivos cambiados comprueban los contratos.
+
+La validacion integrada requiere CKAN y TerriaMap del mismo origen. Comprobar crear/guardar/reabrir una composicion, compartirla, importar sus escenas en CKAN, activar referencias y filtros, recapturar COG series, pausa/final y Scroll/Slides. Revisar escritorio y 390 px, el tamaño efectivo del mapa y que volver a un dashboard conserve su iframe. El modo anterior sin `composition` debe mantener su panel y dimensiones.

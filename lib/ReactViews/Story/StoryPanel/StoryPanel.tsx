@@ -1,3 +1,4 @@
+import ComposedStoryPanel from "./ComposedStoryPanel";
 import classNames from "classnames";
 import { runInAction } from "mobx";
 import { observer } from "mobx-react";
@@ -124,6 +125,7 @@ class StoryPanel extends Component<Props, State> {
     ) {
       this.props.viewState.currentStoryId = 0;
     }
+    if (stories.some((story) => story.composition?.version === 1)) return;
     this.activateStory(stories[this.props.viewState.currentStoryId]);
 
     this.slideIn();
@@ -232,6 +234,9 @@ class StoryPanel extends Component<Props, State> {
 
   render() {
     const stories = this.props.viewState.terria.stories || [];
+
+    if (stories.some((story) => story.composition?.version === 1))
+      return <ComposedStoryPanel />;
 
     // Use the new draggable component if stories exist
     if (stories.length > 0) {

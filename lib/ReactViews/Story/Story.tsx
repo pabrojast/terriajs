@@ -1,3 +1,4 @@
+import type { StoryComposition } from "../../Models/StoryComposition";
 import classNames from "classnames";
 import {
   RefObject,
@@ -19,6 +20,7 @@ import Text, { TextSpan } from "../../Styled/Text";
 import parseCustomHtmlToReact from "../Custom/parseCustomHtmlToReact";
 
 export interface Story {
+  composition?: StoryComposition;
   title: string;
   text: string;
   id: string;

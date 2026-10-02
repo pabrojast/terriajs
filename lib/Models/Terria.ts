@@ -1,3 +1,4 @@
+import { StoryOptions } from "./StoryComposition";
 import i18next from "i18next";
 import {
   action,
@@ -692,6 +693,10 @@ export default class Terria {
   @observable depthTestAgainstTerrainEnabled = false;
 
   @observable stories: StoryData[] = [];
+  @observable storyOptions: StoryOptions = {
+    version: 1,
+    displayMode: "slides"
+  };
   @observable storyPromptShown: number = 0; // Story Prompt modal will be rendered when this property changes. See StandardUserInterface, section regarding sui.notifications. Ideally move this to ViewState.
 
   /**
@@ -1839,6 +1844,13 @@ export default class Terria {
     // Add stories
     if (Array.isArray(initData.stories)) {
       this.stories = initData.stories;
+      this.storyOptions = {
+        version: 1,
+        displayMode:
+          initData.storyOptions?.displayMode === "storymap"
+            ? "storymap"
+            : "slides"
+      };
       this.storyPromptShown++;
     }
 
