@@ -296,3 +296,7 @@ El selector `/story-dashboards/picker` pertenece a Pages y devuelve `ckan-story-
 El lector compuesto reserva un espacio para el lienzo Terria existente; no monta un segundo mapa. Aplica snapshots secuencialmente, conserva la ultima solicitud pendiente y no reemplaza el documento narrativo. Una referencia seleccionada en TinyMCE puede aplicar una escena y/o filtros y resaltar un widget; `on_enter` activa la misma referencia al alcanzar el texto. IDs eliminados producen un aviso recuperable.
 
 Reproducir es siempre una accion del lector. Espera confirmacion de los estados visuales, admite pausa y duracion por escena, se pausa al navegar o esconder la pestaña y se detiene al final. El desplazamiento conserva navegacion manual. Las URLs de imagen usan la biblioteca CKAN; video admite YouTube/Vimeo y archivos de video/audio.
+
+### Lectura de composiciones en movil (2026-10-02)
+
+El lector compuesto usa controles de al menos 44 px, selector de capitulo en una fila propia en movil y texto con ancho legible. En las plantillas de imagen/multimedia, texto y medios comparten el desplazamiento vertical movil para evitar un panel vacio. Los videos usan controles nativos, `playsInline` y precarga de metadatos; cambiar de capitulo o modo pausa los medios nativos. Los embeds externos conservan sus propios controles.

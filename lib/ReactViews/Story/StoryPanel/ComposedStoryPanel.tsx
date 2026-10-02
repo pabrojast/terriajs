@@ -28,6 +28,7 @@ const Reader = styled.section`
   pointer-events: none;
   color: #17364d;
   font-size: 16px;
+  line-height: 1.6;
   &,
   * {
     box-sizing: border-box;
@@ -38,8 +39,9 @@ const Reader = styled.section`
     color: #17364d;
     background: white;
     border: 1px solid #8aa4b6;
-    border-radius: 4px;
-    padding: 8px;
+    border-radius: 8px;
+    min-height: 44px;
+    padding: 8px 12px;
     cursor: pointer;
   }
   button:focus-visible,
@@ -54,16 +56,33 @@ const Reader = styled.section`
   }
   nav {
     flex: 0 0 auto;
-    padding: 8px;
+    padding: 12px 20px;
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     gap: 8px;
     background: white;
     pointer-events: auto;
+    border-bottom: 1px solid #dce6ec;
+    box-shadow: 0 2px 12px #17364d0d;
   }
   nav select {
-    max-width: 30vw;
+    max-width: 100%;
+    min-width: 0;
+  }
+  nav select[aria-label="Choose chapter"] {
+    flex: 1;
+    max-width: 520px;
+    min-width: 180px;
+    font-weight: 600;
+  }
+  nav button[aria-pressed="true"] {
+    color: white;
+    background: #0069aa;
+  }
+  nav button:hover:not(:disabled) {
+    border-color: #0069aa;
+    box-shadow: 0 0 0 1px #0069aa;
   }
   .story-composition-columns {
     display: flex;
@@ -76,10 +95,34 @@ const Reader = styled.section`
     overflow-y: auto;
     background: white;
     pointer-events: auto;
-    padding: 16px;
+    padding: clamp(20px, 3vw, 48px);
+    scrollbar-gutter: stable;
   }
   .story-composition-narrative article {
     scroll-margin: 12px;
+    max-width: 72ch;
+    margin-inline: auto;
+    overflow-wrap: anywhere;
+  }
+  .story-composition-narrative h2 {
+    margin: 0 0 20px;
+    font-size: clamp(24px, 2.2vw, 36px);
+    line-height: 1.2;
+    letter-spacing: -0.02em;
+    color: #005a91;
+  }
+  .story-composition-narrative article > div {
+    padding: 0;
+    overflow: visible;
+    max-height: none;
+  }
+  .story-composition-narrative p {
+    margin: 0 0 16px;
+  }
+  .story-composition-narrative a {
+    color: #0069aa;
+    text-decoration: underline;
+    text-underline-offset: 3px;
   }
   .story-composition-narrative article[data-active="false"] {
     border-top: 1px solid #ccd9e2;
@@ -105,14 +148,28 @@ const Reader = styled.section`
   .story-composition-media {
     background: white;
     pointer-events: auto;
-    padding: 8px;
+    padding: 16px;
     overflow: auto;
+    border-left: 1px solid #dce6ec;
   }
   .story-composition-media img,
   .story-composition-media video {
     max-width: 100%;
     max-height: 65vh;
     object-fit: contain;
+    display: block;
+    margin-inline: auto;
+    border-radius: 8px;
+  }
+  .story-composition-media audio {
+    width: 100%;
+    max-width: 100%;
+  }
+  figcaption {
+    color: #466173;
+    font-size: 14px;
+    line-height: 1.5;
+    margin-top: 12px;
   }
   .story-composition-media iframe {
     width: 100%;
@@ -154,11 +211,33 @@ const Reader = styled.section`
     }
     nav {
       font-size: 13px;
-      gap: 4px;
+      gap: 6px;
+      padding: 8px;
     }
     nav button,
     nav select {
-      padding: 6px;
+      padding: 6px 8px;
+    }
+    nav select[aria-label="Choose chapter"] {
+      flex-basis: 100%;
+      order: -1;
+      max-width: none;
+    }
+    .story-composition-narrative {
+      padding: 24px 20px;
+    }
+    &[data-layout="media"] .story-composition-columns {
+      overflow-y: auto;
+    }
+    &[data-layout="media"] .story-composition-narrative,
+    &[data-layout="media"] .story-composition-visuals {
+      flex: 0 0 auto;
+      overflow: visible;
+    }
+    &[data-layout="media"] .story-composition-media {
+      overflow: visible;
+      padding: 0 20px 24px;
+      border: 0;
     }
   }
   @media (prefers-reduced-motion: reduce) {
@@ -233,6 +312,11 @@ const ComposedStoryPanel = observer(function ComposedStoryPanel() {
   const mapSlot = useRef<HTMLDivElement>(null);
   const generation = useRef(0);
   const activeParagraph = useRef<Element | null>(null);
+  useEffect(() => {
+    root.current
+      ?.querySelectorAll<HTMLMediaElement>("video, audio")
+      .forEach((media) => media.pause());
+  }, [index, mode]);
   const sceneQueue = useMemo(
     () =>
       nativeSceneCoordinator(async (scene) => {
@@ -711,9 +795,9 @@ function StoryMediaContent({
               allowFullScreen
             />
           ) : /\.(mp3|wav|ogg)(\?|$)/i.test(m.url) ? (
-            <audio controls src={m.url} />
+            <audio controls preload="metadata" src={m.url} />
           ) : (
-            <video controls src={m.url} />
+            <video controls playsInline preload="metadata" src={m.url} />
           )}
           <figcaption>{m.title}</figcaption>
         </figure>
