@@ -566,9 +566,22 @@ const ComposedStoryPanel = observer(function ComposedStoryPanel() {
           'a[href^="#story-ref-"]'
         ) || [])
       ];
-      const anchor = anchors
-        .filter((el) => el.getBoundingClientRect().top <= top)
-        .pop();
+      const bounds = container.getBoundingClientRect();
+      const visibleReferences = anchors.filter((el) => {
+        const rect = el.getBoundingClientRect();
+        return (
+          rect.bottom >= bounds.top &&
+          rect.top < bounds.bottom &&
+          composition.references.some(
+            (r) =>
+              r.on_enter && el.getAttribute("href") === "#story-ref-" + r.id
+          )
+        );
+      });
+      const anchor =
+        visibleReferences
+          .filter((el) => el.getBoundingClientRect().top <= top)
+          .pop() || visibleReferences[0];
       if (anchor && activeParagraph.current !== anchor) {
         activeParagraph.current = anchor;
         const ref = composition.references.find(
