@@ -75,6 +75,29 @@ Los pins y la evidencia del despliegue viven en
 La CI de publicacion detecto una directiva ESLint obsoleta en `chartJsExport.ts`;
 se elimina solo ese comentario, sin cambios en el comportamiento compilado.
 
+## Editor editorial de Stories en DEV (2026-10-02)
+
+TerriaJS `338ed1c72497e970644b12884d6378056704e32c` esta publicado en
+`dev/cog-series`. TerriaMap `64c116162be77259e787b9a3680e66d5b7a38cca`, publicado
+en `dev`, fija esa revision. El workflow oficial de `ckan-unesco-docker`
+[`deploy-terria-dev.yml`, run 37082491233](https://github.com/pabrojast/ckan-unesco-docker/actions/runs/37082491233)
+compilo y desplego la imagen `pabrojast/terriamap:20261002213229-64c1161`, digest
+`sha256:7c88d555d6b23de77e92d79f399b66bbb30d22dc3031872775c561b44205a0d4`.
+
+Contexto `default`, namespace `ckan`, deployment `terria-terriamap`: pod
+`terria-terriamap-6c548f4cb4-ts5zj` 1/1 Ready, sin reinicios. La especificacion
+del pod antes/despues es identica salvo la imagen. El alcance es Terria DEV;
+no se desplegaron CKAN ni produccion. El run anterior `37081898404` se cancelo
+antes de Helm para incluir la normalizacion del borrador y retorno de foco.
+
+La prueba de navegador contra [DEV](https://data.dev-wins.com/terria/) confirma
+la version `64c1161`, creacion/guardado/reapertura, formato clasico inicial,
+conversion sin perder texto, descarte y retorno de foco. Ambos formatos se
+revisaron a 1440×900, 1366×768 y 1024×600 con acciones visibles y sin
+desbordamiento horizontal. Ver [[Testing]] y la
+[guia de demo](https://github.com/pabrojast/ckan-unesco-docker/blob/miserver-2.10/docs/story-showcase-dev.md)
+para alcance y limitaciones de las verificaciones.
+
 ## Vacios detectados
 
 - `server-side-config.md` en `doc/customizing/` dice "Coming soon!".
