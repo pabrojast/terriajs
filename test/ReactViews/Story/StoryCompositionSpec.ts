@@ -1,3 +1,4 @@
+import i18next from "i18next";
 import {
   dashboardState,
   storyComposition,
@@ -168,7 +169,9 @@ describe("Story compositions", function () {
   it("accepts dashboard selection only from the same-origin picker window", async function () {
     const result = chooseStoryDashboard();
     const dialog = document.querySelector(
-      'dialog[aria-label="Choose a dashboard"]'
+      `dialog[aria-label="${i18next.t(
+        "story.editor.design.chooseDashboardTitle"
+      )}"]`
     )!;
     const frame = dialog.querySelector("iframe")!;
     const dashboard = {

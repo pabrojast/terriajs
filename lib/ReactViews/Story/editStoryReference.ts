@@ -1,3 +1,6 @@
+import i18next from "i18next";
+import createStoryDialog from "./createStoryDialog";
+import Styles from "./story-editor.scss";
 import createGuid from "terriajs-cesium/Source/Core/createGuid";
 import { StoryData } from "../../Models/InitSource";
 import {
@@ -18,24 +21,26 @@ export default async function editStoryReference(
 > {
   const old = composition.references.find((r) => r.id === selectedId);
   return new Promise((resolve) => {
-    const dialog = document.createElement("dialog");
-    dialog.setAttribute("aria-label", "Link visualization");
-    dialog.style.cssText =
-      "width:min(680px,94vw);padding:24px;border-radius:8px;background:white;color:#17364d;z-index:100001";
-    const heading = document.createElement("h2");
-    heading.textContent = "Link visualization";
+    const tr = (key: string) => i18next.t(`story.editor.design.${key}`);
+    const previousFocus = document.activeElement;
+    const { dialog, body, close } = createStoryDialog(tr("linkVisualization"));
+    const label = (text: string, control: HTMLElement) => {
+      const el = document.createElement("label");
+      el.append(text, control);
+      return el;
+    };
     const scene = document.createElement("select");
-    scene.setAttribute("aria-label", "Map scene");
-    scene.append(new Option("Keep current map", ""));
+    scene.setAttribute("aria-label", tr("mapScene"));
+    scene.append(new Option(tr("keepMap"), ""));
     stories.forEach((s) => scene.append(new Option(s.title, s.id)));
     scene.value = old?.scene_id || "";
     if (old?.scene_id && !stories.some((s) => s.id === old.scene_id))
       scene.append(
-        new Option("Unavailable saved scene", old.scene_id, true, true)
+        new Option(tr("unavailableScene"), old.scene_id, true, true)
       );
     const dashboard = document.createElement("select");
-    dashboard.setAttribute("aria-label", "Dashboard");
-    dashboard.append(new Option("Keep current dashboard", ""));
+    dashboard.setAttribute("aria-label", tr("dashboard"));
+    dashboard.append(new Option(tr("keepDashboard"), ""));
     composition.dashboards.forEach((d) =>
       dashboard.append(new Option(d.title, d.id))
     );
@@ -44,7 +49,8 @@ export default async function editStoryReference(
     enter.type = "checkbox";
     enter.checked = !!old?.on_enter;
     const enterLabel = document.createElement("label");
-    enterLabel.append(enter, " Also activate when this paragraph is reached");
+    enterLabel.className = Styles.checkLabel;
+    enterLabel.append(enter, tr("onEnter"));
     const status = document.createElement("p");
     status.setAttribute("role", "status");
     let chosen: StoryDashboard | undefined;
@@ -53,8 +59,10 @@ export default async function editStoryReference(
       composition.dashboards.find((d) => d.id === dashboard.value)?.state ||
       emptyDashboardState();
     const stateSummary = () => {
-      status.textContent =
-        state.filters.length + " filters; " + (state.widgetId || "all charts");
+      status.textContent = i18next.t("story.editor.design.referenceSummary", {
+        count: state.filters.length,
+        widget: state.widgetId || tr("allCharts")
+      });
     };
     dashboard.onchange = () => {
       state =
@@ -68,22 +76,23 @@ export default async function editStoryReference(
     }) => {
       dialog.close();
       dialog.remove();
+      if (previousFocus instanceof HTMLElement) previousFocus.focus();
       resolve(result);
     };
     const button = (text: string, action: () => void) => {
       const node = document.createElement("button");
       node.type = "button";
       node.textContent = text;
-      node.style.cssText =
-        "padding:10px;margin:8px;border:1px solid #abc;border-radius:4px";
+      node.className =
+        text === tr("apply") ? Styles.primaryButton : Styles.secondaryButton;
       node.onclick = action;
       return node;
     };
-    dialog.append(
-      heading,
-      scene,
-      dashboard,
-      button("Choose dashboard and filters", async () => {
+    close.onclick = () => finish();
+    body.append(
+      label(tr("mapScene"), scene),
+      label(tr("dashboard"), dashboard),
+      button(tr("chooseFilters"), async () => {
         const result = await chooseStoryDashboard();
         if (!result) return;
         const existing = composition.dashboards.find(
@@ -98,9 +107,9 @@ export default async function editStoryReference(
       }),
       status,
       enterLabel,
-      button("Apply", () => {
+      button(tr("apply"), () => {
         if (!scene.value && !dashboard.value) {
-          status.textContent = "Choose a map scene or dashboard.";
+          status.textContent = tr("chooseTarget");
           return;
         }
         const reference: StoryReference = {
@@ -125,11 +134,11 @@ export default async function editStoryReference(
           }
         });
       }),
-      button("Cancel", () => finish())
+      button(tr("cancel"), () => finish())
     );
     if (old)
-      dialog.append(
-        button("Remove reference", () =>
+      body.append(
+        button(tr("removeReference"), () =>
           finish({
             composition: {
               ...composition,

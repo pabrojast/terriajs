@@ -1,5 +1,5 @@
 import { useState } from "react";
-import styled from "styled-components";
+import { useTranslation } from "react-i18next";
 import createGuid from "terriajs-cesium/Source/Core/createGuid";
 import Terria from "../../Models/Terria";
 import {
@@ -10,329 +10,400 @@ import {
 } from "../../Models/StoryComposition";
 import { chooseStoryImage } from "../Generic/storyImageLibrary";
 import chooseStoryDashboard from "./chooseStoryDashboard";
+import StoryLayoutPreview from "./StoryLayoutPreview";
+import Styles from "./story-editor.scss";
 
-const Editor = styled.fieldset`
-  color: white;
-  border: 1px solid #789;
-  border-radius: 8px;
-  padding: 12px;
-  margin: 12px 0;
-  label {
-    max-width: 100%;
-    display: inline-flex;
-    flex-direction: column;
-    gap: 4px;
-    margin: 6px;
-  }
-  input,
-  select,
-  button {
-    max-width: 100%;
-    color: #172e40;
-    background: white;
-    padding: 8px;
-    border: 1px solid #abc;
-    border-radius: 4px;
-  }
-  button {
-    cursor: pointer;
-    margin: 4px;
-  }
-  ul {
-    padding: 0;
-    list-style: none;
-  }
-  li {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 6px;
-  }
-`;
-const templates = [
-  ["map", "Text + map"],
-  ["dashboard", "Text + dashboard"],
-  ["combined", "Text + map and dashboard"],
-  ["media", "Text + image / multimedia"],
-  ["full", "Narrative"],
-  ["auto", "Automatic"]
+const templates: StoryComposition["layout"][] = [
+  "map",
+  "dashboard",
+  "combined",
+  "media",
+  "full",
+  "auto"
 ];
 
 export default function StoryCompositionEditor({
   value,
   onChange,
   onReference,
-  terria
+  terria,
+  disabled = false
 }: {
   value: StoryComposition;
   onChange: (value: StoryComposition) => void;
   onReference: () => void;
   terria: Terria;
+  disabled?: boolean;
 }) {
+  const { t } = useTranslation();
+  const tr = (key: string) => t(`story.editor.design.${key}`);
   const [error, setError] = useState("");
   const [url, setUrl] = useState("");
   const [kind, setKind] = useState<"image" | "media">("image");
+  const [addingUrl, setAddingUrl] = useState(false);
+  const [busy, setBusy] = useState(false);
   const change = (patch: Partial<StoryComposition>) =>
     onChange({ ...value, ...patch });
   const addMedia = (media: StoryMedia) =>
     change({ media: [...value.media, media] });
-  async function addDashboard() {
+  async function choose(type: "dashboard" | "image") {
+    const trigger = document.activeElement;
+    setBusy(true);
     try {
-      const d = await chooseStoryDashboard();
-      if (d) change({ dashboards: [...value.dashboards, d] });
+      if (type === "dashboard") {
+        const d = await chooseStoryDashboard();
+        if (d) change({ dashboards: [...value.dashboards, d] });
+      } else {
+        const image = await chooseStoryImage(
+          terria.configParameters.storyImageLibraryUrl ||
+            "/story-images/library"
+        );
+        if (image)
+          addMedia({
+            id: createGuid(),
+            type: "image",
+            url: image.url,
+            alt: image.alt,
+            title: image.caption
+          });
+      }
       setError("");
     } catch (e) {
       setError(String(e));
+    } finally {
+      setBusy(false);
+      // The picker closes before React re-enables its trigger.
+      requestAnimationFrame(() => {
+        if (trigger instanceof HTMLElement && trigger.isConnected)
+          trigger.focus();
+      });
     }
   }
-  async function addImage() {
-    try {
-      const image = await chooseStoryImage(
-        terria.configParameters.storyImageLibraryUrl || "/story-images/library"
-      );
-      if (image)
-        addMedia({
-          id: createGuid(),
-          type: "image",
-          url: image.url,
-          alt: image.alt,
-          title: image.caption
-        });
-      setError("");
-    } catch (e) {
-      setError(String(e));
+  const move = (key: "media" | "dashboards", index: number, offset: number) => {
+    if (key === "media") {
+      const items = [...value.media];
+      [items[index], items[index + offset]] = [
+        items[index + offset],
+        items[index]
+      ];
+      change({ media: items });
+    } else {
+      const items = [...value.dashboards];
+      [items[index], items[index + offset]] = [
+        items[index + offset],
+        items[index]
+      ];
+      change({ dashboards: items });
     }
-  }
-  return (
-    <Editor>
-      <legend>Composition</legend>
-      <label>
-        Template
-        <select
-          value={value.layout}
-          onChange={(e) =>
-            change({ layout: e.target.value as StoryComposition["layout"] })
-          }
-        >
-          {templates.map(([id, label]) => (
-            <option key={id} value={id}>
-              {label}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label>
-        Text position
-        <select
-          value={value.text_side}
-          onChange={(e) =>
-            change({ text_side: e.target.value as "left" | "right" })
-          }
-        >
-          <option value="left">Left</option>
-          <option value="right">Right</option>
-        </select>
-      </label>
-      <label>
-        Text width
-        <select
-          value={value.text_width}
-          onChange={(e) =>
-            change({ text_width: Number(e.target.value) as 35 | 50 | 65 })
-          }
-        >
-          <option value="35">One third</option>
-          <option value="50">Half</option>
-          <option value="65">Two thirds</option>
-        </select>
-      </label>
-      <label>
-        Slide duration (seconds)
-        <input
-          type="number"
-          min={1}
-          max={600}
-          value={value.duration}
-          onChange={(e) =>
-            change({
-              duration: Math.max(1, Math.min(600, Number(e.target.value) || 10))
-            })
-          }
-        />
-      </label>
-      <div
-        aria-label="Template preview"
-        style={{
-          display: "flex",
-          flexDirection: value.text_side === "right" ? "row-reverse" : "row",
-          gap: 6,
-          height: 65,
-          margin: 8
-        }}
-      >
-        <span
-          style={{
-            background: "#dbeef6",
-            color: "#17364d",
-            padding: 12,
-            width: value.layout === "full" ? "100%" : value.text_width + "%"
-          }}
-        >
-          Narrative
-        </span>
-        {value.layout !== "full" && (
-          <span
-            style={{
-              background: "#c5e4d5",
-              color: "#17364d",
-              padding: 12,
-              flex: 1
-            }}
-          >
-            {templates
-              .find(([id]) => id === value.layout)?.[1]
-              .replace("Text + ", "")}
-          </span>
-        )}
-      </div>
-      <button type="button" onClick={addDashboard}>
-        Choose CKAN dashboard
-      </button>
-      <button type="button" onClick={onReference}>
-        Link selected narrative text
-      </button>
-      <ul>
-        {value.dashboards.map((d, i) => (
-          <li key={d.id}>
-            <span>{d.title}</span>
-            <button
-              type="button"
-              onClick={() =>
-                change({
-                  dashboards: value.dashboards.filter((_, j) => j !== i)
-                })
-              }
-            >
-              Remove dashboard
-            </button>
-            <button
-              type="button"
-              disabled={!i}
-              onClick={() => {
-                const next = [...value.dashboards];
-                [next[i - 1], next[i]] = [next[i], next[i - 1]];
-                change({ dashboards: next });
-              }}
-            >
-              Move up
-            </button>
-          </li>
-        ))}
-      </ul>
-      <button type="button" onClick={addImage}>
-        My images
-      </button>
-      <label>
-        Media type
-        <select
-          value={kind}
-          onChange={(e) => setKind(e.target.value as "image" | "media")}
-        >
-          <option value="image">Image</option>
-          <option value="media">Video / audio</option>
-        </select>
-      </label>
-      <label>
-        Media URL
-        <input
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
-          placeholder="https://…"
-        />
-      </label>
+  };
+  const actions = (key: "media" | "dashboards", index: number) => (
+    <div className={Styles.cardActions}>
       <button
         type="button"
-        onClick={() => {
-          const safe = safeMediaUrl(url);
-          if (
-            !safe ||
-            (kind === "media" &&
-              !videoEmbedUrl(safe) &&
-              !/\.(mp4|webm|ogg|mp3|wav)(\?|$)/i.test(safe))
-          ) {
-            setError(
-              "Use an image URL, YouTube/Vimeo link or a direct video/audio file."
-            );
-            return;
-          }
-          addMedia({ id: createGuid(), type: kind, url: safe, title: "" });
-          setUrl("");
-          setError("");
-        }}
+        className={Styles.secondaryButton}
+        disabled={!index}
+        onClick={() => move(key, index, -1)}
       >
-        Add media
+        {tr("moveUp")}
       </button>
-      <ul>
-        {value.media.map((m, i) => (
-          <li key={m.id}>
-            <span>{m.type}</span>
-            <label>
-              Caption
+      <button
+        type="button"
+        className={Styles.secondaryButton}
+        disabled={index === value[key].length - 1}
+        onClick={() => move(key, index, 1)}
+      >
+        {tr("moveDown")}
+      </button>
+      <button
+        type="button"
+        className={Styles.secondaryButton}
+        onClick={() =>
+          key === "media"
+            ? change({ media: value.media.filter((_, i) => i !== index) })
+            : change({
+                dashboards: value.dashboards.filter((_, i) => i !== index)
+              })
+        }
+      >
+        {tr("remove")}
+      </button>
+    </div>
+  );
+  return (
+    <fieldset
+      className={Styles.section}
+      disabled={disabled || busy}
+      aria-label={tr("compositionSettings")}
+    >
+      <fieldset className={Styles.section}>
+        <legend>{tr("layout")}</legend>
+        <div className={Styles.templateChoices}>
+          {templates.map((layout) => (
+            <label
+              key={layout}
+              className={Styles.choice}
+              data-selected={value.layout === layout}
+            >
               <input
-                value={m.title}
-                onChange={(e) =>
-                  change({
-                    media: value.media.map((item) =>
-                      item.id === m.id
-                        ? { ...item, title: e.target.value }
-                        : item
-                    )
-                  })
-                }
+                type="radio"
+                name="story-layout"
+                value={layout}
+                checked={value.layout === layout}
+                onChange={() => change({ layout })}
               />
+              <StoryLayoutPreview
+                layout={layout}
+                side={value.text_side}
+                width={value.text_width}
+              />
+              <strong>{tr(`templates.${layout}`)}</strong>
             </label>
-            {m.type === "image" && (
-              <label>
-                Alternative text
+          ))}
+        </div>
+        {value.layout !== "full" && (
+          <div className={Styles.controlGrid}>
+            <label className={Styles.control}>
+              {tr("textPosition")}
+              <select
+                value={value.text_side}
+                onChange={(e) =>
+                  change({ text_side: e.target.value as "left" | "right" })
+                }
+              >
+                <option value="left">{tr("left")}</option>
+                <option value="right">{tr("right")}</option>
+              </select>
+            </label>
+            <label className={Styles.control}>
+              {tr("textWidth")}
+              <select
+                value={value.text_width}
+                onChange={(e) =>
+                  change({ text_width: Number(e.target.value) as 35 | 50 | 65 })
+                }
+              >
+                <option value="35">{tr("third")}</option>
+                <option value="50">{tr("half")}</option>
+                <option value="65">{tr("twoThirds")}</option>
+              </select>
+            </label>
+          </div>
+        )}
+      </fieldset>
+      <details className={Styles.resourceSection} open>
+        <summary>
+          {tr("dashboards")} · {value.dashboards.length}
+        </summary>
+        <div className={Styles.resourceBody}>
+          {!value.dashboards.length && (
+            <p className={Styles.hint}>{tr("dashboardEmpty")}</p>
+          )}
+          <ul className={Styles.resourceList}>
+            {value.dashboards.map((d, i) => (
+              <li key={d.id} className={Styles.resourceCard}>
+                <div className={Styles.resourceIdentity}>
+                  <span className={Styles.resourceBadge} aria-hidden="true">
+                    ▥
+                  </span>
+                  <div>
+                    <h4>{d.title}</h4>
+                    <p className={Styles.hint}>
+                      {t("story.editor.design.filterCount", {
+                        count: d.state.filters.length
+                      })}
+                    </p>
+                  </div>
+                </div>
+                {actions("dashboards", i)}
+              </li>
+            ))}
+          </ul>
+          <button
+            type="button"
+            className={Styles.secondaryButton}
+            onClick={() => choose("dashboard")}
+          >
+            {tr("chooseDashboard")}
+          </button>
+        </div>
+      </details>
+      <details className={Styles.resourceSection} open>
+        <summary>
+          {tr("media")} · {value.media.length}
+        </summary>
+        <div className={Styles.resourceBody}>
+          {!value.media.length && (
+            <p className={Styles.hint}>{tr("mediaEmpty")}</p>
+          )}
+          <ul className={Styles.resourceList}>
+            {value.media.map((m, i) => (
+              <li key={m.id} className={Styles.resourceCard}>
+                <div className={Styles.resourceIdentity}>
+                  {m.type === "image" ? (
+                    <img
+                      src={m.url}
+                      alt=""
+                      loading="lazy"
+                      onError={(event) => {
+                        event.currentTarget.hidden = true;
+                      }}
+                    />
+                  ) : (
+                    <span className={Styles.resourceBadge} aria-hidden="true">
+                      ▷
+                    </span>
+                  )}
+                  <h4>
+                    {m.title || tr(m.type === "image" ? "image" : "videoAudio")}
+                  </h4>
+                </div>
+                <label className={Styles.control}>
+                  {tr("caption")}
+                  <input
+                    value={m.title}
+                    onChange={(e) =>
+                      change({
+                        media: value.media.map((item) =>
+                          item.id === m.id
+                            ? { ...item, title: e.target.value }
+                            : item
+                        )
+                      })
+                    }
+                  />
+                </label>
+                {m.type === "image" && (
+                  <label className={Styles.control}>
+                    {tr("alt")}
+                    <input
+                      value={m.alt || ""}
+                      onChange={(e) =>
+                        change({
+                          media: value.media.map((item) =>
+                            item.id === m.id
+                              ? { ...item, alt: e.target.value }
+                              : item
+                          )
+                        })
+                      }
+                    />
+                  </label>
+                )}
+                {actions("media", i)}
+              </li>
+            ))}
+          </ul>
+          <button
+            type="button"
+            className={Styles.secondaryButton}
+            onClick={() => choose("image")}
+          >
+            {tr("myImages")}
+          </button>
+          <button
+            type="button"
+            className={Styles.secondaryButton}
+            aria-expanded={addingUrl}
+            onClick={() => setAddingUrl(!addingUrl)}
+          >
+            {tr("addUrl")}
+          </button>
+          {addingUrl && (
+            <div className={Styles.urlForm}>
+              <label className={Styles.control}>
+                {tr("mediaType")}
+                <select
+                  value={kind}
+                  onChange={(e) => setKind(e.target.value as "image" | "media")}
+                >
+                  <option value="image">{tr("image")}</option>
+                  <option value="media">{tr("videoAudio")}</option>
+                </select>
+              </label>
+              <label className={Styles.control}>
+                {tr("mediaUrl")}
                 <input
-                  value={m.alt || ""}
-                  onChange={(e) =>
-                    change({
-                      media: value.media.map((item) =>
-                        item.id === m.id
-                          ? { ...item, alt: e.target.value }
-                          : item
-                      )
-                    })
-                  }
+                  type="url"
+                  value={url}
+                  onChange={(e) => setUrl(e.target.value)}
+                  placeholder="https://…"
                 />
               </label>
-            )}
-            <button
-              type="button"
-              onClick={() =>
+              <button
+                type="button"
+                className={Styles.secondaryButton}
+                onClick={() => {
+                  const safe = safeMediaUrl(url);
+                  if (
+                    !url.trim() ||
+                    !safe ||
+                    (kind === "media" &&
+                      !videoEmbedUrl(safe) &&
+                      !/\.(mp4|webm|ogg|mp3|wav)(\?|$)/i.test(safe))
+                  ) {
+                    setError(tr("invalidMedia"));
+                    return;
+                  }
+                  addMedia({
+                    id: createGuid(),
+                    type: kind,
+                    url: safe,
+                    title: ""
+                  });
+                  setUrl("");
+                  setError("");
+                  setAddingUrl(false);
+                }}
+              >
+                {tr("addMedia")}
+              </button>
+            </div>
+          )}
+        </div>
+      </details>
+      <details className={Styles.resourceSection}>
+        <summary>
+          {tr("references")} · {value.references.length}
+        </summary>
+        <div className={Styles.resourceBody}>
+          <p className={Styles.hint}>{tr("referenceHint")}</p>
+          <button
+            type="button"
+            className={Styles.secondaryButton}
+            onClick={onReference}
+          >
+            {tr("linkVisualization")}
+          </button>
+        </div>
+      </details>
+      <details className={Styles.resourceSection}>
+        <summary>{tr("playback")}</summary>
+        <div className={Styles.resourceBody}>
+          <p className={Styles.hint}>{tr("playbackHint")}</p>
+          <label className={Styles.control}>
+            {tr("duration")}
+            <input
+              type="number"
+              min={1}
+              max={600}
+              value={value.duration}
+              onChange={(e) =>
                 change({
-                  media: value.media.filter((item) => item.id !== m.id)
+                  duration: Math.max(
+                    1,
+                    Math.min(600, Number(e.target.value) || 10)
+                  )
                 })
               }
-            >
-              Remove media
-            </button>
-            <button
-              type="button"
-              disabled={!i}
-              onClick={() => {
-                const media = [...value.media];
-                [media[i - 1], media[i]] = [media[i], media[i - 1]];
-                change({ media });
-              }}
-            >
-              Move up
-            </button>
-          </li>
-        ))}
-      </ul>
-      {error && <p role="alert">{error}</p>}
-    </Editor>
+            />
+          </label>
+        </div>
+      </details>
+      {error && (
+        <p className={Styles.error} role="alert">
+          {error}
+        </p>
+      )}
+    </fieldset>
   );
 }

@@ -1,3 +1,5 @@
+import i18next from "i18next";
+import createStoryDialog from "../Story/createStoryDialog";
 export interface StoryLibraryImage {
   id: string;
   url: string;
@@ -18,19 +20,13 @@ export function chooseStoryImage(
   }
   return new Promise((resolve) => {
     const previousFocus = document.activeElement;
-    const dialog = document.createElement("dialog");
-    dialog.setAttribute("aria-label", "My images");
-    dialog.style.cssText =
-      "width:min(950px,calc(100vw - 32px));height:min(750px,calc(100vh - 32px));padding:12px;border:1px solid #aabbc9;border-radius:8px;background:white;z-index:100001";
-    const close = document.createElement("button");
-    close.type = "button";
-    close.textContent = "Close";
-    close.style.cssText =
-      "display:block;padding:8px 16px;margin-bottom:8px;cursor:pointer";
+    const { dialog, body, close } = createStoryDialog(
+      i18next.t("story.editor.design.chooseImageTitle"),
+      true
+    );
     const frame = document.createElement("iframe");
     frame.title = "My images";
     frame.src = url.href;
-    frame.style.cssText = "width:100%;height:calc(100% - 48px);border:0";
     function finish(image?: StoryLibraryImage) {
       window.removeEventListener("message", selected);
       dialog.close();
@@ -70,7 +66,7 @@ export function chooseStoryImage(
       finish();
     });
     window.addEventListener("message", selected);
-    dialog.append(close, frame);
+    body.append(frame);
     document.body.append(dialog);
     dialog.showModal();
   });

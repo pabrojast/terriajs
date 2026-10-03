@@ -1,3 +1,5 @@
+import i18next from "i18next";
+import createStoryDialog from "./createStoryDialog";
 import {
   dashboardState,
   StoryDashboard,
@@ -12,17 +14,13 @@ export default function chooseStoryDashboard(): Promise<
 > {
   return new Promise((resolve) => {
     const previous = document.activeElement;
-    const dialog = document.createElement("dialog");
-    dialog.setAttribute("aria-label", "Choose a dashboard");
-    dialog.style.cssText =
-      "width:min(960px,95vw);height:90dvh;padding:12px;background:white;border:1px solid #abc;border-radius:8px;z-index:100001";
-    const close = document.createElement("button");
-    close.type = "button";
-    close.textContent = "Close";
+    const { dialog, body, close } = createStoryDialog(
+      i18next.t("story.editor.design.chooseDashboardTitle"),
+      true
+    );
     const frame = document.createElement("iframe");
     frame.title = "Choose a dashboard";
     frame.src = "/story-dashboards/picker";
-    frame.style.cssText = "width:100%;height:calc(100% - 40px);border:0";
     const finish = (dashboard?: StoryDashboard) => {
       window.removeEventListener("message", selected);
       dialog.close();
@@ -57,7 +55,7 @@ export default function chooseStoryDashboard(): Promise<
       finish();
     });
     window.addEventListener("message", selected);
-    dialog.append(close, frame);
+    body.append(frame);
     document.body.append(dialog);
     dialog.showModal();
   });

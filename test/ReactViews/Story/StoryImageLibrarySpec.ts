@@ -1,3 +1,4 @@
+import i18next from "i18next";
 import { chooseStoryImage } from "../../../lib/ReactViews/Generic/storyImageLibrary";
 
 describe("Story image library", function () {
@@ -6,12 +7,22 @@ describe("Story image library", function () {
       () => fail("Foreign library must be rejected"),
       (error) => expect(error.message).toContain("IHP portal")
     );
-    expect(document.querySelector('dialog[aria-label="My images"]')).toBeNull();
+    expect(
+      document.querySelector(
+        `dialog[aria-label="${i18next.t(
+          "story.editor.design.chooseImageTitle"
+        )}"]`
+      )
+    ).toBeNull();
   });
 
   it("ignores messages from other windows and closes after a valid selection", async function () {
     const choice = chooseStoryImage("/story-images/library");
-    const dialog = document.querySelector('dialog[aria-label="My images"]')!;
+    const dialog = document.querySelector(
+      `dialog[aria-label="${i18next.t(
+        "story.editor.design.chooseImageTitle"
+      )}"]`
+    )!;
     const frame = dialog.querySelector("iframe")!;
     const image = {
       id: "example",
@@ -49,7 +60,9 @@ describe("Story image library", function () {
     const choice = chooseStoryImage("/story-images/library");
     document
       .querySelector<HTMLButtonElement>(
-        'dialog[aria-label="My images"] button'
+        `dialog[aria-label="${i18next.t(
+          "story.editor.design.chooseImageTitle"
+        )}"] button`
       )!
       .click();
     expect(await choice).toBeUndefined();

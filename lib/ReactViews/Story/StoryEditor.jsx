@@ -5,6 +5,8 @@ import {
 import StoryCompositionEditor from "./StoryCompositionEditor";
 import editStoryReference from "./editStoryReference";
 import { lazy, Component, Suspense } from "react";
+import { createPortal } from "react-dom";
+import StoryLayoutPreview from "./StoryLayoutPreview";
 import PropTypes from "prop-types";
 import classNames from "classnames";
 import Styles from "./story-editor.scss";
@@ -12,9 +14,6 @@ import { withTranslation } from "react-i18next";
 import isDefined from "../../Core/isDefined";
 import { getName } from "../../ModelMixins/CatalogMemberMixin";
 import hasTraits from "../../Models/Definition/hasTraits";
-import Text from "../../Styled/Text";
-import Box from "../../Styled/Box";
-import Button from "../../Styled/Button";
 import LegendOwnerTraits from "../../Traits/TraitsClasses/LegendOwnerTraits";
 import { withViewState } from "../Context";
 
@@ -52,7 +51,7 @@ const buildLegendHtml = (itemId, title) => {
   return `<p><${LEGEND_TAG} data-id="${escapedId}"${titleAttr}></${LEGEND_TAG}></p>`;
 };
 
-class StoryEditor extends Component {
+export class StoryEditor extends Component {
   constructor(props) {
     super(props);
     this.state = {
@@ -62,67 +61,61 @@ class StoryEditor extends Component {
       inView: false
     };
 
-    this.keys = {
-      ctrl: false,
-      enter: false
-    };
-
+    const story = props.story;
+    Object.assign(this.state, {
+      title: story.title || "",
+      text: story.text || "",
+      id: story.id,
+      presentation: storyPresentation(story),
+      composition: storyComposition(story.composition)
+    });
     this.saveStory = this.saveStory.bind(this);
     this.cancelEditing = this.cancelEditing.bind(this);
     this.updateTitle = this.updateTitle.bind(this);
     this.onKeyDown = this.onKeyDown.bind(this);
     this.setupEditor = this.setupEditor.bind(this);
-
-    this.onKeyUp = this.onKeyUp.bind(this);
-    this.slideInTimer = null;
-    this.slideOutTimer = null;
-    this.escKeyListener = null;
-  }
-
-  UNSAFE_componentWillMount() {
-    const story = this.props.story;
-    this.setState({
-      title: story.title,
-      text: story.text,
-      id: story.id,
-      presentation: storyPresentation(story),
-      composition: storyComposition(story.composition)
-    });
+    this.containFocus = this.containFocus.bind(this);
   }
 
   componentDidMount() {
-    this.slideIn();
-  }
-
-  slideIn() {
+    this.mounted = true;
+    this.previousFocus = document.activeElement;
+    document.addEventListener("focusin", this.containFocus);
     this.slideInTimer = setTimeout(() => {
-      this.setState({
-        inView: true
-      });
-
-      this.titleInput.focus();
-    }, 300);
-  }
-
-  slideOut() {
-    this.slideOutTimer = this.setState({
-      inView: false
-    });
-    setTimeout(() => {
-      this.cancelEditing();
-    }, 300);
+      this.setState({ inView: true });
+      this.titleInput?.focus();
+    }, 0);
   }
 
   componentWillUnmount() {
+    this.mounted = false;
     clearTimeout(this.slideInTimer);
-    if (this.slideOutTimer) {
-      clearTimeout(this.slideOutTimer);
+    document.removeEventListener("focusin", this.containFocus);
+    if (this.previousFocus?.isConnected) this.previousFocus.focus();
+  }
+
+  containFocus(event) {
+    // CKAN pickers use the top layer; TinyMCE menus/dialogs use a body portal.
+    if (document.querySelector("dialog[open]")) return;
+    if (event.target.closest?.(".tox-tinymce-aux")) return;
+    const boundary = this.state.discardOpen ? this.discardDialog : this.dialog;
+    if (boundary && !boundary.contains(event.target)) {
+      boundary
+        .querySelector("button:not(:disabled), input, [tabindex='0']")
+        ?.focus();
     }
-    this.setState({
-      title: "",
-      text: "",
-      id: undefined
-    });
+  }
+
+  focusEdge(last) {
+    const boundary = this.state.discardOpen ? this.discardDialog : this.dialog;
+    const items = [
+      ...boundary.querySelectorAll(
+        "button:not(:disabled), input:not(:disabled), select:not(:disabled), iframe, summary, [tabindex='0']"
+      )
+    ].filter(
+      (item) => item.getClientRects().length && !item.closest("[hidden]")
+    );
+    items[last ? items.length - 1 : 0]?.focus();
   }
 
   updateTitle(event) {
@@ -133,10 +126,14 @@ class StoryEditor extends Component {
   }
 
   async saveStory() {
-    if (this.state.saving) return;
+    if (this.saving || !this.state.title.trim() || !this.state.editorReady)
+      return;
+    this.saving = true;
+    this.editor.mode.set("readonly");
     this.setState({ saving: true, uploadError: null });
     try {
       const results = await this.editor?.uploadImages();
+      if (!this.mounted) return;
       if (
         results?.some((result) => !result.status) ||
         this.editor
@@ -160,79 +157,68 @@ class StoryEditor extends Component {
             : undefined
       });
 
-      this.setState({
-        isPopupEditorOpen: false
-      });
       // Saved — clear dirty flag
       this.props.viewState.setStoryHasUnsavedChanges(false);
     } catch (error) {
-      this.setState({
-        uploadError: error.message || "Unable to upload images. Please retry."
-      });
+      if (this.mounted)
+        this.setState({
+          uploadError:
+            error.message || this.props.t("story.editor.design.uploadFailed")
+        });
     } finally {
-      this.setState({ saving: false });
+      this.saving = false;
+      if (this.mounted) {
+        this.editor?.mode.set("design");
+        this.setState({ saving: false });
+      }
     }
   }
 
   cancelEditing() {
-    this.props.exitEditingMode();
-    this.setState({
-      title: this.props.story.title,
-      text: this.props.story.text
-    });
-    // Cancel — clear dirty flag
+    if (this.saving) return;
+    if (this.isDirty(this.state.title, this.state.text)) {
+      this.setState({ discardOpen: true }, () =>
+        this.discardDialog?.querySelector("button")?.focus()
+      );
+    } else this.discardChanges();
+  }
+
+  discardChanges() {
     this.props.viewState.setStoryHasUnsavedChanges(false);
+    this.props.exitEditingMode();
+  }
+
+  keepEditing() {
+    this.setState({ discardOpen: false }, () => this.titleInput?.focus());
   }
 
   onKeyDown(event) {
-    if (event.keyCode === 27) {
-      this.cancelEditing();
+    if (document.querySelector("dialog[open], .tox-dialog, .tox-menu")) return;
+    if (event.key === "Escape") {
+      event.preventDefault();
+      event.stopPropagation();
+      if (this.state.discardOpen) this.keepEditing();
+      else this.cancelEditing();
     }
-    if (event.keyCode === 13) {
-      this.keys.enter = true;
-    }
-    if (event.keyCode === 17) {
-      this.keys.ctrl = true;
-    }
-  }
-
-  onKeyUp(event) {
-    if (
-      (event.keyCode === 13 || event.keyCode === 17) &&
-      this.keys.enter &&
-      this.keys.ctrl
-    ) {
-      this.saveStory();
-    }
-    if (event.keyCode === 13) {
-      this.keys.enter = false;
-    }
-    if (event.keyCode === 17) {
-      this.keys.ctrl = false;
+    if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
+      event.preventDefault();
+      if (!this.state.discardOpen) this.saveStory();
     }
   }
 
-  handleChange(value) {
-    this.setState({ text: value });
-    this._updateDirty(this.state.title, value);
-  }
-
-  _updateDirty(title, text) {
-    const initial = this.props.story || { title: "", text: "" };
-    const dirty =
+  isDirty(title, text) {
+    const initial = this.props.story;
+    return (
       (title || "") !== (initial.title || "") ||
       (text || "") !== (initial.text || "") ||
       this.state.presentation !== storyPresentation(initial) ||
       JSON.stringify(this.state.composition) !==
-        JSON.stringify(storyComposition(initial.composition));
-    this.props.viewState.setStoryHasUnsavedChanges(Boolean(dirty));
+        JSON.stringify(storyComposition(initial.composition))
+    );
   }
 
-  removeStory() {
-    this.props.exitEditingMode();
-    if (this.state.id) {
-      this.props.removeStory(this.state.id);
-    }
+  _updateDirty(title, text) {
+    this.props.viewState.setStoryHasUnsavedChanges(this.isDirty(title, text));
   }
 
   async linkVisualization() {
@@ -279,8 +265,12 @@ class StoryEditor extends Component {
   }
 
   setupEditor(editor) {
+    editor.on("keydown", this.onKeyDown);
+    editor.on("init", () => {
+      if (this.mounted) this.setState({ editorReady: true });
+    });
     editor.ui.registry.addButton("storyreference", {
-      text: "Link visualization",
+      text: this.props.t("story.editor.design.linkVisualization"),
       onAction: () => this.linkVisualization(),
       onSetup: (api) => {
         this.referenceButton = api;
@@ -333,146 +323,247 @@ class StoryEditor extends Component {
 
   render() {
     const { t } = this.props;
-    return (
+    const tr = (key) => t(`story.editor.design.${key}`);
+    const composed = this.state.presentation === "composed";
+    return createPortal(
       <div
-        onKeyDown={this.onKeyDown}
-        onKeyUp={this.onKeyUp}
         className={classNames(Styles.popupEditor, {
           [Styles.isMounted]: this.state.inView
         })}
+        onKeyDown={this.onKeyDown}
       >
-        <div className={Styles.inner}>
-          <div className={Styles.header}>
-            <Text textLight as="h3" css={{ margin: "0" }}>
-              {t("story.editor.modalHeader")}
-            </Text>
-          </div>
-          <label htmlFor="title">
-            <Text small textGreyLighter css={{ marginBottom: "8px" }}>
-              {t("story.editor.titleLabel")}
-            </Text>
-          </label>
-          <input
-            ref={(titleInput) => (this.titleInput = titleInput)}
-            placeholder={t("story.editor.placeholder")}
-            autoComplete="off"
-            className={Styles.field}
-            type="text"
-            id="title"
-            value={this.state.title}
-            onChange={this.updateTitle}
-          />
-          <label htmlFor="story-presentation">
-            <Text small textGreyLighter>
-              {t("story.editor.presentationLabel")}
-            </Text>
-          </label>
-          <select
-            id="story-presentation"
-            className={Styles.field}
-            value={this.state.presentation}
-            aria-describedby="story-presentation-help"
-            onChange={(event) => {
-              const presentation = event.target.value;
-              this.referenceButton?.setEnabled(presentation === "composed");
-              this.setState({ presentation }, () =>
-                this._updateDirty(this.state.title, this.state.text)
-              );
-            }}
-          >
-            <option value="classic">
-              {t("story.editor.presentationClassic")}
-            </option>
-            <option value="composed">
-              {t("story.editor.presentationComposed")}
-            </option>
-          </select>
-          <Text
-            small
-            textGreyLighter
-            id="story-presentation-help"
-            css={{ marginBottom: "16px" }}
-          >
-            {t(
-              this.state.presentation === "classic"
-                ? "story.editor.presentationClassicHelp"
-                : "story.editor.presentationComposedHelp"
-            )}
-          </Text>
-          <div className={Styles.body}>
-            <Text small textGreyLighter css={{ marginBottom: "8px" }}>
-              {t("story.editor.descriptionLabel")}
-            </Text>
-            <Suspense fallback={<div>Loading...</div>}>
-              <Editor
-                html={this.state.text}
-                onChange={(_newValue, editor) => {
-                  const text = editor.getBody().innerHTML;
-                  this.setState({ text });
-                  this._updateDirty(this.state.title, text);
-                }}
-                terria={this.props.terria}
-                toolbarItems="legend storyreference"
-                setup={(editor) => {
-                  this.editor = editor;
-                  this.setupEditor(editor);
-                }}
-                customElements={LEGEND_TAG}
-                extendedValidElements={`${LEGEND_TAG}[data-id|data-title]`}
-                contentStyle={
-                  LEGEND_EDITOR_STYLE +
-                  " img { max-width: 100%; height: auto; }"
-                }
-              />
-            </Suspense>
-          </div>
-          {this.state.presentation === "composed" && this.state.composition && (
-            <StoryCompositionEditor
-              value={this.state.composition}
-              terria={this.props.terria}
-              onReference={() => this.linkVisualization()}
-              onChange={(composition) => {
-                this.setState({ composition, compositionDirty: true });
-                this.props.viewState.setStoryHasUnsavedChanges(true);
-              }}
-            />
-          )}
-          {this.state.uploadError && (
-            <p role="alert">{this.state.uploadError}</p>
-          )}
-          {this.state.saving && (
-            <p role="status">Uploading images and saving…</p>
-          )}
-          <Box centered gap={3}>
-            <Button
-              styledWidth={"240px"}
-              transparentBg
+        <span
+          tabIndex={0}
+          className={Styles.focusGuard}
+          onFocus={() => this.focusEdge(true)}
+        />
+        <div
+          ref={(node) => (this.dialog = node)}
+          className={Styles.inner}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="story-editor-heading"
+          aria-describedby="story-editor-intro"
+          aria-hidden={this.state.discardOpen || undefined}
+        >
+          <header className={Styles.header}>
+            <div>
+              <span className={Styles.eyebrow}>{tr("eyebrow")}</span>
+              <h2 id="story-editor-heading">
+                {tr(this.state.id ? "editChapter" : "newChapter")}
+              </h2>
+              <p id="story-editor-intro">{tr("intro")}</p>
+            </div>
+            <button
+              type="button"
+              className={Styles.closeButton}
               onClick={this.cancelEditing}
-              type="button"
-              title={t("story.editor.cancelBtn")}
-              textProps={{
-                textGreyLighter: true,
-                medium: true
-              }}
+              disabled={this.state.saving}
+              aria-label={tr("close")}
             >
-              {t("story.editor.cancelEditing")}
-            </Button>
-            <Button
-              styledWidth={"240px"}
-              primary
-              disabled={!this.state.title.length || this.state.saving}
-              onClick={this.saveStory}
-              type="button"
-              title={t("story.editor.saveBtn")}
-              textProps={{
-                medium: true
-              }}
-            >
-              {t("story.editor.saveStory")}
-            </Button>
-          </Box>
+              <span aria-hidden="true">×</span>
+            </button>
+          </header>
+          <div className={Styles.workspace}>
+            <section className={Styles.contentPane} aria-label={tr("content")}>
+              <label className={Styles.label} htmlFor="story-title">
+                {tr("title")}{" "}
+                <span className={Styles.required}>{tr("required")}</span>
+              </label>
+              <input
+                ref={(node) => (this.titleInput = node)}
+                placeholder={tr("titlePlaceholder")}
+                autoComplete="off"
+                className={Styles.titleInput}
+                type="text"
+                id="story-title"
+                value={this.state.title}
+                onChange={this.updateTitle}
+                disabled={this.state.saving}
+                required
+              />
+              <div className={Styles.contentHeading}>
+                <h3>{tr("content")}</h3>
+                <span>{tr("contentHint")}</span>
+              </div>
+              <div className={Styles.body}>
+                <Suspense
+                  fallback={
+                    <div className={Styles.loading} role="status">
+                      {tr("loading")}
+                    </div>
+                  }
+                >
+                  <Editor
+                    html={this.state.text}
+                    onChange={(_value, editor) => {
+                      const text = editor.getBody().innerHTML;
+                      this.setState({ text });
+                      this._updateDirty(this.state.title, text);
+                    }}
+                    terria={this.props.terria}
+                    toolbarItems="legend storyreference"
+                    setup={(editor) => {
+                      this.editor = editor;
+                      this.setupEditor(editor);
+                    }}
+                    customElements={LEGEND_TAG}
+                    extendedValidElements={`${LEGEND_TAG}[data-id|data-title]`}
+                    contentStyle={
+                      LEGEND_EDITOR_STYLE +
+                      " body { font-family: Inter, Arial, sans-serif; color: #263b4d; font-size: 16px; line-height: 1.7; padding: 16px 20px; } img { max-width: 100%; height: auto; }"
+                    }
+                  />
+                </Suspense>
+              </div>
+              <p className={Styles.hint}>{tr("imageHint")}</p>
+            </section>
+            <aside className={Styles.settingsPane} aria-label={tr("settings")}>
+              <fieldset className={Styles.section} disabled={this.state.saving}>
+                <legend>{t("story.editor.presentationLabel")}</legend>
+                <div className={Styles.formatChoices}>
+                  {["classic", "composed"].map((format) => (
+                    <label
+                      key={format}
+                      className={Styles.choice}
+                      data-selected={this.state.presentation === format}
+                    >
+                      <input
+                        type="radio"
+                        name="story-presentation"
+                        value={format}
+                        checked={this.state.presentation === format}
+                        onChange={() => {
+                          this.referenceButton?.setEnabled(
+                            format === "composed"
+                          );
+                          this.setState({ presentation: format }, () =>
+                            this._updateDirty(this.state.title, this.state.text)
+                          );
+                        }}
+                      />
+                      <StoryLayoutPreview
+                        layout={format === "classic" ? "classic" : "map"}
+                      />
+                      <strong>
+                        {t(
+                          `story.editor.${
+                            format === "classic"
+                              ? "presentationClassic"
+                              : "presentationComposed"
+                          }`
+                        )}
+                      </strong>
+                      <span>
+                        {tr(
+                          format === "classic"
+                            ? "classicShort"
+                            : "composedShort"
+                        )}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+                <p className={Styles.hint}>
+                  {tr(composed ? "composedHelp" : "classicHelp")}
+                </p>
+              </fieldset>
+              {composed && (
+                <StoryCompositionEditor
+                  value={this.state.composition}
+                  terria={this.props.terria}
+                  disabled={this.state.saving}
+                  onReference={() => this.linkVisualization()}
+                  onChange={(composition) => {
+                    this.setState({ composition, compositionDirty: true }, () =>
+                      this._updateDirty(this.state.title, this.state.text)
+                    );
+                  }}
+                />
+              )}
+              {!composed && (
+                <div className={Styles.classicNote}>
+                  <span className={Styles.eyebrow}>{tr("yourMap")}</span>
+                  <h3>{tr("classicNoteTitle")}</h3>
+                  <p>{tr("classicNote")}</p>
+                </div>
+              )}
+            </aside>
+          </div>
+          <footer className={Styles.footer}>
+            <div className={Styles.feedback}>
+              {this.state.uploadError ? (
+                <p className={Styles.error} role="alert">
+                  {this.state.uploadError}
+                </p>
+              ) : (
+                <p className={Styles.hint} role="status">
+                  {tr(this.state.saving ? "saving" : "saveHint")}
+                </p>
+              )}
+            </div>
+            <div className={Styles.actions}>
+              <button
+                className={Styles.secondaryButton}
+                type="button"
+                disabled={this.state.saving}
+                onClick={this.cancelEditing}
+              >
+                {t("story.editor.cancelEditing")}
+              </button>
+              <button
+                className={Styles.primaryButton}
+                type="button"
+                disabled={
+                  !this.state.title.trim() ||
+                  this.state.saving ||
+                  !this.state.editorReady
+                }
+                onClick={this.saveStory}
+              >
+                {tr(this.state.saving ? "savingButton" : "saveChapter")}
+              </button>
+            </div>
+          </footer>
         </div>
-      </div>
+        {this.state.discardOpen && (
+          <div className={Styles.discardBackdrop}>
+            <div
+              className={Styles.discardDialog}
+              ref={(node) => (this.discardDialog = node)}
+              role="alertdialog"
+              aria-modal="true"
+              aria-labelledby="story-discard-title"
+              aria-describedby="story-discard-description"
+            >
+              <h2 id="story-discard-title">{tr("discardTitle")}</h2>
+              <p id="story-discard-description">{tr("discardDescription")}</p>
+              <div className={Styles.actions}>
+                <button
+                  type="button"
+                  className={Styles.primaryButton}
+                  onClick={() => this.keepEditing()}
+                >
+                  {tr("keepEditing")}
+                </button>
+                <button
+                  type="button"
+                  className={Styles.secondaryButton}
+                  onClick={() => this.discardChanges()}
+                >
+                  {tr("discard")}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        <span
+          tabIndex={0}
+          className={Styles.focusGuard}
+          onFocus={() => this.focusEdge(false)}
+        />
+      </div>,
+      document.body
     );
   }
 }

@@ -312,3 +312,11 @@ Durante una composicion, el menu del mapa usa el ancho real de su columna, permi
 Los paneles laterales y referencias interactivas requieren Composicion. En la ventana clasica los enlaces `#story-ref-*` se presentan como texto con su formato, conservando el HTML almacenado para recuperar las interacciones al volver a Composicion. El editor explica la diferencia y desactiva Link visualization en formato clasico.
 
 Si algun capitulo es clasico, el recorrido usa Slides con avance manual y oculta Play. Conserva la preferencia Scroll guardada para recuperarla si todos los capitulos vuelven a Composicion. Ambos lectores usan `storyScene.ts`: una cola compartida por Terria aplica los snapshots en orden y descarta solicitudes pendientes superadas; excluye `stories` y `storyOptions` de las escenas capturadas. Al cambiar de lector se restauran las dimensiones del mapa, se retiran listeners y se pausan los medios del lector anterior.
+
+### Editor editorial de capitulos (2026-10-02)
+
+La autoria de escritorio usa un modal claro con cabecera y acciones persistentes. A partir de 1100 px, contenido y ajustes se desplazan en columnas independientes; debajo se apilan en un solo cuerpo desplazable. Classic window sigue siendo el formato inicial. Las tarjetas de plantilla muestran lado y proporcion del texto; dashboards, multimedia, enlaces narrativos y reproduccion tienen grupos propios. Cambiar de formato mantiene TinyMCE montado y conserva la composicion y geometria almacenadas.
+
+Guardar espera a que TinyMCE este listo y a las subidas, rechaza titulos vacios incluso con Ctrl/Cmd+Enter y evita envios duplicados. Durante el guardado, texto y controles quedan bloqueados; un fallo restaura la edicion y conserva el borrador. Cerrar o cancelar con cambios abre una confirmacion de descarte. Escape respeta primero los dialogos de TinyMCE y CKAN. El modal mantiene el foco y lo devuelve al disparador al cerrar; los selectores CKAN comparten una envoltura visual, conservando sus contratos de origen/ventana emisora.
+
+Los textos nuevos estan en ingles y español mediante i18next. No cambia el esquema de shares ni la autoria movil: StoryBuilder sigue siendo un flujo de escritorio.
