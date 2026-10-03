@@ -805,7 +805,8 @@
         "removeReference": "Eliminar referencia",
         "chooseTarget": "Elige una escena del mapa o un dashboard.",
         "allCharts": "todos los gráficos",
-        "referenceSummary": "{{count}} filtros · {{widget}}"
+        "referenceSummary": "{{count}} filtros · {{widget}}",
+        "chapterActions": "Acciones del capítulo: {{title}}"
       }
     },
     "removeAllStories": "Eliminar Todas",

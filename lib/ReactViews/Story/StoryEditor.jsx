@@ -91,7 +91,14 @@ export class StoryEditor extends Component {
     this.mounted = false;
     clearTimeout(this.slideInTimer);
     document.removeEventListener("focusin", this.containFocus);
-    if (this.previousFocus?.isConnected) this.previousFocus.focus();
+    if (this.previousFocus?.isConnected && this.previousFocus !== document.body)
+      this.previousFocus.focus();
+    else {
+      // The Edit menu item disappears as the editor opens. Return to its menu.
+      [...document.querySelectorAll("[data-story-menu]")]
+        .find((node) => node.dataset.storyMenu === this.props.story.id)
+        ?.focus();
+    }
   }
 
   containFocus(event) {
@@ -210,7 +217,7 @@ export class StoryEditor extends Component {
     const initial = this.props.story;
     return (
       (title || "") !== (initial.title || "") ||
-      (text || "") !== (initial.text || "") ||
+      (text || "") !== (this.initialEditorText ?? initial.text ?? "") ||
       this.state.presentation !== storyPresentation(initial) ||
       JSON.stringify(this.state.composition) !==
         JSON.stringify(storyComposition(initial.composition))
@@ -267,7 +274,13 @@ export class StoryEditor extends Component {
   setupEditor(editor) {
     editor.on("keydown", this.onKeyDown);
     editor.on("init", () => {
-      if (this.mounted) this.setState({ editorReady: true });
+      if (this.mounted) {
+        // TinyMCE canonicalizes incoming HTML; that is not an author edit.
+        this.initialEditorText = editor.getContent();
+        this.setState({ editorReady: true, text: this.initialEditorText }, () =>
+          this._updateDirty(this.state.title, this.state.text)
+        );
+      }
     });
     editor.ui.registry.addButton("storyreference", {
       text: this.props.t("story.editor.design.linkVisualization"),

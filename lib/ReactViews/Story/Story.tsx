@@ -348,7 +348,14 @@ const Story = (props: Props) => {
                 />
               </RawButton>
             )}
-            <MenuButton theme={theme} onClick={toggleMenu(props)}>
+            <MenuButton
+              theme={theme}
+              onClick={toggleMenu(props)}
+              data-story-menu={story.id}
+              aria-label={t("story.editor.design.chapterActions", {
+                title: story.title
+              })}
+            >
               <StyledIcon
                 styledWidth="20px"
                 light

@@ -522,7 +522,8 @@
         "removeReference": "Remove reference",
         "chooseTarget": "Choose a map scene or dashboard.",
         "allCharts": "all charts",
-        "referenceSummary": "{{count}} filters · {{widget}}"
+        "referenceSummary": "{{count}} filters · {{widget}}",
+        "chapterActions": "Chapter actions: {{title}}"
       }
     },
     "locationBtn": "center scene",

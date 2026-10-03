@@ -40,6 +40,16 @@ describe("Story editor draft lifecycle", function () {
     expect(props.saveStory).not.toHaveBeenCalled();
   });
 
+  it("does not treat TinyMCE HTML normalization as an author edit", function () {
+    props.story.text = "<p>One</p><p>Two</p>";
+    editor.initialEditorText = "<p>One</p>\n<p>Two</p>";
+    editor.state.text = editor.initialEditorText;
+    editor.cancelEditing();
+    expect(props.exitEditingMode).toHaveBeenCalled();
+    expect(editor.state.discardOpen).toBeUndefined();
+    expect(editor.isDirty("", "<p>Changed</p>")).toBe(true);
+  });
+
   it("keeps a failed upload draft editable and prevents duplicate saves or closure while pending", async function () {
     let finish;
     editor.state.title = "A chapter";
