@@ -167,3 +167,23 @@ La suite focalizada de Stories pasa 29 specs en Chromium. TypeScript, ESLint foc
 La seleccion de dashboard de esa prueba local usa un mensaje simulado del iframe correcto; no representa una subida autenticada a CKAN. Las pruebas de upload cubren origen, CSRF y expiracion/reintento con transporte simulado. Las capturas de antes/despues viven en `output/playwright/story-editor-*.png` como artefactos locales. Ver [[Deployment]] para la revision efectivamente publicada.
 
 La revision final recorre 35 pasos de Tab sin salir del modal y confirma retorno de foco desde los selectores CKAN y al menu del capitulo existente. Abrir/cancelar una story real sin cambios no pide descarte por la normalizacion de HTML de TinyMCE; modificar el titulo si pide confirmacion. El CI general conserva 14 warnings previos fuera de Stories (run `37081847936`); las verificaciones focalizadas no equivalen a CI global verde.
+
+### Pilotos de calidad de agua y zonales físicos
+
+`test/Core/WaterQualitySpec.ts` verifica umbral de cobertura, fechas sin dato,
+separación de fila regional, años parciales, Theil–Sen/Mann–Kendall, clasificación,
+cutoffs temporales, CSV con procedencia y fallos/reintentos del loader JSON.
+`CogZonalEngineSpec.ts` verifica escala/offset antes de estadísticas, nodata,
+metadatos GDAL, polígonos con huecos y propagación del contrato a series zonales.
+
+Validación de esta implementación: 24 specs focalizados pasan en Karma/Chrome;
+TypeScript con `--skipLibCheck` y ESLint/Prettier focalizados. El chequeo sin
+`--skipLibCheck` encuentra tres referencias preexistentes a `AsymmetricMatcher`
+en `@types/testing-library__jasmine-dom`. La validación visual y los datos
+publicados deben comprobarse en el consumidor TerriaMap y DEV, por separado.
+
+Aceptación integrada: selección de Andraikiba y Kyiv, cambios CHL/TUR/SPM y
+resoluciones, fecha gráfico→mapa, comparar cuerpos, CSV, cierre móvil, errores,
+share, clic cuerpo frente a píxel, y Kakhovka antes/después del corte. Revisar
+`narrative=1` en escritorio y 390 px, leyenda/atribución disponibles y ninguna
+petición a `/xcube/`.

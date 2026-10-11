@@ -48,6 +48,9 @@ export interface TimeSeriesCalculationOptions {
   band?: number;
   /** NoData override */
   noDataValue?: number;
+  noDataValues?: readonly number[];
+  valueScale?: number;
+  valueOffset?: number;
   /** EPSG code of the COGs */
   epsgCode?: number;
   /** Overview level override */
@@ -135,6 +138,9 @@ export async function calculateTimeSeriesZonalStatistics(
     polygon,
     band = 1,
     noDataValue,
+    noDataValues,
+    valueScale,
+    valueOffset,
     epsgCode,
     overviewLevel,
     startDate,
@@ -180,6 +186,9 @@ export async function calculateTimeSeriesZonalStatistics(
             polygon,
             band,
             noDataValue,
+            noDataValues,
+            valueScale,
+            valueOffset,
             epsgCode,
             overviewLevel,
             signal
@@ -189,7 +198,16 @@ export async function calculateTimeSeriesZonalStatistics(
           statistics = await calculateMosaicZonalStatistics(
             entry.cogs,
             polygon,
-            { band, noDataValue, epsgCode, overviewLevel, signal }
+            {
+              band,
+              noDataValue,
+              noDataValues,
+              valueScale,
+              valueOffset,
+              epsgCode,
+              overviewLevel,
+              signal
+            }
           );
         }
       } catch (e: any) {

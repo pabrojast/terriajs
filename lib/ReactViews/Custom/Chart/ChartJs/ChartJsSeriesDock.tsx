@@ -375,6 +375,7 @@ const ChartJsSeriesDock: FC<ChartJsSeriesDockProps> = observer((props) => {
             activeX={dock?.activeX}
             activeXLabel={dock?.activeXLabel}
             formatDate={formatKpiDate}
+            showLinearTrend={dock?.showLinearTrend}
           />
         )}
         {collapsed ? null : (

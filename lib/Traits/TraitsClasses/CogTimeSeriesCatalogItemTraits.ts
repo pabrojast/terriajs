@@ -15,6 +15,31 @@ import MappableTraits from "./MappableTraits";
 import UrlTraits from "./UrlTraits";
 import { CogRenderOptionsTraits } from "./CogCatalogItemTraits";
 
+/** Optional native water-quality analytics accompanying analytical COGs. */
+export class WaterQualityTraits extends ModelTraits {
+  @primitiveTrait({
+    type: "string",
+    name: "Pilot",
+    description: "Stable pilot identifier."
+  })
+  pilotId?: string;
+
+  @primitiveTrait({
+    type: "string",
+    name: "Product",
+    description: "Product key in the analytics metadata (CHL, TUR, SPM)."
+  })
+  product?: string;
+
+  @primitiveTrait({
+    type: "string",
+    name: "Analytics URL",
+    description:
+      "Versioned directory containing meta.json, bodies.json, series and lake JSON."
+  })
+  dataUrl?: string;
+}
+
 /**
  * A time step containing one or more COG files (mosaic support).
  */
@@ -360,6 +385,28 @@ export default class CogTimeSeriesCatalogItemTraits extends mixTraits(
   CatalogMemberTraits,
   LegendOwnerTraits
 ) {
+  @objectTrait({
+    type: WaterQualityTraits,
+    name: "Water quality",
+    description: "Enable the native pilot analysis panel."
+  })
+  waterQuality?: WaterQualityTraits;
+
+  @primitiveArrayTrait({
+    type: "string",
+    name: "Selected water bodies",
+    description: "Stable body IDs selected for comparison; persisted in shares."
+  })
+  waterQualityBodyIds?: string[];
+
+  @primitiveTrait({
+    type: "boolean",
+    name: "Water-quality pixel analysis",
+    description:
+      "Use map clicks for a pixel series instead of selecting a water body."
+  })
+  waterQualityPixelMode = false;
+
   @objectTrait({
     type: CogRenderOptionsTraits,
     name: "Render Options",

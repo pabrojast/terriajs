@@ -1,4 +1,13 @@
 import {
+  adoptCogSource,
+  clearCogSourceCache
+} from "../../lib/Core/CogSourceCache";
+import {
+  calculateZonalStatistics,
+  zonalPhysicalValue
+} from "../../lib/Core/CogZonalEngine";
+import { calculateTimeSeriesZonalStatistics } from "../../lib/Core/CogTimeSeriesCalculator";
+import {
   calculateMosaicZonalStatistics,
   ZonalStatistics
 } from "../../lib/Core/CogZonalEngine";
@@ -98,5 +107,103 @@ describe("CogZonalEngine", function () {
       expect(result.count).toBe(0);
       expect(isNaN(result.mean)).toBe(true);
     });
+  });
+});
+
+describe("CogZonalEngine physical units and polygon holes", function () {
+  const polygon: Polygon = {
+    type: "Polygon",
+    coordinates: [
+      [
+        [0, 0],
+        [2, 0],
+        [2, 2],
+        [0, 2],
+        [0, 0]
+      ]
+    ]
+  };
+  afterEach(() => clearCogSourceCache());
+  function source(values: number[], metadata: Record<string, string> = {}) {
+    const image = {
+      getOrigin: () => [0, 2, 0],
+      getResolution: () => [1, -1, 0],
+      getWidth: () => 2,
+      getHeight: () => 2,
+      getGeoKeys: () => ({ GeographicTypeGeoKey: 4326 }),
+      getGDALNoData: () => 65535,
+      getGDALMetadata: () => metadata,
+      readRasters: async () => [new Float32Array(values)]
+    };
+    return { getImage: async () => image, getImageCount: async () => 1 } as any;
+  }
+  it("converts daily uint16 samples before all statistics and excludes nodata", async function () {
+    adoptCogSource("physical.tif", source([10, 20, 30, 65535]));
+    const result = await calculateZonalStatistics({
+      cogUrl: "physical.tif",
+      polygon,
+      valueScale: 0.1,
+      valueOffset: 2,
+      overviewLevel: 0
+    });
+    expect(result.statistics.mean).toBe(4);
+    expect(result.statistics.median).toBe(4);
+    expect(result.statistics.sum).toBe(12);
+    expect(result.statistics.count).toBe(3);
+    expect(result.statistics.noDataCount).toBe(1);
+    expect(result.pixelResolution).toEqual([1, 1]);
+  });
+  it("falls back to GDAL scale/offset when the catalog does not override them", async function () {
+    adoptCogSource(
+      "metadata.tif",
+      source([10, 20, 30, 65535], { SCALE: "0.1", OFFSET: "1" })
+    );
+    const result = await calculateZonalStatistics({
+      cogUrl: "metadata.tif",
+      polygon
+    });
+    expect(result.statistics.mean).toBe(3);
+  });
+  it("removes interior rings before the statistics", async function () {
+    adoptCogSource("hole.tif", source([100, 20, 30, 40]));
+    const hole: Polygon = {
+      type: "Polygon",
+      coordinates: [
+        ...polygon.coordinates,
+        [
+          [0, 1],
+          [1, 1],
+          [1, 2],
+          [0, 2],
+          [0, 1]
+        ]
+      ]
+    };
+    const result = await calculateZonalStatistics({
+      cogUrl: "hole.tif",
+      polygon: hole,
+      overviewLevel: 0
+    });
+    expect(result.statistics.count).toBe(3);
+    expect(result.statistics.mean).toBe(30);
+  });
+  it("propagates physical transforms through time-series calculations", async function () {
+    adoptCogSource("series-physical.tif", source([10, 20, 30, 65535]));
+    const results = await calculateTimeSeriesZonalStatistics({
+      timeEntries: [
+        { time: "2026-10-06T00:00:00Z", cogs: ["series-physical.tif"] }
+      ],
+      polygon,
+      valueScale: 0.1,
+      valueOffset: 0,
+      noDataValues: [30]
+    });
+    expect(results[0].statistics.mean).toBe(1.5);
+    expect(results[0].statistics.count).toBe(2);
+  });
+  it("does not guess that 255 means nodata and rejects nonfinite values", function () {
+    expect(zonalPhysicalValue(255, undefined, undefined, 0.1, 0)).toBe(25.5);
+    expect(zonalPhysicalValue(NaN, undefined, undefined, 1, 0)).toBeUndefined();
+    expect(zonalPhysicalValue(65535, 65535, undefined, 0.1, 0)).toBeUndefined();
   });
 });

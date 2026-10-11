@@ -93,6 +93,7 @@ export interface ChartJsKpiTilesProps {
   activeX?: number;
   activeXLabel?: string;
   formatDate?: (x: number) => string;
+  showLinearTrend?: boolean;
 }
 
 /**
@@ -103,14 +104,17 @@ const ChartJsKpiTiles: FC<ChartJsKpiTilesProps> = ({
   series,
   activeX,
   activeXLabel,
-  formatDate
+  formatDate,
+  showLinearTrend = true
 }) => {
   const { t } = useTranslation();
   const stats = computeSeriesStats(series.points);
   if (!stats) return null;
 
   const peak = maxPoint(series.points);
-  const trend = computeTrendPerYear(series.points);
+  const trend = showLinearTrend
+    ? computeTrendPerYear(series.points)
+    : undefined;
   const current = valueAtX(series.points, activeX);
   const unit = series.units ? <Unit>{series.units}</Unit> : null;
 

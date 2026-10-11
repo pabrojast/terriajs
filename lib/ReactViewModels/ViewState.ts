@@ -430,6 +430,7 @@ export default class ViewState {
       (disclaimerVisible) => {
         this.isMapFullScreen =
           disclaimerVisible ||
+          terria.userProperties.get("narrative") === "1" ||
           terria.userProperties.get("hideWorkbench") === "1" ||
           terria.userProperties.get("hideExplorerPanel") === "1";
       }
@@ -437,6 +438,7 @@ export default class ViewState {
 
     this._isMapFullScreenSubscription = reaction(
       () =>
+        terria.userProperties.get("narrative") === "1" ||
         terria.userProperties.get("hideWorkbench") === "1" ||
         terria.userProperties.get("hideExplorerPanel") === "1",
       (isMapFullScreen: boolean) => {
@@ -448,13 +450,15 @@ export default class ViewState {
         // page narrates the story itself.
         if (
           !defined(this.storyShown) &&
-          terria.userProperties.get("hideStory") !== "1"
+          terria.userProperties.get("hideStory") !== "1" &&
+          terria.userProperties.get("narrative") !== "1"
         ) {
           // Always show stories if they are enabled and available
           // This will be checked again in StandardUserInterface when stories are loaded
           this.storyShown = terria.configParameters.storyEnabled;
         }
-      }
+      },
+      { fireImmediately: terria.userProperties.get("narrative") === "1" }
     );
 
     this._showStoriesSubscription = reaction(

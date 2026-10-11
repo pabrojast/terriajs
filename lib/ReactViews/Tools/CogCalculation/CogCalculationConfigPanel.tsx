@@ -43,6 +43,29 @@ const CogCalculationConfigPanel: React.FC<Props> = observer(({ vm }) => {
         Calculation Settings
       </Text>
       <Spacing bottom={1} />
+      <Text small textLight>
+        Drawn-polygon statistics are distinct from precomputed water-body cores.
+        Automatic resolution uses overviews and is approximate; select full
+        resolution for native-pixel results.
+      </Text>
+      <FieldGroup>
+        <Label>Calculation resolution:</Label>
+        <Select
+          value={
+            vm.overviewLevel === undefined ? "auto" : String(vm.overviewLevel)
+          }
+          onChange={(event: React.ChangeEvent<HTMLSelectElement>) =>
+            vm.setOverviewLevel(
+              event.target.value === "auto"
+                ? undefined
+                : Number(event.target.value)
+            )
+          }
+        >
+          <option value="auto">Automatic overview (approximate)</option>
+          <option value="0">Full resolution (native pixels)</option>
+        </Select>
+      </FieldGroup>
 
       {/* Layer Selector */}
       <FieldGroup>

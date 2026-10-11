@@ -320,3 +320,60 @@ La autoria de escritorio usa un modal claro con cabecera y acciones persistentes
 Guardar espera a que TinyMCE este listo y a las subidas, rechaza titulos vacios incluso con Ctrl/Cmd+Enter y evita envios duplicados. Durante el guardado, texto y controles quedan bloqueados; un fallo restaura la edicion y conserva el borrador. Cerrar o cancelar con cambios abre una confirmacion de descarte. Escape respeta primero los dialogos de TinyMCE y CKAN. El modal mantiene el foco y lo devuelve al disparador al cerrar; los selectores CKAN comparten una envoltura visual, conservando sus contratos de origen/ventana emisora.
 
 Los textos nuevos estan en ingles y español mediante i18next. No cambia el esquema de shares ni la autoria movil: StoryBuilder sigue siendo un flujo de escritorio.
+
+## Pilotos nativos de calidad de agua (2026-10-11)
+
+Los items `cog-time-series` pueden declarar `waterQuality: {pilotId, product, dataUrl}`.
+`dataUrl` apunta a una publicación versionada con `meta.json`, `bodies.json`,
+`lakes.json`, `series/<producto>.json` y `lake/<id>.json`. Los productos de un
+piloto se incluyen en el workbench y solo uno tiene `show: true`. No se incrustan
+aplicaciones externas ni se usa xcube.
+
+`WaterQualityPanel` carga metadatos y la matriz del producto, después las fichas
+seleccionadas; las geometrías se muestran mediante un overlay GeoJSON nativo.
+El buscador y los clics sobre contornos seleccionan los mismos cuerpos. Hasta
+tres cuerpos se comparan en un gráfico, tabla y CSV con procedencia. La fecha
+del gráfico y el selector controlan `currentTime`, y las resoluciones/bandas
+siguen siendo las del COG. Los IDs elegidos se guardan en el trait
+`waterQualityBodyIds` y sobreviven en shares.
+
+La unidad del análisis es explícita: núcleo del cuerpo, píxel individual o
+polígono dibujado. `waterQualityPixelMode` activa series por píxel al hacer clic;
+el modo por defecto selecciona cuerpos sin lanzar además lecturas por píxel.
+El acceso al cálculo por polígono está en la ficha, evitando tarjetas repetidas
+para los tres productos. Los COG de despliegue uint8/log8 nunca alimentan las
+estadísticas. Los COG analíticos conservan unidades físicas y nodata.
+
+Las estadísticas de cuerpo usan el JSON precalculado: cobertura mínima de
+`meta.minCoverage`, mensual mediana de medianas diarias, anual media de medianas
+mensuales. Se muestran último dato suficiente y última adquisición por separado.
+La tendencia usa Theil–Sen y Mann–Kendall, al menos cinco años suficientemente
+observados; se suprime la pendiente lineal genérica del dock para estos pilotos.
+`meta.bodyCutoffs` permite excluir observaciones posteriores y marcar agregados
+que cruzan el corte como parciales (Kakhovka: `{"1":"2023-06-05"}`). La ficha
+explica por qué un agregado parcialmente válido puede no tener ráster visible.
+Los calendarios diarios incluyen huecos, sin interpolarlos; el gráfico diario
+muestra el año activo y el CSV conserva todo el histórico del cuerpo.
+
+La ficha usa controles EN/ES y conserva nombres ucranianos y alternativos en
+la búsqueda. En móvil se convierte en panel inferior plegable, con controles
+accesibles y tabla diferida hasta que se abre. Los fallos JSON/HTTP muestran
+reintento; un fallo nunca queda guardado en caché.
+
+### Embed narrativo compacto
+
+`narrative=1` en el hash elimina branding, workbench, menú principal, bienvenida
+y apertura automática de Stories. Mantiene mapa, navegación, atribución,
+leyenda desplegable y timeline; la ficha de agua empieza plegada. Es opt-in:
+los enlaces al visor completo no añaden ese flag. CKAN Pages usa esta opción
+para que el texto exterior narre el mapa sin duplicar el panel editorial.
+
+### Unidades de zonales
+
+El motor zonal usa la caché COG compartida y HTTP Range. Rechaza nodata antes de
+aplicar `valueScale`/`valueOffset`; si el catálogo no los fija usa metadatos GDAL
+por banda. Se excluyen los anillos interiores de los polígonos. La configuración
+permite elegir resolución nativa o overview automático (aproximado), y el CSV
+anota geometría, unidad, banda y política de resolución. Una estadística de un
+polígono sobre un compuesto no se presenta como estadística del núcleo de un
+cuerpo de agua.

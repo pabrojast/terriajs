@@ -330,6 +330,9 @@ export default class CogCalculationViewModel {
       cogUrl,
       polygon: this.polygon!,
       band: this.selectedBand,
+      valueScale: item.valueScale,
+      valueOffset: item.valueOffset,
+      noDataValues: item.noDataValues,
       overviewLevel: this.overviewLevel,
       signal: this._abortController?.signal,
       onProgress: (fraction) => {
@@ -366,6 +369,9 @@ export default class CogCalculationViewModel {
       })),
       polygon: this.polygon!,
       band: this.selectedBand,
+      valueScale: item.valueScale,
+      valueOffset: item.valueOffset,
+      noDataValues: item.noDataValues,
       startDate: this.startDate,
       endDate: this.endDate,
       subsampleStep: this.subsampleStep,
@@ -464,7 +470,21 @@ export default class CogCalculationViewModel {
     if (!this.timeSeriesResults || this.timeSeriesResults.length === 0) return;
 
     const stat = this.selectedStatistic;
-    const header = `time,${stat}\n`;
+    const item = this.selectedTimeSeriesItem;
+    const header = [
+      `# Analysis: user-drawn polygon; not a water-body core statistic`,
+      `# Source: ${item?.name ?? "COG"}`,
+      `# Unit: ${item?.displayUnit ?? "not specified"}; band: ${
+        this.selectedBand
+      }`,
+      `# Values converted to physical units before aggregation; nodata excluded`,
+      `# Overview: ${
+        this.overviewLevel ??
+        "automatic (approximate; resolution may vary by date)"
+      }`,
+      `# Polygon: ${JSON.stringify(this.polygon)}`,
+      `time,${stat}\n`
+    ].join("\n");
     const rows = this.timeSeriesResults
       .map((r) => `${r.time},${(r.statistics as any)[stat]}`)
       .join("\n");

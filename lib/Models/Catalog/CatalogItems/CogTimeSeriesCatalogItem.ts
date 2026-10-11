@@ -1641,7 +1641,10 @@ export default class CogTimeSeriesCatalogItem extends DiscretelyTimeVaryingMixin
 
       // A click while drawing (zonal polygon, measure tool) is not a request
       // for a time series.
-      if (this.terria.mapInteractionModeStack.length === 0) {
+      if (
+        this.terria.mapInteractionModeStack.length === 0 &&
+        (!this.waterQuality?.dataUrl || this.waterQualityPixelMode)
+      ) {
         this.addPointSeries(lat, lon);
       }
       return [info];
@@ -1999,6 +2002,7 @@ export default class CogTimeSeriesCatalogItem extends DiscretelyTimeVaryingMixin
       (series) => series.status === "loading"
     );
     return {
+      showLinearTrend: !this.waterQuality?.dataUrl,
       activeX: current ? JulianDate.toDate(current).getTime() : undefined,
       activeXLabel: this.currentStepLabel,
       onSelectX: (x: number) => {
