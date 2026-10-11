@@ -180,7 +180,7 @@ cutoffs temporales, CSV con procedencia y fallos/reintentos del loader JSON.
 `CogZonalEngineSpec.ts` verifica escala/offset antes de estadísticas, nodata,
 metadatos GDAL, polígonos con huecos y propagación del contrato a series zonales.
 
-Validación de esta implementación: 24 specs focalizados pasan en Karma/Chrome;
+Validación de esta implementación: 25 specs focalizados pasan en Karma/Chrome;
 TypeScript con `--skipLibCheck` y ESLint/Prettier focalizados. El chequeo sin
 `--skipLibCheck` encuentra tres referencias preexistentes a `AsymmetricMatcher`
 en `@types/testing-library__jasmine-dom`. La validación visual y los datos
@@ -191,3 +191,7 @@ resoluciones, fecha gráfico→mapa, comparar cuerpos, CSV, cierre móvil, error
 share, clic cuerpo frente a píxel, y Kakhovka antes/después del corte. Revisar
 `narrative=1` en escritorio y 390 px, leyenda/atribución disponibles y ninguna
 petición a `/xcube/`.
+
+`WaterQualitySharingSpec.ts` verifica que compartir conserve IDs seleccionados
+y omita el GeoJSON derivado de límites; este se reconstruye desde la URL de
+analytics al abrir el piloto. Evita enlaces gigantes y duplicación del overlay.

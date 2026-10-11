@@ -24,9 +24,8 @@ import {
 import CogTimeSeriesCatalogItem from "../../Models/Catalog/CatalogItems/CogTimeSeriesCatalogItem";
 import GeoJsonCatalogItem from "../../Models/Catalog/CatalogItems/GeoJsonCatalogItem";
 import CommonStrata from "../../Models/Definition/CommonStrata";
-import createStratumInstance from "../../Models/Definition/createStratumInstance";
-import StyleTraits from "../../Traits/TraitsClasses/StyleTraits";
 import { useViewState } from "../Context";
+import configureWaterQualityOverlay from "./configureWaterQualityOverlay";
 
 const COLORS = ["#0877ac", "#bb5930", "#6e55a3"];
 const format = (value: number | null | undefined) =>
@@ -257,34 +256,13 @@ const PilotPanel = observer(
       loadWaterJson<FeatureCollection>(base, "lakes.json")
         .then((geojson) => {
           if (!live) return;
-          const features = geojson.features.map((feature) => ({
-            ...feature,
-            properties: {
-              ...feature.properties,
-              waterQualityBodyId: feature.properties?.id,
-              waterQualityPilot: pilotId
-            }
-          }));
+          configureWaterQualityOverlay(
+            overlay,
+            geojson,
+            pilotId,
+            text("Water-body boundaries", "Límites de cuerpos de agua")
+          );
           runInAction(() => {
-            overlay.setTrait(
-              CommonStrata.user,
-              "name",
-              text("Water-body boundaries", "Límites de cuerpos de agua")
-            );
-            overlay.setTrait(
-              CommonStrata.user,
-              "style",
-              createStratumInstance(StyleTraits, {
-                stroke: "#176f9e",
-                "stroke-width": 1.5,
-                fill: "#147ba8",
-                "fill-opacity": 0.035
-              })
-            );
-            overlay.setTrait(CommonStrata.user, "geoJsonData", {
-              type: "FeatureCollection",
-              features
-            } as never);
             terria.addModel(overlay);
             terria.overlays.add(overlay);
           });

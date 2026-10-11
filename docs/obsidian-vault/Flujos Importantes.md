@@ -377,3 +377,7 @@ permite elegir resolución nativa o overview automático (aproximado), y el CSV
 anota geometría, unidad, banda y política de resolución. Una estadística de un
 polígono sobre un compuesto no se presenta como estadística del núcleo de un
 cuerpo de agua.
+
+Los límites derivados de cada piloto usan el estrato `definition`, fuera del
+workbench. El share conserva `waterQualityBodyIds` en los COGs y reconstruye el
+overlay desde `analytics/lakes.json`; no incluye coordenadas en el enlace.
