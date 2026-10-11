@@ -381,3 +381,7 @@ cuerpo de agua.
 Los límites derivados de cada piloto usan el estrato `definition`, fuera del
 workbench. El share conserva `waterQualityBodyIds` en los COGs y reconstruye el
 overlay desde `analytics/lakes.json`; no incluye coordenadas en el enlace.
+
+Al cambiar CHL/TUR/SPM desde la ficha, el producto visible pasa al primer lugar
+de la línea temporal de Terria. Conserva la fecha y la resolución seleccionadas;
+los controles del reloj y los enlaces compartidos siguen ese mismo producto.

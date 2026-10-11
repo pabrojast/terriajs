@@ -26,6 +26,7 @@ import GeoJsonCatalogItem from "../../Models/Catalog/CatalogItems/GeoJsonCatalog
 import CommonStrata from "../../Models/Definition/CommonStrata";
 import { useViewState } from "../Context";
 import configureWaterQualityOverlay from "./configureWaterQualityOverlay";
+import activateWaterQualityProduct from "./activateWaterQualityProduct";
 
 const COLORS = ["#0877ac", "#bb5930", "#6e55a3"];
 const format = (value: number | null | undefined) =>
@@ -165,18 +166,7 @@ const PilotPanel = observer(
         (candidate) => candidate.waterQuality?.product === key
       );
       if (!next) return;
-      runInAction(() => {
-        const time = item.currentTime;
-        items.forEach((candidate) =>
-          candidate.setTrait(CommonStrata.user, "show", candidate === next)
-        );
-        next.setActiveResolution(CommonStrata.user, resolution);
-        next.setActiveBand(
-          CommonStrata.user,
-          resolution === "annual" ? "mean" : "median"
-        );
-        if (time) next.setTrait(CommonStrata.user, "currentTime", time);
-      });
+      activateWaterQualityProduct(item, next, items, resolution);
     }
 
     useEffect(() => {
