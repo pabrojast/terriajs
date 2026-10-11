@@ -385,3 +385,6 @@ overlay desde `analytics/lakes.json`; no incluye coordenadas en el enlace.
 Al cambiar CHL/TUR/SPM desde la ficha, el producto visible pasa al primer lugar
 de la línea temporal de Terria. Conserva la fecha y la resolución seleccionadas;
 los controles del reloj y los enlaces compartidos siguen ese mismo producto.
+Al abrir un share, el panel también corrige el orden restaurado entre productos
+del mismo piloto. Este observador conserva los filtros y no desplaza una capa
+ajena al piloto que esté controlando la línea temporal.

@@ -7,8 +7,76 @@ import JulianDate from "terriajs-cesium/Source/Core/JulianDate";
 import { getShareData } from "../../../lib/ReactViews/Map/Panels/SharePanel/BuildShareLink";
 import configureWaterQualityOverlay from "../../../lib/ReactViews/WaterQuality/configureWaterQualityOverlay";
 import activateWaterQualityProduct from "../../../lib/ReactViews/WaterQuality/activateWaterQualityProduct";
+import observeWaterQualityTimeline from "../../../lib/ReactViews/WaterQuality/observeWaterQualityTimeline";
+import Result from "../../../lib/Core/Result";
 
 describe("Water quality sharing", function () {
+  it("restores the visible product after the real init reader orders the timeline by workbench", async function () {
+    const terria = new Terria({ baseUrl: "./" });
+    const [chl, tur] = ["chl", "tur"].map((product) => {
+      const item = new CogTimeSeriesCatalogItem(`wq-${product}`, terria);
+      updateModelFromJson(item, CommonStrata.definition, {
+        waterQuality: { pilotId: "madagascar", product: product.toUpperCase() },
+        startTime: "2023-01-01T00:00:00Z",
+        stopTime: "2026-10-06T00:00:00Z",
+        currentTime: "2026-09-29T00:00:00Z",
+        activeResolutionId: "daily",
+        activeBandId: "median",
+        resolutions: [{ id: "daily" }],
+        waterQualityBodyIds: ["15", "1", "16"],
+        show: product === "tur"
+      });
+      spyOn(item, "loadMapItems").and.returnValue(
+        Promise.resolve(new Result(undefined))
+      );
+      terria.addModel(item);
+      return item;
+    });
+    const initData = {
+      workbench: ["wq-chl", "wq-tur"],
+      timeline: ["wq-tur", "wq-chl"]
+    };
+    await terria.applyInitData({ initData });
+    expect(terria.timelineStack.top).toBe(chl);
+    const dispose = observeWaterQualityTimeline(tur);
+    expect(terria.timelineStack.top).toBe(tur);
+    // Also cover a later asynchronous init application while the panel is open.
+    await terria.applyInitData({ initData });
+    expect(terria.timelineStack.top).toBe(tur);
+    expect(tur.currentTime).toBe("2026-09-29T00:00:00Z");
+    expect(tur.activeResolutionId).toBe("daily");
+    expect(tur.activeBandId).toBe("median");
+    expect(tur.waterQualityBodyIds).toEqual(["15", "1", "16"]);
+    expect(terria.timelineStack.itemIds).toEqual(["wq-tur", "wq-chl"]);
+    dispose();
+    chl.dispose();
+    tur.dispose();
+  });
+
+  it("does not replace another dataset on the timeline or keep observing after unmount", function () {
+    const terria = new Terria({ baseUrl: "./" });
+    const [chl, tur, other] = ["chl", "tur", "other"].map((product) => {
+      const item = new CogTimeSeriesCatalogItem(product, terria);
+      updateModelFromJson(item, CommonStrata.definition, {
+        waterQuality:
+          product === "other" ? undefined : { pilotId: "madagascar" },
+        currentTime: "2026-09-29T00:00:00Z",
+        startTime: "2023-01-01T00:00:00Z",
+        stopTime: "2026-10-06T00:00:00Z",
+        show: product !== "chl"
+      });
+      return item;
+    });
+    terria.timelineStack.addToTop(tur);
+    terria.timelineStack.addToTop(other);
+    const dispose = observeWaterQualityTimeline(tur);
+    expect(terria.timelineStack.top).toBe(other);
+    dispose();
+    terria.timelineStack.addToTop(chl);
+    expect(terria.timelineStack.top).toBe(chl);
+    [chl, tur, other].forEach((item) => item.dispose());
+  });
+
   it("promotes the visible product while retaining time, resolution and shared body IDs", function () {
     const terria = new Terria({ baseUrl: "./" });
     const products = ["chl", "tur"].map((product) => {

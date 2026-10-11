@@ -180,7 +180,7 @@ cutoffs temporales, CSV con procedencia y fallos/reintentos del loader JSON.
 `CogZonalEngineSpec.ts` verifica escala/offset antes de estadísticas, nodata,
 metadatos GDAL, polígonos con huecos y propagación del contrato a series zonales.
 
-Validación de esta implementación: 26 specs focalizados pasan en Karma/Chrome;
+Validación de esta implementación: 28 specs focalizados pasan en Karma/Chrome;
 TypeScript con `--skipLibCheck` y ESLint/Prettier focalizados. El chequeo sin
 `--skipLibCheck` encuentra tres referencias preexistentes a `AsymmetricMatcher`
 en `@types/testing-library__jasmine-dom`. La validación visual y los datos
@@ -198,3 +198,7 @@ analytics al abrir el piloto. Evita enlaces gigantes y duplicación del overlay.
 También comprueba que cambiar CHL/TUR/SPM promueva el producto visible en la
 línea temporal, conserve fecha y cuerpos seleccionados, responda al reloj y
 serialice la resolución y el orden de la línea temporal sin duplicar capas.
+La regresión de reapertura usa `applyInitData` real: el lector reconstruye la
+línea temporal desde el orden del workbench. El observador del piloto recupera
+el producto visible sin tocar fecha, banda ni selección; respeta otras capas y
+deja de observar al desmontarse el panel.

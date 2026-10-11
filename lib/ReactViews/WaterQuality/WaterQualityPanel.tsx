@@ -27,6 +27,7 @@ import CommonStrata from "../../Models/Definition/CommonStrata";
 import { useViewState } from "../Context";
 import configureWaterQualityOverlay from "./configureWaterQualityOverlay";
 import activateWaterQualityProduct from "./activateWaterQualityProduct";
+import observeWaterQualityTimeline from "./observeWaterQualityTimeline";
 
 const COLORS = ["#0877ac", "#bb5930", "#6e55a3"];
 const format = (value: number | null | undefined) =>
@@ -168,6 +169,8 @@ const PilotPanel = observer(
       if (!next) return;
       activateWaterQualityProduct(item, next, items, resolution);
     }
+
+    useEffect(() => observeWaterQualityTimeline(item), [item]);
 
     useEffect(() => {
       let live = true;
