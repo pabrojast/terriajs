@@ -1,5 +1,5 @@
 import { runInAction } from "mobx";
-import { FC, useState } from "react";
+import { FC, useEffect, useState } from "react";
 import CommonStrata from "../../Models/Definition/CommonStrata";
 import { SelectableDimensionNumeric as SelectableDimensionNumericModel } from "../../Models/SelectableDimensions/SelectableDimensions";
 import Input from "../../Styled/Input";
@@ -9,7 +9,14 @@ export const SelectableDimensionNumeric: FC<{
   id: string;
   dim: SelectableDimensionNumericModel;
 }> = observer(({ id, dim }) => {
-  const [value, setValue] = useState(dim.value?.toString());
+  const committed = dim.value?.toString() ?? "";
+  const [draft, setDraft] = useState<string | undefined>(undefined);
+
+  useEffect(() => {
+    setDraft(undefined);
+  }, [committed]);
+
+  const value = draft ?? committed;
 
   return (
     <Input
@@ -21,14 +28,15 @@ export const SelectableDimensionNumeric: FC<{
       value={value}
       min={dim.min}
       max={dim.max}
-      invalidValue={Number.isNaN(parseFloat(value ?? ""))}
+      invalidValue={Number.isNaN(parseFloat(value))}
       onChange={(evt) => {
-        setValue(evt.target.value);
+        setDraft(evt.target.value);
         const number = parseFloat(evt.target.value);
         if (!Number.isNaN(number)) {
           runInAction(() => dim.setDimensionValue(CommonStrata.user, number));
         }
       }}
+      onBlur={() => setDraft(undefined)}
     />
   );
 });

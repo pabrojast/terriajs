@@ -1,0 +1,39 @@
+{
+  "catalog": [],
+  "baseMaps": {
+    "items": [
+      {
+        "item": {
+          "name": "Sentinel-2 cloudless 2024",
+          "type": "wms",
+          "url": "https://tiles.maps.eox.at/wms",
+          "layers": "s2cloudless-2024",
+          "id": "s2cloudless-2024",
+          "attribution": "Sentinel-2 cloudless - <a href=\"https://s2maps.eu\">s2maps.eu</a> by <a href=\"https://eox.at\">EOX IT Services GmbH</a> (Contains modified Copernicus Sentinel data 2024)"
+        },
+        "image": "images/basemaps/Sentinel-2-cloudless-2024.PNG"
+      },
+      {
+        "item": {
+          "id": "basemap-natural-earth-II",
+          "name": "Natural Earth II",
+          "type": "url-template-imagery",
+          "url": "https://storage.googleapis.com/terria-datasets-public/basemaps/natural-earth-tiles/{z}/{x}/{reverseY}.png",
+          "attribution": "<a href='https://www.naturalearthdata.com/downloads/10m-raster-data/10m-natural-earth-2/'>Natural Earth II</a> - From Natural Earth. <a href='https://www.naturalearthdata.com/about/terms-of-use/'>Public Domain</a>.",
+          "maximumLevel": 7,
+          "opacity": 1.0
+        },
+        "image": "build/TerriaJS/images/natural-earth.png"
+      }
+    ],
+    "defaultBaseMapId": "s2cloudless-2024",
+    "previewBaseMapId": "basemap-natural-earth-II"
+  },
+  "homeCamera": {
+    "west": -20,
+    "south": 35,
+    "east": 40,
+    "north": 70
+  },
+  "viewerMode": "2d"
+}

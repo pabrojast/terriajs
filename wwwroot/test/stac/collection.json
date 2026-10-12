@@ -1,0 +1,83 @@
+{
+  "id": "test-collection",
+  "type": "Collection",
+  "stac_version": "1.1.0",
+  "stac_extensions": [
+    "https://stac-extensions.github.io/raster/v2.0.0/schema.json",
+    "https://stac-extensions.github.io/render/v1.0.0/schema.json"
+  ],
+  "title": "Test STAC Collection",
+  "description": "A test STAC collection for unit testing TerriaJS STAC support.",
+  "license": "CC-BY-4.0",
+  "keywords": ["test", "stac", "cog", "terriajs"],
+  "providers": [
+    {
+      "name": "Test Provider",
+      "roles": ["producer", "host"],
+      "url": "https://example.com"
+    }
+  ],
+  "extent": {
+    "spatial": {
+      "bbox": [[130.0, -45.0, 155.0, -10.0]]
+    },
+    "temporal": {
+      "interval": [["2020-01-01T00:00:00Z", null]]
+    }
+  },
+  "links": [
+    {
+      "rel": "self",
+      "href": "/test/stac/collection.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "items",
+      "href": "/test/stac/items.json",
+      "type": "application/geo+json"
+    },
+    {
+      "rel": "root",
+      "href": "/test/stac/catalog.json",
+      "type": "application/json"
+    }
+  ],
+  "summaries": {
+    "bands": [
+      {
+        "name": "data",
+        "data_type": "uint16",
+        "raster:scale": 0.1,
+        "raster:offset": 0.0,
+        "nodata": 65535,
+        "unit": "m"
+      }
+    ],
+    "gsd": [10],
+    "platform": ["test-satellite"]
+  },
+  "item_assets": {
+    "data": {
+      "type": "image/tiff; application=geotiff; profile=cloud-optimized",
+      "title": "Data",
+      "description": "Cloud Optimized GeoTIFF data",
+      "roles": ["data"]
+    },
+    "thumbnail": {
+      "type": "image/png",
+      "title": "Thumbnail",
+      "roles": ["thumbnail"]
+    }
+  },
+  "renders": {
+    "default": {
+      "title": "Default Render",
+      "assets": ["data"],
+      "rescale": [[0, 1000]],
+      "colormap_name": "viridis",
+      "tilematrixsets": {
+        "EPSG:3857": [8, 14]
+      }
+    }
+  }
+}

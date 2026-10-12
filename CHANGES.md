@@ -1,8 +1,70 @@
 # Change Log
 
-#### next release (8.9.3)
+#### next release (8.9.6)
 
-- [The next improvement]
+- **Breaking changes:**
+
+  - Update `protomaps-leafet` package to 5.0.1 which only support protomaps basempap tileset >v4.0
+    - See [protomaps leaflet CHANGELOG](https://github.com/protomaps/protomaps-leaflet/blob/main/CHANGELOG.md#500).
+  - Update react and react-dom to version 18
+  - Update mobx-react to version 9
+    - It no longer convert props automatically to observable in class components. See [MobX React v9 class components guide](https://github.com/mobxjs/mobx/blob/mobx-react%409.2.0/packages/mobx-react/README.md#class-components) for more details on how to migrate
+
+- Add support for **STAC (SpatioTemporal Asset Catalog)** with two new catalog types:
+  - `stac-collection`: Load and visualize individual STAC Collections with COG assets as imagery layers. Supports the STAC render extension for styling, temporal and spatial filtering, and automatic metadata extraction.
+  - `stac-catalog`: Browse STAC Catalogs and APIs, listing all available collections as navigable children.
+- Fix STAC `sortBy` handling: automatically route to the `/search` endpoint when sorting is configured (the STAC Sort Extension is not supported on `/items` by many servers), and use the correct STAC Sort Extension array format in POST requests instead of a plain string.
+- Fix a bug where `.pmtiles` urls with a query string at the end was not being rendered as PMTILES.
+- Add `MapboxSearchProvider` for geocoding using Mapbox.
+- Upgrade yarn to 1.22.22
+- Fix `ApiTableCatalogItem` to add `queryParameters` and `updateQueryParameters` to the API requests. These were previously being ignored.
+- Changing the color scale in the COG styling panel now overrides dataset-provided custom color ramps so the selection always affects the rendered imagery (use the Reset button to restore the original legend if needed).
+- Fix COG transparency filters and "No data" additional color by post-processing TIFF tiles so the configured display range and fill color are applied to the rendered imagery.
+- Edit legend entries for COG layers directly from the Edit Style panel (generate from current colors, tweak per-item colors/labels/values, add/remove rows, and toggle back to the automatic legend at any time).
+- Legend sync now carries numeric breakpoints forward, so continuous ramps show real values instead of percentages when you regenerate or auto-sync.
+- Add UI controls to define, reorder and clear custom color stops for COG items so their legends can be edited like other formats.
+- Custom color stops automatically refresh the legend entries so there's a label for every colour step (and you can still rename them manually).
+- Improve continuous legend color interpolation for COG items by using d3-scale-chromatic interpolation functions where available (greys, greens, ylgnbu, ylorrd, rdbu, cool, warm) and Lab color space interpolation for other scales, resulting in perceptually uniform and more visually accurate color gradients that better match the rendered imagery.
+- **Continuous COG legends now display as horizontal SVG gradients** instead of stacked colored blocks, providing a true continuous color scale visualization similar to professional GIS applications. The gradient is generated dynamically with 50 interpolated color stops and displays min/max values. Discrete legends remain unchanged with categorical ranges.
+- Add `featureInfoRequest` support for WMTS items to configure custom (e.g. POST) feature info requests, including templated coordinates and access to layer identifiers for services without native GetFeatureInfo.
+
+#### 8.9.5 - 2025-06-03
+
+- Upgrade terriajs-server to version 4.0.2
+
+#### 8.9.4 - 2025-06-03
+
+- Remove regenerator-runtime polyfill as generators are now widely supported. #7615
+- Remove direct usage of core-js polyfills. #7615
+- TSify `ChartPanel` and convert to a functional component #7581
+- Convert `Chart` component of `FeatureInfoPanelChart` to functional component. #7598
+- TSify `DataCatalogGroup` and convert to a functional component. #7575
+- TSify `BottomDockChart`, `ChartPanel`, `LineAndPointChart`, `LineChart`, `MomentLinesChart`, `MomentPointsChart`, `Chart Tooltip` to typescript and convert to functional components. #7617
+- Upgrade mkdocs to 1.6.1
+- Refactor the `DateTimePicker` component and split it into multiple components. #7585
+- Update data-attribution and terms of conditions links to point to terria.io. #7627
+- Hide the related maps button. #7627
+- Change `BingMapSearchProvider` to correctly logs bing search action. #7601
+- fix `MapboxStyleCatalogItem` scaleFactor bug where tiles are always scaled-up in Cesium. #7639
+
+#### 8.9.3 - 2025-04-24
+
+- Remove unused d3-array dependency.
+- Update to plugin-error 2.0.1
+- TSify `MenuButton` and convert it to functional component. #7576
+- Convert `WorkbenchItem` to functional component #7564
+- Remove BrowserStack and SauceLabs gulp tasks.
+- Remove `test-travis` gulp task.
+- Allow to modify `lookupCookie` for i18next
+- TSify dropdown and convert it to a functional component. #7577
+- Convert SettingPanel to a functional component. #7589
+- Update html-to-react to 1.7.0
+- Pass explicit refs to css transition component to avoid findDomNode usage. #7590
+- TSify FadeIn component. #7590
+- Convert `ViewingControls` to a functional component. #7574
+- DOMPurify updated to 3.2.5 to fix CVE-2025-26791.
+- Fix pmtiles rendering issue. #7607
+- Remove unused types/rbush dependency.
 
 #### 8.9.2 - 2025-03-31
 
@@ -19,12 +81,12 @@
 - Update to shpjs 6.1.0.
 - Enable `noUncheckedSideEffectImports` in `tsconfig.json` to get errors from tsc when non-existent modules are imported for side effects.
 - Return lat/lon as numbers from `geoJsonGeometryFromGeoRssSimpleGeometry` and `geoJsonGeometryFromW3cGeometry`.
+- Remove unused babel/parser dependency.
 
 #### 8.9.1 - 2025-03-24
 
 - Tweak `ArcGisFeatureServerCatalogItem.imageryProvider` to return undefined until metadata has finished loading
 - Fix scss theming regression by restoring webpack alias
-- Remove unused babel/parser dependency.
 
 #### 8.9.0 - 2025-03-17
 
@@ -378,7 +440,6 @@
 #### 8.3.0 - 2023-05-22
 
 - **Breaking changes:**
-
   - **Upgraded Mobx to version 6.7.x**
   - **Upgraded Typescript to version 4.9.x**
   - See https://github.com/TerriaJS/terriajs/discussions/6787 for how to upgrade your map

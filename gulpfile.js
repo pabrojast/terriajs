@@ -110,27 +110,8 @@ gulp.task("copy-cesium-source-assets", function () {
     .pipe(gulp.dest("wwwroot/build/Cesium/build/Assets"));
 });
 
-gulp.task("test-browserstack", function (done) {
-  runKarma("./buildprocess/karma-browserstack.conf.js", done);
-});
-
-gulp.task("test-saucelabs", function (done) {
-  runKarma("./buildprocess/karma-saucelabs.conf.js", done);
-});
-
 gulp.task("test-firefox", function (done) {
   runKarma("./buildprocess/karma-firefox.conf.js", done);
-});
-
-gulp.task("test-travis", function (done) {
-  if (process.env.SAUCE_ACCESS_KEY) {
-    runKarma("./buildprocess/karma-saucelabs.conf.js", done);
-  } else {
-    console.log(
-      "SauceLabs testing is not available for pull requests outside the main repo; using local headless Firefox instead."
-    );
-    runKarma("./buildprocess/karma-firefox.conf.js", done);
-  }
 });
 
 gulp.task("test", function (done) {
@@ -184,16 +165,18 @@ gulp.task(
   "render-guide",
   gulp.series(
     function copyToBuild(done) {
-      const fse = require("fs-extra");
-      fse.copySync("doc", "build/doc");
+      const fs = require("node:fs");
+      fs.cpSync("doc", "build/doc", { recursive: true });
       done();
     },
     function generateMemberPages(done) {
-      const fse = require("fs-extra");
+      const fs = require("node:fs");
       const PluginError = require("plugin-error");
       const spawnSync = require("child_process").spawnSync;
 
-      fse.mkdirpSync("build/doc/connecting-to-data/catalog-type-details");
+      fs.mkdirSync("build/doc/connecting-to-data/catalog-type-details", {
+        recursive: true
+      });
 
       const result = spawnSync("node", ["generateDocs.js"], {
         cwd: "build",
@@ -243,8 +226,8 @@ gulp.task(
     gulp.parallel("code-attribution", "build-for-doc-generation"),
     "render-guide",
     function docs(done) {
-      var fse = require("fs-extra");
-      fse.copySync("doc/index-redirect.html", "wwwroot/doc/index.html");
+      var fs = require("node:fs");
+      fs.cpSync("doc/index-redirect.html", "wwwroot/doc/index.html");
       done();
     }
   )

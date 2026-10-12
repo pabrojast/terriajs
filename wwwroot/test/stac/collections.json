@@ -1,0 +1,65 @@
+{
+  "collections": [
+    {
+      "id": "test-collection",
+      "type": "Collection",
+      "stac_version": "1.1.0",
+      "title": "Test STAC Collection",
+      "description": "A test STAC collection for unit testing.",
+      "links": [
+        {
+          "rel": "self",
+          "href": "/test/stac/collection.json",
+          "type": "application/json"
+        },
+        {
+          "rel": "items",
+          "href": "/test/stac/items.json",
+          "type": "application/geo+json"
+        }
+      ],
+      "extent": {
+        "spatial": {
+          "bbox": [[130.0, -45.0, 155.0, -10.0]]
+        },
+        "temporal": {
+          "interval": [["2020-01-01T00:00:00Z", null]]
+        }
+      }
+    },
+    {
+      "id": "test-collection-2",
+      "type": "Collection",
+      "stac_version": "1.1.0",
+      "title": "Second Test Collection",
+      "description": "Another test collection.",
+      "links": [
+        {
+          "rel": "self",
+          "href": "/test/stac/collection-2.json",
+          "type": "application/json"
+        }
+      ],
+      "extent": {
+        "spatial": {
+          "bbox": [[110.0, -50.0, 160.0, -5.0]]
+        },
+        "temporal": {
+          "interval": [["2019-01-01T00:00:00Z", null]]
+        }
+      }
+    }
+  ],
+  "links": [
+    {
+      "rel": "self",
+      "href": "/test/stac/collections.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "root",
+      "href": "/test/stac/catalog.json",
+      "type": "application/json"
+    }
+  ]
+}

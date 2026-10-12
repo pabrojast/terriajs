@@ -23,6 +23,11 @@ declare namespace FeatureInfoPanelScssNamespace {
     noResults: string;
     panel: string;
     satelliteSuggestionBtn: string;
+    wrapper: string;
+    "wrapper-expanded": string;
+    "wrapper-visible": string;
+    wrapperExpanded: string;
+    wrapperVisible: string;
   }
 }
 

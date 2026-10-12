@@ -83,18 +83,11 @@ export const SearchBoxAndResults: FC<SearchBoxAndResultsProps> = observer(
 
     const viewState = useViewState();
     const theme = useTheme();
+    const { t } = useTranslation();
 
     useEffect(() => {
       viewState.updateAppRef(LOCATION_SEARCH_INPUT_NAME, locationSearchRef);
     }, [viewState]);
-
-    useEffect(() => {
-      // TODO(wing): why is this a reaction here and not in viewState itself?
-      // Close the search results when the Now Viewing changes (so that it's visible).
-      runInAction(() => {
-        viewState.searchState.showLocationSearchResults = false;
-      });
-    }, [viewState.searchState, viewState.terria.workbench.items]);
 
     const toggleShowLocationSearchResults = action((bool: boolean) => {
       viewState.searchState.showLocationSearchResults = bool;
@@ -139,15 +132,62 @@ export const SearchBoxAndResults: FC<SearchBoxAndResultsProps> = observer(
     return (
       <Text textDarker>
         <Box fullWidth>
-          <PresentationBox highlightBottom={shouldShowResults}>
-            <SearchBox
-              ref={locationSearchRef}
-              onSearchTextChanged={changeSearchText}
-              onDoSearch={search}
-              onFocus={startLocationSearch}
-              searchText={searchState.locationSearchText}
-              placeholder={placeholder}
-            />
+          <PresentationBox column highlightBottom={shouldShowResults}>
+            <Box
+              fullWidth
+              css={`
+                gap: 8px;
+                align-items: center;
+              `}
+            >
+              <SearchBox
+                ref={locationSearchRef}
+                onSearchTextChanged={changeSearchText}
+                onDoSearch={search}
+                searchOnChange={false}
+                onFocus={startLocationSearch}
+                searchText={searchState.locationSearchText}
+                placeholder={placeholder}
+              />
+              <button
+                type="button"
+                onClick={search}
+                aria-label={t("search.submitLocations")}
+                style={{
+                  padding: "6px 12px",
+                  cursor: "pointer",
+                  alignSelf: "stretch",
+                  border: 0,
+                  borderRadius: 4,
+                  font: "inherit",
+                  color: theme.textLight,
+                  backgroundColor: theme.colorPrimary
+                }}
+              >
+                {t("search.submit")}
+              </button>
+            </Box>
+            {viewState.terria.searchBarModel.locationSearchProvidersArray.some(
+              (provider) => provider.type === "nominatim-search-provider"
+            ) && (
+              <small
+                style={{
+                  display: "block",
+                  padding: "6px 0",
+                  color: theme.textLight
+                }}
+              >
+                Locations:{" "}
+                <a
+                  href="https://www.openstreetmap.org/copyright"
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{ color: "inherit" }}
+                >
+                  © OpenStreetMap contributors
+                </a>
+              </small>
+            )}
           </PresentationBox>
           {/* Results */}
           {shouldShowResults && (
@@ -158,7 +198,7 @@ export const SearchBoxAndResults: FC<SearchBoxAndResultsProps> = observer(
               css={`
                 top: 100%;
                 background-color: ${theme.greyLightest};
-                max-height: calc(100vh - 120px);
+                max-height: calc(100vh - 200px);
                 border-radius: 0 0 ${theme.radiusLarge} ${theme.radiusLarge};
               `}
             >
@@ -184,7 +224,6 @@ export const SearchBoxAndResults: FC<SearchBoxAndResultsProps> = observer(
               >
                 {searchState.locationSearchResults.map((search) => (
                   <LocationSearchResults
-                    theme={theme}
                     key={search.searchProvider.uniqueId}
                     terria={viewState.terria}
                     viewState={viewState}
@@ -204,6 +243,7 @@ export const SearchBoxAndResults: FC<SearchBoxAndResultsProps> = observer(
                     isWaitingForSearchToStart={
                       searchState.isWaitingToStartLocationSearch
                     }
+                    waitingHint={t("search.submitHint")}
                   />
                 ))}
               </Box>

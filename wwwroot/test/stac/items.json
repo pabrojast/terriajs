@@ -1,0 +1,93 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "id": "test-item-001",
+      "type": "Feature",
+      "stac_version": "1.1.0",
+      "stac_extensions": [
+        "https://stac-extensions.github.io/raster/v2.0.0/schema.json"
+      ],
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [140.0, -35.0],
+            [145.0, -35.0],
+            [145.0, -30.0],
+            [140.0, -30.0],
+            [140.0, -35.0]
+          ]
+        ]
+      },
+      "bbox": [140.0, -35.0, 145.0, -30.0],
+      "properties": {
+        "datetime": "2023-06-15T10:30:00Z",
+        "created": "2023-06-15T12:00:00Z",
+        "updated": "2023-06-15T12:00:00Z",
+        "platform": "test-satellite",
+        "gsd": 10
+      },
+      "links": [
+        {
+          "rel": "self",
+          "href": "/test/stac/items/test-item-001.json",
+          "type": "application/geo+json"
+        },
+        {
+          "rel": "parent",
+          "href": "/test/stac/collection.json",
+          "type": "application/json"
+        },
+        {
+          "rel": "collection",
+          "href": "/test/stac/collection.json",
+          "type": "application/json"
+        }
+      ],
+      "assets": {
+        "data": {
+          "href": "/test/cogs/4326.tif",
+          "type": "image/tiff; application=geotiff; profile=cloud-optimized",
+          "title": "Data",
+          "roles": ["data"],
+          "proj:epsg": 4326,
+          "raster:bands": [
+            {
+              "data_type": "uint16",
+              "scale": 0.1,
+              "offset": 0.0,
+              "nodata": 65535
+            }
+          ]
+        },
+        "thumbnail": {
+          "href": "/test/stac/thumbnails/test-item-001.png",
+          "type": "image/png",
+          "title": "Thumbnail",
+          "roles": ["thumbnail"]
+        }
+      },
+      "collection": "test-collection"
+    }
+  ],
+  "links": [
+    {
+      "rel": "self",
+      "href": "/test/stac/items.json",
+      "type": "application/geo+json"
+    },
+    {
+      "rel": "root",
+      "href": "/test/stac/catalog.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "parent",
+      "href": "/test/stac/collection.json",
+      "type": "application/json"
+    }
+  ],
+  "numberMatched": 1,
+  "numberReturned": 1
+}

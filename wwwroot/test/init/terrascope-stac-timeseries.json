@@ -1,0 +1,53 @@
+{
+  "catalog": [
+    {
+      "id": "terrascope-chl-timeseries",
+      "name": "Terrascope S2 Chlorophyll-a (STAC Time Series)",
+      "type": "stac-collection",
+      "url": "https://stac.terrascope.be/collections/terrascope-s2-chl-v1",
+      "description": "Terrascope STAC collection rendered as a native COG time series. Use the item menu in the workbench and choose 'Terrascope Login' to open a session, then click the map to get a temporal chart for the selected pixel.",
+      "auth": {
+        "mode": "oidc_password",
+        "tokenPersistence": {
+          "mode": "sessionStorage"
+        }
+      },
+      "asset": {
+        "assetKey": "CHL"
+      },
+      "render": {
+        "renderKey": "chl"
+      },
+      "timeSeries": {
+        "enabled": true,
+        "chartEnabled": true,
+        "providerCacheSize": 4,
+        "valueBand": 1
+      },
+      "maximumItems": 12,
+      "itemsPageSize": 12,
+      "itemsPageLimit": 2,
+      "itemsQueryMode": "search",
+      "sortBy": "-datetime",
+      "previewRequestSizeLimit": 4,
+      "previewRequestNumberLimit": 2
+    }
+  ],
+  "corsDomains": [
+    "stac.terrascope.be",
+    "services.terrascope.be",
+    "titiler.terrascope.be",
+    "sso.terrascope.be"
+  ],
+  "homeCamera": {
+    "focusWorkbenchItems": true
+  },
+  "initialCamera": {
+    "focusWorkbenchItems": true
+  },
+  "settings": {
+    "alwaysShowTimeline": true
+  },
+  "workbench": ["terrascope-chl-timeseries"],
+  "previewedItemId": "terrascope-chl-timeseries"
+}

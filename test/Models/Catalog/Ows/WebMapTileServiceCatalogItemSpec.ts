@@ -1,6 +1,8 @@
 import i18next from "i18next";
 import { autorun, runInAction } from "mobx";
-import WebMapTileServiceCatalogItem from "../../../../lib/Models/Catalog/Ows/WebMapTileServiceCatalogItem";
+import WebMapTileServiceCatalogItem, {
+  matchCapabilitiesProtocol
+} from "../../../../lib/Models/Catalog/Ows/WebMapTileServiceCatalogItem";
 import Terria from "../../../../lib/Models/Terria";
 
 describe("WebMapTileServiceCatalogItem", function () {
@@ -9,6 +11,33 @@ describe("WebMapTileServiceCatalogItem", function () {
   beforeEach(function () {
     terria = new Terria();
     wmts = new WebMapTileServiceCatalogItem("test", terria);
+  });
+
+  it("uses https tile templates when the capabilities came over https from the same host", function () {
+    const template =
+      "http://tiles.example.com/wmts/layer/default/{TileMatrixSet}/{TileMatrix}/{TileRow}/{TileCol}.jpg";
+    const https = template.replace("http://", "https://");
+
+    expect(
+      matchCapabilitiesProtocol(
+        template,
+        "https://tiles.example.com/wmts/1.0.0/WMTSCapabilities.xml"
+      )
+    ).toBe(https);
+    // Different host, http capabilities, relative capabilities or already-https templates are left alone.
+    expect(
+      matchCapabilitiesProtocol(template, "https://other.example.com/caps.xml")
+    ).toBe(template);
+    expect(
+      matchCapabilitiesProtocol(template, "http://tiles.example.com/caps.xml")
+    ).toBe(template);
+    expect(matchCapabilitiesProtocol(template, "test/WMTS/caps.xml")).toBe(
+      template
+    );
+    expect(matchCapabilitiesProtocol(template, undefined)).toBe(template);
+    expect(
+      matchCapabilitiesProtocol(https, "https://tiles.example.com/caps.xml")
+    ).toBe(https);
   });
 
   it("has a type", function () {

@@ -1,4 +1,5 @@
 import StoryBody from "../../../../lib/ReactViews/Story/StoryPanel/StoryBody";
+import { storyComposition } from "../../../../lib/Models/StoryComposition";
 import { act } from "react-dom/test-utils";
 import {
   ReactTestInstance,
@@ -8,6 +9,55 @@ import {
 
 describe("StoryBody", function () {
   let testRenderer: ReactTestRenderer;
+
+  it("renders composition references as formatted text in classic windows without changing the saved HTML", function () {
+    const story = {
+      id: "classic",
+      title: "Classic",
+      presentation: "classic" as const,
+      composition: storyComposition(),
+      text: '<p>Explore <a href="#story-ref-map"><strong>the map</strong></a> here.</p>'
+    };
+    act(() => {
+      testRenderer = create(<StoryBody isCollapsed={false} story={story} />);
+    });
+    expect(testRenderer.root.findAllByType("a").length).toBe(0);
+    expect(testRenderer.root.findByType("strong").children).toEqual([
+      "the map"
+    ]);
+    expect(story.text).toContain('href="#story-ref-map"');
+    act(() => {
+      testRenderer.update(
+        <StoryBody
+          isCollapsed={false}
+          story={{ ...story, presentation: "composed" }}
+        />
+      );
+    });
+    expect(testRenderer.root.findAllByType("a").length).toBe(1);
+  });
+
+  it("preserves spaces around narrative references without adding table whitespace", function () {
+    act(() => {
+      testRenderer = create(
+        <StoryBody
+          isCollapsed={false}
+          story={{
+            id: "composition",
+            title: "Narrative",
+            composition: storyComposition(),
+            text: '<p><strong>Try:</strong> <a href="#story-ref-chile">Chile</a> <em>now</em></p><table> <tbody> <tr> <td>value</td> </tr> </tbody> </table>'
+          }}
+        />
+      );
+    });
+    const paragraph = testRenderer.root.findByType("p");
+    expect(paragraph.children[1]).toBe(" ");
+    expect(paragraph.children[3]).toBe(" ");
+    for (const tag of ["table", "tbody", "tr"] as const) {
+      expect(testRenderer.root.findByType(tag).children.length).toBe(1);
+    }
+  });
 
   it("should include embedded media using iframe tag with allowed sources and without interfering others", function () {
     const theStory = {

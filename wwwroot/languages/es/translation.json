@@ -411,6 +411,105 @@
           }
         }
       }
+    },
+    "cogCatalogItem": {
+      "experimentalReprojectionWarning": "Este COG no está en una proyección nativa (EPSG:4326 o EPSG:3857). La reproyección es experimental y puede que no funcione como se espera. Si tiene control de los datos fuente, le recomendamos reproyectarlos a EPSG:4326 o EPSG:3857 usando GDAL o herramientas similares."
+    },
+    "cog": {
+      "editStyle": "Editar estilo",
+      "legendTitle": "Valores"
+    },
+    "cogStyling": {
+      "name": "Estilo COG",
+      "reset": "Restablecer al estilo predeterminado",
+      "colorScheme": "Color",
+      "colorHelp": "Elige una paleta de colores y un modo de renderizado.",
+      "colorScale": "Escala de color",
+      "defaultColorScale": "Predeterminada (negro a blanco)",
+      "reverseColors": "Invertir colores",
+      "renderType": "Tipo de renderizado",
+      "continuous": "Continuo",
+      "discrete": "Discreto",
+      "legendSteps": "Pasos de la leyenda",
+      "domain": {
+        "title": "Rango de la escala de color",
+        "help": "Extiende la escala de color entre estos valores. Déjalos automáticos para usar el rango de datos del COG actual.",
+        "autoDetect": "Usar rango automático del COG",
+        "clearManual": "Borrar valores manuales",
+        "invalidRange": "El rango de color no se aplica porque requiere dos valores finitos con el mínimo menor que el máximo."
+      },
+      "minimumValue": "Mínimo de la escala",
+      "maximumValue": "Máximo de la escala",
+      "displayRange": "Transparencia",
+      "applyDisplayRange": "Ocultar valores fuera del rango",
+      "displayRangeMin": "Mostrar desde (inclusivo)",
+      "displayRangeMax": "Mostrar hasta (inclusivo)",
+      "transparency": {
+        "help": "Los valores menores que el mínimo o mayores que el máximo quedan transparentes. Ambos límites permanecen visibles.",
+        "noDataColor": "Color de relleno sin datos",
+        "invalidRange": "El rango de transparencia no se aplica porque requiere dos valores finitos con el mínimo menor o igual que el máximo.",
+        "outsideRangeWarning": "El rango de transparencia ({{trMin}} – {{trMax}}) está fuera del rango de color ({{dMin}} – {{dMax}}). Algunos datos pueden quedar ocultos."
+      },
+      "timeSeries": {
+        "autoFit": "Ajustar automáticamente la escala al intervalo actual"
+      },
+      "customColors": {
+        "name": "Colores personalizados",
+        "addStop": "Agregar punto de color",
+        "clear": "Quitar colores personalizados",
+        "stopColor": "Color del punto {{index}}",
+        "stopPosition": "Posición del punto {{index}} (0-1)",
+        "remove": "Eliminar punto"
+      },
+      "legend": {
+        "name": "Leyenda",
+        "title": "Título de la leyenda",
+        "auto": "Usar leyenda automática",
+        "autoInfo": "La leyenda sigue la paleta {{scale}} con {{steps}} pasos. Haz clic en \"Desactivar modo automático\" para editar.",
+        "disableAuto": "Desactivar modo automático",
+        "itemColor": "Color del elemento {{index}}",
+        "itemTitle": "Etiqueta del elemento {{index}}",
+        "addItem": "Agregar elemento",
+        "removeItem": "Eliminar elemento",
+        "defaultItemLabel": "Elemento {{index}}",
+        "itemValue": "Valor del elemento {{index}}",
+        "generate": "Generar leyenda desde la escala de color",
+        "sync": "Sincronizar leyenda con la escala",
+        "reset": "Usar leyenda automática"
+      },
+      "advanced": "Avanzado",
+      "band": "Banda",
+      "clampLow": "Ajustar Valores Bajos",
+      "clampHigh": "Ajustar Valores Altos"
+    },
+    "cogCalculation": {
+      "toolName": "Estadísticas zonales COG",
+      "toolTitle": "Calcular estadísticas de una capa COG dentro de un polígono",
+      "needThreePoints": "Un polígono necesita al menos 3 puntos.",
+      "selectLayerAndPolygon": "Primero selecciona una capa y dibuja un polígono.",
+      "calculationError": "El cálculo falló.",
+      "noCogs": "Esta capa no tiene archivos COG para leer.",
+      "noTimeEntries": "Esta capa no tiene fechas para leer."
+    },
+    "cogTimeSeries": {
+      "loadTimeEntriesErrorTitle": "Error al cargar la serie temporal COG",
+      "loadTimeEntriesErrorMessage": "No se pudo cargar la definición de la serie temporal desde {{url}}.",
+      "loadImageryErrorTitle": "Error al cargar las imágenes COG",
+      "loadImageryErrorMessage": "No se pudieron cargar uno o más archivos COG de la fecha actual.",
+      "noTimeEntries": "Este conjunto de datos no tiene fechas disponibles.",
+      "noDataAtPoint": "Sin datos aquí",
+      "resolution": "Resolución temporal",
+      "statistic": "Estadística",
+      "places": "Lugares",
+      "goToPlace": "Ir a un lugar…",
+      "pointSeriesWindow": "Se muestran las {{read}} fechas más cercanas a la visible, de {{available}}. Muévete en el tiempo y haz clic de nuevo para leer otro periodo.",
+      "colorRange": "Rango de color",
+      "fitRangeToDate": "Ajustar a esta fecha",
+      "resetRange": "Restablecer rango",
+      "partialCoverageHint": "Cada fecha cubre solo una parte del área. Si el mapa aparece vacío aquí, prueba otra fecha.",
+      "pointSeriesLoading": "Leyendo serie temporal… {{loaded}}/{{total}} fechas",
+      "pointSeriesErrors": "No se pudo leer {{count}} fecha.",
+      "pointSeriesErrors_plural": "No se pudieron leer {{count}} fechas."
     }
   },
   "analytics": {
@@ -451,13 +550,32 @@
     "hideWorkbench": "Ocultar Banco de Trabajo"
   },
   "chart": {
+    "cancel": "Detener",
+    "readingSeries": "Leyendo serie temporal… {{loaded}}/{{total}} fechas",
+    "seriesReadErrors": "No se pudo leer {{count}} fecha.",
+    "seriesReadErrors_plural": "No se pudieron leer {{count}} fechas.",
+    "kpi": {
+      "current": "Fecha mostrada",
+      "mean": "Media",
+      "max": "Máximo",
+      "trend": "Tendencia",
+      "perYear": "por año",
+      "perYearWithUnit": "{{unit}} por año"
+    },
     "download": "Descargar",
     "expand": "Expandir",
     "closePanel": "Cerrar panel",
     "sectionLabel": "Gráficos",
     "loading": "Cargando los datos del gráfico...",
     "noData": "No se han encontrado datos cartográficos.",
-    "showItemInChart": "Mostrar {{value}} en el gráfico"
+    "showItemInChart": "Mostrar {{value}} en el gráfico",
+    "viewLarger": "Ver en grande",
+    "resetZoom": "Restablecer zoom",
+    "downloadPng": "Descargar imagen",
+    "downloadCsv": "Descargar CSV",
+    "chartTab": "Gráfico",
+    "dataTab": "Datos",
+    "showAllRows": "Mostrar las {{count}} filas"
   },
   "loader": {
     "loadingMessage": "Cargando"
@@ -535,7 +653,10 @@
     "viewLess": "Ver menos resultados de {{name}}",
     "placeholder": "Buscar lugares",
     "searchCatalogue": "Buscar en el catálogo",
-    "searchInDataCatalog": "Buscar '{{locationSearchText}}'en el Catálogo de Datos"
+    "searchInDataCatalog": "Buscar '{{locationSearchText}}'en el Catálogo de Datos",
+    "submit": "Buscar",
+    "submitLocations": "Buscar lugares",
+    "submitHint": "Pulse Enter o haga clic en Buscar para buscar este lugar."
   },
   "addData": {
     "back": "Atrás",
@@ -579,8 +700,14 @@
     "bodyV": "Puedes aplicar una serie de estilos, como el falso color, a las imágenes de satélite haciendo clic en el menú desplegable de estilos de el banco de trabajo de datos."
   },
   "story": {
+    "mixedManualHelp": "Esta historia incluye ventanas clásicas. Usa Anterior y Siguiente para avanzar a tu ritmo.",
     "story": "Historia",
     "editor": {
+      "presentationLabel": "Presentación",
+      "presentationClassic": "Ventana clásica",
+      "presentationComposed": "Composición",
+      "presentationClassicHelp": "Arrastra la barra del título y cambia el tamaño desde la esquina inferior. Los paneles laterales y las referencias interactivas están disponibles en Composición; su configuración se conserva al cambiar de formato.",
+      "presentationComposedHelp": "Combina texto con mapas, dashboards y multimedia. Puedes volver a la ventana clásica sin perder esta configuración.",
       "saveStory": "Guardar",
       "saveBtn": "guardar",
       "cancelBtn": "cancelar",
@@ -589,6 +716,101 @@
       "legend": {
         "insert": "Insertar leyenda",
         "empty": "No hay leyendas disponibles"
+      },
+      "design": {
+        "eyebrow": "ESTUDIO DE STORIES",
+        "newChapter": "Nuevo capítulo",
+        "editChapter": "Editar capítulo",
+        "intro": "Da forma a tu narrativa y elige cómo se presenta junto al mapa.",
+        "close": "Cerrar editor de stories",
+        "content": "Contenido de la historia",
+        "contentHint": "Escribe, ilustra y conecta tus ideas.",
+        "title": "Título del capítulo",
+        "required": "Obligatorio",
+        "titlePlaceholder": "Dale un título significativo a este capítulo",
+        "settings": "Ajustes del capítulo",
+        "loading": "Preparando tu espacio de escritura…",
+        "imageHint": "Añade imágenes desde tu biblioteca de IHP-WINS, o pégalas y súbelas directamente a tu historia.",
+        "classicShort": "Una ventana flotante sobre el mapa",
+        "composedShort": "Texto junto a mapas y visualizaciones",
+        "classicHelp": "Mueve y redimensiona la ventana durante la lectura. Su tamaño y posición se conservan al editar.",
+        "composedHelp": "Elige una plantilla. Los ajustes se conservan al cambiar de formato.",
+        "yourMap": "EL MAPA FORMA PARTE DE TU HISTORIA",
+        "classicNoteTitle": "Una ventana familiar, tu propia perspectiva.",
+        "classicNote": "Al guardar un capítulo nuevo se captura la vista actual del mapa. Para actualizar el mapa de un capítulo existente, usa Recapturar desde su menú.",
+        "classicDashboardHint": "Para añadir un dashboard de IHP-WINS, elige «{{composition}}» y después «{{dashboardLayout}}» o «{{combinedLayout}}».",
+        "saveChapter": "Guardar capítulo",
+        "savingButton": "Guardando…",
+        "saving": "Subiendo imágenes y guardando tu capítulo…",
+        "saveHint": "Guardar añade el capítulo a tu historia. Usa Compartir para crear un enlace.",
+        "uploadFailed": "No se pudieron subir las imágenes. Inténtalo de nuevo.",
+        "discardTitle": "¿Descartar los cambios?",
+        "discardDescription": "Los cambios de este capítulo no se han guardado. Puedes seguir editando o descartarlos.",
+        "keepEditing": "Seguir editando",
+        "discard": "Descartar cambios",
+        "layout": "Plantilla",
+        "textPosition": "Posición del texto",
+        "textWidth": "Ancho del texto",
+        "left": "Izquierda",
+        "right": "Derecha",
+        "third": "Un tercio",
+        "half": "La mitad",
+        "twoThirds": "Dos tercios",
+        "dashboards": "Dashboards",
+        "dashboardEmpty": "Un dashboard es un panel interactivo con gráficos, indicadores y filtros.",
+        "chooseDashboard": "Añadir dashboard de IHP-WINS",
+        "dashboardSearchStep": "Busca en IHP-WINS y elige un dashboard.",
+        "dashboardConfigureStep": "Opcionalmente, elige filtros y un gráfico para destacar en este capítulo. El dashboard original no se modifica.",
+        "dashboardInsertStep": "Inserta el dashboard, elige «{{dashboardLayout}}» o «{{combinedLayout}}» para mostrarlo y guarda el capítulo.",
+        "filterCount": "{{count}} filtro guardado",
+        "filterCount_plural": "{{count}} filtros guardados",
+        "media": "Imágenes y multimedia",
+        "mediaEmpty": "Añade fotografías, ilustraciones, vídeo o audio a este capítulo.",
+        "myImages": "Mis imágenes",
+        "addUrl": "Añadir desde una URL",
+        "mediaType": "Tipo de contenido",
+        "image": "Imagen",
+        "videoAudio": "Vídeo / audio",
+        "mediaUrl": "URL del contenido",
+        "addMedia": "Añadir contenido",
+        "invalidMedia": "Usa una URL de imagen, un enlace de YouTube/Vimeo o un archivo directo de vídeo/audio.",
+        "caption": "Descripción",
+        "alt": "Texto alternativo",
+        "moveUp": "Subir",
+        "moveDown": "Bajar",
+        "remove": "Eliminar",
+        "references": "Enlaces narrativos",
+        "referenceHint": "Selecciona palabras en la historia y enlázalas con una escena del mapa o un dashboard.",
+        "linkVisualization": "Vincular visualización",
+        "playback": "Reproducción",
+        "playbackHint": "Se usa cuando el lector elige Reproducir en una historia compuesta. Nunca comienza automáticamente.",
+        "duration": "Duración de la diapositiva (segundos)",
+        "compositionSettings": "Ajustes de composición",
+        "templates": {
+          "map": "Texto + mapa",
+          "dashboard": "Texto + dashboard",
+          "combined": "Mapa y dashboard",
+          "media": "Imagen / multimedia",
+          "full": "Solo narrativa",
+          "auto": "Automática"
+        },
+        "chooseImageTitle": "Mis imágenes",
+        "chooseDashboardTitle": "Elegir un dashboard de IHP-WINS",
+        "closeDialog": "Cerrar diálogo",
+        "mapScene": "Escena del mapa",
+        "dashboard": "Dashboard",
+        "keepMap": "Mantener mapa actual",
+        "keepDashboard": "Mantener dashboard actual",
+        "unavailableScene": "Escena guardada no disponible",
+        "onEnter": "Activar también al llegar a este párrafo",
+        "chooseFilters": "Elegir dashboard y filtros",
+        "apply": "Aplicar",
+        "cancel": "Cancelar",
+        "removeReference": "Eliminar referencia",
+        "chooseTarget": "Elige una escena del mapa o un dashboard.",
+        "allCharts": "todos los gráficos",
+        "referenceSummary": "{{count}} filtros · {{widget}}",
+        "chapterActions": "Acciones del capítulo: {{title}}"
       }
     },
     "removeAllStories": "Eliminar Todas",
@@ -839,6 +1061,10 @@
     "resourceDescription": "Descripción del recurso",
     "doesNotContainGeospatialData": "Este archivo no contiene datos geoespaciales.",
     "dataPreview": "PREVISUALIZACIÓN DE DATOS",
+    "terrascopeLoginAndDownload": "Iniciar sesión en Terrascope y descargar",
+    "openAssetLink": "Abrir",
+    "assetRequiresLogin": "requiere inicio de sesión",
+    "openPreviewImage": "Abrir imagen de vista previa",
     "preview": "{{appName}} vista previa",
     "previewItemErrorTitle": "No se ha podido previsualizar el artículo del catálogo.",
     "previewItemErrorMessage": "Se ha producido un error al cargar el elemento del catálogo.",
@@ -1001,6 +1227,41 @@
     "mapUserGuide": "Guía del usuario del mapa",
     "promptMessage": "Encuentre el Tour, los vídeos explicativos y otros contenidos de ayuda aquí"
   },
+  "ckanSession": {
+    "btnLogin": "Iniciar sesión",
+    "btnLoginTitle": "Inicie sesión en el portal de datos para ver los conjuntos de datos privados a los que tiene acceso (se abre en una pestaña nueva)",
+    "checking": "Comprobando sesión…",
+    "pendingLogin": "Termine de iniciar sesión…",
+    "pendingLoginTitle": "Complete el inicio de sesión en la pestaña nueva y vuelva aquí; el mapa detecta la sesión automáticamente. Haga clic para comprobar ahora.",
+    "pendingLoginPrompt": "Inicie sesión en la pestaña nueva y vuelva aquí. Su mapa se conserva tal como está.",
+    "checkNow": "Comprobar ahora",
+    "btnTitleAuthenticated": "Sesión iniciada como {{user}}",
+    "signedInAs": "Sesión iniciada como",
+    "sysadmin": "Administrador del portal",
+    "privateCatalogName": "Datos privados ({{user}})",
+    "organisations": "Organizaciones",
+    "groupDescription": "Conjuntos de datos no públicos que **{{user}}** está autorizado a usar en el portal de datos. Esta lista es personal: otros visitantes no la ven y se actualiza cuando cambian sus permisos. Si está vacía, todavía no se ha compartido con usted ningún conjunto de datos restringido.",
+    "openPrivateCatalog": "Abrir mis datos privados",
+    "refresh": "Actualizar sesión",
+    "profile": "Perfil en el portal",
+    "logout": "Cerrar sesión",
+    "newTabHint": "Perfil y cerrar sesión se abren en una pestaña nueva; el mapa se conserva.",
+    "errorShort": "Sesión no disponible",
+    "error": "El portal de datos no respondió a la comprobación de sesión. Haga clic para reintentar.",
+    "errors": {
+      "title": "Datos privados",
+      "sessionExpired": "Su sesión en el portal ha expirado. Use **Iniciar sesión** en el menú superior y vuelva a esta pestaña; el mapa se conservará.",
+      "forbidden": "Su cuenta no tiene permiso para acceder a este conjunto de datos privado.",
+      "invalidResponse": "El portal devolvió una respuesta inesperada al comprobar su sesión."
+    },
+    "notifications": {
+      "loggedOutTitle": "Sesión cerrada",
+      "loggedOutMessage": "Ya no tiene sesión en el portal de datos. Se quitaron {{count}} capa(s) privada(s) del mapa.",
+      "shareRequiresLoginTitle": "Este mapa contiene datos privados",
+      "shareRequiresLoginMessage": "Algunas capas de este mapa compartido provienen de conjuntos de datos privados. Inicie sesión en el portal para cargarlas; el resto del mapa funciona sin sesión.",
+      "dismiss": "Continuar sin iniciar sesión"
+    }
+  },
   "welcomeMessage": {
     "welcomeMessage": "¿Está interesado en el descubrimiento y la exploración de datos? <br/>Entre directamente y comience o consulte las siguientes opciones de la guía de ayuda.",
     "exploreDataBtnText": "Explorar los datos del mapa",
@@ -1011,17 +1272,9 @@
     "welcomeMessageOnMobile": "¿Le interesa el descubrimiento y la exploración de datos?",
     "tourBtnText": "Haz el recorrido"
   },
-  "emptyWorkbenchMessage": "<0><0>Tu bandeja de trabajo esta vacía</0><1><strong>Click '$t(addData.addDataBtnText)' arriba de</strong></1><2><0>Buscar en el catálogo de datos</0><1>Carga tu propia información en el mapa</1></2><3><0></0><strong>TIP.</strong><2> Todos sus conjuntos de datos activos aparecerán aquí</2></3></0>",
   "dragDrop": {
     "not": "<0>bbbb</0>",
     "text": "<0>Arrastrar y soltar</0><1>Sus datos en cualquier lugar para verlos en el mapa<1>"
-  },
-  "emptyWorkbench": {
-    "helpfulHints": "Consejos útiles",
-    "emptyArea": "Su banco de trabajo está vacío",
-    "helpfulHintsOne": "Busque los datos disponibles seleccionando \"Explorar los datos del mapa\" o haga clic en \"Subir\" para añadir sus propios datos al mapa.",
-    "helpfulHintsTwo": "Una vez que hayas añadido datos al mapa, tus conjuntos de datos activos aparecerán aquí en tu banco de trabajo. El banco de trabajo le ayudará a interactuar con los datos.",
-    "helpfulHintsThree": "En el banco de trabajo puede activar y desactivar conjuntos de datos, cambiar su opacidad, activar la comparación en pantalla dividida, cambiar estilos y navegar por fechas y horas, si los datos admiten esta funcionalidad."
   },
   "timer": {
     "nextScheduledUpdateTime": "Próxima actualización de datos a {{scheduledUpdateTime}}",

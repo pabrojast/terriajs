@@ -18,8 +18,7 @@ const StoryLegendWrapper = styled.div`
     font-size: 12px;
   }
 
-  & .${LegendStyles.legendTitle},
-  & .${LegendStyles.legendTitles} {
+  & .${LegendStyles.legendTitle}, & .${LegendStyles.legendTitles} {
     font-size: 12px;
     line-height: 16px;
   }

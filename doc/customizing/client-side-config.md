@@ -174,6 +174,7 @@ Configuration of items to appear in the search bar
 | languages                 | yes      | **Object**       | `{en: "english"}`                                         | Language abbreviations. Please mind that matching locale files must exist.                                                                                                                                                                                                       |
 | fallbackLanguage          | yes      | **string**       | `"en"`                                                    | Fallback language used if contents are not available in the currently selected language.                                                                                                                                                                                         |
 | changeLanguageOnStartWhen | yes      | **string[]**     | `["querystring", "localStorage", "navigator", "htmlTag"]` | Order of user language detection. See [i18next browser language detection documentation](https://github.com/i18next/i18next-browser-languageDetector) for details.                                                                                                               |
+| lookupCookie              | no       | **string**       | `"i18next"`                                               | Name of the cookie that handles i18n. See [i18next browser language detection documentation](https://github.com/i18next/i18next-browser-languageDetector) for details.                                                                                                           |
 | overridesBaseUrl          | yes      | **string**       |                                                           | Base URL for override namespace translation files. If set, this makes up the base URL for translation override files. Should end in "/". For example, if `overridesBaseUrl = "test/path/"`, then the full path for translation override files will be `"test/path/{{lng}}.json"` |
 
 ---
@@ -204,7 +205,8 @@ Configuration of items to appear in the search bar
     "localStorage",
     "navigator",
     "htmlTag"
-  ]
+  ],
+  "lookupCookie": "i18next"
 }
 ```
 
@@ -240,11 +242,11 @@ Credits/Attribution shown at the bottom of the map. Supports internationalizatio
 [
   {
     "text": "map.extraCreditLinks.dataAttribution",
-    "url": "about.html#data-attribution"
+    "url": "https://terria.io/attributions"
   },
   {
-    "text": "map.extraCreditLinks.disclaimer",
-    "url": "about.html#disclaimer"
+    "text": "map.extraCreditLinks.termsOfUse",
+    "url": "https://terria.io/demo-terms"
   }
 ]
 ```
@@ -264,3 +266,31 @@ search provider values.
 | minCharacters         | no       | **number**    | 3                              | Minimum number of characters required for search to start                                         |
 | boundingBoxLimit      | no       | **Rectangle** | `Cesium.Rectangle.MAX_VALUE`   | Bounding box limits for the search results {west, south, east, north}                             |
 | showSearchInCatalog   | no       | **boolean**   | true                           | True to show "Search in Catalog" link in location search results.                                 |
+
+### WMTS custom feature info
+
+WMTS catalog items can override the default `GetFeatureInfo` call by defining a `featureInfoRequest`
+object. This is useful when a service does not expose features directly but provides a separate
+endpoint (for example an `xcube` time-series API) that should be queried when the map is clicked.
+Templates support double-curly tokens such as `{{longitude}}`, `{{latitude}}`, `{{layer}}`
+(the WMTS Identifier), `{{layerTitle}}`, `{{time}}`, and pixel/tile indices.
+
+```json5
+{
+  type: "wmts",
+  name: "Ukraine turbidity",
+  url: "https://data.dev-wins.com/xcube/wmts/1.0.0/WMTSCapabilities.xml",
+  layer: "ukraine_lwq100_pyramid.turbidity_mean",
+  featureInfoRequest: {
+    url: "https://data.dev-wins.com/xcube/timeseries/{{layerPath}}",
+    method: "POST",
+    body: '{ "type": "Point", "coordinates": [{{longitude}}, {{latitude}}] }',
+    headers: {
+      "Content-Type": "application/json"
+    }
+  }
+}
+```
+
+By default the request expects JSON and will automatically build a feature info table from the JSON
+properties returned by the service.

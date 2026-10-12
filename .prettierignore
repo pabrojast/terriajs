@@ -1,7 +1,9 @@
 # =====================
 # From .gitignore. Update this list when .gitignore changes
 
-docs/
+docs/*
+!docs/obsidian-vault/
+!docs/obsidian-vault/**
 node_modules/
 .idea/
 build/
@@ -41,3 +43,7 @@ yarn.lock
 
 # Ignore some files
 doc/acknowledgements/attributions.md
+
+# Local tooling / per-user config (not source)
+.claude/
+.mix/

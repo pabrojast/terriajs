@@ -24,6 +24,7 @@ import CommonStrata from "../../lib/Models/Definition/CommonStrata";
 import { BaseModel } from "../../lib/Models/Definition/Model";
 import TerriaFeature from "../../lib/Models/Feature/Feature";
 import {
+  type InitSourceData,
   isInitFromData,
   isInitFromDataPromise,
   isInitFromOptions,
@@ -471,6 +472,66 @@ describe("Terria", function () {
 
       expect(terria.mainViewer.viewerMode).toBe(ViewerMode.Leaflet);
       expect(beforeRestoreAppState).toHaveBeenCalledBefore(restoreAppState);
+    });
+
+    describe("ckanSession", function () {
+      const SESSION_RE = /\/api\/terria\/user\/session/;
+
+      afterEach(function () {
+        terria.dispose();
+      });
+
+      it("is not created and never calls the session endpoint without configParameters.ckanSession", async function () {
+        jasmine.Ajax.stubRequest("config.json").andReturn({
+          responseText: JSON.stringify({ parameters: {} })
+        });
+        terria = new Terria({ appBaseHref: "/", baseUrl: "./" });
+
+        await terria.start({ configUrl: "config.json", i18nOptions });
+        // Let the whoami promise chain settle.
+        await new Promise((resolve) => setTimeout(resolve, 0));
+
+        expect(terria.configParameters.ckanSession).toBeUndefined();
+        expect(terria.ckanSession).toBeUndefined();
+        expect(jasmine.Ajax.requests.filter(SESSION_RE).length).toBe(0);
+      });
+
+      it("is created by start(), keeps configParameters.ckanSession and issues one whoami when configured", async function () {
+        const ckanSession = {
+          sessionUrl: "/api/terria/user/session",
+          privateCatalogUrl: "/api/terria/user/private-catalog",
+          loginUrl: "/user/login",
+          logoutUrl: "/user/_logout",
+          catalogGroupId: "ckan-private-catalog",
+          checkOnFocus: false,
+          focusThrottleMs: 5000
+        };
+        jasmine.Ajax.stubRequest("config.json").andReturn({
+          responseText: JSON.stringify({ parameters: { ckanSession } })
+        });
+        jasmine.Ajax.stubRequest(SESSION_RE).andReturn({
+          responseText: JSON.stringify({ authenticated: false })
+        });
+        terria = new Terria({ appBaseHref: "/", baseUrl: "./" });
+
+        await terria.start({ configUrl: "config.json", i18nOptions });
+        // Let the whoami promise chain settle.
+        await new Promise((resolve) => setTimeout(resolve, 0));
+
+        expect(terria.configParameters.ckanSession).toEqual(ckanSession);
+        expect(terria.ckanSession).toBeDefined();
+        expect(terria.ckanSession!.groupId).toBe("ckan-private-catalog");
+        expect(terria.ckanSession!.referenceId).toBe(
+          "ckan-private-catalog/catalog"
+        );
+        const requests = jasmine.Ajax.requests.filter(SESSION_RE);
+        expect(requests.length).toBe(1);
+        expect(requests[0].url).not.toContain("proxy/");
+        expect(terria.ckanSession!.status).toBe("anonymous");
+        expect(
+          terria.catalog.group.members.some((m) => m === "ckan-private-catalog")
+        ).toBe(false);
+      });
     });
   });
 
@@ -1205,12 +1266,17 @@ describe("Terria", function () {
         terria.selectedFeature = new Entity({
           name: "selected"
         }) as TerriaFeature;
+        terria.featureInfoPanelState = {
+          position: { x: 20, y: 30, xRatio: 0.1, yRatio: 0.2 },
+          dimensions: { width: 320, height: 240 }
+        };
         await terria.applyInitData({
           initData: {},
           canUnsetFeaturePickingState: true
         });
         expect(terria.pickedFeatures).toBeUndefined();
         expect(terria.selectedFeature).toBeUndefined();
+        expect(terria.featureInfoPanelState).toBeUndefined();
       });
 
       it("otherwise, should not unset feature picking state", async function () {
@@ -1223,6 +1289,40 @@ describe("Terria", function () {
         });
         expect(terria.pickedFeatures).toBeDefined();
         expect(terria.selectedFeature).toBeDefined();
+      });
+    });
+
+    describe("when pickedFeatures is present in initData", function () {
+      it("hydrates the feature info panel geometry", async function () {
+        const initData: InitSourceData = {
+          pickedFeatures: {},
+          featureInfoPanel: {
+            position: { x: 12, y: 34, xRatio: 0.25, yRatio: 0.75 },
+            dimensions: { width: 360, height: 280 }
+          }
+        };
+
+        await terria.applyInitData({ initData });
+
+        expect(terria.featureInfoPanelState).toEqual({
+          position: { x: 12, y: 34, xRatio: 0.25, yRatio: 0.75 },
+          dimensions: { width: 360, height: 280 }
+        });
+      });
+
+      it("clears previous feature info panel geometry if the initData omits it", async function () {
+        terria.featureInfoPanelState = {
+          position: { x: 20, y: 30, xRatio: 0.1, yRatio: 0.2 },
+          dimensions: { width: 320, height: 240 }
+        };
+
+        await terria.applyInitData({
+          initData: {
+            pickedFeatures: {}
+          }
+        });
+
+        expect(terria.featureInfoPanelState).toBeUndefined();
       });
     });
 

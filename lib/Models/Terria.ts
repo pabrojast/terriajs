@@ -1,3 +1,4 @@
+import { StoryOptions } from "./StoryComposition";
 import i18next from "i18next";
 import {
   action,
@@ -88,6 +89,7 @@ import MagdaReference, {
   MagdaReferenceHeaders
 } from "./Catalog/CatalogReferences/MagdaReference";
 import SplitItemReference from "./Catalog/CatalogReferences/SplitItemReference";
+import CkanSession, { CkanSessionConfig } from "./CkanSession";
 import CommonStrata from "./Definition/CommonStrata";
 import { BaseModel } from "./Definition/Model";
 import ModelPropertiesFromTraits from "./Definition/ModelPropertiesFromTraits";
@@ -103,6 +105,7 @@ import TerriaFeature from "./Feature/Feature";
 import GlobeOrMap from "./GlobeOrMap";
 import IElementConfig from "./IElementConfig";
 import InitSource, {
+  FeatureInfoPanelState,
   InitSourceData,
   InitSourceFromData,
   ShareInitSourceData,
@@ -112,13 +115,14 @@ import InitSource, {
   isInitFromOptions,
   isInitFromUrl
 } from "./InitSource";
+import type { AccumulatedSeries } from "../ReactViews/Custom/Chart/ChartJs/ChartJsTypes";
 import Internationalization, {
   I18nStartOptions,
   LanguageConfiguration
 } from "./Internationalization";
 import MapInteractionMode from "./MapInteractionMode";
 import NoViewer from "./NoViewer";
-import { RelatedMap, defaultRelatedMaps } from "./RelatedMaps";
+import { RelatedMap } from "./RelatedMaps";
 import CatalogIndex from "./SearchProviders/CatalogIndex";
 import { SearchBarModel } from "./SearchProviders/SearchBarModel";
 import ShareDataService from "./ShareDataService";
@@ -127,8 +131,6 @@ import TimelineStack from "./TimelineStack";
 import { isViewerMode, setViewerMode } from "./ViewerMode";
 import Workbench from "./Workbench";
 import SelectableDimensionWorkflow from "./Workflows/SelectableDimensionWorkflow";
-
-// import overrides from "../Overrides/defaults.jsx";
 
 export interface ConfigParameters {
   /**
@@ -378,6 +380,16 @@ export interface ConfigParameters {
    * Keep catalog open when adding / removing items
    */
   keepCatalogOpen: boolean;
+
+  /**
+   * Same-origin CKAN session integration. Inert when undefined. All URLs must
+   * be relative paths ("/api/terria/..."), never proxied.
+   */
+  ckanSession?: CkanSessionConfig;
+  /** Same-origin CKAN image upload endpoint for story photos. */
+  storyImageUploadUrl?: string;
+  /** Same-origin CKAN image library picker. */
+  storyImageLibraryUrl?: string;
 }
 
 interface StartOptions {
@@ -482,6 +494,10 @@ export default class Terria {
 
   catalogIndex: CatalogIndex | undefined;
 
+  /** CKAN portal session tracker. Created in `start()` when `configParameters.ckanSession` is set. */
+  @observable.ref
+  ckanSession: CkanSession | undefined = undefined;
+
   readonly elements = observable.map<string, IElementConfig>();
 
   @observable
@@ -558,6 +574,9 @@ export default class Terria {
     keepCatalogOpen: false,
     experimentalFeatures: undefined,
     magdaReferenceHeaders: undefined,
+    ckanSession: undefined,
+    storyImageUploadUrl: undefined,
+    storyImageLibraryUrl: undefined,
     locationSearchBoundingBox: undefined,
     googleAnalyticsKey: undefined,
     errorService: undefined,
@@ -589,15 +608,18 @@ export default class Terria {
       // Default credit links (shown at the bottom of the Cesium map)
       {
         text: "map.extraCreditLinks.dataAttribution",
-        url: "about.html#data-attribution"
+        url: "https://terria.io/attributions"
       },
-      { text: "map.extraCreditLinks.disclaimer", url: "about.html#disclaimer" }
+      {
+        text: "map.extraCreditLinks.termsOfUse",
+        url: "https://terria.io/demo-terms"
+      }
     ],
     printDisclaimer: undefined,
     storyRouteUrlPrefix: undefined,
     enableConsoleAnalytics: undefined,
     googleAnalyticsOptions: undefined,
-    relatedMaps: defaultRelatedMaps,
+    relatedMaps: [],
     aboutButtonHrefUrl: "about.html",
     plugins: undefined,
     searchBarConfig: undefined,
@@ -609,6 +631,9 @@ export default class Terria {
 
   @observable
   selectedFeature: TerriaFeature | undefined;
+
+  @observable.ref
+  featureInfoPanelState: FeatureInfoPanelState | undefined;
 
   @observable
   allowFeatureInfoRequests: boolean = true;
@@ -668,6 +693,10 @@ export default class Terria {
   @observable depthTestAgainstTerrainEnabled = false;
 
   @observable stories: StoryData[] = [];
+  @observable storyOptions: StoryOptions = {
+    version: 1,
+    displayMode: "slides"
+  };
   @observable storyPromptShown: number = 0; // Story Prompt modal will be rendered when this property changes. See StandardUserInterface, section regarding sui.notifications. Ideally move this to ViewState.
 
   /**
@@ -1093,6 +1122,19 @@ export default class Terria {
       );
     }
 
+    // CKAN session (same-origin cookie). The whoami runs in parallel with the
+    // init sources; the private catalog group is only added after
+    // `restoreAppState` (see `setReady()` below).
+    if (this.configParameters.ckanSession && !this.ckanSession) {
+      runInAction(() => {
+        this.ckanSession = new CkanSession(
+          this,
+          this.configParameters.ckanSession!
+        );
+      });
+      void this.ckanSession!.refresh();
+    }
+
     this.baseMapsModel
       .initializeDefaultBaseMaps()
       .catchError((error) =>
@@ -1118,7 +1160,13 @@ export default class Terria {
       }
     }
 
-    await this.restoreAppState(options);
+    try {
+      await this.restoreAppState(options);
+    } finally {
+      // The private catalog group is added after the init members (last tab)
+      // and after `models`/`#start=` have been processed.
+      this.ckanSession?.setReady();
+    }
   }
 
   private async restoreAppState(options: StartOptions) {
@@ -1230,6 +1278,21 @@ export default class Terria {
         baseMap = baseMapSearch;
       }
     }
+
+    // Check if the selected basemap is OpenStreetMap and user hasn't accepted disclaimer
+    if (baseMap?.item?.uniqueId === "basemap-openstreetmap") {
+      const hasAcceptedDisclaimer = this.getLocalProperty(
+        "unescoDisclaimerAccepted"
+      );
+      if (!hasAcceptedDisclaimer) {
+        // Don't set OpenStreetMap, fall back to first non-OSM basemap
+        baseMap =
+          baseMapItems.find(
+            (item) => item.item?.uniqueId !== "basemap-openstreetmap"
+          ) ?? baseMapItems[0];
+      }
+    }
+
     await this.mainViewer.setBaseMap(baseMap.item as MappableMixin.Instance);
   }
 
@@ -1246,6 +1309,7 @@ export default class Terria {
 
   dispose(): void {
     this._initSourceLoader.dispose();
+    this.ckanSession?.dispose();
   }
 
   async updateFromStartData(
@@ -1279,6 +1343,11 @@ export default class Terria {
       );
     }
 
+    // Process hash and routes FIRST — these only push to initSources and set
+    // user properties; they do NOT access the catalog.  By collecting all init
+    // sources before calling loadInitSources() we avoid a double-load that
+    // would re-apply simple-modular.json and duplicate non-group catalog items
+    // (e.g. terria-reference models get a "(1)" suffix instead of merging).
     try {
       await interpretHash(
         this,
@@ -1333,7 +1402,51 @@ export default class Terria {
       this.raiseErrorToUser(e);
     }
 
-    return await this.loadInitSources();
+    // Load ALL init sources in a single pass (base catalog + hash/share data).
+    // This prevents the previous double-load which caused non-GroupMixin items
+    // (like terria-reference) to be duplicated with incremented IDs.
+    const result = await this.loadInitSources();
+
+    // After all sources are loaded, ensure terria-references are resolved
+    // so that any subsequent catalog lookups can find remote catalog items.
+    await this.ensureCatalogReferencesLoaded();
+
+    return result;
+  }
+
+  /**
+   * Ensures that any terria-reference catalog items are loaded.
+   * This is needed to handle sharelinks that reference items from remote catalogs.
+   */
+  private async ensureCatalogReferencesLoaded(): Promise<void> {
+    const terriaReferences = this.catalog.group.memberModels.filter(
+      (member: BaseModel) => member.type === "terria-reference"
+    );
+
+    if (terriaReferences.length > 0) {
+      // Load all terria-references to ensure their catalogs are available
+      await Promise.all(
+        terriaReferences.map(async (ref: BaseModel) => {
+          try {
+            if (
+              "loadMetadata" in ref &&
+              typeof ref.loadMetadata === "function"
+            ) {
+              await ref.loadMetadata();
+            }
+            if ("loadMembers" in ref && typeof ref.loadMembers === "function") {
+              await ref.loadMembers();
+            }
+          } catch (error) {
+            // Don't fail completely if one reference fails
+            console.warn(
+              `Failed to load terria-reference ${ref.uniqueId}:`,
+              error
+            );
+          }
+        })
+      );
+    }
   }
 
   @action
@@ -1731,6 +1844,13 @@ export default class Terria {
     // Add stories
     if (Array.isArray(initData.stories)) {
       this.stories = initData.stories;
+      this.storyOptions = {
+        version: 1,
+        displayMode:
+          initData.storyOptions?.displayMode === "storymap"
+            ? "storymap"
+            : "slides"
+      };
       this.storyPromptShown++;
     }
 
@@ -1920,6 +2040,11 @@ export default class Terria {
     );
 
     if (isJsonObject(initData.pickedFeatures)) {
+      runInAction(() => {
+        this.featureInfoPanelState = featureInfoPanelStateFromJson(
+          initData.featureInfoPanel
+        );
+      });
       when(() => !(this.currentViewer instanceof NoViewer)).then(() => {
         if (isJsonObject(initData.pickedFeatures)) {
           this.loadPickedFeatures(initData.pickedFeatures);
@@ -1929,6 +2054,31 @@ export default class Terria {
       runInAction(() => {
         this.pickedFeatures = undefined;
         this.selectedFeature = undefined;
+        this.featureInfoPanelState = undefined;
+      });
+    }
+
+    // Restore accumulated Chart.js per-feature series onto their backing
+    // `CsvCatalogItem`s. Done here (after models + workbench are loaded) so the
+    // target models exist. Duck-typed (`addAccumulatedSeries`) rather than an
+    // `instanceof CsvCatalogItem` check to avoid Terria.ts taking a static
+    // dependency on a concrete catalog item (circular-import risk).
+    if (isJsonObject(initData.accumulatedChartSeries)) {
+      const accumulatedChartSeries = initData.accumulatedChartSeries;
+      Object.keys(accumulatedChartSeries).forEach((modelId) => {
+        const series = accumulatedChartSeries[modelId];
+        if (!Array.isArray(series)) {
+          return;
+        }
+        const model = this.getModelById(BaseModel, modelId);
+        if (model && isAccumulatedChartSeriesTarget(model)) {
+          runInAction(() => {
+            model.clearAccumulatedSeries();
+            (series as AccumulatedSeries[]).forEach((s) =>
+              model.addAccumulatedSeries(s)
+            );
+          });
+        }
       });
     }
 
@@ -2372,6 +2522,90 @@ async function interpretStartData(
       });
     }
   }
+}
+
+function draggableElementPositionFromJson(
+  position: unknown
+): FeatureInfoPanelState["position"] {
+  if (!isJsonObject(position)) return undefined;
+
+  const x = position.x;
+  const y = position.y;
+
+  if (!isJsonNumber(x) || !isJsonNumber(y)) {
+    return undefined;
+  }
+
+  const xRatio = isJsonNumber(position.xRatio) ? position.xRatio : undefined;
+  const yRatio = isJsonNumber(position.yRatio) ? position.yRatio : undefined;
+
+  return {
+    x,
+    y,
+    ...(isDefined(xRatio) ? { xRatio } : {}),
+    ...(isDefined(yRatio) ? { yRatio } : {})
+  };
+}
+
+function draggableElementDimensionsFromJson(
+  dimensions: unknown
+): FeatureInfoPanelState["dimensions"] {
+  if (!isJsonObject(dimensions)) return undefined;
+
+  const width = dimensions.width;
+  const height = dimensions.height;
+
+  if (!isJsonNumber(width) || !isJsonNumber(height)) {
+    return undefined;
+  }
+
+  return { width, height };
+}
+
+/**
+ * Minimal structural view of a model that can hold accumulated Chart.js series
+ * (currently `CsvCatalogItem`). Used so {@link Terria.applyInitData} can restore
+ * shared series without statically importing the concrete catalog item, which
+ * would risk a circular import.
+ */
+interface AccumulatedChartSeriesTarget {
+  clearAccumulatedSeries(): void;
+  addAccumulatedSeries(series: AccumulatedSeries): void;
+}
+
+function isAccumulatedChartSeriesTarget(
+  model: BaseModel
+): model is BaseModel & AccumulatedChartSeriesTarget {
+  return (
+    typeof (model as Partial<AccumulatedChartSeriesTarget>)
+      .addAccumulatedSeries === "function" &&
+    typeof (model as Partial<AccumulatedChartSeriesTarget>)
+      .clearAccumulatedSeries === "function"
+  );
+}
+
+function featureInfoPanelStateFromJson(
+  featureInfoPanel: unknown
+): FeatureInfoPanelState | undefined {
+  if (!isJsonObject(featureInfoPanel)) return undefined;
+
+  const position = draggableElementPositionFromJson(featureInfoPanel.position);
+  const dimensions = draggableElementDimensionsFromJson(
+    featureInfoPanel.dimensions
+  );
+
+  if (!position && !dimensions && featureInfoPanel.sizeMode !== "auto") {
+    return undefined;
+  }
+
+  return {
+    ...(position ? { position } : {}),
+    ...(dimensions ? { dimensions } : {}),
+    ...(featureInfoPanel.sizeMode === "auto" ||
+    featureInfoPanel.sizeMode === "manual"
+      ? { sizeMode: featureInfoPanel.sizeMode }
+      : {})
+  };
 }
 
 function setCustomRequestSchedulerDomainLimits(

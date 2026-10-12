@@ -1,3 +1,4 @@
+import { storyPresentation } from "../../../Models/StoryComposition";
 import classNames from "classnames";
 import { runInAction } from "mobx";
 import { observer } from "mobx-react";
@@ -5,6 +6,7 @@ import PropTypes from "prop-types";
 import styled from "styled-components";
 import withControlledVisibility from "../../HOCs/withControlledVisibility";
 import { useViewState } from "../../Context";
+import CkanSessionPanel from "../Panels/CkanSessionPanel/CkanSessionPanel";
 import LangPanel from "../Panels/LangPanel/LangPanel";
 import SettingPanel from "../Panels/SettingPanel";
 import SharePanel from "../Panels/SharePanel/SharePanel";
@@ -16,6 +18,18 @@ import Styles from "./menu-bar.scss";
 
 const StyledMenuBar = styled.div`
   pointer-events: none;
+  ${(p) =>
+    p.$composedStory &&
+    `
+    left: 16px;
+    right: 76px;
+    margin-left: 0;
+    > section {
+      min-width: 0;
+      max-width: 100%;
+      flex-wrap: wrap;
+    }
+  `}
   ${(p) =>
     p.trainerBarVisible &&
     `
@@ -47,6 +61,11 @@ const MenuBar = observer((props) => {
       )}
       onClick={handleClick}
       trainerBarVisible={viewState.trainerBarVisible}
+      $composedStory={
+        viewState.storyShown &&
+        storyPresentation(terria.stories[viewState.currentStoryId]) ===
+          "composed"
+      }
     >
       <section>
         <ul className={classNames(Styles.menu)}>
@@ -66,7 +85,7 @@ const MenuBar = observer((props) => {
       <section className={classNames(Styles.flex)}>
         <ul className={classNames(Styles.menu)}>
           <li className={Styles.menuItem}>
-            <SettingPanel terria={terria} viewState={viewState} />
+            <SettingPanel />
           </li>
           <li className={Styles.menuItem}>
             <HelpButton viewState={viewState} />
@@ -88,6 +107,15 @@ const MenuBar = observer((props) => {
                 terria={terria}
                 viewState={viewState}
                 theme={props.theme}
+              />
+            </li>
+          </ul>
+        )}
+        {terria.ckanSession && (
+          <ul className={classNames(Styles.menu)}>
+            <li className={Styles.menuItem}>
+              <CkanSessionPanel
+                smallScreen={viewState.useSmallScreenInterface}
               />
             </li>
           </ul>

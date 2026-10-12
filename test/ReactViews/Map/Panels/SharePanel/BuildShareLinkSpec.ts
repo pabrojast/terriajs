@@ -64,6 +64,29 @@ describe("BuildShareLink", function () {
     expect(initSources.previewedItemId).toBeUndefined();
   });
 
+  it("strips the CKAN proxy token from private catalog items", async function () {
+    const privateId = "__ckan_private_catalog__/nonce/resource/r1/view/0";
+    const publicId = "public-wms";
+    for (const id of [privateId, publicId]) {
+      const model = new WebMapServiceCatalogItem(id, terria);
+      model.setTrait(
+        CommonStrata.definition,
+        "url",
+        "/api/terria/resource/r1/content/a.tif?token=123.abc&keep=1"
+      );
+      terria.addModel(model);
+      await terria.workbench.add(model);
+    }
+
+    const params = decodeAndParseStartHash(buildShareLink(terria, viewState));
+    const models = flattenInitSources(params.initSources).models as any;
+
+    expect(models[privateId].url).toBe(
+      "/api/terria/resource/r1/content/a.tif?keep=1"
+    );
+    expect(models[publicId].url).toContain("token=123.abc");
+  });
+
   describe("user added model containing local data", function () {
     it("should not be serialized", function (done) {
       const modelId = "Test";
@@ -313,6 +336,45 @@ describe("BuildShareLink", function () {
         expect(entities?.[1].hash).toBeDefined();
       })
     );
+
+    it(
+      "captures the feature info panel geometry",
+      action(function () {
+        terria.pickedFeatures = new PickedFeatures();
+        terria.pickedFeatures.pickPosition = new Cartesian3(
+          17832.12,
+          83234.52,
+          952313.73
+        );
+        terria.pickedFeatures.features.push(new TerriaFeature({}));
+        terria.featureInfoPanelState = {
+          position: { x: 24, y: 36, xRatio: 0.25, yRatio: 0.5 },
+          dimensions: { width: 360, height: 280 }
+        };
+
+        const shareLink = buildShareLink(terria, viewState);
+        const params = decodeAndParseStartHash(shareLink);
+        const initSources = flattenInitSources(params.initSources);
+
+        expect(initSources.featureInfoPanel).toEqual({
+          position: { x: 24, y: 36, xRatio: 0.25, yRatio: 0.5 },
+          dimensions: { width: 360, height: 280 }
+        });
+      })
+    );
+
+    it("does not capture feature info panel geometry without picked features", function () {
+      terria.featureInfoPanelState = {
+        position: { x: 12, y: 18, xRatio: 0.1, yRatio: 0.2 },
+        dimensions: { width: 300, height: 220 }
+      };
+
+      const shareLink = buildShareLink(terria, viewState);
+      const params = decodeAndParseStartHash(shareLink);
+      const initSources = flattenInitSources(params.initSources);
+
+      expect(initSources.featureInfoPanel).toBeUndefined();
+    });
   });
 
   describe("map settings", function () {

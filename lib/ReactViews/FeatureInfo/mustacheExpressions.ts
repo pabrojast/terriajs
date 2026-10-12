@@ -161,3 +161,31 @@ export function mustacheURLEncodeText() {
     return encodeURI(render(text));
   };
 }
+
+/**
+ * JSON stringifies the provided value: {{#terria.jsonStringify}}{{value}}{{/terria.jsonStringify}}.
+ * Useful for passing JSON data to custom components like json-chart.
+ *
+ * Note: This should be used with the triple-brace syntax to avoid HTML escaping:
+ * {{{terria.jsonStringify}}}{{someObject}}{{{/terria.jsonStringify}}}
+ * @private
+ */
+export function mustacheJsonStringify() {
+  return function (text: string, render: (value: string) => string) {
+    const rendered = render(text);
+    try {
+      // If it's already a string, try to parse it as JSON first
+      // This handles cases where the value is already a JSON string
+      if (typeof rendered === "string") {
+        const parsed = JSON.parse(rendered);
+        return JSON.stringify(parsed);
+      }
+      // Otherwise stringify directly
+      return JSON.stringify(rendered);
+    } catch (e) {
+      // If parsing fails, assume it's an object reference and stringify it
+      // This might not work in all cases, but it's a reasonable fallback
+      return rendered;
+    }
+  };
+}

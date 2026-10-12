@@ -1,3 +1,4 @@
+import { storyPresentation } from "../../../Models/StoryComposition";
 import { Story } from "../Story";
 import parseCustomHtmlToReact from "../../Custom/parseCustomHtmlToReact";
 import styled from "styled-components";
@@ -9,21 +10,23 @@ const StoryContainer = styled(Box).attrs((props: { isCollapsed: boolean }) => ({
   paddedVertically: props.isCollapsed ? 0 : 2,
   scroll: true
 }))<{ isCollapsed: boolean }>`
-  background-color: ${(props) => props.theme.transparentDark}
-  backdrop-filter: ${(props) => props.theme.blur}
+  background-color: rgba(255, 255, 255, 0.95);
+  backdrop-filter: ${(props) => props.theme.blur};
+  color: #000;
   padding-top: 0;
-  padding: ${(props) => (props.isCollapsed ? 0 : 15)}px; 
-  max-height: ${(props) => (props.isCollapsed ? 0 : "100px")};
-  @media (min-height: 700px) {
-    max-height: ${(props) => (props.isCollapsed ? 0 : "200px")};
-  }
-
-  overflow-y: auto;
-
-  transition: max-height 0.2s, padding 0.2s;
+  padding: ${(props) => (props.isCollapsed ? 0 : 15)}px;
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: ${(props) => (props.isCollapsed ? 0 : "100%")};
+  overflow-y: ${(props) => (props.isCollapsed ? "hidden" : "auto")};
+  opacity: ${(props) => (props.isCollapsed ? 0 : 1)};
+  pointer-events: ${(props) => (props.isCollapsed ? "none" : "auto")};
+  transition: max-height 0.2s ease, padding 0.2s ease, opacity 0.2s ease;
 
   img {
     max-width: 100%;
+    height: auto !important;
+    object-fit: contain;
   }
   * {
     max-width: 100%;
@@ -72,9 +75,21 @@ function sourceBasedParse(story: Story, terria?: Terria) {
     addTags.push("iframe");
   }
 
+  let text = story.text;
+  if (storyPresentation(story) === "classic" && text.includes("#story-ref-")) {
+    const document = new DOMParser().parseFromString(text, "text/html");
+    document.querySelectorAll('a[href^="#story-ref-"]').forEach((anchor) => {
+      anchor.replaceWith(...Array.from(anchor.childNodes));
+    });
+    text = document.body.innerHTML;
+  }
   return parseCustomHtmlToReact(
-    story.text,
-    { showExternalLinkWarning: true, terria },
+    text,
+    {
+      showExternalLinkWarning: true,
+      terria,
+      preserveInlineWhitespace: true
+    },
     false,
     {
       ADD_TAGS: addTags,
@@ -101,6 +116,7 @@ const StoryBody = ({
           gap: 5px;
         `}
         medium
+        textDark
       >
         {sourceBasedParse(story, terria)}
       </Text>

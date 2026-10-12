@@ -31,6 +31,7 @@ import StubCatalogItem from "./CatalogItems/StubCatalogItem";
 import UrlTemplateImageryCatalogItem from "./CatalogItems/UrlTemplateImageryCatalogItem";
 import CatalogMemberFactory from "./CatalogMemberFactory";
 import CatalogIndexReference from "./CatalogReferences/CatalogIndexReference";
+import CkanPrivateCatalogReference from "./CatalogReferences/CkanPrivateCatalogReference";
 import MagdaReference from "./CatalogReferences/MagdaReference";
 import SplitItemReference from "./CatalogReferences/SplitItemReference";
 import TerriaReference from "./CatalogReferences/TerriaReference";
@@ -65,6 +66,10 @@ import WebProcessingServiceCatalogGroup from "./Ows/WebProcessingServiceCatalogG
 import SdmxJsonCatalogGroup from "./SdmxJson/SdmxJsonCatalogGroup";
 import SdmxJsonCatalogItem from "./SdmxJson/SdmxJsonCatalogItem";
 import CogCatalogItem from "./CatalogItems/CogCatalogItem";
+import CogTimeSeriesCatalogItem from "./CatalogItems/CogTimeSeriesCatalogItem";
+import StacCollectionCatalogItem from "./Stac/StacCollectionCatalogItem";
+import StacCatalogGroup from "./Stac/StacCatalogGroup";
+import StacItemCatalogItem from "./Stac/StacItemCatalogItem";
 
 export default function registerCatalogMembers() {
   CatalogMemberFactory.register(CatalogGroup.type, CatalogGroup);
@@ -158,6 +163,10 @@ export default function registerCatalogMembers() {
   );
   CatalogMemberFactory.register(MagdaReference.type, MagdaReference);
   CatalogMemberFactory.register(TerriaReference.type, TerriaReference);
+  CatalogMemberFactory.register(
+    CkanPrivateCatalogReference.type,
+    CkanPrivateCatalogReference
+  );
   CatalogMemberFactory.register(KmlCatalogItem.type, KmlCatalogItem);
   CatalogMemberFactory.register(
     MapboxVectorTileCatalogItem.type,
@@ -243,6 +252,16 @@ export default function registerCatalogMembers() {
   );
   CatalogMemberFactory.register(AssImpCatalogItem.type, AssImpCatalogItem);
   CatalogMemberFactory.register(CogCatalogItem.type, CogCatalogItem);
+  CatalogMemberFactory.register(
+    CogTimeSeriesCatalogItem.type,
+    CogTimeSeriesCatalogItem
+  );
+  CatalogMemberFactory.register(
+    StacCollectionCatalogItem.type,
+    StacCollectionCatalogItem
+  );
+  CatalogMemberFactory.register(StacCatalogGroup.type, StacCatalogGroup);
+  CatalogMemberFactory.register(StacItemCatalogItem.type, StacItemCatalogItem);
 
   UrlToCatalogMemberMapping.register(
     matchesExtension("csv"),
@@ -292,6 +311,25 @@ export default function registerCatalogMembers() {
   UrlToCatalogMemberMapping.register(
     matchesExtension("tif", "tiff", "geotiff"),
     CogCatalogItem.type
+  );
+
+  // STAC URL patterns
+  // STAC Item pattern: /collections/{collection}/items/{item}
+  UrlToCatalogMemberMapping.register(
+    matchesUrl(/\/collections\/[^/]+\/items\/[^/]+$/i),
+    StacItemCatalogItem.type,
+    true
+  );
+  // STAC Collection pattern: /collections/{collection}
+  UrlToCatalogMemberMapping.register(
+    matchesUrl(/\/collections\/[^/]+$/i),
+    StacCollectionCatalogItem.type,
+    true
+  );
+  UrlToCatalogMemberMapping.register(
+    matchesUrl(/stac.*\/$/i),
+    StacCatalogGroup.type,
+    true
   );
 
   // These items work by trying to match a URL, then loading the data. If it fails, they move on.

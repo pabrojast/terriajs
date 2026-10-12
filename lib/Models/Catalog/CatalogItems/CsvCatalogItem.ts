@@ -1,19 +1,32 @@
 import i18next from "i18next";
-import { computed, makeObservable, override, runInAction } from "mobx";
+import {
+  action,
+  computed,
+  makeObservable,
+  observable,
+  override,
+  runInAction
+} from "mobx";
 import isDefined from "../../../Core/isDefined";
 import TerriaError from "../../../Core/TerriaError";
+import { ChartItem } from "../../../ModelMixins/ChartableMixin";
 import AutoRefreshingMixin from "../../../ModelMixins/AutoRefreshingMixin";
 import TableMixin from "../../../ModelMixins/TableMixin";
 import UrlMixin from "../../../ModelMixins/UrlMixin";
 import Csv from "../../../Table/Csv";
 import TableAutomaticStylesStratum from "../../../Table/TableAutomaticStylesStratum";
 import CsvCatalogItemTraits from "../../../Traits/TraitsClasses/CsvCatalogItemTraits";
+import { AccumulatedSeries } from "../../../ReactViews/Custom/Chart/ChartJs/ChartJsTypes";
 import CreateModel from "../../Definition/CreateModel";
 import { BaseModel } from "../../Definition/Model";
+import { SelectableDimension } from "../../SelectableDimensions/SelectableDimensions";
 import StratumOrder from "../../Definition/StratumOrder";
 import HasLocalData from "../../HasLocalData";
 import Terria from "../../Terria";
 import proxyCatalogItemUrl from "../proxyCatalogItemUrl";
+
+/** Maximum number of accumulated per-feature series kept at once. */
+export const MAX_ACCUMULATED = 12;
 
 // Types of CSVs:
 // - Points - Latitude and longitude columns or address
@@ -37,6 +50,16 @@ export default class CsvCatalogItem
 
   private _csvFile?: File;
 
+  /**
+   * Per-feature time-series accumulated by clicking map features while the
+   * interactive Chart.js renderer (`useChartJsTimeSeries`) is enabled. Drives
+   * the non-blocking bottom dock so multiple features can be compared without
+   * re-opening a modal. Shallow because each entry is a plain, immutable-by-
+   * convention value object (we replace, never mutate, entries).
+   */
+  @observable.shallow
+  accumulatedChartSeries: AccumulatedSeries[] = [];
+
   constructor(
     id: string | undefined,
     terria: Terria,
@@ -58,6 +81,79 @@ export default class CsvCatalogItem
     this._csvFile = file;
   }
 
+  /**
+   * Add (or replace) an accumulated per-feature series. De-duplicates by `key`
+   * so re-clicking the same feature never produces duplicate datasets, and caps
+   * the total at {@link MAX_ACCUMULATED}, dropping the oldest entries first.
+   */
+  @action
+  addAccumulatedSeries(series: AccumulatedSeries) {
+    const existingIndex = this.accumulatedChartSeries.findIndex(
+      (s) => s.key === series.key
+    );
+    if (existingIndex >= 0) {
+      // Replace in place so the freshest data wins without re-ordering.
+      this.accumulatedChartSeries.splice(existingIndex, 1, series);
+      return;
+    }
+    this.accumulatedChartSeries.push(series);
+    if (this.accumulatedChartSeries.length > MAX_ACCUMULATED) {
+      this.accumulatedChartSeries.splice(
+        0,
+        this.accumulatedChartSeries.length - MAX_ACCUMULATED
+      );
+    }
+  }
+
+  /** Feeds the Chart.js dock while the interactive renderer is enabled. */
+  @computed
+  get isChartSeriesAccumulationActive(): boolean {
+    return this.useChartJsTimeSeries === true;
+  }
+
+  /** Remove all accumulated per-feature series. */
+  @action
+  clearAccumulatedSeries() {
+    this.accumulatedChartSeries = [];
+  }
+
+  /** Remove a single accumulated per-feature series by its `key`. */
+  @action
+  removeAccumulatedSeries(key: string) {
+    this.accumulatedChartSeries = this.accumulatedChartSeries.filter(
+      (s) => s.key !== key
+    );
+  }
+
+  /**
+   * Map the accumulated series to full {@link ChartItem}s so they can be fed
+   * straight to `ChartJsLineChart` via its `chartItemsOverride` prop. The
+   * x-axis is always time (the accumulation only runs for CSVs that have a time
+   * column).
+   */
+  @computed
+  get accumulatedChartItems(): ChartItem[] {
+    const timeColumnTitle = this.activeTableStyle.timeColumn?.title ?? "Date";
+    return this.accumulatedChartSeries.map((series) => ({
+      id: series.key,
+      name: series.name,
+      key: series.key,
+      item: this,
+      type: "line" as const,
+      units: series.units,
+      showInChartPanel: true,
+      isSelectedInWorkbench: false,
+      xAxis: { name: timeColumnTitle, scale: "time" as const },
+      points: series.points.map((p) => ({ x: p.x, y: p.y })),
+      domain: {
+        x: series.points.map((p) => p.x),
+        y: series.points.map((p) => p.y)
+      },
+      getColor: () => series.color,
+      updateIsSelectedInWorkbench: () => {}
+    }));
+  }
+
   @computed
   get hasLocalData(): boolean {
     return isDefined(this._csvFile);
@@ -75,6 +171,45 @@ export default class CsvCatalogItem
   @override
   get cacheDuration() {
     return super.cacheDuration || "1d";
+  }
+
+  /**
+   * Append a workbench checkbox to toggle the interactive Chart.js renderer for
+   * per-feature time-series charts (see the `useChartJsTimeSeries` trait). Only
+   * shown when the CSV has a time column, i.e. when time-series charts are
+   * actually produced in the feature info panel.
+   */
+  @override
+  get selectableDimensions(): SelectableDimension[] {
+    return [
+      ...super.selectableDimensions,
+      this.chartJsTimeSeriesDimension
+    ].filter(isDefined);
+  }
+
+  @computed
+  get chartJsTimeSeriesDimension(): SelectableDimension | undefined {
+    if (this.activeTableStyle.timeColumn === undefined) {
+      return undefined;
+    }
+    // Same label for both states so the checkbox text stays stable; the
+    // checkbox itself indicates whether the mode is on.
+    const label = i18next.t("models.csv.useChartJsTimeSeries");
+    return {
+      id: "useChartJsTimeSeries",
+      type: "checkbox",
+      options: [
+        { id: "true" as const, name: label },
+        { id: "false" as const, name: label }
+      ],
+      selectedId: this.useChartJsTimeSeries ? "true" : "false",
+      setDimensionValue: (
+        stratumId: string,
+        value: "true" | "false" | undefined
+      ) => {
+        this.setTrait(stratumId, "useChartJsTimeSeries", value === "true");
+      }
+    };
   }
 
   protected async _exportData() {

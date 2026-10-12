@@ -71,6 +71,17 @@
   max-width: 100%;
 }
 
+.legendGradientCaption {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-family: variables.$font-base;
+  font-size: variables.$font-size-small;
+  color: variables.$text-light;
+  margin-top: 4px;
+  max-width: 100%;
+}
+
 .generatedLegend {
   padding-top: variables.$legend-padding;
   padding-bottom: variables.$legend-padding;

@@ -1,4 +1,13 @@
 @use "sass:meta";
 :global {
   @include meta.load-css("~react-anything-sortable/sortable");
+  // Reduce jitter by disabling transitions while dragging
+  .react-anything-sortable-item,
+  .react-anything-sortable-moving,
+  .react-anything-sortable-placeholder {
+    transition: none !important;
+  }
+  .react-anything-sortable-item {
+    user-select: none;
+  }
 }

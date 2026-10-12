@@ -1,7 +1,13 @@
+import {
+  StoryComposition,
+  StoryOptions,
+  StoryPresentation
+} from "./StoryComposition";
 import { JsonObject } from "../Core/Json";
 import Result from "../Core/Result";
 import { TerriaErrorSeverity } from "../Core/TerriaError";
 import { ProviderCoordsMap } from "../Map/PickedFeatures/PickedFeatures";
+import type { AccumulatedSeries } from "../ReactViews/Custom/Chart/ChartJs/ChartJsTypes";
 import { BaseMapsJson } from "./BaseMaps/BaseMapsModel";
 import IElementConfig from "./IElementConfig";
 
@@ -22,6 +28,25 @@ export interface InitSourcePickedFeatures {
   }[];
 }
 
+export interface DraggableElementPosition {
+  x: number;
+  y: number;
+  /** Normalized position within available bounds (0..1). */
+  xRatio?: number;
+  yRatio?: number;
+}
+
+export interface DraggableElementDimensions {
+  width: number;
+  height: number;
+}
+
+export interface FeatureInfoPanelState {
+  sizeMode?: "auto" | "manual";
+  position?: DraggableElementPosition;
+  dimensions?: DraggableElementDimensions;
+}
+
 export type ViewModeJson = "3d" | "3dSmooth" | "2d";
 
 /** Provides loose type hints for ModelJson */
@@ -35,10 +60,15 @@ export interface ModelJson extends JsonObject {
 }
 
 export interface StoryData {
+  presentation?: StoryPresentation;
+  composition?: StoryComposition;
   title: string;
   text: string;
   id: string;
   shareData: ShareInitSourceData;
+  /** Position and dimensions for draggable story panel */
+  position?: DraggableElementPosition;
+  dimensions?: DraggableElementDimensions;
 }
 export interface ShareInitSourceData {
   version: string;
@@ -52,6 +82,7 @@ export interface InitSourceData {
   catalog?: JsonObject[];
   elements?: Map<string, IElementConfig>;
   stories?: StoryData[];
+  storyOptions?: StoryOptions;
   viewerMode?: ViewModeJson;
   baseMaps?: BaseMapsJson;
   homeCamera?: JsonObject;
@@ -64,6 +95,13 @@ export interface InitSourceData {
   models?: { [key: string]: ModelJson };
   previewedItemId?: string;
   pickedFeatures?: InitSourcePickedFeatures;
+  featureInfoPanel?: FeatureInfoPanelState;
+  /**
+   * Accumulated Chart.js per-feature time-series, keyed by the backing
+   * `CsvCatalogItem`'s model id. Persisted so a share/story can restore the
+   * lines the user built up by clicking features.
+   */
+  accumulatedChartSeries?: { [modelId: string]: AccumulatedSeries[] };
   /** These settings will override localStorage persistent settings. They are used for shares/stories */
   settings?: {
     baseMaximumScreenSpaceError?: number;

@@ -107,6 +107,7 @@ export default class ViewState {
   @observable currentTrainerStepIndex: number = 0;
 
   @observable printWindow: Window | null = null;
+  @observable storyHasUnsavedChanges: boolean = false;
 
   /**
    * The currently-selected web service type on the My Data -> Add web data panel.
@@ -203,11 +204,14 @@ export default class ViewState {
     }
   }
 
-  /**
-   * ID of the workbench item whose ViewingControls menu is currently open.
-   */
-  @observable
-  workbenchItemWithOpenControls: string | undefined = undefined;
+  @action
+  setStoryHasUnsavedChanges(dirty: boolean): void {
+    this.storyHasUnsavedChanges = dirty;
+  }
+  @action
+  setStoryListScrollTop(value: number): void {
+    this.storyListScrollTop = value;
+  }
 
   errorProvider: any | null = null;
 
@@ -218,6 +222,8 @@ export default class ViewState {
   @observable storyShown: boolean | null = null;
 
   @observable currentStoryId: number = 0;
+  // Persist scroll position for StoryBuilder stories list so it doesn't jump to top when toggling views
+  @observable storyListScrollTop: number = 0;
   @observable featurePrompts: any[] = [];
 
   /**
@@ -424,6 +430,7 @@ export default class ViewState {
       (disclaimerVisible) => {
         this.isMapFullScreen =
           disclaimerVisible ||
+          terria.userProperties.get("narrative") === "1" ||
           terria.userProperties.get("hideWorkbench") === "1" ||
           terria.userProperties.get("hideExplorerPanel") === "1";
       }
@@ -431,6 +438,7 @@ export default class ViewState {
 
     this._isMapFullScreenSubscription = reaction(
       () =>
+        terria.userProperties.get("narrative") === "1" ||
         terria.userProperties.get("hideWorkbench") === "1" ||
         terria.userProperties.get("hideExplorerPanel") === "1",
       (isMapFullScreen: boolean) => {
@@ -438,14 +446,19 @@ export default class ViewState {
 
         // if /#hideWorkbench=1 exists in url onload, show stories directly
         // any show/hide workbench will not automatically show story
-        if (!defined(this.storyShown)) {
-          // why only check config params here? because terria.stories are not
-          // set at the moment, and that property will be checked in rendering
-          // Here are all are checking are: is terria story enabled in this app?
-          // if so we should show it when app first load, if workbench is hidden
+        // '#hideStory=1' (story-map embeds) suppresses this: the parent
+        // page narrates the story itself.
+        if (
+          !defined(this.storyShown) &&
+          terria.userProperties.get("hideStory") !== "1" &&
+          terria.userProperties.get("narrative") !== "1"
+        ) {
+          // Always show stories if they are enabled and available
+          // This will be checked again in StandardUserInterface when stories are loaded
           this.storyShown = terria.configParameters.storyEnabled;
         }
-      }
+      },
+      { fireImmediately: terria.userProperties.get("narrative") === "1" }
     );
 
     this._showStoriesSubscription = reaction(
@@ -533,9 +546,9 @@ export default class ViewState {
     };
 
     this._storyBeforeUnloadSubscription = reaction(
-      () => this.terria.stories.length > 0,
-      (hasScenes) => {
-        if (hasScenes) {
+      () => this.storyHasUnsavedChanges,
+      (hasUnsaved) => {
+        if (hasUnsaved) {
           window.addEventListener("beforeunload", handleWindowClose);
         } else {
           window.removeEventListener("beforeunload", handleWindowClose);

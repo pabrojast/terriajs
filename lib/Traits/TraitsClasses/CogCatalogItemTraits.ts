@@ -12,11 +12,7 @@ import MappableTraits from "./MappableTraits";
 import UrlTraits from "./UrlTraits";
 import primitiveArrayTrait from "../Decorators/primitiveArrayTrait";
 
-export type ColorScaleNames = 
-  | "viridis"
-  | "plasma"
-  | "inferno"
-  | "magma"
+export type ColorScaleNames =
   | "rainbow"
   | "jet"
   | "hsv"
@@ -29,22 +25,30 @@ export type ColorScaleNames =
   | "bone"
   | "copper"
   | "greys"
-  | "yignbu"
+  | "ylgnbu"
   | "greens"
-  | "yiorrd"
+  | "ylorrd"
   | "bluered"
   | "rdbu"
   | "picnic"
   | "portland"
   | "blackbody"
   | "earth"
-  | "electric"
-  | "alpha"
-  | "matter";
+  | "electric";
+
+export type CogColorScaleMode = "default" | "named" | "custom";
 /**
  * Definition of traits for the `single` rendering options.
  */
 export class SingleRenderOptionsTraits extends ModelTraits {
+  @primitiveTrait({
+    type: "string",
+    name: "Color Scale Mode",
+    description:
+      "Selects the active color source. When unset, custom colors retain their legacy precedence over a named color scale."
+  })
+  colorScaleMode?: CogColorScaleMode;
+
   @primitiveTrait({
     type: "number",
     name: "Band",
@@ -61,14 +65,16 @@ export class SingleRenderOptionsTraits extends ModelTraits {
 
   @anyTrait({
     name: "Colors",
-    description: "Custom colors for interpolation. Can be an array of strings or an array of [number, string] tuples."
+    description:
+      "Custom colors for interpolation. Can be an array of strings or an array of [number, string] tuples."
   })
   colors?: string[] | [number, string][];
 
   @primitiveTrait({
     type: "boolean",
     name: "Use Real Value",
-    description: "Determines whether to use the true value range for custom color ranges."
+    description:
+      "Determines whether to use the true value range for custom color ranges."
   })
   useRealValue?: boolean;
 
@@ -77,40 +83,45 @@ export class SingleRenderOptionsTraits extends ModelTraits {
     name: "Type",
     description: "Rendering type, continuous or discrete."
   })
-  type?: 'continuous' | 'discrete';
+  type?: "continuous" | "discrete";
 
   @primitiveArrayTrait({
-    name: "Domain",
-    description: "Value domain for scaling the color.",
+    name: "Color scale range",
+    description:
+      "Stretches the colour scale across these [min, max] data values. Values outside still render (unless clamped or hidden by transparency). Persisted as `domain` for backwards compatibility.",
     type: "number"
   })
   domain?: [number, number];
 
   @primitiveArrayTrait({
-    name: "Display Range",
-    description: "Range of values to render; values outside the range will be transparent.",
+    name: "Transparency range",
+    description:
+      "Optional [min, max] range used when applyDisplayRange is true. Values outside render transparent. Falls back to `domain` when unset.",
     type: "number"
   })
   displayRange?: [number, number];
 
   @primitiveTrait({
     type: "boolean",
-    name: "Apply Display Range",
-    description: "Sets whether to use the display range."
+    name: "Hide values outside color scale",
+    description:
+      "When true, values outside `displayRange` (or `domain` if `displayRange` is unset) render transparent."
   })
   applyDisplayRange?: boolean;
 
   @primitiveTrait({
     type: "boolean",
-    name: "Clamp Low Values",
-    description: "Whether to clamp values below the domain."
+    name: "Clamp below color scale",
+    description:
+      "Render values below the color scale range with the lowest colour, instead of letting them stretch beyond."
   })
   clampLow?: boolean;
 
   @primitiveTrait({
     type: "boolean",
-    name: "Clamp High Values",
-    description: "Whether to clamp values above the domain."
+    name: "Clamp above color scale",
+    description:
+      "Render values above the color scale range with the highest colour, instead of letting them stretch beyond."
   })
   clampHigh?: boolean;
 
@@ -120,6 +131,29 @@ export class SingleRenderOptionsTraits extends ModelTraits {
     description: "Mathematical expression to evaluate in the chart."
   })
   expression?: string;
+
+  @primitiveTrait({
+    type: "number",
+    name: "Number of Legend Bins",
+    description:
+      "Number of bins/steps to show in discrete legends. Default is 8. Note: Continuous legends use SVG gradients and ignore this setting."
+  })
+  numberOfBins?: number;
+
+  @primitiveTrait({
+    type: "boolean",
+    name: "Reverse Color Scale",
+    description: "Whether to reverse the color scale (flip the colors)."
+  })
+  reverseColorScale?: boolean;
+
+  @primitiveTrait({
+    type: "string",
+    name: "No-data fill color",
+    description:
+      "CSS colour (e.g. '#FF0000', 'red', 'rgba(255,0,0,0.5)') to fill cells flagged as no-data. Empty = transparent."
+  })
+  noDataColor?: string;
 }
 
 export class CogRenderOptionsTraits extends ModelTraits {
@@ -129,7 +163,7 @@ export class CogRenderOptionsTraits extends ModelTraits {
     description: "Individual rendering options for COGs."
   })
   single?: SingleRenderOptionsTraits;
-  
+
   @primitiveTrait({
     type: "number",
     name: "No Data Value",
@@ -150,7 +184,7 @@ export class CogRenderOptionsTraits extends ModelTraits {
     description: "Geotiff resample method. Defaults to `bilinear`."
   })
   resampleMethod?: "nearest" | "bilinear" = "nearest";
-  
+
   @primitiveTrait({
     type: "string",
     name: "Color",

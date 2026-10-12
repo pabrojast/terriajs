@@ -10,6 +10,7 @@ env:
 jobs:
   publish:
     name: Publish to NPM
+    if: github.repository_owner == 'TerriaJS'
     runs-on: ubuntu-latest
 
     steps:
@@ -40,7 +41,7 @@ jobs:
 
       - name: Install yarn
         if: steps.detect.outputs.previous-version != steps.detect.outputs.current-version
-        run: npm install -g yarn@^1.19.0
+        run: npm install -g yarn@^1.22.22
 
       - name: Install dependencies
         if: steps.detect.outputs.previous-version != steps.detect.outputs.current-version
