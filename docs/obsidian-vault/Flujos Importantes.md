@@ -293,6 +293,19 @@ El editor nativo permite texto + mapa, dashboard, mapa/dashboard, imagen/multime
 
 El selector `/story-dashboards/picker` pertenece a Pages y devuelve `ckan-story-dashboard-selected`, version 1. Solo se acepta su ventana y el origen actual. Los embeds `/dashboard/<UUID>/embed` conservan el protocolo dashboard v1 y filtros temporales; no se guardan tokens ni HTML de dashboard. Se mantienen hasta tres iframes.
 
+La guia del editor usa la marca IHP-WINS y explica que un dashboard es un panel
+interactivo. En el formato clasico indica como pasar a Composicion; en sus
+ajustes guia la busqueda, la seleccion opcional de filtros y un grafico para
+destacar, la insercion y el guardado del capitulo. Los filtros pertenecen al
+capitulo y no modifican el dashboard original. Para mostrarlo se recomienda
+elegir Texto + dashboard o Mapa y dashboard; no se cambia automaticamente la
+plantilla ni el formato inicial.
+
+El selector recibe `?lang=en` o `?lang=es`, normalizado desde el idioma actual
+de Terria; otros idiomas usan ingles. El dialogo y el iframe comparten titulo
+traducido. Las claves EN/ES no habilitan por si mismas esos idiomas en la
+configuracion del consumidor TerriaMap. El esquema y el mensaje v1 no cambian.
+
 El lector compuesto reserva un espacio para el lienzo Terria existente; no monta un segundo mapa. Aplica snapshots secuencialmente, conserva la ultima solicitud pendiente y no reemplaza el documento narrativo. Una referencia seleccionada en TinyMCE puede aplicar una escena y/o filtros y resaltar un widget; `on_enter` activa la misma referencia al alcanzar el texto. IDs eliminados producen un aviso recuperable.
 
 Reproducir es siempre una accion del lector. Espera confirmacion de los estados visuales, admite pausa y duracion por escena, se pausa al navegar o esconder la pestaña y se detiene al final. El desplazamiento conserva navegacion manual. Las URLs de imagen usan la biblioteca CKAN; video admite YouTube/Vimeo y archivos de video/audio.

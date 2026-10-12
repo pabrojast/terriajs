@@ -198,6 +198,16 @@ export default function StoryCompositionEditor({
           {!value.dashboards.length && (
             <p className={Styles.hint}>{tr("dashboardEmpty")}</p>
           )}
+          <ol className={`${Styles.hint} ${Styles.dashboardGuide}`}>
+            <li>{tr("dashboardSearchStep")}</li>
+            <li>{tr("dashboardConfigureStep")}</li>
+            <li>
+              {t("story.editor.design.dashboardInsertStep", {
+                dashboardLayout: tr("templates.dashboard"),
+                combinedLayout: tr("templates.combined")
+              })}
+            </li>
+          </ol>
           <ul className={Styles.resourceList}>
             {value.dashboards.map((d, i) => (
               <li key={d.id} className={Styles.resourceCard}>

@@ -499,6 +499,13 @@ export class StoryEditor extends Component {
                   <span className={Styles.eyebrow}>{tr("yourMap")}</span>
                   <h3>{tr("classicNoteTitle")}</h3>
                   <p>{tr("classicNote")}</p>
+                  <p>
+                    {t("story.editor.design.classicDashboardHint", {
+                      composition: t("story.editor.presentationComposed"),
+                      dashboardLayout: tr("templates.dashboard"),
+                      combinedLayout: tr("templates.combined")
+                    })}
+                  </p>
                 </div>
               )}
             </aside>

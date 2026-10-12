@@ -386,6 +386,14 @@
   margin: 0;
   list-style: none;
 }
+.dashboardGuide {
+  margin: 0;
+  padding-left: 18px;
+  list-style: decimal;
+  li + li {
+    margin-top: 4px;
+  }
+}
 .resourceCard {
   display: grid;
   gap: 12px;

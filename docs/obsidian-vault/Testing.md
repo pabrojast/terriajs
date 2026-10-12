@@ -202,3 +202,20 @@ La regresión de reapertura usa `applyInitData` real: el lector reconstruye la
 línea temporal desde el orden del workbench. El observador del piloto recupera
 el producto visible sin tocar fecha, banda ni selección; respeta otras capas y
 deja de observar al desmontarse el panel.
+
+### Guia de dashboards de IHP-WINS (2026-10-12)
+
+`StoryDashboardGuidanceSpec.tsx` monta el editor de composicion con traducciones
+EN/ES. Comprueba normalizacion de en-AU/es-CL, titulo accesible y URL del iframe,
+insercion con filtros copiados sin modificar el original ni elegir una plantilla
+por el autor, y cambio explicito a Mapa y dashboard conservando la seleccion.
+El tercer caso comprueba fallback ingles para fr-FR, cancelacion y retorno de
+foco al boton que abrio el selector. Los specs existentes mantienen las pruebas
+de origen/ventana, esquema de filtros, composicion y ciclo del borrador.
+
+Pasan 32 specs focalizados de Stories en Chrome, TypeScript con `--skipLibCheck`,
+ESLint/Prettier y compilacion webpack focalizada. La compilacion conserva el
+aviso existente de Cesium sobre `import.meta`. El transporte del selector se
+simula desde su iframe; estas pruebas no sustituyen la validacion integrada de
+Pages en DEV. TerriaMap conserva su configuracion de idiomas: probar EN/ES en
+la biblioteca no declara que el visor publicado permita cambiar ambos idiomas.
