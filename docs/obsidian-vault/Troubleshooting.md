@@ -61,6 +61,14 @@ yarn gulp docs
 - Evitar `npm link`.
 - Preferir Yarn workspaces, segun `doc/contributing/development-environment.md`.
 
+## Enlace corto devuelve 403 en IHP-WINS DEV
+
+- Caso confirmado (2026-10-23): `POST /terria/share` se bloquea en Envoy/Coraza al compartir la capa Dnipro y sus cuatro capitulos. Los enlaces `#share=...` existentes se siguen leyendo con HTTP 200.
+- La regla CRS `932130` transforma la descripcion HTML `</strong> (4 years)` en `>(4 years)` y la interpreta como una expresion de shell. El fallo se reprodujo con el JSON exacto del usuario, incluyendo sus dos series de puntos.
+- La correccion pertenece a `ckan-unesco-docker`, rama `miserver-2.10`, en `deploy/envoy-dev/coraza.conf`: exclusion de esa firma sobre las descripciones de modelos/catalogos en `initSources`, incluyendo escenas anidadas. El patron debe ser insensible a mayusculas por la normalizacion de claves de Coraza. Es una exclusion por campo JSON en cualquier URL; las otras firmas y campos siguen inspeccionados.
+- Prueba reproducible: `python3 deploy/envoy-dev/check_terria_share.py` desde Docker; usa las imagenes fijadas y un backend local en memoria. La comprobacion real requiere generar un enlace en el navegador, abrirlo sin sesion y verificar capa, fecha, camara, cuatro capitulos y series de 37/36 puntos.
+- Despliegue especifico: workflow `push.yml` con `envoy_only=true`, contexto `default`, namespace `ckan`. No requiere recompilar TerriaJS/TerriaMap. Evidencia y alcance en la [guia del gateway DEV](https://github.com/pabrojast/ckan-unesco-docker/blob/miserver-2.10/deploy/envoy-dev/README.md#terria-short-link-compatibility-2026-10-23).
+
 ## Tests no levantan en local
 
 - confirmar que ya corriste `yarn gulp`
