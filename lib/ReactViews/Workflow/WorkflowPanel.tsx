@@ -18,11 +18,13 @@ type PropsType = {
   icon: IconProps["glyph"];
   onClose: () => void;
   closeButtonText?: string;
+  closeButtonLabel?: string;
   footer?: {
     onClick: () => void;
     buttonText: string;
   };
   children?: ReactNode;
+  appearance?: "default" | "analysis";
 };
 
 /** Wraps component in Portal, adds TitleBar, ErrorBoundary and Footer (PanelButton) */
@@ -44,6 +46,9 @@ const WorkflowPanel: FC<PropsType> = observer((props) => {
   return (
     <PortalChild viewState={viewState} portalId={WorkflowPanelPortalId}>
       <Container
+        $analysis={props.appearance === "analysis"}
+        role={props.appearance === "analysis" ? "region" : undefined}
+        aria-label={props.appearance === "analysis" ? props.title : undefined}
         className={
           viewState.topElement === "WorkflowPanel" ? "top-element" : ""
         }
@@ -55,7 +60,10 @@ const WorkflowPanel: FC<PropsType> = observer((props) => {
           <TitleIcon glyph={props.icon} />
           <Title>{props.title}</Title>
           {!props.closeButtonText && (
-            <CloseIconButton onClick={props.onClose} />
+            <CloseIconButton
+              aria-label={props.closeButtonLabel ?? "Close"}
+              onClick={props.onClose}
+            />
           )}
           {props.closeButtonText && (
             <CloseTextButton onClick={props.onClose}>
@@ -106,7 +114,11 @@ class ErrorBoundary extends Component<ErrorBoundaryProps> {
   }
 }
 
-const Container = styled.div`
+const Container = styled.div<{ $analysis?: boolean }>`
+  ${(p) =>
+    p.$analysis
+      ? `background: #fff; color: #1F2937; border-radius: 12px; overflow: hidden; box-shadow: 0 8px 28px rgba(31,41,55,.14);`
+      : ""}
   position: relative;
   display: flex;
   flex-direction: column;

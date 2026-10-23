@@ -402,3 +402,12 @@ los controles del reloj y los enlaces compartidos siguen ese mismo producto.
 Al abrir un share, el panel también corrige el orden restaurado entre productos
 del mismo piloto. Este observador conserva los filtros y no desplaza una capa
 ajena al piloto que esté controlando la línea temporal.
+
+### Analisis de area COG (2026-10-23)
+
+- La entrada compacta del BottomDock selecciona la capa desde la que se abre. El control del mapa tambien admite Cesium/Leaflet y pantallas pequenas.
+- El flujo es Area -> Configuracion -> Resultados, con superficies claras locales (`AnalysisTheme`), iconos SVG y textos EN/ES. No cambia el tema global del mapa.
+- `UserDrawing` incorpora opciones optativas de estilo, validacion, cierre directo y retencion del overlay. Clicar el primer vertice o Cerrar area ejecuta la misma finalizacion; el view model normaliza y valida el anillo, rechaza cruces y areas degeneradas, y mantiene el poligono visible. Deshacer y Reiniciar actuan antes del cierre; Redibujar reemplaza el area. Cancelar un calculo conserva area y opciones.
+- Finalizar libera la interaccion de dibujo, no el overlay retenido. Cerrar la herramienta elimina sus elementos temporales de forma idempotente sin retirar modos ajenos; las respuestas de picking tardias no agregan vertices tras cerrar.
+- En movil el panel inferior se mantiene compacto al dibujar y se amplia para configurar/resultados, con un limite de 70dvh. El grafico de puntos queda oculto mientras la herramienta movil esta abierta, conservando sus series. En escritorio se pliega temporalmente mientras la herramienta esta abierta para no cubrir la geometria.
+- El grafico acumulado y su vista ampliada usan superficies claras; el canvas ocupa la altura disponible y los controles/leyenda tienen desplazamiento cuando falta espacio. El resultado zonal se amplia en Chart.js sin alterar las series de puntos existentes. El estado de geometria sigue siendo temporal: esta entrega no agrega persistencia del poligono al formato share.

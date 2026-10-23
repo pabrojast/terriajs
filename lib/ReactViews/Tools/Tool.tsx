@@ -69,6 +69,7 @@ const Tool: FC<ToolProps> = (props) => {
 };
 
 interface ToolButtonProps extends ToolProps {
+  viewerMode?: ViewerMode | "both";
   icon: { id: string };
   viewState: ViewState;
 }
@@ -82,7 +83,9 @@ export class ToolButtonController extends MapNavigationItemController {
     return this.props.icon;
   }
   get viewerMode() {
-    return ViewerMode.Cesium;
+    return this.props.viewerMode === "both"
+      ? undefined
+      : this.props.viewerMode ?? ViewerMode.Cesium;
   }
 
   get name() {

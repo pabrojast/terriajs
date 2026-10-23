@@ -70,9 +70,21 @@ class BottomDock extends Component<PropsType & MeasureElementProps> {
           <>
             <ChartDisclaimer terria={terria} viewState={this.props.viewState} />
             <ChartPanel />
-            <ChartJsSeriesDock terria={terria} />
           </>
         )}
+        <ChartJsSeriesDock
+          terria={terria}
+          compact={this.props.viewState.useSmallScreenInterface}
+          temporarilyCollapsed={
+            this.props.viewState.currentTool?.toolName ===
+            "cog-calculation-tool"
+          }
+          hidden={
+            this.props.viewState.useSmallScreenInterface &&
+            this.props.viewState.currentTool?.toolName ===
+              "cog-calculation-tool"
+          }
+        />
         {top && (
           <Timeline
             terria={terria}

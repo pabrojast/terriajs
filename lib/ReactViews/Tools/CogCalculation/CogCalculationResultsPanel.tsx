@@ -1,183 +1,176 @@
-/**
- * CogCalculationResultsPanel — Displays zonal calculation results.
- *
- * For single COGs: shows a statistics table.
- * For time series: shows a line chart + table + CSV export button.
- */
-
 import { observer } from "mobx-react";
-import { useMemo } from "react";
+import { lazy, Suspense, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import styled, { useTheme } from "styled-components";
 import CogCalculationViewModel from "../../../ReactViewModels/CogCalculationViewModel";
-import Box from "../../../Styled/Box";
-import Button from "../../../Styled/Button";
-import Spacing from "../../../Styled/Spacing";
+import {
+  calculateDomain,
+  ChartItem
+} from "../../../ModelMixins/ChartableMixin";
+import ChartJsModal from "../../Custom/Chart/ChartJs/ChartJsModal";
 import Text from "../../../Styled/Text";
 import { ZonalStatistics } from "../../../Core/CogZonalEngine";
+import {
+  Action,
+  Actions,
+  Card,
+  Details,
+  Grid,
+  Heading,
+  Hint,
+  Stack
+} from "./AnalysisUi";
+const ChartJsLineChart = lazy(
+  () => import("../../Custom/Chart/ChartJs/ChartJsLineChart")
+);
+const formatValue = (value: number) =>
+  Number.isFinite(value)
+    ? value.toLocaleString(undefined, { maximumFractionDigits: 4 })
+    : "—";
 
-interface Props {
-  vm: CogCalculationViewModel;
-}
-
-const STAT_LABELS: Record<string, string> = {
-  mean: "Mean",
-  min: "Minimum",
-  max: "Maximum",
-  sum: "Sum",
-  count: "Valid pixels",
-  noDataCount: "NoData pixels",
-  median: "Median",
-  stddev: "Std. deviation"
-};
-
-function formatValue(value: number): string {
-  if (isNaN(value)) return "N/A";
-  if (Number.isInteger(value)) return value.toLocaleString();
-  return value.toFixed(4);
-}
-
-const CogCalculationResultsPanel: React.FC<Props> = observer(({ vm }) => {
-  // Single COG result
-  if (vm.singleResult) {
+const CogCalculationResultsPanel = observer(
+  ({ vm }: { vm: CogCalculationViewModel }) => {
+    const { t } = useTranslation();
+    const [expanded, setExpanded] = useState(false);
+    const expandButton = useRef<HTMLButtonElement>(null);
+    const item = vm.selectedTimeSeriesItem;
+    const points =
+      vm.timeSeriesResults
+        ?.map((r) => ({
+          x: Date.parse(r.time),
+          y: r.statistics[vm.selectedStatistic]
+        }))
+        .filter((p) => Number.isFinite(p.y)) ?? [];
+    const chartItems: ChartItem[] = item
+      ? [
+          {
+            id: "drawn-area",
+            key: "drawn-area",
+            name: t(`models.cogCalculation.statistics.${vm.selectedStatistic}`),
+            item,
+            type: "line",
+            units:
+              vm.selectedStatistic === "count" ? undefined : item.displayUnit,
+            showInChartPanel: true,
+            isSelectedInWorkbench: true,
+            xAxis: { name: "Time", scale: "time" },
+            points,
+            domain: calculateDomain(points),
+            getColor: () => "#0F6B82",
+            updateIsSelectedInWorkbench: () => {}
+          }
+        ]
+      : [];
+    const tr = (key: string, options?: Record<string, unknown>) =>
+      t(`models.cogCalculation.${key}`, options);
     return (
-      <Container>
-        <Text medium bold>
-          Zonal Statistics Results
-        </Text>
-        <Spacing bottom={0.5} />
-        <Text small textLight>
-          Overview level: {vm.singleResult.overviewLevel} | Resolution:{" "}
-          {vm.singleResult.pixelResolution.map((r) => r.toFixed(1)).join(" × ")}{" "}
-          units/px
-        </Text>
-        <Spacing bottom={1} />
-
-        <StatsTable>
-          <tbody>
-            {Object.entries(vm.singleResult.statistics).map(([key, value]) => (
-              <tr key={key}>
-                <StatLabel>{STAT_LABELS[key] || key}</StatLabel>
-                <StatValue>{formatValue(value)}</StatValue>
-              </tr>
-            ))}
-          </tbody>
-        </StatsTable>
-
-        <Spacing bottom={1.5} />
-        <Box gap>
-          <Button
-            secondary
-            onClick={() => vm.startDrawing()}
-            textProps={{ small: true }}
-          >
-            New calculation
-          </Button>
-          <Button
-            secondary
-            onClick={() => vm.editPolygon()}
-            textProps={{ small: true }}
-          >
-            Redraw polygon
-          </Button>
-        </Box>
-      </Container>
+      <Stack>
+        <div>
+          <Heading>{tr("resultsTitle")}</Heading>
+          <Hint>{vm.selectedItem?.name}</Hint>
+        </div>
+        {vm.singleResult ? (
+          <>
+            <Hint>
+              {tr("overview", {
+                level: vm.singleResult.overviewLevel,
+                resolution: vm.singleResult.pixelResolution
+                  .map((r) => r.toFixed(1))
+                  .join(" × ")
+              })}
+            </Hint>
+            <Grid>
+              {Object.entries(vm.singleResult.statistics).map(
+                ([key, value]) => (
+                  <Card key={key}>
+                    <Hint>{tr(`statistics.${key}`)}</Hint>
+                    <Heading>{formatValue(value)}</Heading>
+                  </Card>
+                )
+              )}
+            </Grid>
+          </>
+        ) : vm.timeSeriesResults?.length ? (
+          <>
+            <Card>
+              <Heading>{tr(`statistics.${vm.selectedStatistic}`)}</Heading>
+              <Hint>
+                {tr("processed", { count: vm.timeSeriesResults.length })}
+                {vm.selectedTimeSeriesItem?.displayUnit
+                  ? ` · ${vm.selectedTimeSeriesItem.displayUnit}`
+                  : ""}
+              </Hint>
+            </Card>
+            <TimeSeriesChart
+              results={vm.timeSeriesResults}
+              statistic={vm.selectedStatistic}
+            />
+            <Details>
+              <summary>{tr("table")}</summary>
+              <TableScroll>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>{tr("date")}</th>
+                      <th>{tr(`statistics.${vm.selectedStatistic}`)}</th>
+                      <th>{tr("pixels")}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {vm.timeSeriesResults.map((r, i) => (
+                      <tr key={i}>
+                        <td>{r.time.slice(0, 10)}</td>
+                        <td>
+                          {formatValue(r.statistics[vm.selectedStatistic])}
+                        </td>
+                        <td>{r.statistics.count}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </TableScroll>
+            </Details>
+            <Actions>
+              <Action $primary onClick={() => vm.exportCsv()}>
+                {tr("export")}
+              </Action>
+              <Action ref={expandButton} onClick={() => setExpanded(true)}>
+                {tr("expandChart")}
+              </Action>
+            </Actions>
+          </>
+        ) : (
+          <Hint>{tr("noResults")}</Hint>
+        )}
+        <ChartJsModal
+          isOpen={expanded}
+          onClose={() => setExpanded(false)}
+          title={tr("resultsTitle")}
+          triggerRef={expandButton}
+        >
+          <Suspense fallback={<Hint>{t("chart.loading")}</Hint>}>
+            <ChartJsLineChart
+              chartItemsOverride={chartItems}
+              variant="modal"
+              height="100%"
+              showDataTable
+              activeX={item?.chartDock?.activeX}
+              onSelectX={item?.chartDock?.onSelectX}
+            />
+          </Suspense>
+        </ChartJsModal>
+        <Actions>
+          <Action onClick={() => vm.cancelCalculation()}>
+            {tr("backToSettings")}
+          </Action>
+          <Action onClick={() => vm.startDrawing()}>
+            {tr("newCalculation")}
+          </Action>
+        </Actions>
+      </Stack>
     );
   }
-
-  // Time series result
-  if (vm.timeSeriesResults && vm.timeSeriesResults.length > 0) {
-    return (
-      <Container>
-        <Text medium bold>
-          Time Series —{" "}
-          {STAT_LABELS[vm.selectedStatistic] || vm.selectedStatistic}
-        </Text>
-        <Spacing bottom={0.5} />
-        <Text small textLight>
-          {vm.timeSeriesResults.length} time steps processed
-        </Text>
-        <Spacing bottom={1} />
-
-        {/* Mini Chart - SVG Line Chart */}
-        <TimeSeriesChart
-          results={vm.timeSeriesResults}
-          statistic={vm.selectedStatistic}
-        />
-
-        <Spacing bottom={1} />
-
-        {/* Values Table (collapsible) */}
-        <StyledDetails>
-          <StyledSummary>
-            <Text as="span" small bold>
-              View values table ({vm.timeSeriesResults.length} rows)
-            </Text>
-          </StyledSummary>
-          <Spacing bottom={0.5} />
-          <ScrollableTable>
-            <table>
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>
-                    {STAT_LABELS[vm.selectedStatistic] || vm.selectedStatistic}
-                  </th>
-                  <th>Pixels</th>
-                </tr>
-              </thead>
-              <tbody>
-                {vm.timeSeriesResults.map((r, i) => (
-                  <tr key={i}>
-                    <td>{r.time.slice(0, 10)}</td>
-                    <td>
-                      {formatValue((r.statistics as any)[vm.selectedStatistic])}
-                    </td>
-                    <td>{r.statistics.count}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </ScrollableTable>
-        </StyledDetails>
-
-        <Spacing bottom={1.5} />
-        <Box gap flexWrap>
-          <Button
-            primary={!vm.isTimeSeriesResultExpandedInChartPanel}
-            secondary={vm.isTimeSeriesResultExpandedInChartPanel}
-            onClick={() => vm.toggleTimeSeriesResultChartPanel()}
-            textProps={{ small: true }}
-          >
-            {vm.isTimeSeriesResultExpandedInChartPanel ? "Collapse" : "Expand"}
-          </Button>
-          <Button
-            primary
-            onClick={() => vm.exportCsv()}
-            textProps={{ small: true }}
-          >
-            Export CSV
-          </Button>
-          <Button
-            secondary
-            onClick={() => vm.startDrawing()}
-            textProps={{ small: true }}
-          >
-            New calculation
-          </Button>
-        </Box>
-      </Container>
-    );
-  }
-
-  return (
-    <Container>
-      <Text small textLight>
-        No results to display.
-      </Text>
-    </Container>
-  );
-});
-
+);
 export default CogCalculationResultsPanel;
 
 // ─── Mini SVG Time Series Chart ─────────────────────────────────
@@ -193,6 +186,7 @@ interface ChartProps {
 const TimeSeriesChart: React.FC<ChartProps> = observer(
   ({ results, statistic }) => {
     const theme = useTheme();
+    const { t } = useTranslation();
     const chartData = useMemo(() => {
       const values = results.map((r) => ({
         time: new Date(r.time).getTime(),
@@ -244,7 +238,7 @@ const TimeSeriesChart: React.FC<ChartProps> = observer(
     if (!chartData) {
       return (
         <Text small textLight>
-          No valid values to chart.
+          {t("models.cogCalculation.noValues")}
         </Text>
       );
     }
@@ -263,7 +257,13 @@ const TimeSeriesChart: React.FC<ChartProps> = observer(
 
     return (
       <ChartContainer>
-        <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
+        <svg
+          role="img"
+          aria-label={t("models.cogCalculation.resultsTitle")}
+          width="100%"
+          height={height}
+          viewBox={`0 0 ${width} ${height}`}
+        >
           {/* Grid lines */}
           <line
             x1={padding.left}
@@ -327,7 +327,7 @@ const TimeSeriesChart: React.FC<ChartProps> = observer(
             d={linePath}
             fill="none"
             stroke={theme.colorPrimary}
-            strokeWidth={1.5}
+            strokeWidth={2.5}
           />
 
           {/* Data points */}
@@ -344,82 +344,32 @@ const TimeSeriesChart: React.FC<ChartProps> = observer(
   }
 );
 
-// ─── Styled Components ──────────────────────────────────────────
-
-const Container = styled.div`
-  color: ${(p) => p.theme.textLight};
-`;
-
-const StatsTable = styled.table`
-  width: 100%;
-  border-collapse: collapse;
-`;
-
-const StatLabel = styled.td`
-  padding: 6px 8px;
-  font-size: 13px;
-  color: ${(p) => p.theme.textLight};
-  border-bottom: 1px solid ${(p) => p.theme.darkLighter};
-`;
-
-const StatValue = styled.td`
-  padding: 6px 8px;
-  font-size: 13px;
-  font-weight: bold;
-  text-align: right;
-  color: ${(p) => p.theme.textLight};
-  border-bottom: 1px solid ${(p) => p.theme.darkLighter};
-`;
-
-const StyledDetails = styled.details`
-  color: ${(p) => p.theme.textLight};
-`;
-
-const StyledSummary = styled.summary`
-  cursor: pointer;
-  padding: 4px 0;
-  color: ${(p) => p.theme.textLight};
-  &:hover {
-    opacity: 0.85;
-  }
-  &::marker {
-    color: ${(p) => p.theme.textLight};
+const ChartContainer = styled.div`
+  border: 1px solid #dce4eb;
+  border-radius: 10px;
+  padding: 12px 6px;
+  background: white;
+  svg {
+    display: block;
+    max-width: 100%;
   }
 `;
-
-const ScrollableTable = styled.div`
-  max-height: 250px;
-  overflow-y: auto;
-
+const TableScroll = styled.div`
+  overflow: auto;
+  max-height: 260px;
   table {
     width: 100%;
     border-collapse: collapse;
     font-size: 12px;
   }
-
   th,
   td {
-    padding: 4px 6px;
     text-align: left;
-    border-bottom: 1px solid ${(p) => p.theme.darkLighter};
-    color: ${(p) => p.theme.textLight};
+    padding: 9px 6px;
+    border-bottom: 1px solid #dce4eb;
   }
-
   th {
-    font-weight: bold;
-    position: sticky;
-    top: 0;
-    background: ${(p) => p.theme.dark};
-  }
-`;
-
-const ChartContainer = styled.div`
-  background: ${(p) => p.theme.darkLighter};
-  border-radius: 4px;
-  padding: 5px;
-  overflow: hidden;
-
-  text {
-    fill: ${(p) => p.theme.textLight};
+    color: #536579;
+    font-weight: 600;
   }
 `;

@@ -259,12 +259,12 @@ const StandardUserInterfaceBase: FC<StandardUserInterfaceProps> = observer(
                 <TrainerBar />
               </Medium>
             )}
-            <Medium>
-              {/* I think this does what the previous boolean condition does, but without the console error */}
-              {props.viewState.isToolOpen && (
+            {props.viewState.isToolOpen &&
+              (!props.viewState.useSmallScreenInterface ||
+                props.viewState.currentTool?.toolName ===
+                  "cog-calculation-tool") && (
                 <Tool {...props.viewState.currentTool!} />
               )}
-            </Medium>
 
             {props.viewState.panel}
 

@@ -176,6 +176,7 @@ export const registerMapNavigations = (viewState: ViewState) => {
   // COG Zonal Calculation Tool
   const cogCalculationToolController = new ToolButtonController({
     toolName: COG_CALCULATION_TOOL_ID,
+    viewerMode: "both",
     viewState: viewState,
     getToolComponent: () =>
       import("../../Tools/CogCalculation/CogCalculationTool").then(
@@ -188,7 +189,6 @@ export const registerMapNavigations = (viewState: ViewState) => {
     name: "translate#models.cogCalculation.toolName",
     title: "translate#models.cogCalculation.toolTitle",
     location: "TOP",
-    screenSize: "medium",
     controller: cogCalculationToolController,
     order: 7
   });

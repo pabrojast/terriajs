@@ -1,3 +1,4 @@
+import AnalysisTheme from "../../../../Styled/AnalysisTheme";
 import { observer } from "mobx-react";
 import {
   FC,
@@ -29,10 +30,10 @@ const ChartJsLineChart = lazy(() => import("./ChartJsLineChart"));
 
 // Header keeps a compact toolbar + legend above/below the chart so the chart
 // itself keeps a usable height. The dock body height is user-adjustable.
-const DEFAULT_DOCK_HEIGHT = 280;
+const DEFAULT_DOCK_HEIGHT = 360;
 const MIN_DOCK_HEIGHT = 140;
 const MAX_DOCK_HEIGHT = 520;
-const HEADER_HEIGHT = 36;
+const HEADER_HEIGHT = 44;
 const INLINE_CHART_HEIGHT = 180;
 
 // Session-scoped dock state. Module-level so it survives unmount/remount (e.g.
@@ -43,11 +44,14 @@ let sessionCollapsed = false;
 const clampDockHeight = (height: number) =>
   Math.min(MAX_DOCK_HEIGHT, Math.max(MIN_DOCK_HEIGHT, height));
 
-const DockHolder = styled.div`
+const DockHolder = styled.div<{ $hidden?: boolean }>`
+  display: ${(p) => (p.$hidden ? "none" : "block")};
+  border: 1px solid #dce4eb;
+  box-shadow: 0 3px 16px rgba(31, 41, 55, 0.08);
   left: 0;
   right: 0;
   background: ${(props) => props.theme.transparentDark};
-  border-radius: 8px 8px 0 0;
+  border-radius: 12px;
   margin-bottom: 6px;
   box-sizing: border-box;
 `;
@@ -82,6 +86,10 @@ const DockInner = styled.div<{ $height: number }>`
   height: ${(props) => props.$height}px;
   padding: 0 8px 8px 8px;
   box-sizing: border-box;
+  overflow-y: auto;
+  @media (max-width: 767px) {
+    max-height: 65dvh;
+  }
 `;
 
 const DockHeader = styled.div`
@@ -94,7 +102,8 @@ const DockHeader = styled.div`
 `;
 
 const DockTitle = styled.span`
-  font-weight: bold;
+  font-size: 14px;
+  font-weight: 600;
   flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -104,39 +113,52 @@ const DockTitle = styled.span`
 const DockButton = styled(RawButton)`
   display: flex;
   align-items: center;
-  padding: 4px 8px;
+  min-height: 36px;
+  @media (max-width: 767px) {
+    min-height: 44px;
+  }
+  padding: 6px 10px;
   color: ${(props) => props.theme.textLight};
   border-radius: 3px;
   opacity: 0.9;
   &:hover,
   &:focus {
     opacity: 1;
-    background: ${(props) => props.theme.colorPrimary};
+    background: ${(props) => props.theme.overlay};
   }
 `;
 
 const DockIconButton = styled(RawButton)`
   display: flex;
   align-items: center;
-  padding: 4px;
+  min-width: 36px;
+  min-height: 36px;
+  @media (max-width: 767px) {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  padding: 6px;
   color: ${(props) => props.theme.textLight};
   border-radius: 3px;
   opacity: 0.85;
   &:hover,
   &:focus {
     opacity: 1;
-    background: ${(props) => props.theme.colorPrimary};
+    background: ${(props) => props.theme.overlay};
   }
 `;
 
 const DockBody = styled.div`
   flex: 1;
-  min-height: 0;
+  min-height: 210px;
   position: relative;
 `;
 
 interface ChartJsSeriesDockProps {
   terria: Terria;
+  compact?: boolean;
+  temporarilyCollapsed?: boolean;
+  hidden?: boolean;
 }
 
 /**
@@ -190,15 +212,19 @@ const ChartJsSeriesDock: FC<ChartJsSeriesDockProps> = observer((props) => {
   const { t } = useTranslation();
   const [modalOpen, setModalOpen] = useState(false);
   const [dockHeight, setDockHeight] = useState(sessionDockHeight);
-  const [collapsed, setCollapsed] = useState(sessionCollapsed);
+  const [userCollapsed, setCollapsed] = useState(sessionCollapsed);
+  const [mobileExpanded, setMobileExpanded] = useState(false);
+  const collapsed =
+    !!props.temporarilyCollapsed ||
+    (props.compact ? !mobileExpanded : userCollapsed);
 
   // Keep the session-scoped values in sync so a remount restores the last state.
   useEffect(() => {
     sessionDockHeight = dockHeight;
   }, [dockHeight]);
   useEffect(() => {
-    sessionCollapsed = collapsed;
-  }, [collapsed]);
+    sessionCollapsed = userCollapsed;
+  }, [userCollapsed]);
 
   // Vertical resize from the top grip: dragging up grows the dock. Listeners are
   // attached to the document for the duration of the drag (mouse + touch).
@@ -296,129 +322,137 @@ const ChartJsSeriesDock: FC<ChartJsSeriesDockProps> = observer((props) => {
   const collapsedHeight = HEADER_HEIGHT + 8;
 
   return (
-    <DockHolder>
-      {collapsed ? null : (
-        <ResizeGrip
-          ref={resizeGripRef}
-          role="separator"
-          aria-orientation="horizontal"
-          aria-label={t("chart.resize")}
-          title={t("chart.resize")}
-          onMouseDown={handleResizeMouseDown}
-          onTouchStart={handleResizeTouchStart}
-        />
-      )}
-      <DockInner $height={collapsed ? collapsedHeight : dockHeight}>
-        <DockHeader>
-          <DockTitle title={title}>{title}</DockTitle>
-          <DockButton
-            type="button"
-            onClick={() => setModalOpen(true)}
-            aria-label={t("chart.viewAll")}
-            title={t("chart.viewAll")}
-          >
-            {t("chart.viewAll")}
-          </DockButton>
-          <DockButton
-            type="button"
-            onClick={() => item.clearAccumulatedSeries()}
-            aria-label={t("chart.clearSeries")}
-            title={t("chart.clearSeries")}
-          >
-            {t("chart.clearSeries")}
-          </DockButton>
-          <DockIconButton
-            type="button"
-            onClick={() => setCollapsed((c) => !c)}
-            aria-label={collapsed ? t("chart.expand") : t("chart.collapse")}
-            aria-expanded={!collapsed}
-            title={collapsed ? t("chart.expand") : t("chart.collapse")}
-          >
-            <StyledIcon
-              glyph={collapsed ? Icon.GLYPHS.expand : Icon.GLYPHS.collapse}
-              styledWidth="14px"
-              light
-            />
-          </DockIconButton>
-          <DockIconButton
-            type="button"
-            onClick={clearAndClose}
-            aria-label={t("chart.clearSeries")}
-            title={t("chart.clearSeries")}
-          >
-            <StyledIcon glyph={Icon.GLYPHS.close} styledWidth="14px" light />
-          </DockIconButton>
-        </DockHeader>
-        {collapsed || !status?.loading ? null : (
-          <StatusRow role="status">
-            <span>
-              {t("chart.readingSeries", {
-                loaded: status.loaded,
-                total: status.total
-              })}
-            </span>
-            {status.cancel ? (
-              <DockButton type="button" onClick={status.cancel}>
-                {t("chart.cancel")}
-              </DockButton>
-            ) : null}
-          </StatusRow>
-        )}
-        {collapsed || status?.loading || !status?.errors ? null : (
-          <StatusRow role="status">
-            {t("chart.seriesReadErrors", { count: status.errors })}
-          </StatusRow>
-        )}
-        {collapsed || !kpiSeries ? null : (
-          <ChartJsKpiTiles
-            series={kpiSeries}
-            activeX={dock?.activeX}
-            activeXLabel={dock?.activeXLabel}
-            formatDate={formatKpiDate}
-            showLinearTrend={dock?.showLinearTrend}
+    <AnalysisTheme>
+      <DockHolder $hidden={props.hidden}>
+        {collapsed ? null : (
+          <ResizeGrip
+            ref={resizeGripRef}
+            role="separator"
+            aria-orientation="horizontal"
+            aria-label={t("chart.resize")}
+            title={t("chart.resize")}
+            onMouseDown={handleResizeMouseDown}
+            onTouchStart={handleResizeTouchStart}
           />
         )}
-        {collapsed ? null : (
-          <DockBody>
-            {modalOpen || chartItems.length === 0 ? null : (
-              <ChartJsErrorBoundary fallback={errorFallback}>
-                <Suspense fallback={loadingFallback}>
-                  <ChartJsLineChart
-                    chartItemsOverride={chartItems}
-                    variant="dock"
-                    height={INLINE_CHART_HEIGHT}
-                    onRemoveSeries={(key) => item.removeAccumulatedSeries(key)}
-                    activeX={dock?.activeX}
-                    onSelectX={dock?.onSelectX}
-                  />
-                </Suspense>
-              </ChartJsErrorBoundary>
-            )}
-          </DockBody>
-        )}
-      </DockInner>
-
-      <ChartJsModal
-        isOpen={modalOpen}
-        onClose={() => setModalOpen(false)}
-        title={title}
-        persistKey={`${item.uniqueId}:chartModal`}
-      >
-        <ChartJsErrorBoundary fallback={errorFallback}>
-          <Suspense fallback={loadingFallback}>
-            <ChartJsLineChart
-              chartItemsOverride={chartItems}
-              variant="modal"
-              showDataTable
-              height="100%"
-              onRemoveSeries={(key) => item.removeAccumulatedSeries(key)}
+        <DockInner $height={collapsed ? collapsedHeight : dockHeight}>
+          <DockHeader>
+            <DockTitle title={title}>{title}</DockTitle>
+            <DockButton
+              type="button"
+              onClick={() => setModalOpen(true)}
+              aria-label={t("chart.viewAll")}
+              title={t("chart.viewAll")}
+            >
+              {t("chart.viewAll")}
+            </DockButton>
+            <DockButton
+              type="button"
+              onClick={() => item.clearAccumulatedSeries()}
+              aria-label={t("chart.clearSeries")}
+              title={t("chart.clearSeries")}
+            >
+              {t("chart.clearSeries")}
+            </DockButton>
+            <DockIconButton
+              type="button"
+              onClick={() =>
+                props.compact
+                  ? setMobileExpanded((v) => !v)
+                  : setCollapsed((v) => !v)
+              }
+              aria-label={collapsed ? t("chart.expand") : t("chart.collapse")}
+              aria-expanded={!collapsed}
+              title={collapsed ? t("chart.expand") : t("chart.collapse")}
+            >
+              <StyledIcon
+                glyph={collapsed ? Icon.GLYPHS.expand : Icon.GLYPHS.collapse}
+                styledWidth="14px"
+                light
+              />
+            </DockIconButton>
+            <DockIconButton
+              type="button"
+              onClick={clearAndClose}
+              aria-label={t("general.close")}
+              title={t("general.close")}
+            >
+              <StyledIcon glyph={Icon.GLYPHS.close} styledWidth="14px" light />
+            </DockIconButton>
+          </DockHeader>
+          {collapsed || !status?.loading ? null : (
+            <StatusRow role="status">
+              <span>
+                {t("chart.readingSeries", {
+                  loaded: status.loaded,
+                  total: status.total
+                })}
+              </span>
+              {status.cancel ? (
+                <DockButton type="button" onClick={status.cancel}>
+                  {t("chart.cancel")}
+                </DockButton>
+              ) : null}
+            </StatusRow>
+          )}
+          {collapsed || status?.loading || !status?.errors ? null : (
+            <StatusRow role="status">
+              {t("chart.seriesReadErrors", { count: status.errors })}
+            </StatusRow>
+          )}
+          {collapsed || !kpiSeries ? null : (
+            <ChartJsKpiTiles
+              series={kpiSeries}
               activeX={dock?.activeX}
-              onSelectX={dock?.onSelectX}
+              activeXLabel={dock?.activeXLabel}
+              formatDate={formatKpiDate}
+              showLinearTrend={dock?.showLinearTrend}
             />
-          </Suspense>
-        </ChartJsErrorBoundary>
-      </ChartJsModal>
-    </DockHolder>
+          )}
+          {collapsed ? null : (
+            <DockBody>
+              {modalOpen || chartItems.length === 0 ? null : (
+                <ChartJsErrorBoundary fallback={errorFallback}>
+                  <Suspense fallback={loadingFallback}>
+                    <ChartJsLineChart
+                      chartItemsOverride={chartItems}
+                      variant="dock"
+                      height="100%"
+                      onRemoveSeries={(key) =>
+                        item.removeAccumulatedSeries(key)
+                      }
+                      activeX={dock?.activeX}
+                      onSelectX={dock?.onSelectX}
+                    />
+                  </Suspense>
+                </ChartJsErrorBoundary>
+              )}
+            </DockBody>
+          )}
+        </DockInner>
+
+        <ChartJsModal
+          isOpen={modalOpen}
+          onClose={() => setModalOpen(false)}
+          title={title}
+          persistKey={`${item.uniqueId}:chartModal`}
+        >
+          <ChartJsErrorBoundary fallback={errorFallback}>
+            <Suspense fallback={loadingFallback}>
+              <ChartJsLineChart
+                chartItemsOverride={chartItems}
+                variant="modal"
+                showDataTable
+                height="100%"
+                onRemoveSeries={(key) => item.removeAccumulatedSeries(key)}
+                activeX={dock?.activeX}
+                onSelectX={dock?.onSelectX}
+              />
+            </Suspense>
+          </ChartJsErrorBoundary>
+        </ChartJsModal>
+      </DockHolder>
+    </AnalysisTheme>
   );
 });
 

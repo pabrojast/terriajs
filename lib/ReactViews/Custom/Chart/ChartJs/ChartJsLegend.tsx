@@ -63,7 +63,9 @@ const LegendRow = styled.div<{
   gap: 4px;
   padding: 2px 4px;
   border-radius: 4px;
-  max-width: 220px;
+  max-width: ${(p) => (p.theme.analysisSurface ? "300px" : "220px")};
+  ${(p) =>
+    p.theme.analysisSurface ? "font-size: 12px; line-height: 1.4;" : ""}
   background-color: ${(props) => props.theme.overlay};
   opacity: ${(props) => (props.$hidden ? 0.45 : props.$highlighted ? 1 : 0.92)};
   box-shadow: ${(props) =>
@@ -72,6 +74,9 @@ const LegendRow = styled.div<{
 
 /** The swatch + name act as one clickable target that isolates the series. */
 const IsolateButton = styled(RawButton)`
+  @media (max-width: 767px) {
+    ${(p) => (p.theme.analysisSurface ? "min-height: 44px;" : "")}
+  }
   display: flex;
   align-items: center;
   gap: 4px;
@@ -124,6 +129,10 @@ const SeriesStatsLine = styled.span`
 `;
 
 const LegendButton = styled(RawButton)`
+  ${(p) =>
+    p.theme.analysisSurface
+      ? "min-width: 32px; min-height: 32px; @media (max-width: 767px) { min-width: 44px; min-height: 44px; }"
+      : ""}
   display: flex;
   align-items: center;
   padding: 2px;
@@ -133,7 +142,10 @@ const LegendButton = styled(RawButton)`
   &:hover,
   &:focus {
     opacity: 1;
-    background-color: ${(props) => props.theme.colorPrimary};
+    background-color: ${(props) =>
+      props.theme.analysisSurface
+        ? props.theme.overlay
+        : props.theme.colorPrimary};
   }
 `;
 

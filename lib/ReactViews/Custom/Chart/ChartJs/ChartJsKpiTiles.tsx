@@ -14,7 +14,8 @@ const Row = styled.div`
   display: flex;
   align-items: stretch;
   gap: 8px;
-  padding: 6px 10px 2px;
+  padding: 10px 2px;
+  flex-shrink: 0;
   overflow-x: auto;
 `;
 
@@ -47,8 +48,8 @@ const SubjectName = styled.span`
 const Tile = styled.div`
   flex: 0 0 auto;
   min-width: 96px;
-  padding: 4px 10px;
-  border-radius: 4px;
+  padding: 8px 12px;
+  border-radius: 8px;
   background: ${(props) => props.theme.darkLighter};
   color: ${(props) => props.theme.textLight};
 `;

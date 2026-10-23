@@ -9,6 +9,9 @@
  * Displays: current-time value badges + mini SVG line chart per calculation.
  */
 
+import { useTranslation } from "react-i18next";
+import AnalysisTheme from "../../../Styled/AnalysisTheme";
+import Icon, { GLYPHS } from "../../../Styled/Icon";
 import { observer } from "mobx-react";
 import React, { useCallback, useMemo, useState } from "react";
 import styled, { useTheme } from "styled-components";
@@ -17,7 +20,6 @@ import CommonStrata from "../../../Models/Definition/CommonStrata";
 import CogTimeSeriesCatalogItem from "../../../Models/Catalog/CatalogItems/CogTimeSeriesCatalogItem";
 import Terria from "../../../Models/Terria";
 import ViewState from "../../../ReactViewModels/ViewState";
-import Box from "../../../Styled/Box";
 import Text from "../../../Styled/Text";
 import { COG_CALCULATION_TOOL_ID } from "./CogCalculationTool";
 
@@ -49,18 +51,24 @@ function getCogTimeSeriesItems(terria: Terria): CogTimeSeriesCatalogItem[] {
 const CogAreaCalculationPanel: React.FC<Props> = observer(
   ({ terria, viewState }) => {
     const items = getCogTimeSeriesItems(terria);
-    if (items.length === 0) return null;
+    if (
+      items.length === 0 ||
+      viewState.currentTool?.toolName === COG_CALCULATION_TOOL_ID
+    )
+      return null;
 
     return (
-      <PanelContainer>
-        {items.map((item) => (
-          <ItemAreaPanel
-            key={item.uniqueId}
-            item={item}
-            viewState={viewState}
-          />
-        ))}
-      </PanelContainer>
+      <AnalysisTheme>
+        <PanelContainer>
+          {items.map((item) => (
+            <ItemAreaPanel
+              key={item.uniqueId}
+              item={item}
+              viewState={viewState}
+            />
+          ))}
+        </PanelContainer>
+      </AnalysisTheme>
     );
   }
 );
@@ -76,6 +84,9 @@ interface ItemAreaPanelProps {
 
 const ItemAreaPanel: React.FC<ItemAreaPanelProps> = observer(
   ({ item, viewState }) => {
+    const { t } = useTranslation();
+    const tr = (key: string, options?: Record<string, unknown>) =>
+      t(`models.cogCalculation.${key}`, options);
     const [expanded, setExpanded] = useState(true);
     const [selectedCalc, setSelectedCalc] = useState<string | undefined>(
       undefined
@@ -105,9 +116,9 @@ const ItemAreaPanel: React.FC<ItemAreaPanelProps> = observer(
         toolName: COG_CALCULATION_TOOL_ID,
         getToolComponent: () =>
           import("./CogCalculationTool").then((m) => m.default as any),
-        params: {}
+        params: { itemId: item.uniqueId }
       });
-    }, [viewState]);
+    }, [viewState, item.uniqueId]);
 
     const toggleChartPanel = useCallback(() => {
       runInAction(() => {
@@ -123,47 +134,42 @@ const ItemAreaPanel: React.FC<ItemAreaPanelProps> = observer(
 
     return (
       <ItemContainer>
-        <HeaderRow onClick={() => setExpanded(!expanded)}>
-          <Box verticalCenter gap>
-            <ChartIcon>📊</ChartIcon>
-            <Text semiBold small>
-              {item.name ?? "COG Time Series"}
-            </Text>
-          </Box>
-          <Box verticalCenter gap>
-            {hasAreaCalcs && (
-              <ChartToggleButton
-                active={isInChartPanel}
-                onClick={(e: React.MouseEvent) => {
-                  e.stopPropagation();
-                  toggleChartPanel();
-                }}
-                title={
-                  isInChartPanel
-                    ? "Remove from chart panel"
-                    : "Show in chart panel"
-                }
-              >
-                📈
-              </ChartToggleButton>
-            )}
-            <CollapseButton>{expanded ? "▼" : "▶"}</CollapseButton>
-          </Box>
+        <HeaderRow>
+          <ItemTitle title={item.name}>
+            <Icon glyph={GLYPHS.lineChart} />
+            <span>{item.name ?? "COG Time Series"}</span>
+          </ItemTitle>
+          <HeaderActions>
+            <CalculateButton data-area-launcher onClick={openCalculationTool}>
+              <Icon glyph={GLYPHS.lineChart} />
+              {tr("calculateArea")}
+            </CalculateButton>
+            {hasAreaCalcs ? (
+              <>
+                <ChartToggleButton
+                  aria-label={tr(isInChartPanel ? "hideChart" : "showChart")}
+                  aria-pressed={isInChartPanel}
+                  onClick={toggleChartPanel}
+                >
+                  <Icon glyph={GLYPHS.lineChart} />
+                </ChartToggleButton>
+                <CollapseButton
+                  aria-label={tr(expanded ? "collapsePanel" : "expandPanel")}
+                  aria-expanded={expanded}
+                  onClick={() => setExpanded(!expanded)}
+                >
+                  <Icon glyph={expanded ? GLYPHS.collapse : GLYPHS.expand} />
+                </CollapseButton>
+              </>
+            ) : null}
+          </HeaderActions>
         </HeaderRow>
-
         {expanded && (
           <>
-            {/* Calculate button — always visible */}
-            <ButtonRow>
-              <CalculateButton onClick={openCalculationTool}>
-                📐 Calculate area time series
-              </CalculateButton>
-            </ButtonRow>
-
             {/* Current time value badges (only if precalculated values exist) */}
             {hasAreaCalcs && currentResults.length > 0 && (
               <>
-                <SectionLabel>Precalculated values:</SectionLabel>
+                <SectionLabel>{tr("precalculated")}</SectionLabel>
                 <BadgeRow>
                   {currentResults.map((r) => (
                     <ValueBadge
@@ -200,13 +206,15 @@ const ItemAreaPanel: React.FC<ItemAreaPanelProps> = observer(
                   <StyledDetails>
                     <StyledSummary style={{ padding: "0 12px" }}>
                       <Text as="span" mini textLight>
-                        View table ({allSeries[activeCalcName].length} dates)
+                        {tr("viewTable", {
+                          count: allSeries[activeCalcName].length
+                        })}
                       </Text>
                     </StyledSummary>
                     <ValuesTable>
                       <thead>
                         <tr>
-                          <th>Date</th>
+                          <th>{tr("date")}</th>
                           <th>
                             {areaCalcs.find((c) => c.name === activeCalcName)
                               ?.statistic ?? "Value"}
@@ -435,7 +443,9 @@ const PanelContainer = styled.div`
 
 const ItemContainer = styled.div`
   background: ${(p) => p.theme.dark};
-  border-radius: 6px;
+  border: 1px solid #dce4eb;
+  box-shadow: 0 2px 8px rgba(31, 41, 55, 0.06);
+  border-radius: 10px;
   margin-bottom: 6px;
   overflow: hidden;
 `;
@@ -444,55 +454,84 @@ const HeaderRow = styled.div`
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
   padding: 8px 12px;
-  color: ${(p) => p.theme.textLight};
-  cursor: pointer;
-  &:hover {
-    background: ${(p) => p.theme.darkLighter};
+  color: #1f2937;
+  @media (max-width: 767px) {
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 8px;
   }
 `;
-
-const ChartIcon = styled.span`
-  font-size: 14px;
-`;
-
-const CollapseButton = styled.span`
-  font-size: 10px;
-  color: ${(p) => p.theme.textLight};
-`;
-
-const ChartToggleButton = styled.span<{ active?: boolean }>`
-  font-size: 14px;
-  cursor: pointer;
-  padding: 2px 4px;
-  border-radius: 3px;
-  background: ${(p) =>
-    p.active ? p.theme.colorPrimary + "33" : "transparent"};
-  transition: background 0.15s;
-  &:hover {
-    background: ${(p) => p.theme.colorPrimary + "26"};
+const ItemTitle = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 600;
+  svg {
+    fill: #0f6b82;
+    flex: 0 0 20px;
+    width: 20px;
+    height: 20px;
+  }
+  span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 `;
-
-const ButtonRow = styled.div`
-  padding: 4px 12px 8px;
+const HeaderActions = styled.div`
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-shrink: 0;
 `;
-
 const CalculateButton = styled.button`
-  width: 100%;
-  padding: 10px 14px;
-  border: 1px solid ${(p) => p.theme.colorPrimary};
-  border-radius: 6px;
-  background: ${(p) => p.theme.darkLighter};
-  color: ${(p) => p.theme.textLight};
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 8px 14px;
+  border: 1px solid #0f6b82;
+  border-radius: 8px;
+  background: #0f6b82;
+  color: white;
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s;
+  svg {
+    width: 18px;
+    height: 18px;
+    fill: currentColor;
+  }
   &:hover {
-    background: ${(p) => p.theme.colorPrimary};
+    background: #09546a;
+  }
+  &:focus-visible {
+    outline: 3px solid #5aa9c1;
+    outline-offset: 2px;
   }
 `;
+const CollapseButton = styled.button`
+  display: grid;
+  place-items: center;
+  min-width: 44px;
+  min-height: 44px;
+  color: #0f6b82;
+  background: #f4f7fa;
+  border: 1px solid #dce4eb;
+  border-radius: 8px;
+  cursor: pointer;
+  svg {
+    width: 18px;
+    height: 18px;
+    fill: currentColor;
+  }
+`;
+const ChartToggleButton = CollapseButton;
 
 const SectionLabel = styled.div`
   padding: 0 12px 4px;
@@ -510,7 +549,7 @@ const BadgeRow = styled.div`
   flex-wrap: wrap;
 `;
 
-const ValueBadge = styled.div<{ active?: boolean }>`
+const ValueBadge = styled.button<{ active?: boolean }>`
   display: flex;
   flex-direction: column;
   padding: 6px 10px;

@@ -18,15 +18,23 @@ export interface ChartJsToolbarProps {
 
 const ToolbarBox = styled(Box)`
   flex-shrink: 0;
+  ${(p) => (p.theme.analysisSurface ? "flex-wrap: wrap; gap: 4px;" : "")}
 `;
 
 const ToolbarButton = styled(RawButton)`
+  ${(p) =>
+    p.theme.analysisSurface
+      ? "min-height: 36px; @media (max-width: 767px) { min-height: 44px; }"
+      : ""}
+  flex-shrink: 0;
+  white-space: nowrap;
   display: flex;
   align-items: center;
   gap: 4px;
   padding: 4px 6px;
   border-radius: 4px;
   color: ${(props) => props.theme.textLight};
+  ${(p) => (p.theme.analysisSurface ? "font-size: 13px;" : "")}
   opacity: 0.85;
   &:hover,
   &:focus {

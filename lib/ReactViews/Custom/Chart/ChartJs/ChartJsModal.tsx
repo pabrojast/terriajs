@@ -8,7 +8,7 @@ import {
 } from "react";
 import ReactDOM from "react-dom";
 import { useTranslation } from "react-i18next";
-import styled from "styled-components";
+import styled, { useTheme } from "styled-components";
 import createGuid from "terriajs-cesium/Source/Core/createGuid";
 import Box from "../../../../Styled/Box";
 import Icon, { StyledIcon } from "../../../../Styled/Icon";
@@ -85,7 +85,7 @@ const ChartJsModalBox = styled(Box).attrs({
   pointer-events: auto;
   resize: both;
   overflow: hidden;
-  min-width: 360px;
+  min-width: min(360px, 95vw);
   min-height: 240px;
   max-width: 95vw;
   max-height: 90vh;
@@ -144,6 +144,7 @@ const ChartJsModal: FC<ChartJsModalProps> = ({
   children
 }) => {
   const { t } = useTranslation();
+  const theme = useTheme();
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const [dragRef, dragControls] = useDraggable({
     handleSelector: ".chartjs-modal-handle"
@@ -280,7 +281,12 @@ const ChartJsModal: FC<ChartJsModalProps> = ({
               </Text>
             </Box>
             <CloseButton
-              color="#ffffff"
+              color={theme.textLight}
+              css={
+                theme.analysisSurface
+                  ? { width: 44, height: 44, padding: 12, flexShrink: 0 }
+                  : undefined
+              }
               noAbsolute
               onClick={onClose}
               aria-label={t("general.close")}

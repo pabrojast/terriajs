@@ -13,6 +13,7 @@ const WorkflowPanelPortal: FC<PropsType> = ({ show }) => {
   return (
     <Container
       show={show}
+      $analysis={viewState.currentTool?.toolName === "cog-calculation-tool"}
       onTransitionEnd={() => viewState.triggerResizeEvent()}
     >
       <Portal id={WorkflowPanelPortalId} />
@@ -20,7 +21,7 @@ const WorkflowPanelPortal: FC<PropsType> = ({ show }) => {
   );
 };
 
-const Container = styled.div<{ show: boolean }>`
+const Container = styled.div<{ show: boolean; $analysis?: boolean }>`
   width: ${(p) => p.theme.workflowPanelWidth}px;
   max-width: ${(p) => p.theme.workflowPanelWidth}px;
   position: absolute;
@@ -28,8 +29,8 @@ const Container = styled.div<{ show: boolean }>`
   top: ${(p) => p.theme.workbenchMargin}px;
   max-height: calc(100% - 2 * ${(p) => p.theme.workbenchMargin}px);
   z-index: 100;
-  background: ${(p) => p.theme.transparentDark};
-  backdrop-filter: ${(p) => p.theme.blur};
+  background: ${(p) => (p.$analysis ? "transparent" : p.theme.transparentDark)};
+  backdrop-filter: ${(p) => (p.$analysis ? "none" : p.theme.blur)};
   transition: all 0.25s;
   transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
   visibility: ${(p) => (p.show ? "visible" : "hidden")};
