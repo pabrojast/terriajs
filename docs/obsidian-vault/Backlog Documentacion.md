@@ -19,6 +19,8 @@ Hecho observado: los runs `36964126663` (revision `367781b0e`) y `36967195573` (
 
 Pendiente: corregir esos warnings en una tarea propia y volver a ejecutar CI global. No presentar los controles focalizados como un CI completo verde. Evidencia: [run de CI](https://github.com/pabrojast/terriajs/actions/runs/36967195573).
 
+Revalidado el 2026-10-23: [run 39985087715](https://github.com/pabrojast/terriajs/actions/runs/39985087715), revision `adf270acb`, conserva exactamente esos 14 warnings. El bundle de tests compila; los archivos con warnings no cambiaron en la correccion de enlaces cortos.
+
 ## Spec del token privado CKAN (2026-10-23)
 
 - Hecho observado: al empaquetar `SpecMain.ts` y `BuildShareLinkSpec.ts` y ejecutarlos en Chromium, `strips the CKAN proxy token from private catalog items` falla porque `models[privateId]` es `undefined`. Ocurre en la base DEV `10980da71` y despues de corregir las series acumuladas; no es una regresion de ese cambio.
