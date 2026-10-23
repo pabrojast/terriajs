@@ -240,3 +240,13 @@ de Sass y Cesium. Estas verificaciones focalizadas no declaran verde la CI
 global. Las capturas y CSV locales estan en
 `output/playwright/area-analysis-20261023/`; la evidencia de la revision
 publicada corresponde al informe enlazado desde [[Deployment]].
+
+La vista previa del consumidor se comprueba en 1440×900, 1024×600, 390×844 y
+360×800: cierre por primer vertice y boton, dibujo tactil, resultados y CSV,
+modal/tabla de series, zoom y restauracion del grafico. El grafico movil tiene
+220 px de trazado y desplazamiento vertical; no hay overflow horizontal.
+El calculo y el dibujo funcionan en Leaflet, aunque la capa COG del ejemplo
+conserva su restriccion previa de visualizacion a Cesium. EN/ES tienen las
+mismas 76 claves y plurales verificados; el consumidor DEV ofrece solo ingles.
+No se cambio esa configuracion. Compartir desde la vista previa conserva por
+igualdad profunda las cuatro historias y las series originales de 37/36 puntos.
