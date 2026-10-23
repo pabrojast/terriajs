@@ -80,7 +80,7 @@ const ResizeGrip = styled.div`
   }
 `;
 
-const DockInner = styled.div<{ $height: number }>`
+const DockInner = styled.div<{ $height: number; $expanded: boolean }>`
   display: flex;
   flex-direction: column;
   height: ${(props) => props.$height}px;
@@ -88,7 +88,7 @@ const DockInner = styled.div<{ $height: number }>`
   box-sizing: border-box;
   overflow-y: auto;
   @media (max-width: 767px) {
-    max-height: 65dvh;
+    height: ${(p) => (p.$expanded ? "min(520px, 65dvh)" : `${p.$height}px`)};
   }
 `;
 
@@ -151,6 +151,9 @@ const DockIconButton = styled(RawButton)`
 const DockBody = styled.div`
   flex: 1;
   min-height: 210px;
+  @media (max-width: 767px) {
+    min-height: 400px;
+  }
   position: relative;
 `;
 
@@ -335,7 +338,10 @@ const ChartJsSeriesDock: FC<ChartJsSeriesDockProps> = observer((props) => {
             onTouchStart={handleResizeTouchStart}
           />
         )}
-        <DockInner $height={collapsed ? collapsedHeight : dockHeight}>
+        <DockInner
+          $height={collapsed ? collapsedHeight : dockHeight}
+          $expanded={!collapsed}
+        >
           <DockHeader>
             <DockTitle title={title}>{title}</DockTitle>
             <DockButton
@@ -344,7 +350,15 @@ const ChartJsSeriesDock: FC<ChartJsSeriesDockProps> = observer((props) => {
               aria-label={t("chart.viewAll")}
               title={t("chart.viewAll")}
             >
-              {t("chart.viewAll")}
+              {props.compact ? (
+                <StyledIcon
+                  glyph={Icon.GLYPHS.lineChart}
+                  styledWidth="24px"
+                  light
+                />
+              ) : (
+                t("chart.viewAll")
+              )}
             </DockButton>
             <DockButton
               type="button"
