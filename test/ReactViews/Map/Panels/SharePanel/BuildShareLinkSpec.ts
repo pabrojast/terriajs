@@ -8,6 +8,7 @@ import { USER_ADDED_CATEGORY_ID } from "../../../../../lib/Core/addedByUser";
 import loadBlob from "../../../../../lib/Core/loadBlob";
 import PickedFeatures from "../../../../../lib/Map/PickedFeatures/PickedFeatures";
 import addUserCatalogMember from "../../../../../lib/Models/Catalog/addUserCatalogMember";
+import CogTimeSeriesCatalogItem from "../../../../../lib/Models/Catalog/CatalogItems/CogTimeSeriesCatalogItem";
 import GeoJsonCatalogItem from "../../../../../lib/Models/Catalog/CatalogItems/GeoJsonCatalogItem";
 import WebMapServiceCatalogItem from "../../../../../lib/Models/Catalog/Ows/WebMapServiceCatalogItem";
 import CommonStrata from "../../../../../lib/Models/Definition/CommonStrata";
@@ -374,6 +375,51 @@ describe("BuildShareLink", function () {
       const initSources = flattenInitSources(params.initSources);
 
       expect(initSources.featureInfoPanel).toBeUndefined();
+    });
+  });
+
+  describe("sharing accumulated point series", function () {
+    [false, true].forEach((emptyPick) => {
+      it(`preserves series with ${
+        emptyPick ? "an empty" : "no"
+      } feature selection`, async function () {
+        const item = new CogTimeSeriesCatalogItem("chl-dnipro", terria);
+        item.setTrait(CommonStrata.definition, "unit", "mg m-3");
+        terria.addModel(item);
+        await terria.workbench.add(item);
+        for (const [index, lat] of [48.63, 48.57].entries()) {
+          item.addAccumulatedSeries({
+            key: `point-${index}`,
+            name: `P${index + 1}`,
+            color: "#0072B2",
+            units: "mg m-3",
+            points: [{ x: 1717200000000, y: 40 + index }],
+            meta: { kind: "point", lat, lon: 34.42 }
+          });
+        }
+        runInAction(() => {
+          terria.pickedFeatures = emptyPick ? new PickedFeatures() : undefined;
+        });
+
+        const params = decodeAndParseStartHash(
+          buildShareLink(terria, viewState)
+        );
+        const initSource = flattenInitSources(params.initSources);
+        expect(initSource.pickedFeatures).toBeUndefined();
+        expect(initSource.accumulatedChartSeries?.[item.uniqueId!]).toEqual(
+          item.accumulatedChartSeries
+        );
+
+        const restored = new Terria({ baseUrl: "./" });
+        await restored.applyInitData({ initData: initSource });
+        const restoredItem = restored.getModelById(
+          CogTimeSeriesCatalogItem,
+          item.uniqueId!
+        );
+        expect(restoredItem?.accumulatedChartSeries).toEqual(
+          item.accumulatedChartSeries
+        );
+      });
     });
   });
 
