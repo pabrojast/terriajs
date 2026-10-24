@@ -168,9 +168,12 @@ describe("Story compositions", function () {
   });
   it("accepts dashboard selection only from the same-origin picker window", async function () {
     const result = chooseStoryDashboard();
+    // The picker resolves its title with an explicit `lng`, so match that
+    // instead of the current (cimode) language.
     const dialog = document.querySelector(
       `dialog[aria-label="${i18next.t(
-        "story.editor.design.chooseDashboardTitle"
+        "story.editor.design.chooseDashboardTitle",
+        { lng: "en" }
       )}"]`
     )!;
     const frame = dialog.querySelector("iframe")!;

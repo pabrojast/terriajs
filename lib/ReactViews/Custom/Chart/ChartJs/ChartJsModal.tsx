@@ -4,7 +4,8 @@ import {
   RefObject,
   useCallback,
   useEffect,
-  useRef
+  useRef,
+  useMemo
 } from "react";
 import ReactDOM from "react-dom";
 import { useTranslation } from "react-i18next";
@@ -90,7 +91,9 @@ const ChartJsModalBox = styled(Box).attrs({
   max-width: 95vw;
   max-height: 90vh;
   background-color: ${(props) => props.theme.dark};
-  box-shadow: 0 6px 6px 0 rgba(0, 0, 0, 0.12), 0 10px 20px 0 rgba(0, 0, 0, 0.05);
+  box-shadow:
+    0 6px 6px 0 rgba(0, 0, 0, 0.12),
+    0 10px 20px 0 rgba(0, 0, 0, 0.05);
   &:focus {
     outline: none;
   }
@@ -164,11 +167,7 @@ const ChartJsModal: FC<ChartJsModalProps> = ({
   // Stable unique id for aria-labelledby. We avoid React 18's `useId` because
   // TerriaJS must compile against consuming apps that may resolve older React
   // typings; `createGuid` is the established pattern in this codebase.
-  const titleIdRef = useRef<string>();
-  if (!titleIdRef.current) {
-    titleIdRef.current = `chartjs-modal-title-${createGuid()}`;
-  }
-  const titleId = titleIdRef.current;
+  const titleId = useMemo(() => `chartjs-modal-title-${createGuid()}`, []);
 
   // ESC to close.
   useEffect(() => {

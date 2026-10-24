@@ -755,7 +755,10 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
 
       const resourceUrl: ResourceUrl | ResourceUrl[] | undefined =
         layer.ResourceURL;
-      let baseUrl: string = new URI(this.url).search("").toString();
+      // Prefer the KVP GetTile endpoint advertised in OperationsMetadata (as upstream
+      // does); fall back to the capabilities URL without its query string.
+      let baseUrl: string =
+        stratum.kvpTileUrl ?? new URI(this.url).search("").toString();
       let templateTokens: string[] = [];
 
       const tileMatrixSet = this.tileMatrixSet;
@@ -939,9 +942,6 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
           dimensions: finalDimensions
         }) as ExtendedImageryProvider;
       }
-
-      const usingUrlTemplate =
-        imageryProvider instanceof UrlTemplateImageryProvider;
 
       // Enable feature picking only if a GetFeatureInfo endpoint or custom request is available
       const hasFeatureInfoSupport =
@@ -1297,9 +1297,6 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
 
     // Check if the TileMatrixSet has a non-standard tile progression
     // (e.g., GIBS uses 2x1, 3x2, 5x3, 10x5 instead of standard 2x1, 4x2, 8x4, 16x8)
-    const hasNonStandardProgression =
-      this.hasNonStandardTileProgression(tileMatrixSet);
-
     // If the template contains WMTS placeholders, we would normally prefer using
     // the native WebMapTileServiceImageryProvider. However, for non-standard
     // tile matrix sets (like GIBS), we must use UrlTemplateImageryProvider
@@ -1389,7 +1386,7 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
     registerTag("TileMatrixSet", () => tileMatrixSet.id);
     registerTag("tilematrixset", () => tileMatrixSet.id);
 
-    registerTag("TileMatrix", (_provider, x, y, level) => {
+    registerTag("TileMatrix", (_provider, _x, _y, level) => {
       const label = tileMatrixForLevel(level);
       return label;
     });
@@ -1403,13 +1400,13 @@ class WebMapTileServiceCatalogItem extends DiscretelyTimeVaryingMixin(
       tileMatrixForLevel(level)
     );
 
-    registerTag("TileRow", (_provider, x, y, level) => {
+    registerTag("TileRow", (_provider, _x, y, _level) => {
       return y.toString();
     });
     registerTag("TILEROW", (_provider, _x, y) => y.toString());
     registerTag("tilerow", (_provider, _x, y) => y.toString());
 
-    registerTag("TileCol", (_provider, x, y, level) => {
+    registerTag("TileCol", (_provider, x, _y, _level) => {
       return x.toString();
     });
     registerTag("TILECOL", (_provider, x) => x.toString());
@@ -2372,13 +2369,8 @@ class CustomGeographicTilingScheme {
     const {
       tileWidthRadians,
       tileHeightRadians,
-      tileWidthDegrees,
-      tileHeightDegrees,
       topLeftLonRadians,
-      topLeftLatRadians,
-      topLeftLonDegrees,
-      topLeftLatDegrees,
-      radiansPerPixel
+      topLeftLatRadians
     } = this.computeTileMetrics(levelDim);
 
     const west = topLeftLonRadians + x * tileWidthRadians;

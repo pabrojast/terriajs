@@ -65,7 +65,7 @@ interface WMTSCapabilitiesJson extends CapabilitiesBaseType {
   readonly ServiceMetadataURL?: OnlineResource;
 }
 
-interface OperationsMetadata {
+export interface OperationsMetadata {
   readonly Operation?: Operation | Operation[];
 }
 

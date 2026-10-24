@@ -1,3 +1,4 @@
+/* global Buffer, setImmediate */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
@@ -22,7 +23,7 @@ test("slow scenes apply serially and only the newest pending scene survives", as
           release = resolve;
         });
     },
-    (event, success, error, superseded) =>
+    (event, success, _error, superseded) =>
       done.push({ event, success, superseded: !!superseded })
   );
   queue("A");

@@ -182,7 +182,7 @@ export function mustacheJsonStringify() {
       }
       // Otherwise stringify directly
       return JSON.stringify(rendered);
-    } catch (e) {
+    } catch (_e) {
       // If parsing fails, assume it's an object reference and stringify it
       // This might not work in all cases, but it's a reasonable fallback
       return rendered;

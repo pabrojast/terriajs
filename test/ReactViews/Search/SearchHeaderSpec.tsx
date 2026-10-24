@@ -16,7 +16,8 @@ describe("SearchHeader", function () {
   beforeEach(async function () {
     const terria = new Terria({ baseUrl: "./" });
     const provider = new CatalogSearchProvider("catalog", terria);
-    viewState = new ViewState({ terria, catalogSearchProvider: provider });
+    terria.catalog.searchProvider = provider;
+    viewState = new ViewState({ terria });
     results = new SearchProviderResult(provider);
     runInAction(() => {
       results.isWaitingToStartSearch = true;

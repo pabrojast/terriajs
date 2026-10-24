@@ -24,8 +24,9 @@ Ver tambien: [[Setup Local]], [[Testing]], [[Deployment]], [[Troubleshooting]]
 | `yarn gulp release`          | copia assets de Cesium y genera specs minificadas    |
 | `yarn gulp watch`            | build incremental de specs                           |
 | `yarn gulp dev`              | `terriajs-server` + `watch`                          |
-| `yarn gulp test`             | corre Karma con browsers detectados localmente       |
-| `yarn gulp test-firefox`     | corre Karma en Firefox                               |
+| `yarn gulp test`             | corre jasmine-browser-runner en Chrome headless      |
+| `yarn gulp test-firefox`     | corre jasmine-browser-runner en Firefox headless     |
+| `yarn gulp serve-tests`      | sirve el runner de specs en `http://localhost:9876`  |
 | `yarn gulp docs`             | genera docs de usuario y referencia                  |
 | `yarn gulp code-attribution` | regenera `doc/acknowledgements/attributions.md`      |
 | `yarn gulp reference-guide`  | genera referencia JSDoc                              |
@@ -41,4 +42,5 @@ Ver tambien: [[Setup Local]], [[Testing]], [[Deployment]], [[Troubleshooting]]
 
 - `yarn hot`: **Pendiente por confirmar**. El script referencia `buildprocess/webpack.config.hot.js`, pero ese archivo no existe actualmente.
 - `yarn start` usa `terriajs-server --port 3002`, mientras que `gulp terriajs-server` tambien puede iniciar el server.
-- `prepare` ejecuta `yarn build-for-node && husky install`.
+- `prepare` ejecuta `yarn build-for-node && husky`.
+- Formato: Prettier 3 (`yarn prettier-check`); lint: ESLint 10 con `eslint.config.mjs` (flat config).

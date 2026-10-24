@@ -4,8 +4,8 @@ Ver tambien: [[Comandos Utiles]], [[Variables de Entorno]], [[Troubleshooting]]
 
 ## Prerrequisitos verificados en el repo
 
-- Node `>= 20.0.0` en `package.json`
-- `.nvmrc`: `v20.18.3`
+- Node `>= 22` en `package.json`
+- `.nvmrc`: `v22.22.3`
 - Yarn classic (`yarn@^1.x`) segun scripts y documentacion
 - Python + dependencias de `requirements.txt` para build de docs
 
@@ -33,7 +33,7 @@ yarn start
 5. Abrir:
 
 - app/server local: `http://localhost:3002`
-- runner de specs: `http://localhost:3002/SpecRunner.html`
+- runner de specs: `yarn gulp serve-tests` y abrir `http://localhost:9876` (ver [[Testing]])
 
 ## Para documentacion
 

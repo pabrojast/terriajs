@@ -4,10 +4,11 @@ Ver tambien: [[Comandos Utiles]], [[Setup Local]], [[Troubleshooting]]
 
 ## Stack de testing
 
-- Framework: Jasmine
-- Runner: Karma
+- Framework: Jasmine 6
+- Runner: `jasmine-browser-runner` (Chrome headless por defecto; Karma se elimino con upstream 8.12.0)
+- HTTP mocking: `msw` (`test/mocks/browser.ts`); una peticion no manejada hace fallar el spec
 - React testing: `@testing-library/react` y `@testing-library/jasmine-dom`
-- Cobertura: `coverage-istanbul`
+- Compatibilidad del fork: `jasmine-ajax`, `fetch-mock` y `react-test-renderer` siguen instalados para los specs del fork que aun los usan (ver [[Sincronizacion con Upstream]])
 
 ## Bootstrap observado
 
@@ -16,22 +17,28 @@ Archivo clave: `test/SpecMain.ts`
 - inicializa prerequisitos del navegador
 - registra catalog members
 - configura MobX para tests
-- inicializa i18next en modo `cimode`
+- inicializa i18next en modo `cimode` con los recursos `en` cargados (los tests comparan claves, no textos traducidos)
+- arranca el service worker de `msw` y reinicia sus handlers en cada spec
 - agrega matchers de `jasmine-dom`
+- importa `jasmine-ajax` (fork) para los specs que lo instalan por su cuenta
 
 ## Comandos
 
 ```bash
-yarn gulp test
-yarn gulp test-firefox
+yarn gulp build          # empaqueta los specs (obligatorio tras cambiar lib/ o test/)
+yarn gulp test           # Chrome headless
+yarn gulp test-firefox   # Firefox headless
+yarn gulp serve-tests    # runner interactivo en http://localhost:9876
+# solo un subconjunto (usa el bundle ya construido):
+npx jasmine-browser-runner runSpecs --config=test/jasmine-browser.mjs --filter="Nombre del describe"
 ```
 
 ## Como corre el suite
 
 - Webpack empaqueta specs a `wwwroot/build/TerriaJS-specs.js`
-- Karma sirve archivos desde `wwwroot/`
-- `karma-local.conf.js` detecta browsers locales y genera cobertura
-- `karma-firefox.conf.js` fuerza Firefox
+- `test/jasmine-browser.mjs` sirve `wwwroot/` en el puerto `9876` con `random: false`
+- `gulp test` usa `headlessChrome`; `gulp test-firefox` usa `headlessFirefox`
+- Fallos esperables en una shell con locale `es` y sin WebGL: formato numerico (TableMixin, FeatureInfoSection, Legend), BoxDrawing/Cesium/MovementsController, `focusWorkbenchItems`; en CI con locale `en` y GPU no aparecen (**Inferencia**)
 
 ## Estructura de tests
 
@@ -71,6 +78,8 @@ yarn gulp test-firefox
 - `test/Models/TerriaSpec.ts` (`describe("terria start")`, bloque `ckanSession`) comprueba que `start()` no crea `terria.ckanSession` sin config y que con `parameters.ckanSession` lo crea, conserva la config y hace exactamente un whoami fuera del proxy.
 
 ### Patron `jasmine.Ajax` para HTTP
+
+Nota (2026-10): upstream reemplazo `jasmine-ajax` por `msw`. Los specs nuevos deben usar `worker.use(http.get(...))` (ver `test/Models/TerriaSpec.ts`, bloque `ckanSession`, ya migrado). Los specs antiguos del fork que siguen con `jasmine.Ajax` deben llamar a `jasmine.Ajax.install()`/`uninstall()` en su propio `beforeEach`/`afterEach`.
 
 Los specs de sesion CKAN siguen el patron de `describe("terria start")` en `test/Models/TerriaSpec.ts`:
 

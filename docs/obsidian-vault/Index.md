@@ -12,6 +12,7 @@ Vault operativa del repositorio `terriajs`.
 - [[Modulos]]
 - [[Testing]]
 - [[Deployment]]
+- [[Sincronizacion con Upstream]]
 - [[Troubleshooting]]
 - [[Guia de Mantenimiento]]
 - [[Backlog Documentacion]]
@@ -19,9 +20,9 @@ Vault operativa del repositorio `terriajs`.
 
 ## Hechos rapidos
 
-- Paquete: `terriajs` `8.9.5`.
-- Runtime de desarrollo soportado: Node `>= 20.0.0`; `.nvmrc` fija `v20.18.3`.
-- Tooling principal: TypeScript, React 18, MobX, Cesium, Leaflet, Webpack 5, Gulp 5, Karma, Jasmine, ESLint, Prettier.
+- Paquete: `terriajs` (fork IHP-WINS sobre upstream 8.12.2+; ver [[Sincronizacion con Upstream]]).
+- Runtime de desarrollo soportado: Node `>= 22`; `.nvmrc` fija `v22.22.3`.
+- Tooling principal: TypeScript 5.9, React 18, MobX 6, terriajs-cesium 23, Leaflet, Webpack 5, Gulp 5, jasmine-browser-runner, msw, ESLint 10 (flat config), Prettier 3.
 - Entrypoints operativos del repo:
   - estado raiz: `lib/Models/Terria.ts`
   - estado de UI: `lib/ReactViewModels/ViewState.ts`

@@ -1,5 +1,6 @@
 import { action, runInAction, toJS, when } from "mobx";
 import { http, HttpResponse } from "msw";
+import { waitFor } from "@testing-library/dom";
 import URI from "urijs";
 import buildModuleUrl from "terriajs-cesium/Source/Core/buildModuleUrl";
 import CesiumMath from "terriajs-cesium/Source/Core/Math";
@@ -244,16 +245,27 @@ describe("TerriaSpec", function () {
     });
 
     describe("ckanSession", function () {
-      const SESSION_RE = /\/api\/terria\/user\/session/;
+      // Fork (IHP-WINS): stub the config and the same-origin whoami with msw.
+      let sessionRequests: string[];
+
+      beforeEach(function () {
+        sessionRequests = [];
+        worker.use(
+          http.get("*/api/terria/user/session", ({ request }) => {
+            sessionRequests.push(request.url);
+            return HttpResponse.json({ authenticated: false });
+          })
+        );
+      });
 
       afterEach(function () {
         terria.dispose();
       });
 
       it("is not created and never calls the session endpoint without configParameters.ckanSession", async function () {
-        jasmine.Ajax.stubRequest("config.json").andReturn({
-          responseText: JSON.stringify({ parameters: {} })
-        });
+        worker.use(
+          http.get("*/config.json", () => HttpResponse.json({ parameters: {} }))
+        );
         terria = new Terria({ appBaseHref: "/", baseUrl: "./" });
 
         await terria.start({ configUrl: "config.json", i18nOptions });
@@ -262,7 +274,7 @@ describe("TerriaSpec", function () {
 
         expect(terria.configParameters.ckanSession).toBeUndefined();
         expect(terria.ckanSession).toBeUndefined();
-        expect(jasmine.Ajax.requests.filter(SESSION_RE).length).toBe(0);
+        expect(sessionRequests.length).toBe(0);
       });
 
       it("is created by start(), keeps configParameters.ckanSession and issues one whoami when configured", async function () {
@@ -275,17 +287,24 @@ describe("TerriaSpec", function () {
           checkOnFocus: false,
           focusThrottleMs: 5000
         };
-        jasmine.Ajax.stubRequest("config.json").andReturn({
-          responseText: JSON.stringify({ parameters: { ckanSession } })
-        });
-        jasmine.Ajax.stubRequest(SESSION_RE).andReturn({
-          responseText: JSON.stringify({ authenticated: false })
-        });
+        worker.use(
+          http.get("*/config.json", () =>
+            HttpResponse.json({ parameters: { ckanSession } })
+          )
+        );
         terria = new Terria({ appBaseHref: "/", baseUrl: "./" });
 
         await terria.start({ configUrl: "config.json", i18nOptions });
-        // Let the whoami promise chain settle.
-        await new Promise((resolve) => setTimeout(resolve, 0));
+        // The whoami goes through msw's service worker, so wait for it
+        // (jasmine's expect does not throw, hence the explicit errors).
+        await waitFor(() => {
+          if (sessionRequests.length !== 1)
+            throw new Error("Waiting for the whoami request");
+        });
+        await waitFor(() => {
+          if (terria.ckanSession!.status !== "anonymous")
+            throw new Error("Waiting for the whoami response");
+        });
 
         expect(terria.configParameters.ckanSession).toEqual(ckanSession);
         expect(terria.ckanSession).toBeDefined();
@@ -293,9 +312,8 @@ describe("TerriaSpec", function () {
         expect(terria.ckanSession!.referenceId).toBe(
           "ckan-private-catalog/catalog"
         );
-        const requests = jasmine.Ajax.requests.filter(SESSION_RE);
-        expect(requests.length).toBe(1);
-        expect(requests[0].url).not.toContain("proxy/");
+        expect(sessionRequests.length).toBe(1);
+        expect(sessionRequests[0]).not.toContain("proxy/");
         expect(terria.ckanSession!.status).toBe("anonymous");
         expect(
           terria.catalog.group.members.some((m) => m === "ckan-private-catalog")

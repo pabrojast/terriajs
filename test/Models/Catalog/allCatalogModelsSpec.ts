@@ -35,9 +35,13 @@ describe("All Catalog models", () => {
       .filter(
         ([modelName, model]) =>
           !ReferenceMixin.isMixedInto(model) &&
-          !["stub", "group", "cesium-terrain", "default-timeline"].includes(
-            modelName
-          )
+          ![
+            "stub",
+            "group",
+            "cesium-terrain",
+            "default-timeline",
+            "stac-catalog" // fork: STAC catalog is a group, not a mappable item
+          ].includes(modelName)
       )
       .forEach(([modelName, model]) => {
         return expect(

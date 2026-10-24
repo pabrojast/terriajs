@@ -185,7 +185,7 @@ describe("CkanSessionPanel", function () {
     setSession("anonymous");
     const renderer = render(true);
 
-    const item = renderer.root.findByType(MobileMenuItem);
+    const item = renderer.root.findByType(MobileMenuItem.Link);
     expect(item.props.href).toMatch(/^\/user\/login\?came_from=/);
     const link = renderer.root.findByType("a");
     expect(link.props.target).toBe("_blank");
@@ -197,9 +197,9 @@ describe("CkanSessionPanel", function () {
 
   it("renders a MobileMenuItem button (no href) while checking on a small screen", function () {
     const renderer = render(true);
-    const item = renderer.root.findByType(MobileMenuItem);
-    expect(item.props.href).toBeUndefined();
-    expect(item.props.caption).toBe("ckanSession.checking");
+    expect(renderer.root.findAllByType(MobileMenuItem.Link).length).toBe(0);
+    const item = renderer.root.findByType(MobileMenuItem.Button);
+    expect(item.props.children).toBe("ckanSession.checking");
     act(() => {
       renderer.root.findByType("button").props.onClick();
     });

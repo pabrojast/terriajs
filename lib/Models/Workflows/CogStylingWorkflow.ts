@@ -554,7 +554,7 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
         : undefined,
       // Legend items editing: show for discrete manual mode, or for continuous mode
       ...(isContinuous || this.hasManualLegend
-        ? legend.items?.flatMap((item, index) =>
+        ? (legend.items?.flatMap((item, index) =>
             filterOutUndefined([
               {
                 type: "color",
@@ -608,7 +608,7 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
                   } as SelectableDimensionButton)
                 : undefined
             ])
-          ) ?? []
+          ) ?? [])
         : []),
       // Add item button: show for discrete manual mode, or for continuous mode
       (isContinuous || this.hasManualLegend) && !legend.url
@@ -676,8 +676,8 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
       (colors && colors.length > 0
         ? "custom"
         : single?.colorScale
-        ? "named"
-        : "default");
+          ? "named"
+          : "default");
     if (mode !== "custom") return [];
     if (!colors || colors.length === 0) return [];
 
@@ -721,7 +721,7 @@ export default class CogStylingWorkflow implements SelectableDimensionWorkflow {
 
   private addColorStop(stratumId: string) {
     const stops = this.customColorStops;
-    let position = 0.5;
+    let position: number;
     if (stops.length === 0) {
       position = 0.5;
     } else if (stops.length === 1) {

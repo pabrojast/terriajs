@@ -26,6 +26,8 @@ function DashboardFrame({
     const requestId =
       "native-story-" + dashboard.view_id + "-" + ++request.current;
     onStatus(true);
+    // Reset the previous attempt's error when a new load starts.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setError("");
     function fail(message: string) {
       setError(message);
@@ -146,7 +148,9 @@ export default function StoryDashboardPanel({
 }) {
   const [cache, setCache] = useState<StoryDashboard[]>([]);
   useEffect(() => {
+    // Keep the last three dashboards mounted so switching back is instant.
     if (dashboard)
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setCache((old) =>
         [
           ...old.filter((d) => d.view_id !== dashboard.view_id),
