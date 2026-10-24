@@ -35,7 +35,9 @@ export default class NominatimSearchProviderTraits extends mixTraits(
     "© <a href='https://www.openstreetmap.org/copyright'>OpenStreetMap contributors</a>"
   ];
 
+  // Fork (IHP-WINS): upstream disables autocomplete for Nominatim; this
+  // deployment keeps it on. A definition can still set `autocompleteEnabled: false`.
   get autocompleteEnabled() {
-    return false;
+    return true;
   }
 }

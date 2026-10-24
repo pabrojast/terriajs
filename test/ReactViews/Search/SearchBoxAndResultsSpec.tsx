@@ -145,6 +145,9 @@ describe("SearchBoxAndResults", function () {
     await i18n.init();
 
     nominatimProvider = new NominatimSearchProvider("nominatim", terria);
+    // Fork (IHP-WINS): Nominatim autocompletes by default here; these specs
+    // exercise upstream's manual-trigger path, so opt out explicitly.
+    nominatimProvider.setTrait(CommonStrata.user, "autocompleteEnabled", false);
     mapboxProvider = new MapboxSearchProvider("mapbox", terria);
     // @ts-expect-error: Accessing protected method for testing purposes
     nominatimSpy = spyOn(nominatimProvider, "doSearch").and.callThrough();

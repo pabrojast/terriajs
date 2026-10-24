@@ -177,6 +177,6 @@ La rama `integrate/upstream-8.13-flat-20261023` (ver [[Sincronizacion con Upstre
 - `engines.node` `>= 22` y `node:22` en el `Dockerfile` (hoy `node:20`).
 - `terriajs-cesium` igual al de esta biblioteca: `26.3.0` (y `terriajs-cesium-widgets` `16.2.0`); `styled-components` 6 e `i18next` 26 si TerriaMap los importa directamente.
 - `registerCustomComponentTypes(terria)` debe seguir llamandose en `index.js` (la biblioteca ya no lo hace al cargar `parseCustomMarkdownToReact`).
-- Si se quiere autocompletar la busqueda con Nominatim, configurar `autocompleteEnabled: true` en el proveedor; por defecto el fork solo busca al pulsar Enter/boton.
+- La busqueda con Nominatim autocompleta al escribir (el fork fuerza `autocompleteEnabled: true`; upstream lo desactiva para Nominatim). Para volver al comportamiento de upstream, configurar `autocompleteEnabled: false` en el proveedor.
 
 Integrar o publicar Git no constituye un despliegue; el pin de TerriaMap sigue apuntando a la revision DEV anterior hasta que se actualice.

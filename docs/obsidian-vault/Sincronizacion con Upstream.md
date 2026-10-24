@@ -31,7 +31,7 @@ git -c merge.renameLimit=30000 merge --no-ff upstream-premove
 
 30 conflictos. Reglas aplicadas:
 
-- Busqueda: se adopta el modelo de upstream (`SearchProviderResult`, `autocompleteEnabled` por proveedor). Se conservan el boton "Buscar", la atribucion OSM y el hint del fork. `NominatimSearchProvider` deja `autocompleteEnabled` en `false` por defecto (estrato `defaults`) para seguir consultando Nominatim solo al pulsar Enter/boton.
+- Busqueda: se adopta el modelo de upstream (`SearchProviderResult`, `autocompleteEnabled` por proveedor). Se conservan el boton "Buscar", la atribucion OSM y el hint del fork. `NominatimSearchProviderTraits.autocompleteEnabled` devuelve `true` en el fork (upstream lo deja en `false` para Nominatim): la busqueda de lugares autocompleta al escribir; una definicion puede desactivarlo con `autocompleteEnabled: false`. El spec `SearchBoxAndResultsSpec` lo desactiva explicitamente para probar la ruta manual de upstream.
 - WMTS: se conserva `WebMapTileServiceCatalogItem` del fork (plantillas REST, dimensiones, `featureInfoRequest`); ahora usa el endpoint KVP `GetTile` de `OperationsMetadata` cuando existe. `WebMapTileServiceCapabilities.json` es publico porque el fork lo lee.
 - Stories: se conservan `StoryPanel`, `StoryEditor` y `story-editor.scss` del fork; `Editor.tsx` pasa a TypeScript con la prop `language` (i18n de TinyMCE) y `licenseKey="gpl"` en el componente.
 - Workbench: se adopta `WorkbenchControls.ts` de upstream y se agrega el flag `stac` del fork.

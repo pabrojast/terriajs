@@ -7,7 +7,6 @@ import { Category, SearchAction } from "../../Core/Analytics/analyticEvents";
 import loadJson from "../../Core/loadJson";
 import LocationSearchProviderMixin from "../../ModelMixins/SearchProviders/LocationSearchProviderMixin";
 import NominatimSearchProviderTraits from "../../Traits/SearchProviders/NominatimSearchProviderTraits";
-import CommonStrata from "../Definition/CommonStrata";
 import CreateModel from "../Definition/CreateModel";
 import Terria from "../Terria";
 import SearchProviderResult from "./SearchProviderResults";
@@ -32,11 +31,6 @@ export default class NominatimSearchProvider extends LocationSearchProviderMixin
     );
 
     makeObservable(this);
-
-    // Fork (IHP-WINS): Nominatim's usage policy forbids autocomplete, so by
-    // default only search when the user presses Enter or the search button.
-    // A definition can still opt in with `autocompleteEnabled: true`.
-    this.setTrait(CommonStrata.defaults, "autocompleteEnabled", false);
   }
 
   protected logEvent(searchText: string) {
