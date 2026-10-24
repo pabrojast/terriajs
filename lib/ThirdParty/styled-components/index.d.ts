@@ -8,7 +8,10 @@ import { terriaTheme } from "../../ReactViews/StandardUserInterface/StandardThem
 type Theme = typeof terriaTheme;
 
 declare module "styled-components" {
-  export interface DefaultTheme extends Theme {}
+  export interface DefaultTheme extends Theme {
+    analysisSurface?: boolean;
+    gridColor?: string;
+  }
 }
 
 // See https://github.com/styled-components/styled-components/issues/2528

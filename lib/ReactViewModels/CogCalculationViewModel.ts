@@ -34,6 +34,7 @@ import {
   TimeSeriesProgress
 } from "../Core/CogTimeSeriesCalculator";
 import proxyCatalogItemUrl from "../Models/Catalog/proxyCatalogItemUrl";
+import createAreaPolygon from "../Core/createAreaPolygon";
 import UserDrawing from "../Models/UserDrawing";
 import { BaseModel } from "../Models/Definition/Model";
 import Terria from "../Models/Terria";
@@ -98,9 +99,10 @@ export default class CogCalculationViewModel {
   readonly terria: Terria;
   readonly viewState: ViewState;
 
-  constructor(viewState: ViewState) {
+  constructor(viewState: ViewState, itemId?: string) {
     this.terria = viewState.terria;
     this.viewState = viewState;
+    this.selectedItemId = itemId;
     makeObservable(this);
   }
 
@@ -190,10 +192,15 @@ export default class CogCalculationViewModel {
 
     this._userDrawing = new UserDrawing({
       terria: this.terria,
-      messageHeader: "COG Zonal Statistics",
+      messageHeader: i18next.t("models.cogCalculation.toolName"),
       allowPolygon: true,
-      onPointClicked: () => {},
-      onPointMoved: () => {},
+      invisible: true,
+      polygonStyle: { stroke: "#0F6B82", fill: "rgba(15,107,130,0.18)" },
+      completeOnClose: true,
+      retainDrawingOnFinish: true,
+      canComplete: (points) => !!this.polygonFromPoints(points),
+      onPointClicked: () => this.updateDrawingPoints(),
+      onPointMoved: () => this.updateDrawingPoints(),
       onDrawingComplete: ({ points }) => {
         this._onDrawingComplete(points);
       },
@@ -208,32 +215,47 @@ export default class CogCalculationViewModel {
     this._userDrawing.enterDrawMode();
   }
 
+  private polygonFromPoints(points: Cartesian3[]): Polygon | undefined {
+    return createAreaPolygon(
+      points.map((point) => {
+        const carto = Cartographic.fromCartesian(point);
+        return [
+          CesiumMath.toDegrees(carto.longitude),
+          CesiumMath.toDegrees(carto.latitude)
+        ];
+      })
+    );
+  }
+
+  @computed get canFinishDrawing(): boolean {
+    return !!this.polygonFromPoints(this.drawnPoints);
+  }
+
+  @action private updateDrawingPoints(): void {
+    this.drawnPoints = this._userDrawing?.getPointsForShape() ?? [];
+    this.error =
+      this.drawnPoints.length >= 3 && !this.canFinishDrawing
+        ? i18next.t("models.cogCalculation.invalidArea")
+        : undefined;
+  }
+
+  @action finishDrawing(): void {
+    if (!this._userDrawing?.finishDrawing()) {
+      this.error = i18next.t("models.cogCalculation.invalidArea");
+    }
+  }
+
+  @action undoDrawing(): void {
+    this._userDrawing?.undoLastPoint();
+  }
+
   @action
   private _onDrawingComplete(points: Cartesian3[]): void {
-    if (points.length < 3) {
-      this.error = i18next.t("models.cogCalculation.needThreePoints");
-      this.phase = "error";
-      return;
-    }
-
+    const polygon = this.polygonFromPoints(points);
+    if (!polygon) return;
     this.drawnPoints = points;
-
-    // Convert Cartesian3 points to GeoJSON Polygon (EPSG:4326)
-    const coordinates = points.map((point) => {
-      const carto = Cartographic.fromCartesian(point);
-      return [
-        CesiumMath.toDegrees(carto.longitude),
-        CesiumMath.toDegrees(carto.latitude)
-      ];
-    });
-    // Close the ring
-    coordinates.push([...coordinates[0]]);
-
-    this.polygon = {
-      type: "Polygon",
-      coordinates: [coordinates]
-    };
-
+    this.polygon = polygon;
+    this.error = undefined;
     this.phase = "configuring";
   }
 

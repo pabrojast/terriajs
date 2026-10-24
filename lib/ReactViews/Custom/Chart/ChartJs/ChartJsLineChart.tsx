@@ -172,8 +172,7 @@ const ChartJsLineChart: FC<ChartJsChartProps> = observer((props) => {
   const textColor: string = (theme && (theme.textLight as string)) || "#ffffff";
   // `gridColor` is not a theme key, so always fall back.
   const gridColor: string =
-    (theme && ((theme as any).gridColor as string)) ||
-    "rgba(255, 255, 255, 0.15)";
+    (theme && theme.gridColor) || "rgba(255, 255, 255, 0.15)";
 
   const chartItemsOverride = props.chartItemsOverride;
 
@@ -249,7 +248,13 @@ const ChartJsLineChart: FC<ChartJsChartProps> = observer((props) => {
         // hovered line stands out of the "spaghetti".
         const strokeColor =
           hasHighlight && !isHighlighted ? withAlpha(color, 0.25) : color;
-        const borderWidth = hasHighlight ? (isHighlighted ? 3 : 1) : 1.5;
+        const borderWidth = hasHighlight
+          ? isHighlighted
+            ? 3
+            : 1
+          : theme.analysisSurface
+          ? 2.25
+          : 1.5;
         return {
           label: chartItem.name,
           data: buildLinePoints(chartItem),

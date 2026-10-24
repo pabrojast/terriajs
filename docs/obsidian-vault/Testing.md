@@ -223,3 +223,30 @@ aviso existente de Cesium sobre `import.meta`. El transporte del selector se
 simula desde su iframe; estas pruebas no sustituyen la validacion integrada de
 Pages en DEV. TerriaMap conserva su configuracion de idiomas: probar EN/ES en
 la biblioteca no declara que el visor publicado permita cambiar ambos idiomas.
+
+### Analisis de area y grafico claro (2026-10-23)
+
+`createAreaPolygonSpec.ts` comprueba cierre unico, vertices repetidos, areas
+degeneradas, intersecciones, concavidad y cruce del antimeridiano.
+`CogCalculationViewModelSpec.ts` recorre cierre explicito y primer vertice,
+conservacion del overlay, deshacer/reiniciar y limpieza idempotente sin retirar
+interacciones ajenas. Junto con `UserDrawingSpec.ts` y `chartJsStatsSpec.ts`,
+pasan 28 specs en Chromium; un caso antiguo dependiente de WebGL se omite.
+La geometria 3D se comprueba adicionalmente en navegador real.
+
+TypeScript (`--noEmit --skipLibCheck`), ESLint de los archivos modificados y
+compilacion del consumidor TerriaMap pasan. El build mantiene avisos previos
+de Sass y Cesium. Estas verificaciones focalizadas no declaran verde la CI
+global. Las capturas y CSV locales estan en
+`output/playwright/area-analysis-20261023/`; la evidencia de la revision
+publicada corresponde al informe enlazado desde [[Deployment]].
+
+La vista previa del consumidor se comprueba en 1440×900, 1024×600, 390×844 y
+360×800: cierre por primer vertice y boton, dibujo tactil, resultados y CSV,
+modal/tabla de series, zoom y restauracion del grafico. El grafico movil tiene
+220 px de trazado y desplazamiento vertical; no hay overflow horizontal.
+El calculo y el dibujo funcionan en Leaflet, aunque la capa COG del ejemplo
+conserva su restriccion previa de visualizacion a Cesium. EN/ES tienen las
+mismas 76 claves y plurales verificados; el consumidor DEV ofrece solo ingles.
+No se cambio esa configuracion. Compartir desde la vista previa conserva por
+igualdad profunda las cuatro historias y las series originales de 37/36 puntos.

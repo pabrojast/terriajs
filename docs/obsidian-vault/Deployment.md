@@ -145,6 +145,26 @@ La evidencia, el enlace original recuperado, las pruebas de navegador y las
 limitaciones de CI estan en el [informe de validacion](https://github.com/pabrojast/ckan-unesco-docker/blob/miserver-2.10/deploy/envoy-dev/validation-terria-shortlink-2026-10-23.md).
 Esta entrega corresponde exclusivamente a DEV.
 
+## Analisis de area y graficos en DEV (2026-10-23)
+
+TerriaJS `ebdef658641c50372d7719cf17ce98496316b411` y TerriaMap
+`81b682f6311c3fe0bda0400f169df258823444e8` estan publicados en
+`feat/area-analysis-ui-dev-20261023`. El
+[workflow 40034246343](https://github.com/pabrojast/ckan-unesco-docker/actions/runs/40034246343)
+desplego `pabrojast/terriamap:20261023193225-81b682f`, digest
+`sha256:250f36436d0982c6a3832b411294fd8ffcbb9ed8b4d1f62287615b84d16564da`.
+El deployment `default/ckan/terria-terriamap` esta Ready, sin reinicios, y el
+pin de biblioteca se comprobo dentro del contenedor. Los otros deployments,
+ingress y PVC conservan sus especificaciones e identificadores; el deployment
+de Terria cambia solo su imagen. Produccion no forma parte de esta entrega.
+
+La CI de TerriaMap pasa en Node 20/22/23. La CI general de TerriaJS conserva
+los 14 avisos previos de lint; las comprobaciones focalizadas pasan. El navegador
+real de DEV verifica dibujo/cierre, area retenida, calculo/CSV, modal de grafico
+y panel tactil sin errores de consola. Ver [[Testing]] y el
+[informe de validacion](https://github.com/pabrojast/ckan-unesco-docker/blob/miserver-2.10/deploy/envoy-dev/validation-terria-area-2026-10-23.md)
+para evidencia y limitaciones.
+
 ## Vacios detectados
 
 - `server-side-config.md` en `doc/customizing/` dice "Coming soon!".
