@@ -302,26 +302,11 @@ const StandardUserInterfaceBase: FC<StandardUserInterfaceProps> = observer(
               <FeatureInfoPanel />
             </div>
             <DragDropFile />
-            {showStoryPanel && (
-              <div
-                className={classNames(
-                  Styles.storyPanel,
-                  props.viewState.topElement === "StoryPanel"
-                    ? "top-element"
-                    : "",
-                  {
-                    [Styles.storyPanelFullScreen]:
-                      props.viewState.isMapFullScreen
-                  }
-                )}
-                tabIndex={0}
-                onPointerDown={action(() => {
-                  props.viewState.topElement = "StoryPanel";
-                })}
-              >
-                <StoryPanel />
-              </div>
-            )}
+            {/* Fork (IHP-WINS): the draggable / composed StoryPanel positions
+                itself against the viewport and manages its own top-element
+                state. Upstream's absolutely positioned wrapper has no width,
+                so inside it the classic window collapses to its min-width. */}
+            {showStoryPanel && <StoryPanel />}
           </div>
           {props.terria.configParameters.storyEnabled && showStoryBuilder && (
             <StoryBuilder

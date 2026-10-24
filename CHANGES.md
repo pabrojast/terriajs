@@ -4,6 +4,7 @@
 
 Changes carried by this fork on top of upstream TerriaJS. Later fork features (story editor, water quality, area analysis, CKAN session, Chart.js for CSV, series share links) are documented in `docs/obsidian-vault/`.
 
+- Fixed the classic story window collapsing to its minimum width (300px) after the upstream 8.12/8.13 merge: `StandardUserInterface` renders the fork's `StoryPanel` directly again instead of inside upstream's absolutely positioned `storyPanel` wrapper, which has no width.
 - Add support for **STAC (SpatioTemporal Asset Catalog)** with two new catalog types:
   - `stac-collection`: Load and visualize individual STAC Collections with COG assets as imagery layers. Supports the STAC render extension for styling, temporal and spatial filtering, and automatic metadata extraction.
   - `stac-catalog`: Browse STAC Catalogs and APIs, listing all available collections as navigable children.
