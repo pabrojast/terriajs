@@ -186,7 +186,7 @@ La rama `integrate/upstream-8.13-flat-20261023` (ver [[Sincronizacion con Upstre
 ### Ramas `develop` (2026-10-24)
 
 - terriajs: `develop` (`2c54c71cb`) = `main` + merge de `integrate/upstream-8.13-flat-20261023`; mismo arbol que la rama de integracion. `main` queda como estaba.
-- TerriaMap: `develop` = `origin/dev` (linea IHP-WINS de dev, 19 commits sobre `main`) + merge de `integrate/terriajs-8.13-20261024`, con el pin a terriajs `develop`, `terriajs-server` de `dev` (`5c458df3`) y el branding IHP-WINS conservado (`config.json`, titulo, logo UNESCO, `languageOverrides.json`, `AboutButton.jsx`). La rama `integrate/terriajs-8.13-20261024` sigue siendo la variante white-label derivada de `node`.
+- TerriaMap: `develop` = `origin/dev` (linea IHP-WINS de dev, 19 commits sobre `main`) + merge de `integrate/terriajs-8.13-20261024`, con el pin a terriajs `develop` (`0218976fb`, incluye el arreglo de la ventana clasica de stories), `terriajs-server` de `dev` (`5c458df3`) y el branding IHP-WINS conservado (`config.json`, titulo, logo UNESCO, `languageOverrides.json`, `AboutButton.jsx`). La rama `integrate/terriajs-8.13-20261024` sigue siendo la variante white-label derivada de `node`.
 - Orden previsto: construir la imagen de dev desde `develop`, verificar y recien entonces fusionar `develop` en `main` (y en `dev`/`node` segun corresponda).
 
 ### Rama de integracion de TerriaMap (2026-10-24)
