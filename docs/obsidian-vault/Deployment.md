@@ -174,9 +174,22 @@ para evidencia y limitaciones.
 
 La rama `integrate/upstream-8.13-flat-20261023` (ver [[Sincronizacion con Upstream]]) cambia requisitos que TerriaMap (`pabrojast/TerriaMap`) debe acompanar antes de fijar el nuevo sha de `terriajs`:
 
-- `engines.node` `>= 22` y `node:22` en el `Dockerfile` (hoy `node:20`).
+- `engines.node` `>= 22` y `node:22` en el `Dockerfile` (antes `node:20`).
 - `terriajs-cesium` igual al de esta biblioteca: `26.3.0` (y `terriajs-cesium-widgets` `16.2.0`); `styled-components` 6 e `i18next` 26 si TerriaMap los importa directamente.
 - `registerCustomComponentTypes(terria)` debe seguir llamandose en `index.js` (la biblioteca ya no lo hace al cargar `parseCustomMarkdownToReact`).
-- La busqueda con Nominatim autocompleta al escribir (el fork fuerza `autocompleteEnabled: true`; upstream lo desactiva para Nominatim). Para volver al comportamiento de upstream, configurar `autocompleteEnabled: false` en el proveedor.
+- La busqueda con Nominatim autocompleta al escribir (el fork fuerza `autocompleteEnabled: true`; upstream lo desactiva para Nominatim). Para volver al comportamiento de upstream, configurar `autocompleteEnabled: false` en el proveedor. En dev el proveedor configurado por Helm apunta al endpoint `/data-stories/api/location-search` de CKAN: con autocompletado recibira una peticion por tecla (debounce de Terria), no una por Enter.
+- Las dependencias de build compartidas (`webpack`, `eslint` y plugins, `mini-css-extract-plugin`, `terriajs-typings-for-css-modules-loader`) deben tener en TerriaMap el mismo rango que declara `terriajs`; con rangos distintos yarn instala un segundo `webpack` anidado en `node_modules/terriajs/node_modules` y `gulp build` falla (`Cannot find module 'mini-css-extract-plugin'` o plugins compilados contra otra instancia de webpack). `yarn gulp check-terriajs-dependencies` avisa de los desajustes.
+- `resolutions.tinymce` (`^7.9.3`) tambien tiene que estar en el `package.json` de TerriaMap: las `resolutions` de `terriajs` no se aplican cuando es dependencia, y `@tinymce/tinymce-react` arrastra otra copia de `tinymce` que rompe los tipos de `Editor.tsx`.
+- El type-check del build (`fork-ts-checker` con el `tsconfig.json` de `terriajs`, que incluye `test/`) necesita en TerriaMap las dependencias de los specs del fork: `jasmine-ajax`, `@types/jasmine-ajax`, `react-test-renderer`, `@types/react-test-renderer` (upstream ya exige `msw` y `fetch-mock` por el mismo motivo).
 
-Integrar o publicar Git no constituye un despliegue; el pin de TerriaMap sigue apuntando a la revision DEV anterior hasta que se actualice.
+### Rama de TerriaMap (2026-10-24)
+
+En el checkout `TerriaMap-1` se creo `integrate/terriajs-8.13-20261024` desde `node` (lo que despliega el white-label) y se fusiono `upstream/main` del TerriaMap independiente (`https://github.com/TerriaJS/TerriaMap`, 0.4.8, sincronizado con terriajs 8.13.0; 62 commits, 13 conflictos):
+
+- Se adopta de upstream: `index.js`, `buildprocess/webpack.config.js` (`{ devMode, baseHref }`, `html-webpack-plugin` renderiza `index.ejs`), `lib/Views/render.jsx` + `terriaStore.ts` + `Loader.tsx`, `eslint.config.mjs`, Prettier 3, yarn 1.22.22, `tini` en la imagen.
+- Se conserva del fork: titulo `Map viewer`, `404.html`/`about.html`/`privacy.html`/`wwwroot/public`, lista `allowProxyFor` de `serverconfig.json`, valores Helm (`trustProxy`, `proxyAllDomains`, `singlePageRouting`), catalogo `simple.json`, `favicon.ico`, `ExperimentalMenu` en `UserInterface.jsx`, sin `AboutButton`, dependencias git de `terriajs` y `terriajs-server`, `yarn gulp clean` + `--baseHref="/terria/"` en el `Dockerfile`.
+- `package.json`: `terriajs` fijado a `831c5a2a9` (rama de integracion, version 8.13.0), `terriajs-cesium` 26.3.0, rangos de build/lint copiados de `terriajs`, `lib/Core/loadPlugins.ts` pasa `{}` a `createPluginContext` (`terriajs-plugin-api` 0.0.1-alpha.17).
+
+Verificacion hecha el 2026-10-24 en ese checkout: `yarn gulp lint` y `yarn gulp build` en verde; con `terriajs-server` local y Chromium headless (Playwright, SwiftShader) cargan en modo Cesium `#cog-madagascar` (cog-time-series, 129 fechas), `#cog-xcube` (39 fechas) y un item `cog` simple via `#start=`: proveedores de imagenes listos, leyenda presente, peticiones de rango a los `.tif` sin fallos. El unico 404 es `/api/terria/user/session` (no hay CKAN en local). En terriajs, `yarn gulp test --filter=Cog` da 159 specs en verde.
+
+Integrar o publicar Git no constituye un despliegue; `main`/`node` de TerriaMap y la imagen de dev siguen con el pin anterior hasta que se fusione esta rama y se construya la imagen.
