@@ -138,6 +138,27 @@ y panel tactil sin errores de consola. Ver [[Testing]] y el
 [informe de validacion](https://github.com/pabrojast/ckan-unesco-docker/blob/miserver-2.10/deploy/envoy-dev/validation-terria-area-2026-10-23.md)
 para evidencia y limitaciones.
 
+## Analisis temporal y Tools en DEV (2026-10-24)
+
+La revision posterior a la paleta clara del 23 restaura los colores de Terria,
+mueve el acceso a Tools y sincroniza las resoluciones diaria/mensual/anual del
+analisis con el mapa. TerriaJS `0c900ae5f014b087bbdfcab6431a4685245acf89` y
+TerriaMap `0b5957393340ff021365480ad81f43862b1155c9` se publicaron en
+`feat/area-temporal-tools-dev-20261024`.
+
+[Workflow 40104040942](https://github.com/pabrojast/ckan-unesco-docker/actions/runs/40104040942)
+completo el despliegue de `pabrojast/terriamap:20261024114716-0b59573`, digest
+`sha256:34c32cc57c955fa8c7b9aa0b1695fb7e53b606ae6557e7e2f76d581dded6dbe2`.
+El rollout, readiness y pin de biblioteca dentro del contenedor se verificaron
+independientemente. De 30 deployments/ingresses/PVC, solo cambio la imagen de
+Terria; se conservaron los identificadores. Produccion queda fuera de esta entrega.
+
+127 pruebas focalizadas pasan (un caso WebGL previo omitido), junto con TypeScript,
+lint focalizado y build. La CI de TerriaMap pasa en Node 20/22/23; la CI general
+de TerriaJS conserva los 14 avisos previos de lint en archivos sin cambios.
+Ver [[Testing]], [[Flujos Importantes]] y el
+[informe de validacion](https://github.com/pabrojast/ckan-unesco-docker/blob/miserver-2.10/deploy/envoy-dev/validation-terria-temporal-tools-2026-10-24.md).
+
 ## Vacios detectados
 
 - `server-side-config.md` en `doc/customizing/` dice "Coming soon!".
