@@ -1,23 +1,13 @@
 # Change Log
 
-#### next release (8.9.6)
+#### Fork IHP-WINS (`pabrojast/terriajs`) - unreleased, not published to npm
 
-- **Breaking changes:**
-
-  - Update `protomaps-leafet` package to 5.0.1 which only support protomaps basempap tileset >v4.0
-    - See [protomaps leaflet CHANGELOG](https://github.com/protomaps/protomaps-leaflet/blob/main/CHANGELOG.md#500).
-  - Update react and react-dom to version 18
-  - Update mobx-react to version 9
-    - It no longer convert props automatically to observable in class components. See [MobX React v9 class components guide](https://github.com/mobxjs/mobx/blob/mobx-react%409.2.0/packages/mobx-react/README.md#class-components) for more details on how to migrate
+Changes carried by this fork on top of upstream TerriaJS. Later fork features (story editor, water quality, area analysis, CKAN session, Chart.js for CSV, series share links) are documented in `docs/obsidian-vault/`.
 
 - Add support for **STAC (SpatioTemporal Asset Catalog)** with two new catalog types:
   - `stac-collection`: Load and visualize individual STAC Collections with COG assets as imagery layers. Supports the STAC render extension for styling, temporal and spatial filtering, and automatic metadata extraction.
   - `stac-catalog`: Browse STAC Catalogs and APIs, listing all available collections as navigable children.
 - Fix STAC `sortBy` handling: automatically route to the `/search` endpoint when sorting is configured (the STAC Sort Extension is not supported on `/items` by many servers), and use the correct STAC Sort Extension array format in POST requests instead of a plain string.
-- Fix a bug where `.pmtiles` urls with a query string at the end was not being rendered as PMTILES.
-- Add `MapboxSearchProvider` for geocoding using Mapbox.
-- Upgrade yarn to 1.22.22
-- Fix `ApiTableCatalogItem` to add `queryParameters` and `updateQueryParameters` to the API requests. These were previously being ignored.
 - Changing the color scale in the COG styling panel now overrides dataset-provided custom color ramps so the selection always affects the rendered imagery (use the Reset button to restore the original legend if needed).
 - Fix COG transparency filters and "No data" additional color by post-processing TIFF tiles so the configured display range and fill color are applied to the rendered imagery.
 - Edit legend entries for COG layers directly from the Edit Style panel (generate from current colors, tweak per-item colors/labels/values, add/remove rows, and toggle back to the automatic legend at any time).
@@ -27,6 +17,147 @@
 - Improve continuous legend color interpolation for COG items by using d3-scale-chromatic interpolation functions where available (greys, greens, ylgnbu, ylorrd, rdbu, cool, warm) and Lab color space interpolation for other scales, resulting in perceptually uniform and more visually accurate color gradients that better match the rendered imagery.
 - **Continuous COG legends now display as horizontal SVG gradients** instead of stacked colored blocks, providing a true continuous color scale visualization similar to professional GIS applications. The gradient is generated dynamically with 50 interpolated color stops and displays min/max values. Discrete legends remain unchanged with categorical ranges.
 - Add `featureInfoRequest` support for WMTS items to configure custom (e.g. POST) feature info requests, including templated coordinates and access to layer identifiers for services without native GetFeatureInfo.
+
+#### next release (8.12.3)
+
+- Add config parameters to optionally disable parts of the UI for locked-down deployments: `disableMobileInterface`, `disableSharePanel`, `disableShareEmbed`, `disableUserAddedData` and `cesiumIonDisableDefaultToken` (all default `false`).
+- Add `shareRequestHeaders`/`feedbackRequestHeaders` callbacks and `shareClientBaseUrl` config parameters to customise share-link and feedback requests, and show a dedicated "link not found" message on a `404` from the share service.
+- Add `zoomMapOnPreviewedItem` config parameter to zoom the catalogue preview map to the previewed item.
+- Add `postHogAnalyticsKey`/`postHogAnalyticsHost` config parameters.
+- TSify `MenuBar` and `Groups`, and add an elements config for `MenuBar`. Panels and buttons now support `withControlledVisibility`/`showCloseButton`.
+- Move catalogue-item `zoomTo` (incl. `idealZoom`) handling into `GlobeOrMap.zoomTo`.
+- `Terria.start()` now accepts an optional `loadConfig` callback (`() => Promise<{ config, baseUri, configUrl? }>`) as an alternative to `configUrl`/`configUrlHeaders`, enabling Terria to load its config in a non-browser environment (e.g. server-side rendering). The existing `configUrl`/`configUrlHeaders` options continue to work unchanged; the exported `defaultLoadConfig(configUrl, configUrlHeaders?)` helper reproduces the default behaviour (including Magda config support).
+- Add support for nested `strata` in model JSON: `updateModelFromJson` now recurses into a `strata` object, and `combineModelStrata` is exported from `createCombinedModel`.
+- Improve non-browser (Node) compatibility: guard `window`/`localStorage` access, fall back to the raw key in `TerriaError` when i18next is not initialised, allow injecting a `CorsProxy` via `TerriaOptions`, and make SDMX structure loading use `fetchText`.
+- Refactor analytics into `lib/Core/analytics/` module, make `analytics` always defined using `NoopAnalytics` default, and remove auto-detection logic from `Terria`. Analytics instance must now be supplied via `TerriaOptions` or defaults to no-op. ([7817](https://github.com/TerriaJS/terriajs/pull/7817))
+- Upgrade dev dependencies
+  - Upgrade dompurify to version 3.3.3 to resolve security vulnerabilities.
+  - Replace unmaintained jsdom-global with maintained global-jsom.
+  - Upgrade babel packages to latest versions (7.28.0/7.29.0).
+  - Upgrade webpack to version 5.105.4.
+- Upgrade eslint to v10 and migrate to eslint flat config.
+- Update `csv-geo-au` support to include the Australian Mesh Blocks 2021.
+- We no longer start terriajs-server when running `yarn gulp dev` as it is not needed for running tests in the browser with jasmine-browser-runner. If you need terriajs-server, you can start it separately by running `yarn gulp terriajs-server` in another terminal.
+- Search result IDs are checked against workbench IDs to determine `add` or `remove` status.
+- Search providers refactor:
+  - Debounce logic is now handled on the search model level rather than in the UI component.
+  - Fixed a bug where new search was trigger on every keystroke without respecting the debounce delay.
+  - Added `autocompleteEnabled` trait to `LocationSearchProviderTraits`, replacing the previous `supportsAutocomplete()` method. When any provider has `autocompleteEnabled: false` (e.g. Nominatim), that provider displays a "Press Enter to start searching" message and only searches on manual submission. This changes behavior introduced in 8.11.0 where autocomplete was disabled globally when Nominatim was used, which was not ideal for other providers that support autocomplete.
+  - Fixed a crash when searching for strings containing regex special characters (e.g. `mel\`) by escaping the search string before using it in the keyword highlight regex.
+  - Nominatim default URL updated to `https://`.
+- Move catalog-search-provider instance from SearchBarModel to Catalog class. Setting catalog search provider from ViewState is now deprecated.
+- Fix to improve marker rotation rendering in pedestrian mode minimap [7860](https://github.com/TerriaJS/terriajs/pull/7860)
+- Simplify initialization of user added data group and make it a separate from the main catalog group.
+- Deprecate MagdaReference model from terria core, as we are not aware of any implementations using it. If you need this model please reach out to the Terria team to discuss your use case and alternatives.
+- Drop support for loading magda config by default - If you need support for loading magda config, you can provide your own implementation of loadConfig function and load magda config in it.
+
+#### 8.12.2 - 2026-03-27
+
+- Update attributions to make publish workflow pass.
+
+#### 8.12.1 - 2026-03-27
+
+- Fix `npm-publish.yml` workflow.
+
+#### 8.12.0 - 2026-03-27
+
+- Update prettier to v3.
+  - When merging the changes make sure to use pre-prettier-v3 and post-prettier-v3 tags to make merging easier. You can follow the guide for prettier v2 update https://github.com/TerriaJS/terriajs/discussions/6517.
+- Test environment modernization:
+  - Refactor tests to use @testing-library/react instead of react-test-renderer and react-shallow-testutils, and remove deprecated libraries.(#7755, #7763)
+  - Replace jasmine-ajax and fetch-mock with `msw` for mocking API requests in tests. (#7766, #7767, #7795, #7796, #7797, #7801)
+  - Replace karma test runner with jasmine-browser-runner and upgrade jasmine to v6. (#7807)
+  - Test runner is now exposed at port so to run tests in the browser, run `yarn gulp dev` and open `http://localhost:9876` in the browser.
+  - If you have custom tests this might require significant changes to your tests, so please reach out if you need help with this.
+
+- Capture default timeline state in share links including current time,
+  playback etc.
+- Added support for draping imagery on 3D tilesets. This can be enabled per-tileset by setting the [drapeImagery](https://github.com/TerriaJS/terriajs/blob/23a2bb2b9c1058e1c7141b5e678de51af58da82b/lib/Traits/TraitsClasses/Cesium3dTilesTraits.ts#L195-L201) trait to `true`. Then from the workbench, drag the imagery layers that need to be draped, above the tileset item.
+- Underline text buttons
+- Replace node-fetch with node native fetch.
+- TSify most of `lib/Core`. [#7417](https://github.com/TerriaJS/terriajs/pull/7417/)
+- Update gulpfile.js to gulp V4 syntax, which provides task descriptions in `yarn gulp --tasks`.
+- Fix splitter failing for local file catalog items by storing file data as blob URLs in the `url` trait instead of private instance fields, ensuring `duplicateModel()` preserves the data. [#7762](https://github.com/TerriaJS/terriajs/pull/7762)
+- Replace react-uid with react useId hook for generating unique ids.
+- Remove ts-essentials dependency and replace with custom type utility.
+- Remove fs-extra dependency and replace with native fs.
+- Convert test `done` callbacks to async/await for modern test patterns.
+- Update Checkbox component icon and remove unused indeterminate prop.
+- Story Panel and Share Panel UX improvements:
+  - Update Share Panel layout
+  - Remove light theme variant of Clipboard
+  - Simplify Clipboard component and add success message.
+  - Add Story Builder instructions behind a config parameter.
+- Fix Scene capture popup z-index appearing underneath the workbench.
+- [Documentation] Replace obsolete Nexis dataset example with LGA 2025 data in model-dimensions.md
+- Upgraded `terriajs-cesium` to `23.0.2` and `terriajs-cesium-widgets` to `14.4.2`.
+
+#### 8.11.3 - 2026-02-02
+
+- Change to OIDC publishing to npm
+
+#### 8.11.2 - 2026-01-15
+
+- Add `token` to `ArcGisMapServerCatalogItem`, `ArcGisMapServerCatalogGroup`, `ArcGisFeatureServerCatalogItem`, `ArcGisFeatureServerCatalogGroup`, `ArcGisImageServerCatalogItem`, `I3SCatalogItem` and `ArcGisCatalogGroup` - if defined, it will be added to the `token` parameter for all ArcGIS Rest API requests.
+  - Added `tokenUrl` to `ArcGisImageServerCatalogItem`, and tweaked behaviour in `ArcGisMapServerCatalogItem` and `ArcGisImageServerCatalogItem` so that if both `token` and `tokenUrl` are defined, then `tokenUrl` will be used. This allows the token to be refreshed if needed.
+- WMTS read URL from operations metadata #7371
+- Add `workbenchControlFlags` trait to all catalog members for enabling or disabling workbench controls.
+- Add `<settingspanel>` custom component to open Map settings panel from template code (like short report, feature info etc).
+- Add UI to show toast messages.
+- Fix "Add data" button width for some languages #7726.
+- Make `<StoryPanel>` draggable
+
+#### 8.11.1 - 2025-12-04
+
+- ##### Security fixes
+  - Upgrades terriajs-server to v4.0.3. See [terriajs-server changes](https://github.com/TerriaJS/terriajs-server/blob/master/CHANGES.md#security-fixes).
+- Fix translations key typo "zoomCotrol".
+- Update docs for Client-side config: change `searchBar` parameter to `searchBarConfig`
+- Fix to show preview map when used outside the explorer panel.
+- Update `csv-geo-au` support to include the latest Australian Government regions.
+- Add `backgroundColor` trait to base maps for changing the map container background in 2D/Leaflet mode ([7718](https://github.com/TerriaJS/terriajs/pull/7718))
+- Keep camera steady when switching between viewer modes.
+- Fix sharing when using initfile.
+- Fix a bug where some georeferenced tiles where incorrectly positioned in Terria.
+
+#### 8.11.0 - 2025-10-09
+
+- **Breaking changes:**
+  - Replace unmaintained `svg-sprite-loader` with custom implementation of SvgSprite plugin based on `svg-sprite` package.
+    - New implementation consists of svg sprite loader that loads svgs and svg webpack plugin that compiles them into a single sprite file.
+
+- Fix app crash when switching back and forth between 3D and 2D mode with clipping box enabled.
+- Fix app crash when encountering unsupported WPS input types.
+- Warn the user when the story causes shareData size exceed the limit set on the server as `shareMaxRequestSize`. #7636
+- Adds new `TileMapServiceCatalogItem` for loading Tile Map Service (TMS) imagery tilesets.
+- Add coordinate position to MapboxSearchProvider results when using reverse geocoder functionality (configurable).
+- Removes webpack-dev-server from dependencies as it is no longer used.
+- Upgrade babel to the latest version 7.27/7.28
+- Fix analytics tracking for the MapboxSearchProvider.
+- Remove unmaintained @mapbox/geojson-merge dependency and replace it with a simple merge function.
+- Upgrade Typescript to `^5.9.2`. Also switched the `target` in `tsconfig.json` to `esnext`.
+- Upgrade `mobx` to version `^6.13.7`.
+- Upgraded `terriajs-cesium` to `21.0.0` and `terriajs-cesium-widgets` to `13.2.0`.
+- Fix zooming by mouse wheel in charts #7654
+- Added `attributions` trait to all location search providers, displayed in the map credits dialog under a new "Search provided by:" section.
+- Nominatim search provider now logs a console warning that it is not suitable for production use.
+- When Nominatim is configured, autocomplete is disabled across all search providers to comply with the [Nominatim usage policy](https://operations.osmfoundation.org/policies/nominatim/) — users must press Enter to trigger a search.
+
+#### 8.10.0 - 2025-07-08
+
+- **Breaking changes:**
+  - Update `protomaps-leafet` package to 5.0.1 which only support protomaps basempap tileset >v4.0
+    - See [protomaps leaflet CHANGELOG](https://github.com/protomaps/protomaps-leaflet/blob/main/CHANGELOG.md#500).
+  - Update react and react-dom to version 18
+  - Update mobx-react to version 9
+    - It no longer convert props automatically to observable in class components. See [MobX React v9 class components guide](https://github.com/mobxjs/mobx/blob/mobx-react%409.2.0/packages/mobx-react/README.md#class-components) for more details on how to migrate
+
+- Fix a bug where `.pmtiles` urls with a query string at the end was not being rendered as PMTILES.
+- Add internationalization support to tinymce editor used in story editor
+- Add `MapboxSearchProvider` for geocoding using Mapbox.
+- Upgrade yarn to 1.22.22
+- Fix `ApiTableCatalogItem` to add `queryParameters` and `updateQueryParameters` to the API requests. These were previously being ignored.
+- Apply clipping rectangle for `ArcGisFeatureServerCatalogItem` reducing the number of requests made to server in tiled mode.
 
 #### 8.9.5 - 2025-06-03
 
@@ -92,7 +223,6 @@
 
 - **Breaking changes:**
 - Major changes to UI
-
   - Changed workbench and bottom dock to absolute positioned over map with transparent background
   - Generally increase padding and font sizes to improve readability
   - Generally use a darker default theme
@@ -207,7 +337,6 @@
 #### 8.7.7 - 2024-10-01
 
 - **Breaking changes:**
-
   - Remove RollbarErrorServiceProvder
   - Error services now instantiated externally to terriajs
 
@@ -239,6 +368,7 @@
 
 #### 8.7.5 - 2024-06-26
 
+- Add clustering trait to GeoJson (and consequently to WFS, ...) using Cesium as viewer.
 - TSify some `js` and `jsx` files and provide `.d.ts` ambient type files for a few others. This is so that running `tsc` on an external project that imports Terria code will typecheck successfully.
 - Upgraded a bunch of d3 dependencies for fixing security errors.
 - Show rectangle selector for WPS bounding box parameter

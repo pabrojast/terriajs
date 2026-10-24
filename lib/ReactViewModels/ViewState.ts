@@ -2,19 +2,19 @@ import {
   action,
   computed,
   IReactionDisposer,
+  makeObservable,
   observable,
   reaction,
-  runInAction,
-  makeObservable
+  runInAction
 } from "mobx";
-import { ReactNode, MouseEvent, ComponentType, Ref } from "react";
+import { ComponentType, MouseEvent, ReactNode, Ref } from "react";
 import defined from "terriajs-cesium/Source/Core/defined";
 import addedByUser from "../Core/addedByUser";
 import {
   Category,
   HelpAction,
   StoryAction
-} from "../Core/AnalyticEvents/analyticEvents";
+} from "../Core/Analytics/analyticEvents";
 import Result from "../Core/Result";
 import triggerResize from "../Core/triggerResize";
 import PickedFeatures from "../Map/PickedFeatures/PickedFeatures";
@@ -22,9 +22,12 @@ import CatalogMemberMixin, { getName } from "../ModelMixins/CatalogMemberMixin";
 import GroupMixin from "../ModelMixins/GroupMixin";
 import MappableMixin from "../ModelMixins/MappableMixin";
 import ReferenceMixin from "../ModelMixins/ReferenceMixin";
+import CatalogSearchProviderMixin from "../ModelMixins/SearchProviders/CatalogSearchProviderMixin";
+import CzmlCatalogItem from "../Models/Catalog/CatalogItems/CzmlCatalogItem";
 import CommonStrata from "../Models/Definition/CommonStrata";
 import { BaseModel } from "../Models/Definition/Model";
 import getAncestors from "../Models/getAncestors";
+import { getMarkerCatalogItem } from "../Models/LocationMarkerUtils";
 import { SelectableDimension } from "../Models/SelectableDimensions/SelectableDimensions";
 import Terria from "../Models/Terria";
 import { ViewingControl } from "../Models/ViewingControls";
@@ -37,9 +40,6 @@ import {
   TourPoint
 } from "./defaultTourPoints";
 import SearchState from "./SearchState";
-import CatalogSearchProviderMixin from "../ModelMixins/SearchProviders/CatalogSearchProviderMixin";
-import { getMarkerCatalogItem } from "../Models/LocationMarkerUtils";
-import CzmlCatalogItem from "../Models/Catalog/CatalogItems/CzmlCatalogItem";
 
 export const DATA_CATALOG_NAME = "data-catalog";
 export const USER_DATA_NAME = "my-data";
@@ -50,8 +50,10 @@ export const WORKBENCH_RESIZE_ANIMATION_DURATION = 500;
 
 interface ViewStateOptions {
   terria: Terria;
-  catalogSearchProvider: CatalogSearchProviderMixin.Instance | undefined;
-  errorHandlingProvider?: any;
+  /**
+   * @deprecated
+   */
+  catalogSearchProvider?: CatalogSearchProviderMixin.Instance;
 }
 
 /**
@@ -379,6 +381,8 @@ export default class ViewState {
    */
   @observable retainSharePanel: boolean = false; // The large share panel accessed via Share/Print button
 
+  @observable settingsPanelIsVisible: boolean = false;
+
   /**
    * The currently open tool
    */
@@ -401,13 +405,14 @@ export default class ViewState {
     makeObservable(this);
     const terria = options.terria;
     this.searchState = new SearchState({
-      terria,
-      catalogSearchProvider: options.catalogSearchProvider
+      terria
     });
+    if (options.catalogSearchProvider) {
+      runInAction(() => {
+        this.terria.catalog.searchProvider = options.catalogSearchProvider;
+      });
+    }
 
-    this.errorProvider = options.errorHandlingProvider
-      ? options.errorHandlingProvider
-      : null;
     this.terria = terria;
 
     // When features are picked, show the feature info panel.
@@ -431,6 +436,7 @@ export default class ViewState {
         this.isMapFullScreen =
           disclaimerVisible ||
           terria.userProperties.get("narrative") === "1" ||
+          terria.elements.get("show-workbench")?.visible === false ||
           terria.userProperties.get("hideWorkbench") === "1" ||
           terria.userProperties.get("hideExplorerPanel") === "1";
       }
@@ -439,6 +445,7 @@ export default class ViewState {
     this._isMapFullScreenSubscription = reaction(
       () =>
         terria.userProperties.get("narrative") === "1" ||
+        terria.elements.get("show-workbench")?.visible === false ||
         terria.userProperties.get("hideWorkbench") === "1" ||
         terria.userProperties.get("hideExplorerPanel") === "1",
       (isMapFullScreen: boolean) => {
@@ -524,9 +531,10 @@ export default class ViewState {
         }
 
         try {
-          const result = await this.terria.getModelByIdShareKeyOrCatalogIndex(
-            previewedItemId
-          );
+          const result =
+            await this.terria.getModelByIdShareKeyOrCatalogIndex(
+              previewedItemId
+            );
           result.throwIfError();
           const model = result.throwIfUndefined();
           this.viewCatalogMember(model);
@@ -614,6 +622,9 @@ export default class ViewState {
 
   @action
   openUserData(): void {
+    if (this.terria.configParameters.disableUserAddedData) {
+      return;
+    }
     this.explorerPanelIsVisible = true;
     this.activeTabCategory = USER_DATA_NAME;
   }
@@ -630,6 +641,14 @@ export default class ViewState {
     this.openAddData();
     this.searchState.catalogSearchText = query;
     this.searchState.searchCatalog();
+  }
+
+  /**
+   * Open settings panel
+   */
+  @action
+  openSettingsPanel(): void {
+    this.settingsPanelIsVisible = true;
   }
 
   @action
@@ -722,7 +741,7 @@ export default class ViewState {
 
   @action
   showHelpPanel(): void {
-    this.terria.analytics?.logEvent(Category.help, HelpAction.panelOpened);
+    this.terria.analytics.logEvent(Category.help, HelpAction.panelOpened);
     this.showHelpMenu = true;
     this.helpPanelExpanded = false;
     this.selectedHelpMenuItem = "";
@@ -862,7 +881,7 @@ export default class ViewState {
 
     this.terria.currentViewer.notifyRepaintRequired();
 
-    this.terria.analytics?.logEvent(Category.story, StoryAction.runStory);
+    this.terria.analytics.logEvent(Category.story, StoryAction.runStory);
   }
 
   @computed

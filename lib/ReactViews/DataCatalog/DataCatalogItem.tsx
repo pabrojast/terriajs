@@ -4,7 +4,7 @@ import { MouseEvent } from "react";
 import { useTranslation } from "react-i18next";
 import defined from "terriajs-cesium/Source/Core/defined";
 import addedByUser from "../../Core/addedByUser";
-import { DataSourceAction } from "../../Core/AnalyticEvents/analyticEvents";
+import { DataSourceAction } from "../../Core/Analytics/analyticEvents";
 import getPath from "../../Core/getPath";
 import CatalogFunctionMixin from "../../ModelMixins/CatalogFunctionMixin";
 import CatalogMemberMixin from "../../ModelMixins/CatalogMemberMixin";
@@ -21,6 +21,7 @@ interface Props {
   viewState: ViewState;
   removable: boolean;
   terria: Terria;
+  hideActionButton?: boolean;
   onActionButtonClicked?: (item: Props["item"]) => void;
 }
 
@@ -30,7 +31,8 @@ export default observer(function DataCatalogItem({
   item,
   viewState,
   onActionButtonClicked,
-  removable
+  removable,
+  hideActionButton
 }: Props) {
   const { t } = useTranslation();
   const STATE_TO_TITLE = {
@@ -105,6 +107,7 @@ export default observer(function DataCatalogItem({
       title={getPath(item, " -> ")}
       btnState={btnState}
       onBtnClick={onBtnClicked}
+      hideBtn={hideActionButton}
       // All things are "removable" - meaning add and remove from workbench,
       //    but only user data is "trashable"
       trashable={removable}

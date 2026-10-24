@@ -1,7 +1,8 @@
 import { screen } from "@testing-library/dom";
+import { runInAction } from "mobx";
 import { ThemeProvider } from "styled-components";
 import CatalogSearchProvider from "../../../lib/Models/SearchProviders/CatalogSearchProvider";
-import SearchProviderResults from "../../../lib/Models/SearchProviders/SearchProviderResults";
+import SearchProviderResult from "../../../lib/Models/SearchProviders/SearchProviderResults";
 import Terria from "../../../lib/Models/Terria";
 import ViewState from "../../../lib/ReactViewModels/ViewState";
 import SearchHeader from "../../../lib/ReactViews/Search/SearchHeader";
@@ -10,24 +11,22 @@ import { renderWithContexts } from "../withContext";
 
 describe("SearchHeader", function () {
   let viewState: ViewState;
-  let results: SearchProviderResults;
+  let results: SearchProviderResult;
 
   beforeEach(async function () {
     const terria = new Terria({ baseUrl: "./" });
     const provider = new CatalogSearchProvider("catalog", terria);
     viewState = new ViewState({ terria, catalogSearchProvider: provider });
-    results = new SearchProviderResults(provider);
-    await results.resultsCompletePromise;
+    results = new SearchProviderResult(provider);
+    runInAction(() => {
+      results.isWaitingToStartSearch = true;
+    });
   });
 
   function render(waitingHint?: string) {
     renderWithContexts(
       <ThemeProvider theme={terriaTheme}>
-        <SearchHeader
-          searchResults={results}
-          isWaitingForSearchToStart
-          waitingHint={waitingHint}
-        />
+        <SearchHeader searchResult={results} waitingHint={waitingHint} />
       </ThemeProvider>,
       viewState
     );

@@ -17,7 +17,7 @@ import {
   FeatureInfoPanelState,
   InitSourceData,
   InitSourcePickedFeatures,
-  ShareInitSourceData,
+  StartData,
   ViewModeJson
 } from "../../../../Models/InitSource";
 import Terria from "../../../../Models/Terria";
@@ -41,7 +41,23 @@ function buildBaseShareUrl(
   terria: Terria,
   hashParams: { [key: string]: string }
 ) {
-  const uri = new URI(document.baseURI).fragment("").search("");
+  let baseUrl = document.baseURI;
+
+  if (terria.configParameters.shareClientBaseUrl) {
+    baseUrl = terria.configParameters.shareClientBaseUrl;
+  }
+
+  const uri = new URI(baseUrl).fragment("").search("");
+
+  const fragmentsToShare = new URL(document.URL).hash
+    .split(/[#&]/)
+    .filter(
+      (elem) =>
+        elem !== "" && !elem.includes("share=") && !elem.includes("start=")
+    );
+  fragmentsToShare.forEach((sub) => {
+    uri.addSearch(sub);
+  });
 
   if (terria.developmentEnv) {
     uri.addSearch(toJS(terria.userProperties));
@@ -112,7 +128,7 @@ export function getShareData(
   terria: Terria,
   viewState?: ViewState,
   options = { includeStories: true }
-): ShareInitSourceData {
+): StartData {
   return runInAction(() => {
     const { includeStories } = options;
     const initSource: InitSourceData = {};
@@ -326,11 +342,6 @@ function addViewSettings(
   initSource: InitSourceData = {}
 ) {
   const viewer = terria.mainViewer;
-
-  // const time = {
-  //   dayNumber: terria.timelineClock.currentTime.dayNumber,
-  //   secondsOfDay: terria.timelineClock.currentTime.secondsOfDay
-  // };
 
   let viewerMode: ViewModeJson;
   if (terria.mainViewer.viewerMode === ViewerMode.Cesium) {

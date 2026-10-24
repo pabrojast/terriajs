@@ -306,4 +306,11 @@ export default class WebMapTileServiceCatalogItemTraits extends mixTraits(
       "Overrides the default WMTS GetFeatureInfo request with a custom HTTP request. Templates support {{token}} placeholders such as {{longitude}}, {{latitude}}, and {{layer}}."
   })
   featureInfoRequest?: FeatureInfoRequestTraits;
+  @primitiveTrait({
+    type: "string",
+    name: "Encoding",
+    description:
+      "The encoding of the tile images. We will try to load the tile images with this encoding, if not available we will fallback to KVP. Supported values are KVP and Restful"
+  })
+  requestEncoding = "RESTful";
 }

@@ -3,10 +3,7 @@ import { makeObservable, override, runInAction } from "mobx";
 import Rectangle from "terriajs-cesium/Source/Core/Rectangle";
 import Resource from "terriajs-cesium/Source/Core/Resource";
 import defined from "terriajs-cesium/Source/Core/defined";
-import {
-  Category,
-  SearchAction
-} from "../../Core/AnalyticEvents/analyticEvents";
+import { Category, SearchAction } from "../../Core/Analytics/analyticEvents";
 import loadJson from "../../Core/loadJson";
 import { applyTranslationIfExists } from "../../Language/languageHelpers";
 import LocationSearchProviderMixin, {
@@ -16,7 +13,7 @@ import BingMapsSearchProviderTraits from "../../Traits/SearchProviders/BingMapsS
 import CreateModel from "../Definition/CreateModel";
 import Terria from "../Terria";
 import CommonStrata from "./../Definition/CommonStrata";
-import SearchProviderResults from "./SearchProviderResults";
+import SearchProviderResult from "./SearchProviderResults";
 import SearchResult from "./SearchResult";
 
 export default class BingMapsSearchProvider extends LocationSearchProviderMixin(
@@ -56,7 +53,7 @@ export default class BingMapsSearchProvider extends LocationSearchProviderMixin(
   }
 
   protected logEvent(searchText: string) {
-    this.terria.analytics?.logEvent(
+    this.terria.analytics.logEvent(
       Category.search,
       SearchAction.bing,
       searchText
@@ -65,7 +62,7 @@ export default class BingMapsSearchProvider extends LocationSearchProviderMixin(
 
   protected doSearch(
     searchText: string,
-    searchResults: SearchProviderResults
+    searchResults: SearchProviderResult
   ): Promise<void> {
     searchResults.results.length = 0;
     searchResults.message = undefined;

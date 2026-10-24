@@ -2,7 +2,6 @@ import PropTypes from "prop-types";
 import { ReactElement, MouseEvent } from "react";
 import { useTranslation } from "react-i18next";
 import styled from "styled-components";
-import defaultValue from "terriajs-cesium/Source/Core/defaultValue";
 import Box from "../../Styled/Box";
 import { RawButton } from "../../Styled/Button";
 import Icon from "../../Styled/Icon";
@@ -35,6 +34,7 @@ interface Props {
   trashable?: boolean;
 
   btnState: ButtonState;
+  hideBtn?: boolean;
   onBtnClick: (event: MouseEvent<HTMLButtonElement>) => void;
   onTextClick?: (event: MouseEvent<HTMLButtonElement>) => void;
   onTrashClick?: (event: MouseEvent<HTMLButtonElement>) => void;
@@ -51,10 +51,9 @@ function CatalogItem(props: Props) {
     [ButtonState.Trash]: t("catalogItem.trash"),
     [ButtonState.Preview]: t("catalogItem.preview")
   };
-  const stateToTitle: Partial<Record<ButtonState, string>> = defaultValue(
-    props.titleOverrides,
-    STATE_TO_TITLE
-  );
+  const stateToTitle: Partial<Record<ButtonState, string>> =
+    props.titleOverrides ?? STATE_TO_TITLE;
+
   return (
     <Root>
       <Text fullWidth primary={props.isPrivate} bold={props.selected} breakWord>
@@ -70,14 +69,16 @@ function CatalogItem(props: Props) {
       </Text>
       <Box>
         {props.isPrivate && <PrivateIndicator />}
-        <ActionButton
-          type="button"
-          onClick={props.onBtnClick}
-          title={stateToTitle[props.btnState] || ""}
-        >
-          {STATE_TO_ICONS[props.btnState]}
-        </ActionButton>
-        {props.trashable && (
+        {!props.hideBtn && (
+          <ActionButton
+            type="button"
+            onClick={props.onBtnClick}
+            title={stateToTitle[props.btnState] || ""}
+          >
+            {STATE_TO_ICONS[props.btnState]}
+          </ActionButton>
+        )}
+        {!props.hideBtn && props.trashable && (
           <ActionButton
             type="button"
             onClick={props.onTrashClick}

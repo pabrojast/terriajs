@@ -67,6 +67,9 @@ const StandardUserInterfaceBase: FC<StandardUserInterfaceProps> = observer(
     });
 
     const handleDragOver = (e: DragEvent<HTMLDivElement>) => {
+      if (props.terria.configParameters.disableUserAddedData) {
+        return;
+      }
       if (!e.dataTransfer.types || !e.dataTransfer.types.includes("Files")) {
         return;
       }
@@ -77,6 +80,7 @@ const StandardUserInterfaceBase: FC<StandardUserInterfaceProps> = observer(
     };
 
     const shouldUseMobileInterface = () =>
+      !props.terria.configParameters.disableMobileInterface &&
       document.body.clientWidth < (props.minimumLargeScreenWidth ?? 768);
 
     const resizeListener = action(() => {
@@ -174,13 +178,15 @@ const StandardUserInterfaceBase: FC<StandardUserInterfaceProps> = observer(
               <div className={Styles.uiInner}>
                 {!narrative && !props.viewState.hideMapUi && (
                   <>
-                    <Small>
-                      <MobileHeader
-                        menuItems={customElements.menu}
-                        menuLeftItems={customElements.menuLeft}
-                        version={props.version}
-                      />
-                    </Small>
+                    {!props.terria.configParameters.disableMobileInterface && (
+                      <Small>
+                        <MobileHeader
+                          menuItems={customElements.menu}
+                          menuLeftItems={customElements.menuLeft}
+                          version={props.version}
+                        />
+                      </Small>
+                    )}
                     <Medium>
                       <>
                         <WorkflowPanelPortal
@@ -232,7 +238,10 @@ const StandardUserInterfaceBase: FC<StandardUserInterfaceProps> = observer(
                 )}
 
                 <section
-                  className={Styles.map}
+                  className={classNames(Styles.map, {
+                    [Styles.disableMobileInterface]:
+                      props.terria.configParameters.disableMobileInterface
+                  })}
                   data-story-map
                   data-narrative-mode={narrative || undefined}
                   style={narrative ? { top: 0 } : undefined}
@@ -286,14 +295,33 @@ const StandardUserInterfaceBase: FC<StandardUserInterfaceProps> = observer(
                 }
               )}
               tabIndex={0}
-              onClick={action(() => {
+              onPointerDown={action(() => {
                 props.viewState.topElement = "FeatureInfo";
               })}
             >
               <FeatureInfoPanel />
             </div>
             <DragDropFile />
-            {showStoryPanel && <StoryPanel />}
+            {showStoryPanel && (
+              <div
+                className={classNames(
+                  Styles.storyPanel,
+                  props.viewState.topElement === "StoryPanel"
+                    ? "top-element"
+                    : "",
+                  {
+                    [Styles.storyPanelFullScreen]:
+                      props.viewState.isMapFullScreen
+                  }
+                )}
+                tabIndex={0}
+                onPointerDown={action(() => {
+                  props.viewState.topElement = "StoryPanel";
+                })}
+              >
+                <StoryPanel />
+              </div>
+            )}
           </div>
           {props.terria.configParameters.storyEnabled && showStoryBuilder && (
             <StoryBuilder

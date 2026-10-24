@@ -10,7 +10,11 @@ export function withThemeContext(node: ReactNode) {
   return <ThemeProvider theme={terriaTheme}>{node}</ThemeProvider>;
 }
 
-/** Wrap react node in viewState and theme provider */
+/**
+ * Fork (IHP-WINS): wrap a react node in viewState and theme providers using
+ * react-test-renderer. Kept for fork specs that still use the test renderer;
+ * new specs should use {@link renderWithContexts}.
+ */
 export function createWithContexts(
   viewState: ViewState,
   node: ReactNode,

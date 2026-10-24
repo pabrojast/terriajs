@@ -18,7 +18,7 @@ import LegendOwnerTraits from "../../Traits/TraitsClasses/LegendOwnerTraits";
 import { withViewState } from "../Context";
 
 // Lazy load the Editor component as the tinyMCE library is large
-const Editor = lazy(() => import("../Generic/Editor.jsx"));
+const Editor = lazy(() => import("../Generic/Editor.tsx"));
 const LEGEND_TAG = "terria-legend";
 const LEGEND_EDITOR_STYLE = `
   ${LEGEND_TAG} {
@@ -408,6 +408,7 @@ export class StoryEditor extends Component {
                   }
                 >
                   <Editor
+                    language={this.props.i18n.language}
                     html={this.state.text}
                     onChange={(_value, editor) => {
                       const text = editor.getBody().innerHTML;
@@ -594,6 +595,7 @@ StoryEditor.propTypes = {
   saveStory: PropTypes.func,
   exitEditingMode: PropTypes.func,
   t: PropTypes.func.isRequired,
+  i18n: PropTypes.object,
   terria: PropTypes.object,
   viewState: PropTypes.shape({
     setStoryHasUnsavedChanges: PropTypes.func

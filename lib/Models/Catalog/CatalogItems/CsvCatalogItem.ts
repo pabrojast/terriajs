@@ -17,6 +17,7 @@ import Csv from "../../../Table/Csv";
 import TableAutomaticStylesStratum from "../../../Table/TableAutomaticStylesStratum";
 import CsvCatalogItemTraits from "../../../Traits/TraitsClasses/CsvCatalogItemTraits";
 import { AccumulatedSeries } from "../../../ReactViews/Custom/Chart/ChartJs/ChartJsTypes";
+import CommonStrata from "../../Definition/CommonStrata";
 import CreateModel from "../../Definition/CreateModel";
 import { BaseModel } from "../../Definition/Model";
 import { SelectableDimension } from "../../SelectableDimensions/SelectableDimensions";
@@ -77,8 +78,13 @@ export default class CsvCatalogItem
     return CsvCatalogItem.type;
   }
 
+  @action
   setFileInput(file: File) {
-    this._csvFile = file;
+    this.setTrait(
+      CommonStrata.user,
+      "url",
+      URL.createObjectURL(file) + "#" + file.name
+    );
   }
 
   /**
@@ -156,16 +162,12 @@ export default class CsvCatalogItem
 
   @computed
   get hasLocalData(): boolean {
-    return isDefined(this._csvFile);
+    return this.url?.startsWith("blob:") ?? false;
   }
 
   @override
   get _canExportData() {
-    return (
-      isDefined(this._csvFile) ||
-      isDefined(this.csvString) ||
-      isDefined(this.url)
-    );
+    return isDefined(this.csvString) || isDefined(this.url);
   }
 
   @override
@@ -213,12 +215,6 @@ export default class CsvCatalogItem
   }
 
   protected async _exportData() {
-    if (isDefined(this._csvFile)) {
-      return {
-        name: (this.name || this.uniqueId)!,
-        file: this._csvFile
-      };
-    }
     if (isDefined(this.csvString)) {
       return {
         name: (this.name || this.uniqueId)!,
@@ -284,12 +280,6 @@ export default class CsvCatalogItem
     if (this.csvString !== undefined) {
       return Csv.parseString(
         this.csvString,
-        true,
-        this.ignoreRowsStartingWithComment
-      );
-    } else if (this._csvFile !== undefined) {
-      return Csv.parseFile(
-        this._csvFile,
         true,
         this.ignoreRowsStartingWithComment
       );

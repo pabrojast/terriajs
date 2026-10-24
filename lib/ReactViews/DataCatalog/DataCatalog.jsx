@@ -14,6 +14,7 @@ class DataCatalog extends Component {
     terria: PropTypes.object,
     viewState: PropTypes.object,
     items: PropTypes.array,
+    hideActionButton: PropTypes.bool,
     onActionButtonClicked: PropTypes.func,
     removable: PropTypes.bool,
     t: PropTypes.func.isRequired
@@ -26,24 +27,20 @@ class DataCatalog extends Component {
     const unfilteredItems =
       isSearching &&
       catalogSearchProvider &&
-      searchState.catalogSearchResults?.results
-        ? searchState.catalogSearchResults.results.map(
+      searchState.catalogSearchProvider?.searchResult.results
+        ? searchState.catalogSearchProvider.searchResult.results.map(
             (result) => result.catalogItem
           )
         : this.props.items;
     const items = (unfilteredItems || []).filter(defined);
     const { t } = this.props;
+
     return (
       <ul className={Styles.dataCatalog}>
         {isSearching && catalogSearchProvider && (
           <>
             <label className={Styles.label}>{t("search.resultsLabel")}</label>
-            <SearchHeader
-              searchResults={searchState.catalogSearchResults}
-              isWaitingForSearchToStart={
-                searchState.isWaitingToStartCatalogSearch
-              }
-            />
+            <SearchHeader searchResult={catalogSearchProvider.searchResult} />
           </>
         )}
         {items.map(
@@ -58,6 +55,7 @@ class DataCatalog extends Component {
                   isSearching && !catalogSearchProvider.resultsAreReferences
                 }
                 key={item.uniqueId}
+                hideActionButton={this.props.hideActionButton}
                 onActionButtonClicked={this.props.onActionButtonClicked}
                 removable={this.props.removable}
                 terria={this.props.terria}

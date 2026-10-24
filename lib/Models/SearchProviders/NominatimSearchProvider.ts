@@ -1,19 +1,17 @@
+import { Feature, Point } from "geojson";
 import { makeObservable, runInAction } from "mobx";
-import Rectangle from "terriajs-cesium/Source/Core/Rectangle";
 import CesiumMath from "terriajs-cesium/Source/Core/Math";
-import { Feature, Point } from "@turf/helpers";
-import {
-  Category,
-  SearchAction
-} from "../../Core/AnalyticEvents/analyticEvents";
+import Rectangle from "terriajs-cesium/Source/Core/Rectangle";
+import Resource from "terriajs-cesium/Source/Core/Resource";
+import { Category, SearchAction } from "../../Core/Analytics/analyticEvents";
 import loadJson from "../../Core/loadJson";
 import LocationSearchProviderMixin from "../../ModelMixins/SearchProviders/LocationSearchProviderMixin";
 import NominatimSearchProviderTraits from "../../Traits/SearchProviders/NominatimSearchProviderTraits";
+import CommonStrata from "../Definition/CommonStrata";
 import CreateModel from "../Definition/CreateModel";
 import Terria from "../Terria";
-import SearchProviderResults from "./SearchProviderResults";
+import SearchProviderResult from "./SearchProviderResults";
 import SearchResult from "./SearchResult";
-import Resource from "terriajs-cesium/Source/Core/Resource";
 
 export default class NominatimSearchProvider extends LocationSearchProviderMixin(
   CreateModel(NominatimSearchProviderTraits)
@@ -27,20 +25,31 @@ export default class NominatimSearchProvider extends LocationSearchProviderMixin
   constructor(uniqueId: string | undefined, terria: Terria) {
     super(uniqueId, terria);
 
+    console.warn(
+      "%c" +
+        "This map is using the Nominatim search provider. It is not recommended for production use, consider using a different search provider instead.",
+      "color: white; font-size: 24px; font-weight: bold; font-family: Helvetica, sans-serif;"
+    );
+
     makeObservable(this);
+
+    // Fork (IHP-WINS): Nominatim's usage policy forbids autocomplete, so by
+    // default only search when the user presses Enter or the search button.
+    // A definition can still opt in with `autocompleteEnabled: true`.
+    this.setTrait(CommonStrata.defaults, "autocompleteEnabled", false);
   }
 
   protected logEvent(searchText: string) {
-    this.terria.analytics?.logEvent(
+    this.terria.analytics.logEvent(
       Category.search,
       SearchAction.nominatim,
       searchText
     );
   }
 
-  protected doSearch(
+  protected async doSearch(
     searchText: string,
-    searchResults: SearchProviderResults
+    searchResults: SearchProviderResult
   ): Promise<void> {
     searchResults.results.length = 0;
     searchResults.message = undefined;

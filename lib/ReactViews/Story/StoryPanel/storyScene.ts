@@ -1,9 +1,6 @@
 import { StoryData } from "../../../Models/InitSource";
 import Terria from "../../../Models/Terria";
-import {
-  Category,
-  StoryAction
-} from "../../../Core/AnalyticEvents/analyticEvents";
+import { Category, StoryAction } from "../../../Core/Analytics/analyticEvents";
 import getPath from "../../../Core/getPath";
 
 /** Latest requested scene wins; applying a native scene never replaces the story document. */

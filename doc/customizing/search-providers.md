@@ -7,10 +7,11 @@ Terriajs supports 2 types of search providers
 
 Each search provider can be configured using following options
 
-| Name          | Required | Type       | Default                                     | Description                                                |
-| ------------- | -------- | ---------- | ------------------------------------------- | ---------------------------------------------------------- |
-| name          | no       | **string** | `unknown`                                   | Name of the search provider.                               |
-| minCharacters | no       | **number** | `catalogParameters.searchBar.minCharacters` | Minimum number of characters required for search to start. |
+| Name          | Required | Type         | Default                                     | Description                                                    |
+| ------------- | -------- | ------------ | ------------------------------------------- | -------------------------------------------------------------- |
+| name          | no       | **string**   | `unknown`                                   | Name of the search provider.                                   |
+| minCharacters | no       | **number**   | `catalogParameters.searchBar.minCharacters` | Minimum number of characters required for search to start.     |
+| attributions  | no       | **string[]** | []                                          | List of attributions to be displayed at the bottom of the map. |
 
 ## Catalog search provider
 
@@ -30,7 +31,6 @@ To generate the catalog index:
 
 - `yarn build-tools`
 - `node ./build/generateCatalogIndex.js -c config-url -b base-url` where
-
   - `config-url` is URL to client-side-config file
   - `base-url` is URL to terriajs-server (this is used to load `server-config` and to proxy requests)
   - For example `node ./build/generateCatalogIndex.js -c http://localhost:3001/config.json -b http://localhost:3001/`
@@ -157,13 +157,14 @@ It can be configured using following options
 
 `type: nominatim-search-provider`
 
-Nominatim uses OpenStreetMap data to find locations on Earth.
+Nominatim uses OpenStreetMap data to find locations on Earth. If the nominatim search provider is used the autocompletion of search results is disabled for all search providers as per [Nominatim's usage policy](https://operations.osmfoundation.org/policies/nominatim/), and user will have to manually trigger the search by pressing enter.
 It can be configured using following options
 
-| Name           | Required | Type       | Default     | Description                                                                                 |
-| -------------- | -------- | ---------- | ----------- | ------------------------------------------------------------------------------------------- |
-| `countryCodes` | no       | **string** | `undefined` | A comma-separated list of country codes (ISO 3166-1alpha2) to prioritize the search results |
-| `maxResults`   | no       | **number** | 5           | The maximum number of results to return                                                     |
+| Name           | Required | Type         | Default                                                                                  | Description                                                                                 |
+| -------------- | -------- | ------------ | ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `countryCodes` | no       | **string**   | `undefined`                                                                              | A comma-separated list of country codes (ISO 3166-1alpha2) to prioritize the search results |
+| `maxResults`   | no       | **number**   | 5                                                                                        | The maximum number of results to return                                                     |
+| `attributions` | no       | **string[]** | `['© <a href='https://www.openstreetmap.org/copyright'>OpenStreetMap contributors</a>']` | List of attributions to be displayed at the bottom of the map.                              |
 
 **Example**
 
@@ -173,7 +174,8 @@ It can be configured using following options
   "type": "nominatim-search-provider",
   "name": "Nominatim",
   "flightDurationSeconds": 2,
-  "minCharacters": 3
+  "minCharacters": 2,
+  "maxResults": 5
 }
 ```
 

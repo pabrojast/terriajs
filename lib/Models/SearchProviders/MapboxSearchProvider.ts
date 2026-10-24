@@ -1,27 +1,32 @@
+import { Feature, Point } from "geojson";
 import i18next from "i18next";
 import { makeObservable, override, runInAction } from "mobx";
 import Rectangle from "terriajs-cesium/Source/Core/Rectangle";
 import Resource from "terriajs-cesium/Source/Core/Resource";
-import {
-  Category,
-  SearchAction
-} from "../../Core/AnalyticEvents/analyticEvents";
+import { Category, SearchAction } from "../../Core/Analytics/analyticEvents";
+import isDefined from "../../Core/isDefined";
 import loadJson from "../../Core/loadJson";
 import { applyTranslationIfExists } from "../../Language/languageHelpers";
+import prettifyCoordinates from "../../Map/Vector/prettifyCoordinates";
 import LocationSearchProviderMixin, {
   getMapCenter
 } from "../../ModelMixins/SearchProviders/LocationSearchProviderMixin";
 import MapboxSearchProviderTraits from "../../Traits/SearchProviders/MapboxSearchProviderTraits";
+import CommonStrata from "../Definition/CommonStrata";
 import CreateModel from "../Definition/CreateModel";
 import Terria from "../Terria";
-import SearchProviderResults from "./SearchProviderResults";
+import SearchProviderResult from "./SearchProviderResults";
 import SearchResult from "./SearchResult";
-import { Feature, Point } from "@turf/helpers";
-import isDefined from "../../Core/isDefined";
 
 enum MapboxGeocodeDirection {
   Forward = "forward",
   Reverse = "reverse"
+}
+
+export interface MapboxGeocodingResponse {
+  features: Feature<Point>[];
+  type: string;
+  attribution?: string;
 }
 
 export default class MapboxSearchProvider extends LocationSearchProviderMixin(
@@ -51,16 +56,16 @@ export default class MapboxSearchProvider extends LocationSearchProviderMixin(
   }
 
   protected logEvent(searchText: string) {
-    this.terria.analytics?.logEvent(
+    this.terria.analytics.logEvent(
       Category.search,
-      SearchAction.bing,
+      SearchAction.mapbox,
       searchText
     );
   }
 
   protected doSearch(
     searchText: string,
-    searchResults: SearchProviderResults
+    searchResults: SearchProviderResult
   ): Promise<void> {
     searchResults.results.length = 0;
     searchResults.message = undefined;
@@ -92,6 +97,28 @@ export default class MapboxSearchProvider extends LocationSearchProviderMixin(
         if (this.latLonSearchOrder) {
           lonLat = lonLat.reverse();
         }
+
+        const [lonf, latf] = lonLat.map(parseFloat);
+
+        if (this.showCoordinatesInReverseGeocodeResult) {
+          const prettyCoords = prettifyCoordinates(lonf, latf);
+          searchResults.results.push(
+            new SearchResult({
+              name: `${prettyCoords.latitude}, ${prettyCoords.longitude}`,
+              clickAction: createZoomToFunction(this, {
+                geometry: {
+                  coordinates: [lonf, latf]
+                },
+                properties: {}
+              }),
+              location: {
+                longitude: lonf,
+                latitude: latf
+              }
+            })
+          );
+        }
+
         queryParams = {
           ...queryParams,
           ...{
@@ -163,20 +190,28 @@ export default class MapboxSearchProvider extends LocationSearchProviderMixin(
 
     const promise: Promise<any> = loadJson(searchQuery);
     return promise
-      .then((result) => {
+      .then((result: MapboxGeocodingResponse) => {
         if (searchResults.isCanceled) {
           // A new search has superseded this one, so ignore the result.
           return;
         }
 
-        if (result.features.length === 0) {
+        if (
+          (result.features.length === 0 &&
+            searchDirection === MapboxGeocodeDirection.Forward) ||
+          //in the case where coordinate result is true, list is
+          //not empty.
+          (result.features.length === 0 &&
+            searchDirection === MapboxGeocodeDirection.Reverse &&
+            this.showCoordinatesInReverseGeocodeResult === false)
+        ) {
           searchResults.message = {
             content: "translate#viewModels.searchNoLocations"
           };
           return;
         }
 
-        const locations: SearchResult[] = (result.features as Feature<Point>[])
+        const locations: SearchResult[] = result.features
           .filter(
             (feat) =>
               feat.properties && feat.geometry && feat.properties.full_address
@@ -200,6 +235,14 @@ export default class MapboxSearchProvider extends LocationSearchProviderMixin(
           searchResults.message = {
             content: "translate#viewModels.searchNoLocations"
           };
+        }
+        const attribution = result.attribution;
+        if (attribution) {
+          runInAction(() => {
+            this.setTrait(CommonStrata.underride, "attributions", [
+              attribution
+            ]);
+          });
         }
       })
       .catch(() => {

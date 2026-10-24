@@ -271,11 +271,11 @@ const CkanSessionPanel: FC<Props> = observer(function CkanSessionPanel({
     // A login tab was opened; the session change has not been seen yet.
     if (smallScreen) {
       return (
-        <MobileMenuItem
-          onClick={refresh}
-          caption={t("ckanSession.pendingLogin")}
-          icon={Icon.GLYPHS.loader}
-        />
+        <MobileMenuItem>
+          <MobileMenuItem.Button onClick={refresh} icon={Icon.GLYPHS.loader}>
+            {t("ckanSession.pendingLogin")}
+          </MobileMenuItem.Button>
+        </MobileMenuItem>
       );
     }
     return (
@@ -314,11 +314,11 @@ const CkanSessionPanel: FC<Props> = observer(function CkanSessionPanel({
     // First whoami (or a re-check) in flight without a known user.
     if (smallScreen) {
       return (
-        <MobileMenuItem
-          onClick={refresh}
-          caption={t("ckanSession.checking")}
-          icon={Icon.GLYPHS.loader}
-        />
+        <MobileMenuItem>
+          <MobileMenuItem.Button onClick={refresh} icon={Icon.GLYPHS.loader}>
+            {t("ckanSession.checking")}
+          </MobileMenuItem.Button>
+        </MobileMenuItem>
       );
     }
     return (
@@ -339,12 +339,15 @@ const CkanSessionPanel: FC<Props> = observer(function CkanSessionPanel({
   if (session.status === "anonymous") {
     if (smallScreen) {
       return (
-        <MobileMenuItem
-          href={session.buildLoginHref()}
-          onClick={() => session.markLoginOpened()}
-          caption={t("ckanSession.btnLogin")}
-          icon={Icon.GLYPHS.lock}
-        />
+        <MobileMenuItem>
+          <MobileMenuItem.Link
+            href={session.buildLoginHref()}
+            onClick={() => session.markLoginOpened()}
+            icon={Icon.GLYPHS.lock}
+          >
+            {t("ckanSession.btnLogin")}
+          </MobileMenuItem.Link>
+        </MobileMenuItem>
       );
     }
     return (
@@ -373,11 +376,11 @@ const CkanSessionPanel: FC<Props> = observer(function CkanSessionPanel({
   const errorTitle = session.lastError?.message ?? t("ckanSession.error");
   if (smallScreen) {
     return (
-      <MobileMenuItem
-        onClick={refresh}
-        caption={t("ckanSession.errorShort")}
-        icon={Icon.GLYPHS.info}
-      />
+      <MobileMenuItem>
+        <MobileMenuItem.Button onClick={refresh} icon={Icon.GLYPHS.info}>
+          {t("ckanSession.errorShort")}
+        </MobileMenuItem.Button>
+      </MobileMenuItem>
     );
   }
   return (

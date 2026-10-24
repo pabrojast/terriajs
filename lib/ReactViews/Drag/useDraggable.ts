@@ -66,6 +66,7 @@ export const useDraggable = (options?: { handleSelector?: string }) => {
     );
 
     // Directly update the DOM for immediate visual effect
+    // eslint-disable-next-line react-hooks/immutability -- DOM element, not React state data
     node.style.transform = `translate3d(${constrainedDx}px, ${constrainedDy}px, 0)`;
 
     // Update refs to track current position
@@ -93,6 +94,7 @@ export const useDraggable = (options?: { handleSelector?: string }) => {
   const updateElementPosition = useCallback(
     (dx: number, dy: number) => {
       if (!node) return;
+      // eslint-disable-next-line react-hooks/immutability -- DOM element, not React state data
       node.style.transform = `translate3d(${dx}px, ${dy}px, 0)`;
       dxRef.current = dx;
       dyRef.current = dy;

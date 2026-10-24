@@ -12,7 +12,7 @@ import styled from "styled-components";
 import isDefined from "../../Core/isDefined";
 import { applyTranslationIfExists } from "../../Language/languageHelpers";
 import LocationSearchProviderMixin from "../../ModelMixins/SearchProviders/LocationSearchProviderMixin";
-import SearchProviderResults from "../../Models/SearchProviders/SearchProviderResults";
+import SearchProviderResult from "../../Models/SearchProviders/SearchProviderResults";
 import SearchResultModel from "../../Models/SearchProviders/SearchResult";
 import Terria from "../../Models/Terria";
 import ViewState from "../../ReactViewModels/ViewState";
@@ -37,9 +37,8 @@ const RawButtonAndHighlight = styled(RawButton)`
 
 interface LocationSearchResultsProps {
   viewState: ViewState;
-  isWaitingForSearchToStart: boolean;
   terria: Terria;
-  search: SearchProviderResults;
+  searchResult: SearchProviderResult;
   onLocationClick: (result: SearchResultModel) => void;
   locationSearchText: string;
   /** Set when the search only runs on Enter/button: replaces the waiting loader */
@@ -48,9 +47,8 @@ interface LocationSearchResultsProps {
 
 const LocationSearchResults: React.FC<LocationSearchResultsProps> = observer(
   ({
-    search,
+    searchResult,
     terria,
-    isWaitingForSearchToStart,
     locationSearchText,
     onLocationClick,
     waitingHint
@@ -79,7 +77,7 @@ const LocationSearchResults: React.FC<LocationSearchResultsProps> = observer(
       }
 
       const validResults = filterResults
-        ? search.results.filter(function (r: any) {
+        ? searchResult.results.filter(function (r: any) {
             return (
               r.location.longitude > west! &&
               r.location.longitude < east! &&
@@ -87,12 +85,12 @@ const LocationSearchResults: React.FC<LocationSearchResultsProps> = observer(
               r.location.latitude < north!
             );
           })
-        : search.results;
+        : searchResult.results;
       return validResults;
-    }, [search.results, terria]);
+    }, [searchResult.results, terria]);
 
     const searchProvider: LocationSearchProviderMixin.Instance =
-      search.searchProvider as unknown as LocationSearchProviderMixin.Instance;
+      searchResult.searchProvider as unknown as LocationSearchProviderMixin.Instance;
 
     const maxResults = searchProvider.recommendedListLength || 5;
     const results =
@@ -117,13 +115,11 @@ const LocationSearchResults: React.FC<LocationSearchResultsProps> = observer(
             justifySpaceBetween
           >
             <NameWithLoader
-              name={search.searchProvider.name}
+              name={searchProvider.name}
               length={validResults?.length}
               isOpen={isOpen}
-              search={search}
-              isWaitingForSearchToStart={
-                isWaitingForSearchToStart && !waitingHint
-              }
+              search={searchResult}
+              hideWaitingLoader={!!waitingHint}
             />
             <StyledIcon
               styledWidth={"9px"}
@@ -135,8 +131,7 @@ const LocationSearchResults: React.FC<LocationSearchResultsProps> = observer(
           {isOpen && (
             <>
               <SearchHeader
-                searchResults={search}
-                isWaitingForSearchToStart={isWaitingForSearchToStart}
+                searchResult={searchResult}
                 waitingHint={waitingHint}
               />
               <Ul column fullWidth>
@@ -199,8 +194,9 @@ interface NameWithLoaderProps {
   name: string;
   length?: number;
   isOpen: boolean;
-  search: SearchProviderResults;
-  isWaitingForSearchToStart: boolean;
+  search: SearchProviderResult;
+  /** Set when a waiting hint is rendered elsewhere instead of the loader */
+  hideWaitingLoader?: boolean;
 }
 
 const NameWithLoader: FC<NameWithLoaderProps> = observer(
@@ -210,13 +206,17 @@ const NameWithLoader: FC<NameWithLoaderProps> = observer(
       <BoxSpan styledHeight={"25px"}>
         <BoxSpan verticalCenter>
           <TextSpan textDarker uppercase>
-            {`${applyTranslationIfExists(props.name, i18n)} (${
-              props.length || 0
-            })`}
+            {`${applyTranslationIfExists(props.name, i18n)} ${
+              !props.search.isWaitingToStartSearch
+                ? `(${props.length || 0})`
+                : ""
+            }`}
           </TextSpan>
         </BoxSpan>
         {!props.isOpen &&
-          (props.search.isSearching || props.isWaitingForSearchToStart) && (
+          (props.search.isSearching ||
+            (props.search.isWaitingToStartSearch &&
+              !props.hideWaitingLoader)) && (
             <Loader hideMessage boxProps={{ fullWidth: false }} />
           )}
       </BoxSpan>

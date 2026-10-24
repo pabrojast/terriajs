@@ -5,9 +5,9 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import MenuPanel from "../../../StandardUserInterface/customizable/MenuPanel";
 import { useViewState } from "../../../Context";
-import DropdownStyles from "../panel.scss";
 import CountDatasets from "./CountDatasets";
 import Styles from "./tools-panel.scss";
+import withControlledVisibility from "../../../HOCs/withControlledVisibility";
 
 const ToolsPanel = observer(() => {
   const [isOpen, setIsOpen] = useState(false);
@@ -31,7 +31,7 @@ const ToolsPanel = observer(() => {
       smallScreen={viewState.useSmallScreenInterface}
     >
       {isOpen && (
-        <div className={DropdownStyles.section}>
+        <div style={{ padding: "15px" }}>
           <div className={Styles.this}>
             <CountDatasets updateResults={setResultsMessage} />
           </div>
@@ -45,4 +45,4 @@ const ToolsPanel = observer(() => {
   );
 });
 
-export default ToolsPanel;
+export default withControlledVisibility(ToolsPanel);

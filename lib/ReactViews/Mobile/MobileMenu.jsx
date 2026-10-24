@@ -15,7 +15,7 @@ import Styles from "./mobile-menu.scss";
 import { runInAction } from "mobx";
 import LangPanel from "../Map/Panels/LangPanel/LangPanel";
 import { applyTranslationIfExists } from "../../Language/languageHelpers";
-import { Category, HelpAction } from "../../Core/AnalyticEvents/analyticEvents";
+import { Category, HelpAction } from "../../Core/Analytics/analyticEvents";
 
 @observer
 class MobileMenu extends Component {
@@ -88,7 +88,7 @@ class MobileMenu extends Component {
       href: mapUserGuideItem.url,
       caption: title,
       onClick: () => {
-        this.props.terria.analytics?.logEvent(
+        this.props.terria.analytics.logEvent(
           Category.help,
           HelpAction.itemSelected,
           title
@@ -126,12 +126,19 @@ class MobileMenu extends Component {
             </div>
           ))}
           <div onClick={() => this.hideMenu()}>
-            <SettingPanel />
+            <SettingPanel
+              terria={this.props.terria}
+              viewState={this.props.viewState}
+              elementConfig={this.props.terria.elements.get(
+                "menu-bar-settings"
+              )}
+            />
           </div>
           <div onClick={() => this.hideMenu()}>
             <SharePanel
               terria={this.props.terria}
               viewState={this.props.viewState}
+              elementConfig={this.props.terria.elements.get("menu-bar-share")}
             />
           </div>
           {this.props.terria.ckanSession && (
@@ -147,20 +154,28 @@ class MobileMenu extends Component {
               {menuItem}
             </div>
           ))}
-          {mapUserGuide && <MobileMenuItem {...mapUserGuide} />}
+          {mapUserGuide && (
+            <MobileMenuItem>
+              <MobileMenuItem.Link {...mapUserGuide}>
+                {mapUserGuide.caption}
+              </MobileMenuItem.Link>
+            </MobileMenuItem>
+          )}
           {this.props.showFeedback && (
-            <MobileMenuItem
-              onClick={() => this.onFeedbackFormClick()}
-              caption={t("feedback.feedbackBtnText")}
-            />
+            <MobileMenuItem>
+              <MobileMenuItem.Button onClick={() => this.onFeedbackFormClick()}>
+                {t("feedback.feedbackBtnText")}
+              </MobileMenuItem.Button>
+            </MobileMenuItem>
           )}
           {hasStories && (
-            <MobileMenuItem
-              onClick={() => this.runStories()}
-              caption={t("story.mobileViewStory", {
-                storiesLength: this.props.terria.stories.length
-              })}
-            />
+            <MobileMenuItem>
+              <MobileMenuItem.Button onClick={() => this.runStories()}>
+                {t("story.mobileViewStory", {
+                  storiesLength: this.props.terria.stories.length
+                })}
+              </MobileMenuItem.Button>
+            </MobileMenuItem>
           )}
           {this.props.terria.configParameters.languageConfiguration
             ?.enabled && (
@@ -168,6 +183,7 @@ class MobileMenu extends Component {
               <LangPanel
                 terria={this.props.terria}
                 smallScreen={this.props.viewState.useSmallScreenInterface}
+                elementConfig={this.props.terria.elements.get("menu-bar-lang")}
               />
             </div>
           )}
