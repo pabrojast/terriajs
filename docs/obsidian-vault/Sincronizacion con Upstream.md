@@ -11,12 +11,13 @@ Ver tambien: [[Index]], [[Testing]], [[Comandos Utiles]], [[Deployment]], [[Trou
 
 ## Estado
 
-| Hito                                                                                           | Rama / ref                                                                                                                         | Fecha      |
-| ---------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | ---------- |
-| Integracion de ramas activas del fork                                                          | `integrate/upstream-8.13-flat-20261023` (commits `9999db93f`, `a8054b2a9`, `258b29498`)                                            | 2026-10-23 |
-| Etapa 1: ultimo commit plano de upstream                                                       | tag `upstream-premove` = `2c0cef873` (8.12.2 + desarrollo hasta 2026-06-12); merge `96f18c8e0`                                     | 2026-10-23 |
-| Etapa 2: `packages/terriajs` post-monorepo aplanado (8.12.3 → 8.13.0 → siguiente, `adaf90db7`) | rama `upstream-flat` = `124f0edd6` (`git subtree split --prefix=packages/terriajs upstream/main`); merge en la rama de integracion | 2026-10-23 |
-| TerriaMap: merge de `upstream/main` del TerriaMap independiente (0.4.8) + pin de esta rama     | `pabrojast/TerriaMap` rama `integrate/terriajs-8.13-20261024` (desde `node`); detalles en [[Deployment]]                           | 2026-10-24 |
+| Hito                                                                                                                                                                                              | Rama / ref                                                                                                                         | Fecha      |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| Integracion de ramas activas del fork                                                                                                                                                             | `integrate/upstream-8.13-flat-20261023` (commits `9999db93f`, `a8054b2a9`, `258b29498`)                                            | 2026-10-23 |
+| Etapa 1: ultimo commit plano de upstream                                                                                                                                                          | tag `upstream-premove` = `2c0cef873` (8.12.2 + desarrollo hasta 2026-06-12); merge `96f18c8e0`                                     | 2026-10-23 |
+| Etapa 2: `packages/terriajs` post-monorepo aplanado (8.12.3 → 8.13.0 → siguiente, `adaf90db7`)                                                                                                    | rama `upstream-flat` = `124f0edd6` (`git subtree split --prefix=packages/terriajs upstream/main`); merge en la rama de integracion | 2026-10-23 |
+| TerriaMap: merge de `upstream/main` del TerriaMap independiente (0.4.8) + pin de esta rama                                                                                                        | `pabrojast/TerriaMap` rama `integrate/terriajs-8.13-20261024` (desde `node`); detalles en [[Deployment]]                           | 2026-10-24 |
+| Rama `develop` en ambos repos (base para llevar a `main`): terriajs `develop` = `main` + rama de integracion; TerriaMap `develop` = `dev` + rama de integracion, conservando el branding IHP-WINS | terriajs `2c54c71cb`; TerriaMap `pabrojast/TerriaMap` rama `develop` (pin a terriajs `develop`)                                    | 2026-10-24 |
 
 ## Procedimiento
 
@@ -90,4 +91,4 @@ Advertencias medidas:
 
 - Specs del fork que ya fallaban antes del merge (**Inferencia**: no tocan codigo cambiado por el merge): `StacCatalogGroup`/`StacCollectionCatalogItem` `typeName` (esperan texto traducido en `cimode`), `stacAssetUtils` QUICKLOOK, `stacItemsLoader` URL de busqueda, specs de autenticacion Terrascope, `BuildShareLink` token CKAN.
 - `StoryDashboardGuidanceSpec` (es-CL) pasa aislado y falla en la suite completa (estado de i18n entre specs).
-- TerriaMap: la rama `integrate/terriajs-8.13-20261024` ya trae `terriajs-cesium` 26.3.0, Node 22 y el sha nuevo (ver [[Deployment]]); falta fusionarla a `node`/`main` y construir la imagen de dev.
+- Flujo de ramas acordado (2026-10-24): `main` de terriajs y de TerriaMap no se tocan. Lo nuevo vive en `develop` de cada repo; desde ahi se construye y verifica la imagen de dev y, cuando este validado, se lleva a `main`. En terriajs no puede existir una rama `dev` porque ya hay ramas `dev/*`; en TerriaMap `dev` ya existia (linea de dev con pins anteriores) y `develop` la contiene.

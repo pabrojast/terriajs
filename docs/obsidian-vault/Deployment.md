@@ -182,7 +182,13 @@ La rama `integrate/upstream-8.13-flat-20261023` (ver [[Sincronizacion con Upstre
 - `resolutions.tinymce` (`^7.9.3`) tambien tiene que estar en el `package.json` de TerriaMap: las `resolutions` de `terriajs` no se aplican cuando es dependencia, y `@tinymce/tinymce-react` arrastra otra copia de `tinymce` que rompe los tipos de `Editor.tsx`.
 - El type-check del build (`fork-ts-checker` con el `tsconfig.json` de `terriajs`, que incluye `test/`) necesita en TerriaMap las dependencias de los specs del fork: `jasmine-ajax`, `@types/jasmine-ajax`, `react-test-renderer`, `@types/react-test-renderer` (upstream ya exige `msw` y `fetch-mock` por el mismo motivo).
 
-### Rama de TerriaMap (2026-10-24)
+### Ramas `develop` (2026-10-24)
+
+- terriajs: `develop` (`2c54c71cb`) = `main` + merge de `integrate/upstream-8.13-flat-20261023`; mismo arbol que la rama de integracion. `main` queda como estaba.
+- TerriaMap: `develop` = `origin/dev` (linea IHP-WINS de dev, 19 commits sobre `main`) + merge de `integrate/terriajs-8.13-20261024`, con el pin a terriajs `develop`, `terriajs-server` de `dev` (`5c458df3`) y el branding IHP-WINS conservado (`config.json`, titulo, logo UNESCO, `languageOverrides.json`, `AboutButton.jsx`). La rama `integrate/terriajs-8.13-20261024` sigue siendo la variante white-label derivada de `node`.
+- Orden previsto: construir la imagen de dev desde `develop`, verificar y recien entonces fusionar `develop` en `main` (y en `dev`/`node` segun corresponda).
+
+### Rama de integracion de TerriaMap (2026-10-24)
 
 En el checkout `TerriaMap-1` se creo `integrate/terriajs-8.13-20261024` desde `node` (lo que despliega el white-label) y se fusiono `upstream/main` del TerriaMap independiente (`https://github.com/TerriaJS/TerriaMap`, 0.4.8, sincronizado con terriajs 8.13.0; 62 commits, 13 conflictos):
 
