@@ -12,6 +12,7 @@ npm-debug.log
 terria.lib.js
 terriajs-server.log
 terriajs.pid
+terriajs-server.pid
 /wwwroot/doc/
 /wwwroot/schema/
 /wwwroot/user-guide/

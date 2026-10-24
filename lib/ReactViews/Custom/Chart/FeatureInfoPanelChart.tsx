@@ -10,6 +10,7 @@ import ChartableMixin, { ChartItem } from "../../../ModelMixins/ChartableMixin";
 import MappableMixin from "../../../ModelMixins/MappableMixin";
 import LineChart from "./LineChart";
 import Styles from "./chart-preview.scss";
+import { keyFromSelector } from "i18next";
 
 type CatalogItemType = ChartableMixin.Instance;
 
@@ -62,13 +63,13 @@ const FeatureInfoPanelChart: FC<FeatureInfoPanelChartPropTypes> = observer(
 
     // Text to show when chart is not ready or available
     const chartStatus = notChartable
-      ? "chart.noData"
+      ? keyFromSelector(($) => $.chart.noData)
       : isLoading
-        ? "chart.loading"
+        ? keyFromSelector(($) => $.chart.loading)
         : loadingFailed
-          ? "chart.noData"
+          ? keyFromSelector(($) => $.chart.noData)
           : noData
-            ? "chart.noData"
+            ? keyFromSelector(($) => $.chart.noData)
             : undefined;
 
     const canShowChart = chartStatus === undefined;
@@ -194,7 +195,7 @@ const Chart: FC<ChartPropsType> = observer(
             numTicks={4}
             stroke="#a0a0a0"
             tickStroke="#a0a0a0"
-            tickLabelProps={(_value, i, ticks) => {
+            tickLabelProps={(_value: unknown, i: number, ticks: unknown[]) => {
               // To prevent the first and last values from getting clipped,
               // we position the first label text to start at the tick position
               // and the last label text to finish at the tick position. For all

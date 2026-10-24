@@ -12,6 +12,7 @@ import LegendCustomComponent from "./LegendCustomComponent";
 import SOSChartCustomComponent from "./SOSChartCustomComponent";
 import SettingsPanelLinkCustomComponent from "./SettingsPanelLinkCustomComponent";
 import TerriaTooltipCustomComponent from "./TerriaTooltip";
+import { keyFromSelector } from "i18next";
 
 /**
  * Registers custom component types.
@@ -40,7 +41,7 @@ export default function registerCustomComponentTypes(terria?: Terria) {
       () => {
         addOrReplaceRemoteFileUploadType("cesium-ion", {
           value: "cesium-ion",
-          name: "core.dataType.cesium-ion",
+          name: keyFromSelector(($) => $.core.dataType["cesium-ion"]),
           customComponent: CesiumIonConnector
         });
       }

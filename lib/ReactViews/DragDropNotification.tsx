@@ -102,17 +102,17 @@ const DragDropNotification: FC<DragDropNotificationProps> = observer(
         >
           <Text extraLarge breakWord>
             <Trans
-              i18nKey="dragDrop.notification"
+              i18nKey={($) => $.dragDrop.notification}
               count={uploadedFiles.length}
-              values={{ fileNames }}
-              components={[
-                <TextSpan key="filename" bold noFontSize />,
-                <TextSpan key="mydata" primary noFontSize />
-              ]}
-              defaults={
-                '<0>"{{fileNames}}"</0> {{count}} been added to <1>My data</1>'
-              }
-            />
+            >
+              <TextSpan bold noFontSize>
+                &quot;{{ fileNames }}&quot;
+              </TextSpan>
+              {{ count: uploadedFiles.length }} been added to{" "}
+              <TextSpan primary noFontSize>
+                My data
+              </TextSpan>
+            </Trans>
           </Text>
         </Box>
       </RawButton>

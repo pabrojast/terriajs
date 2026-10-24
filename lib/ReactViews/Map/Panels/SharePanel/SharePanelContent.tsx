@@ -46,13 +46,12 @@ export const SharePanelContent: FC<ISharePanelContentProps> = ({
     });
   }, [terria]);
 
-  // eslint-disable-next-line react-hooks/refs
   const shareUrl = shareUrlRef?.current;
 
   return (
     <Box paddedRatio={3} column>
       <Text semiBold medium>
-        {t("clipboard.shareURL")}
+        {t(($) => $.clipboard.shareURL)}
       </Text>
       <Spacing bottom={1} />
       <ShareUrl
@@ -75,7 +74,7 @@ export const SharePanelContent: FC<ISharePanelContentProps> = ({
             isChecked={includeStoryInShare}
             onChange={includeStoryInShareOnChange}
           >
-            <TextSpan>{t("includeStory.message")}</TextSpan>
+            <TextSpan>{t(($) => $.includeStory.message)}</TextSpan>
           </Checkbox>
           <Spacing bottom={2} />
         </>
@@ -87,7 +86,7 @@ export const SharePanelContent: FC<ISharePanelContentProps> = ({
         onChange={shouldShortenOnChange}
         isDisabled={!canShortenUrl}
       >
-        <TextSpan>{t("share.shortenUsingService")}</TextSpan>
+        <TextSpan>{t(($) => $.share.shortenUsingService)}</TextSpan>
       </Checkbox>
       <Spacing bottom={4} />
       <PrintSection viewState={viewState} />

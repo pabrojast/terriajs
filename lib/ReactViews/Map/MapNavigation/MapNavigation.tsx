@@ -10,7 +10,8 @@ import {
 } from "mobx";
 import { observer } from "mobx-react";
 import { createRef, Component } from "react";
-import { WithTranslation, withTranslation, TFunction } from "react-i18next";
+import { TFunction } from "i18next";
+import { WithTranslation, withTranslation } from "react-i18next";
 import styled, { DefaultTheme, withTheme } from "styled-components";
 import ViewState from "../../../ReactViewModels/ViewState";
 import Box from "../../../Styled/Box";
@@ -301,14 +302,14 @@ class MapNavigationBase extends Component<PropTypes> {
                 <MapIconButton
                   expandInPlace
                   iconElement={() => <Icon glyph={GLYPHS.moreItems} />}
-                  title={t("mapNavigation.additionalToolsTitle")}
+                  title={t(($) => $.mapNavigation.additionalToolsTitle)}
                   onClick={() =>
                     runInAction(() => {
                       viewState.showCollapsedNavigation = true;
                     })
                   }
                 >
-                  {t("mapNavigation.additionalTools")}
+                  {t(($) => $.mapNavigation.additionalTools)}
                 </MapIconButton>
               </Control>
             )}

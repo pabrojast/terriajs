@@ -31,7 +31,8 @@ const SelectableDimensionDropdown: FC<{
   const undefinedOption = {
     value: undefined,
     label:
-      dim.undefinedLabel ?? i18next.t("selectableDimensions.undefinedLabel")
+      dim.undefinedLabel ??
+      i18next.t(($) => $.selectableDimensions.undefinedLabel)
   };
 
   let options = dim.options?.map((option) => ({
@@ -51,9 +52,6 @@ const SelectableDimensionDropdown: FC<{
 
   return dim.allowCustomInput ? (
     <ReactSelectCreatable
-      css={`
-        color: white;
-      `}
       styles={{
         control: (baseStyles) => ({
           ...baseStyles,
@@ -90,9 +88,6 @@ const SelectableDimensionDropdown: FC<{
     />
   ) : (
     <ReactSelect
-      css={`
-        color: white;
-      `}
       styles={{
         control: (baseStyles) => ({
           ...baseStyles,
@@ -150,10 +145,6 @@ export const SelectableDimensionEnumMulti: FC<{
 
   return (
     <ReactSelect
-      css={`
-        color: ${theme.dark};
-        border: none;
-      `}
       options={options}
       value={selectedOptions}
       onChange={(evt) => {
@@ -176,6 +167,13 @@ export const SelectableDimensionEnumMulti: FC<{
           primary: theme.colorPrimary
         }
       })}
+      styles={{
+        container: (baseStyles) => ({
+          ...baseStyles,
+          color: theme.dark,
+          border: "none"
+        })
+      }}
       isMulti
     />
   );

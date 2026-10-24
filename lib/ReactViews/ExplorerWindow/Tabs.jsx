@@ -7,10 +7,12 @@ import { withTranslation } from "react-i18next";
 import styled from "styled-components";
 import defined from "terriajs-cesium/Source/Core/defined";
 import MappableMixin from "../../ModelMixins/MappableMixin";
+import GroupMixin from "../../ModelMixins/GroupMixin";
 import DataCatalogTab from "./Tabs/DataCatalogTab";
 import MyDataTab from "./Tabs/MyDataTab/MyDataTab";
 import Styles from "./tabs.scss";
 import { ThemeContext } from "styled-components";
+import raiseErrorNotShownInPreview from "../Preview/raiseErrorNotShownInPreview";
 
 @observer
 class Tabs extends Component {
@@ -65,20 +67,33 @@ class Tabs extends Component {
             panel: (
               <DataCatalogTab
                 items={member.memberModels || [member]}
-                searchPlaceholder={t("addData.searchPlaceholderWhole")}
+                searchPlaceholder={t(($) => $.addData.searchPlaceholderWhole)}
+                isLoadingTab={
+                  GroupMixin.isMixedInto(member) && member.isLoadingMembers
+                }
               />
             )
           }))
       );
     } else {
       tabs.push({
-        name: t("addData.data"),
+        name: t(($) => $.addData.data),
         title: "data-catalog",
         category: "data-catalog",
         panel: (
           <DataCatalogTab
             items={this.props.terria.catalog.group.memberModels}
-            searchPlaceholder={t("addData.searchPlaceholder")}
+            searchPlaceholder={t(($) => $.addData.searchPlaceholder)}
+            // With progressive loading the catalog can be opened before its
+            // init sources have loaded. Init sources keep loading workbench
+            // items after the catalog arrives, so only while it's still empty.
+            isLoadingTab={
+              this.props.terria.isProgressivelyLoading &&
+              this.props.terria.catalog.group.memberModels.every(
+                (member) =>
+                  member === this.props.terria.catalog.userAddedDataGroup
+              )
+            }
           />
         )
       });
@@ -87,7 +102,7 @@ class Tabs extends Component {
     if (!this.props.terria.configParameters.disableUserAddedData) {
       tabs.push({
         title: "my-data",
-        name: t("addData.myData"),
+        name: t(($) => $.addData.myData),
         category: "my-data",
         panel: (
           <MyDataTab
@@ -116,7 +131,13 @@ class Tabs extends Component {
           if (defined(member)) {
             this.props.viewState
               .viewCatalogMember(member)
-              .then((result) => result.raiseError(this.props.viewState.terria));
+              .then((result) =>
+                raiseErrorNotShownInPreview(
+                  this.props.viewState,
+                  member,
+                  result
+                )
+              );
           }
         }
       }

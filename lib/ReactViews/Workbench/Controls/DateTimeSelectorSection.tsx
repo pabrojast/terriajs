@@ -1,12 +1,14 @@
 import dateFormat from "dateformat";
+import { TFunction } from "i18next";
 import { runInAction } from "mobx";
 import { observer } from "mobx-react";
 import { Component } from "react";
-import { WithTranslation, withTranslation, TFunction } from "react-i18next";
+import { WithTranslation, withTranslation } from "react-i18next";
 import styled, { DefaultTheme, withTheme } from "styled-components";
 import JulianDate from "terriajs-cesium/Source/Core/JulianDate";
 import isDefined from "../../../Core/isDefined";
 import DiscretelyTimeVaryingMixin from "../../../ModelMixins/DiscretelyTimeVaryingMixin";
+import TimeVarying from "../../../ModelMixins/TimeVarying";
 import CommonStrata from "../../../Models/Definition/CommonStrata";
 import Box from "../../../Styled/Box";
 import { RawButton } from "../../../Styled/Button";
@@ -158,7 +160,7 @@ class DateTimeSelectorSection extends Component<IProps, IState> {
     return (
       <Box column paddedVertically>
         <Text medium textLight id={"dateTimeSelectorLabel"}>
-          {item.timeLabel ?? t("dateTime.selectorLabel")}
+          {item.timeLabel ?? t(($) => $.dateTime.selectorLabel)}
         </Text>
         <Spacing bottom={1} />
         <Box fullWidth justifySpaceBetween styledHeight={"40px"} gap>
@@ -172,7 +174,7 @@ class DateTimeSelectorSection extends Component<IProps, IState> {
             <StyledButton
               disabled={!item.isPreviousDiscreteTimeAvailable}
               onClick={this.onPreviousButtonClicked}
-              title={t("dateTime.previous")}
+              title={t(($) => $.dateTime.previous)}
               css={`
                 border-right: 1px solid rgba(255, 255, 255, 0.15);
                 border-radius: 2px 0 0 2px;
@@ -186,7 +188,7 @@ class DateTimeSelectorSection extends Component<IProps, IState> {
             </StyledButton>
             <StyledButton
               onClick={this.toggleOpen}
-              title={t("dateTime.selectTime")}
+              title={t(($) => $.dateTime.selectTime)}
               id="current-date-btn"
               css={`
                 flex-grow: 1;
@@ -196,13 +198,13 @@ class DateTimeSelectorSection extends Component<IProps, IState> {
               <TextSpan textLight id="current-date">
                 {isDefined(discreteTime)
                   ? discreteTime
-                  : t("dateTime.outOfRange")}
+                  : t(($) => $.dateTime.outOfRange)}
               </TextSpan>
             </StyledButton>
             <StyledButton
               disabled={!item.isNextDiscreteTimeAvailable}
               onClick={this.onNextButtonClicked}
-              title={t("dateTime.next")}
+              title={t(($) => $.dateTime.next)}
               css={`
                 border-left: 1px solid rgba(255, 255, 255, 0.15);
                 border-radius: 0 2px 2px 0;
@@ -215,7 +217,7 @@ class DateTimeSelectorSection extends Component<IProps, IState> {
                 width: 0;
                 height: 0;
               `}
-              title={t("dateTime.selectTime")}
+              title={t(($) => $.dateTime.selectTime)}
             >
               <DateTimePicker
                 currentDate={
@@ -232,19 +234,21 @@ class DateTimeSelectorSection extends Component<IProps, IState> {
               />
             </div>
           </Box>
-          <TimelineButton
-            active={attachedToTimeline}
-            type="button"
-            onClick={this.onTimelineButtonClicked}
-            title={t("dateTime.useTimeline")}
-          >
-            <StyledIcon light styledWidth={"20px"} glyph={GLYPHS.timeline} />
-          </TimelineButton>
+          {TimeVarying.hasTimeRange(item) && (
+            <TimelineButton
+              active={attachedToTimeline}
+              type="button"
+              onClick={this.onTimelineButtonClicked}
+              title={t(($) => $.dateTime.useTimeline)}
+            >
+              <StyledIcon light styledWidth={"20px"} glyph={GLYPHS.timeline} />
+            </TimelineButton>
+          )}
           <TimelineButton
             active={item.showInChartPanel}
             type="button"
             onClick={this.onShowOnChartButtonClicked}
-            title={t("dateTime.availableTimeChart")}
+            title={t(($) => $.dateTime.availableTimeChart)}
           >
             <StyledIcon light styledWidth={"20px"} glyph={GLYPHS.lineChart} />
           </TimelineButton>

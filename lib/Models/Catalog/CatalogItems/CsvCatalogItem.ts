@@ -8,6 +8,7 @@ import {
   runInAction
 } from "mobx";
 import isDefined from "../../../Core/isDefined";
+import { sanitizeCsvString } from "../../../Core/sanitizeCsv";
 import TerriaError from "../../../Core/TerriaError";
 import { ChartItem } from "../../../ModelMixins/ChartableMixin";
 import AutoRefreshingMixin from "../../../ModelMixins/AutoRefreshingMixin";
@@ -216,9 +217,13 @@ export default class CsvCatalogItem
 
   protected async _exportData() {
     if (isDefined(this.csvString)) {
+      // Sanitise against CSV/formula injection (CWE-1236) before exporting.
+      // Note: this re-serialises the CSV, so byte-for-byte source formatting is
+      // not preserved. The remote `url` case below is a direct download of the
+      // original file and is not sanitised.
       return {
         name: (this.name || this.uniqueId)!,
-        file: new Blob([this.csvString])
+        file: new Blob([sanitizeCsvString(this.csvString)])
       };
     }
 
@@ -293,8 +298,8 @@ export default class CsvCatalogItem
       return Promise.reject(
         new TerriaError({
           sender: this,
-          title: i18next.t("models.csv.unableToLoadItemTitle"),
-          message: i18next.t("models.csv.unableToLoadItemMessage")
+          title: i18next.t(($) => $.models.csv.unableToLoadItemTitle),
+          message: i18next.t(($) => $.models.csv.unableToLoadItemMessage)
         })
       );
     }

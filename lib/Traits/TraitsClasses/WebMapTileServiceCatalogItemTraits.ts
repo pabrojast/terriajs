@@ -208,7 +208,8 @@ export default class WebMapTileServiceCatalogItemTraits extends mixTraits(
   DiscretelyTimeVaryingTraits,
   MappableTraits,
   CatalogMemberTraits,
-  LegendOwnerTraits
+  LegendOwnerTraits,
+  DiscretelyTimeVaryingTraits
 ) {
   @primitiveTrait({
     type: "string",
@@ -238,14 +239,6 @@ export default class WebMapTileServiceCatalogItemTraits extends mixTraits(
     idProperty: "layerName"
   })
   availableStyles?: WebMapTileServiceAvailableLayerStylesTraits[];
-
-  @primitiveTrait({
-    type: "number",
-    name: "Maximum Refresh Intervals",
-    description:
-      "The maximum number of discrete times that can be created by a single date range when specified as time/time/periodicity."
-  })
-  maxRefreshIntervals: number = 1000;
 
   @primitiveTrait({
     type: "boolean",
@@ -285,13 +278,6 @@ export default class WebMapTileServiceCatalogItemTraits extends mixTraits(
   })
   getFeatureInfoFormat?: WebMapServiceGetFeatureInfoFormat;
 
-  @primitiveTrait({
-    type: "string",
-    name: "GetFeatureInfo URL",
-    description: "Overrides the URL used for WMTS GetFeatureInfo requests."
-  })
-  getFeatureInfoUrl?: string;
-
   @anyTrait({
     name: "GetFeatureInfo parameters",
     description:
@@ -313,4 +299,33 @@ export default class WebMapTileServiceCatalogItemTraits extends mixTraits(
       "The encoding of the tile images. We will try to load the tile images with this encoding, if not available we will fallback to KVP. Supported values are KVP and Restful"
   })
   requestEncoding = "RESTful";
+
+  @primitiveTrait({
+    type: "string",
+    name: "GetFeatureInfo URL",
+    description:
+      "URL or RESTful template (with `{i}`/`{j}` pixel placeholders) for `GetFeatureInfo` requests. Defaults to the `FeatureInfo` ResourceURL advertised by GetCapabilities, or to `url` for KVP services."
+  })
+  getFeatureInfoUrl?: string;
+
+  @primitiveTrait({
+    type: "number",
+    name: "Maximum Refresh Intervals",
+    description:
+      "The maximum number of discrete times that can be created by a single " +
+      "date range, when specified in the format time/time/periodicity. E.g. " +
+      "`2015-04-27T16:15:00/2015-04-27T18:45:00/PT15M` has 11 times."
+  })
+  maxRefreshIntervals: number = 10000;
+
+  @primitiveArrayTrait({
+    type: "string",
+    name: "Time Values",
+    description:
+      "Available times as ISO 8601 timestamps or intervals such as " +
+      "`2024-01-01/2024-12-31/P1D`. A nonempty list overrides the times " +
+      "advertised by GetCapabilities. Intervals are expanded up to " +
+      "`maxRefreshIntervals`. Use `currentTime` to select a time."
+  })
+  timeValues?: string[];
 }

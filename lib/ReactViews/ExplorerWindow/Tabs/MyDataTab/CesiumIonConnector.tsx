@@ -200,6 +200,7 @@ function CesiumIonConnector() {
   useEffect(() => {
     if (loginToken.length === 0) return;
 
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsLoadingUserProfile(true);
 
     fetch("https://api.cesium.com/v1/me", {
@@ -223,6 +224,7 @@ function CesiumIonConnector() {
   useEffect(() => {
     if (loginToken.length === 0) return;
 
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsLoadingAssets(true);
 
     fetch("https://api.cesium.com/v1/assets", {
@@ -251,6 +253,7 @@ function CesiumIonConnector() {
       return;
     }
 
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsLoadingTokens(true);
 
     fetch("https://api.cesium.com/v2/tokens", {
@@ -309,9 +312,7 @@ function CesiumIonConnector() {
   return (
     <>
       <label className={AddDataStyles.label}>
-        <Trans i18nKey="addData.cesiumIon">
-          <strong>Step 2:</strong>
-        </Trans>
+        <strong>{t(($) => $.addData.cesiumIonStep2)}</strong>
       </label>
       {error && <WarningBox error={error} viewState={viewState} />}
       {loginToken.length > 0
@@ -393,7 +394,9 @@ function CesiumIonConnector() {
     return (
       <>
         <label className={AddDataStyles.label}>
-          <Trans i18nKey="addData.cesiumIonToken">Cesium ion token:</Trans>
+          <Trans i18nKey={($) => $.addData.cesiumIonToken}>
+            Cesium ion token:
+          </Trans>
         </label>
         {isLoadingTokens ? (
           <label className={AddDataStyles.label}>Loading token list...</label>
@@ -565,7 +568,7 @@ function CesiumIonConnector() {
                 ? () => viewState.terria.removeModelReferences(existingItem)
                 : addToMap.bind(undefined, viewState.terria, asset)
             }
-            title={t("catalogItem.add")}
+            title={t(($) => $.catalogItem.add)}
           >
             {existingItem ? (
               <Icon

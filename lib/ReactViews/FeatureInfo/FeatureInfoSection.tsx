@@ -12,7 +12,8 @@ import { observer } from "mobx-react";
 import { IDisposer } from "mobx-utils";
 import Mustache from "mustache";
 import { Component } from "react";
-import { TFunction, withTranslation } from "react-i18next";
+import { TFunction } from "i18next";
+import { withTranslation } from "react-i18next";
 import styled from "styled-components";
 import Cartesian3 from "terriajs-cesium/Source/Core/Cartesian3";
 import Ellipsoid from "terriajs-cesium/Source/Core/Ellipsoid";
@@ -421,8 +422,8 @@ export class FeatureInfoSection extends Component<FeatureInfoProps> {
             onClick={this.toggleRawData.bind(this)}
             text={
               this.showRawData
-                ? t("featureInfo.showCuratedData")
-                : t("featureInfo.showRawData")
+                ? t(($) => $.featureInfo.showCuratedData)
+                : t(($) => $.featureInfo.showRawData)
             }
           />
         )}
@@ -448,7 +449,7 @@ export class FeatureInfoSection extends Component<FeatureInfoProps> {
       title =
         getName(this.observableCatalogItem) +
         " - " +
-        (this.observableFeature.name || t("featureInfo.siteData"));
+        (this.observableFeature.name || t(($) => $.featureInfo.siteData));
 
     /** Show feature info download if showing raw data - or showing template and `showFeatureInfoDownloadWithTemplate` is true
      */
@@ -494,7 +495,7 @@ export class FeatureInfoSection extends Component<FeatureInfoProps> {
                 }}
                 key="no-info"
               >
-                {t("featureInfo.noInfoAvailable")}
+                {t(($) => $.featureInfo.noInfoAvailable)}
               </div>
             </section>
           ) : null}
@@ -521,7 +522,7 @@ export class FeatureInfoSection extends Component<FeatureInfoProps> {
                     }}
                     key="no-info"
                   >
-                    {t("featureInfo.noInfoAvailable")}
+                    {t(($) => $.featureInfo.noInfoAvailable)}
                   </div>
                 )
               ) : (

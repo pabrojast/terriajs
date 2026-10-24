@@ -46,6 +46,7 @@ const ModalPopup: FC<IProps> = (props) => {
       animationTimeout.current = null;
     }
     if (props.isVisible) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       slideIn();
     } else {
       slideOut();
@@ -95,10 +96,10 @@ const ModalPopup: FC<IProps> = (props) => {
           type="button"
           onClick={props.onClose}
           className={Styles.btnCloseModal}
-          title={t("addData.closeDataPanel")}
+          title={t(($) => $.addData.closeDataPanel)}
           data-target="close-modal"
         >
-          {t("addData.done")}
+          {t(($) => $.addData.done)}
         </button>
         {props.children}
       </div>

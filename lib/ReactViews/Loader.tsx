@@ -1,5 +1,6 @@
 import { FC } from "react";
-import { withTranslation, WithTranslation, TFunction } from "react-i18next";
+import { TFunction } from "i18next";
+import { withTranslation, WithTranslation } from "react-i18next";
 import Box from "../Styled/Box";
 import { TextSpan } from "../Styled/Text";
 import AnimatedSpinnerIcon from "../Styled/AnimatedSpinnerIcon";
@@ -19,7 +20,7 @@ const Loader: FC<PropsType> = (props: PropsType) => {
     <Box fullWidth centered {...boxProps}>
       <AnimatedSpinnerIcon styledWidth={"15px"} css={"margin: 5px"} {...rest} />
       <TextSpan {...textProps}>
-        {!hideMessage && (message || t("loader.loadingMessage"))}
+        {!hideMessage && (message || t(($) => $.loader.loadingMessage))}
       </TextSpan>
     </Box>
   );

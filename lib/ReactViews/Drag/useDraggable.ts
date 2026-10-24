@@ -2,6 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 export const useDraggable = (options?: { handleSelector?: string }) => {
   const [node, setNode] = useState<HTMLElement | null>();
+  // Mirror of `node` for imperative DOM writes (style.transform) so that we
+  // never mutate the value held in React state.
+  const nodeRef = useRef<HTMLElement | null>(null);
   // Use refs to track current values without triggering rerenders
   const cleanupGesture = useRef<(() => void) | undefined>();
   useEffect(() => () => cleanupGesture.current?.(), []);
@@ -15,6 +18,7 @@ export const useDraggable = (options?: { handleSelector?: string }) => {
   }, [options?.handleSelector]);
 
   const ref = useCallback((nodeEle: HTMLElement | null) => {
+    nodeRef.current = nodeEle;
     setNode(nodeEle);
   }, []);
 
@@ -66,8 +70,9 @@ export const useDraggable = (options?: { handleSelector?: string }) => {
     );
 
     // Directly update the DOM for immediate visual effect
-    // eslint-disable-next-line react-hooks/immutability -- DOM element, not React state data
-    node.style.transform = `translate3d(${constrainedDx}px, ${constrainedDy}px, 0)`;
+    const element = nodeRef.current;
+    if (!element) return;
+    element.style.transform = `translate3d(${constrainedDx}px, ${constrainedDy}px, 0)`;
 
     // Update refs to track current position
     dxRef.current = constrainedDx;
@@ -93,9 +98,9 @@ export const useDraggable = (options?: { handleSelector?: string }) => {
   // Shared function to update element position
   const updateElementPosition = useCallback(
     (dx: number, dy: number) => {
-      if (!node) return;
-      // eslint-disable-next-line react-hooks/immutability -- DOM element, not React state data
-      node.style.transform = `translate3d(${dx}px, ${dy}px, 0)`;
+      const element = nodeRef.current;
+      if (!node || !element) return;
+      element.style.transform = `translate3d(${dx}px, ${dy}px, 0)`;
       dxRef.current = dx;
       dyRef.current = dy;
     },

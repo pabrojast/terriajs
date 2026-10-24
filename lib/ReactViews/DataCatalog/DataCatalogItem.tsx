@@ -15,6 +15,7 @@ import CatalogItem, { ButtonState } from "./CatalogItem";
 import toggleItemOnMapFromCatalog, {
   Op as ToggleOnMapOp
 } from "./toggleItemOnMapFromCatalog";
+import raiseErrorNotShownInPreview from "../Preview/raiseErrorNotShownInPreview";
 
 interface Props {
   item: CatalogMemberMixin.Instance;
@@ -36,11 +37,11 @@ export default observer(function DataCatalogItem({
 }: Props) {
   const { t } = useTranslation();
   const STATE_TO_TITLE = {
-    [ButtonState.Loading]: t("catalogItem.loading"),
-    [ButtonState.Remove]: t("catalogItem.removeFromMap"),
-    [ButtonState.Add]: t("catalogItem.add"),
-    [ButtonState.Trash]: t("catalogItem.trash"),
-    [ButtonState.Preview]: t("catalogItem.preview")
+    [ButtonState.Loading]: t(($) => $.catalogItem.loading),
+    [ButtonState.Remove]: t(($) => $.catalogItem.removeFromMap),
+    [ButtonState.Add]: t(($) => $.catalogItem.add),
+    [ButtonState.Trash]: t(($) => $.catalogItem.trash),
+    [ButtonState.Preview]: t(($) => $.catalogItem.preview)
   };
 
   const isSelected = addedByUser(item)
@@ -50,7 +51,7 @@ export default observer(function DataCatalogItem({
   const setPreviewedItem = () =>
     viewState
       .viewCatalogMember(item)
-      .then((result) => result.raiseError(viewState.terria));
+      .then((result) => raiseErrorNotShownInPreview(viewState, item, result));
 
   const toggleEnable = async (event: MouseEvent<HTMLButtonElement>) => {
     const keepCatalogOpen =

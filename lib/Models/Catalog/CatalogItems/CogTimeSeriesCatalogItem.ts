@@ -297,7 +297,7 @@ class CogTimeSeriesStratum extends LoadableStratum(
   @computed
   get shortReport(): string | undefined {
     if (this.model.terria.currentViewer.type === "Leaflet") {
-      return i18next.t("models.commonModelErrors.3dTypeIn2dMode", this);
+      return i18next.t(($) => $.models.commonModelErrors["3dTypeIn2dMode"]);
     }
     const resolution = this.model.activeResolution;
     if (resolution?.hint) return resolution.hint;
@@ -1117,7 +1117,7 @@ export default class CogTimeSeriesCatalogItem extends DiscretelyTimeVaryingMixin
         id: place.id!,
         name: place.detail
           ? `${place.name ?? place.id} — ${place.detail}`
-          : place.name ?? place.id!
+          : (place.name ?? place.id!)
       })),
       setDimensionValue: (_stratumId, id) => {
         if (id !== undefined) this.goToPlace(id);
@@ -1633,7 +1633,7 @@ export default class CogTimeSeriesCatalogItem extends DiscretelyTimeVaryingMixin
       const info = new ImageryLayerFeatureInfo();
       info.name = dateLabel
         ? `${this.name ?? "COG"} — ${dateLabel}`
-        : this.name ?? "COG";
+        : (this.name ?? "COG");
       info.position = new Cartographic(longitude, latitude, 0);
       info.data = data;
       info.properties = { ...data };

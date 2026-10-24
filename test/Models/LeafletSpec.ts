@@ -1,18 +1,21 @@
 import L from "leaflet";
-import { action, computed, when } from "mobx";
+import { action, computed, runInAction, when } from "mobx";
+import Cartesian3 from "terriajs-cesium/Source/Core/Cartesian3";
 import CesiumMath from "terriajs-cesium/Source/Core/Math";
 import Rectangle from "terriajs-cesium/Source/Core/Rectangle";
+import runLater from "../../lib/Core/runLater";
 import CameraView from "../../lib/Models/CameraView";
 import WebMapServiceCatalogItem from "../../lib/Models/Catalog/Ows/WebMapServiceCatalogItem";
 import CommonStrata from "../../lib/Models/Definition/CommonStrata";
 import createStratumInstance from "../../lib/Models/Definition/createStratumInstance";
 import Leaflet from "../../lib/Models/Leaflet";
+import MapInteractionMode, {
+  PickEventProps
+} from "../../lib/Models/MapInteractionMode";
 import Terria from "../../lib/Models/Terria";
 import ViewerMode from "../../lib/Models/ViewerMode";
 import { RectangleTraits } from "../../lib/Traits/TraitsClasses/MappableTraits";
 import TerriaViewer from "../../lib/ViewModels/TerriaViewer";
-import { worker } from "../mocks/browser";
-import { http, HttpResponse } from "msw";
 
 describe("Leaflet Model", function () {
   let terria: Terria;
@@ -24,8 +27,6 @@ describe("Leaflet Model", function () {
   let terriaProgressEvt: jasmine.Spy;
 
   beforeEach(function () {
-    worker.use(http.get("http://example.com", () => HttpResponse.text("")));
-
     terria = new Terria({
       baseUrl: "./"
     });
@@ -40,11 +41,14 @@ describe("Leaflet Model", function () {
     terriaProgressEvt = spyOn(terria.tileLoadProgressEvent, "raiseEvent");
 
     leaflet = new Leaflet(terriaViewer, container);
+    // A data: URL never reaches the MSW service worker, so tiles still loading
+    // after a spec ends can't fail a later spec as an unhandled request.
+    const url = L.Util.emptyImageUrl;
     layers = [
-      new L.TileLayer("http://example.com"),
-      new L.TileLayer("http://example.com"),
+      new L.TileLayer(url),
+      new L.TileLayer(url),
       // Make sure there's a non-tile layer in there to make sure we're able to handle those.
-      new L.ImageOverlay("http://example.com", L.latLngBounds([1, 1], [3, 3]))
+      new L.ImageOverlay(url, L.latLngBounds([1, 1], [3, 3]))
     ];
 
     layers.forEach(function (layer) {
@@ -186,6 +190,52 @@ describe("Leaflet Model", function () {
       expect(longitude).not.toBeNaN();
       expect(latitude).not.toBeNaN();
       expect(height).toBe(0);
+    });
+  });
+
+  describe("pickEvent", function () {
+    const latlng = L.latLng(-28.5, 135);
+    let mapInteractionMode: MapInteractionMode;
+    let pickListener: jasmine.Spy<(props: PickEventProps) => void>;
+
+    beforeEach(function () {
+      mapInteractionMode = new MapInteractionMode({ message: "Click the map" });
+      pickListener = jasmine.createSpy("pickEventListener");
+      mapInteractionMode.pickEvent.addEventListener(pickListener);
+    });
+
+    // Leaflet finalises the picked position in a `runLater`, because vector
+    // and map click events can arrive in any order.
+    const pickingFinished = () => runLater(() => undefined);
+
+    it("is raised with the clicked position when an interaction mode is active", async function () {
+      runInAction(() =>
+        terria.mapInteractionModeStack.push(mapInteractionMode)
+      );
+
+      leaflet.map.fireEvent("click", { latlng });
+      await pickingFinished();
+
+      expect(pickListener).toHaveBeenCalledTimes(1);
+      const { globePosition } = pickListener.calls.mostRecent().args[0];
+      expect(
+        Cartesian3.equalsEpsilon(
+          globePosition!,
+          Cartesian3.fromDegrees(latlng.lng, latlng.lat, 0),
+          CesiumMath.EPSILON7
+        )
+      ).toBe(true);
+      expect(mapInteractionMode.pickedFeatures?.pickPosition).toEqual(
+        globePosition
+      );
+    });
+
+    it("is not raised when the interaction mode is no longer active", async function () {
+      leaflet.map.fireEvent("click", { latlng });
+      await pickingFinished();
+
+      expect(pickListener).not.toHaveBeenCalled();
+      expect(terria.pickedFeatures).toBeDefined();
     });
   });
 

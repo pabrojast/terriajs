@@ -1,4 +1,5 @@
 import { runInAction, when } from "mobx";
+import JulianDate from "terriajs-cesium/Source/Core/JulianDate";
 import WebMapServiceCatalogItem from "../../lib/Models/Catalog/Ows/WebMapServiceCatalogItem";
 import DefaultTimelineModel from "../../lib/Models/DefaultTimelineModel";
 import Terria from "../../lib/Models/Terria";
@@ -45,6 +46,45 @@ describe("TimelineStack", function () {
 
     terria.timelineStack.remove(wms2);
     expect(terria.timelineStack.top).toBe(wms);
+  });
+
+  it("skips a layer with a single instant so the timeline always gets a range", function () {
+    // A WMTS/WMS layer whose only time value is e.g. `2019-04-18/2019-04-18/P1429D`
+    // has startTime === stopTime. Cesium's Timeline.zoomTo throws on that, so
+    // such a layer must never become `top` or drive the clock range.
+    const single = new WebMapServiceCatalogItem("single", terria);
+    terria.addModel(single);
+    single.setTrait("definition", "startTime", "2019-04-18");
+    single.setTrait("definition", "stopTime", "2019-04-18");
+    terria.timelineStack.addToTop(single);
+
+    expect(terria.timelineStack.top).toBe(wms);
+    const clock = terria.timelineStack.clock;
+    expect(JulianDate.lessThan(clock.startTime, clock.stopTime)).toBe(true);
+  });
+
+  it("records the clock range applied from a new top item", function () {
+    const older = new WebMapServiceCatalogItem("older", terria);
+    terria.addModel(older);
+    older.setTrait("definition", "startTime", "1840-01-01T00:00:00Z");
+    older.setTrait("definition", "stopTime", "2025-01-01T00:00:00Z");
+    older.setTrait("definition", "currentTime", "1860-01-01T00:00:00Z");
+
+    runInAction(() => {
+      terria.timelineStack.removeAll();
+      terria.timelineStack.addToTop(older);
+    });
+
+    const { clock, clockRange } = terria.timelineStack;
+    expect(clockRange).toBeDefined();
+    expect(JulianDate.toIso8601(clockRange!.start, 0)).toBe(
+      "1840-01-01T00:00:00Z"
+    );
+    expect(JulianDate.toIso8601(clockRange!.stop, 0)).toBe(
+      "2025-01-01T00:00:00Z"
+    );
+    expect(JulianDate.equals(clockRange!.start, clock.startTime)).toBe(true);
+    expect(JulianDate.equals(clockRange!.stop, clock.stopTime)).toBe(true);
   });
 
   it("automatically syncs the clock with the top item", async function () {

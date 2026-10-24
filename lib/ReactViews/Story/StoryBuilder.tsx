@@ -256,7 +256,7 @@ class StoryBuilder extends Component<
       const timeout = setTimeout(this.resetReCaptureStatus, 2000);
       this.clearRecaptureSuccessTimeout = () => clearTimeout(timeout);
     } else {
-      throw new Error(t("story.doesNotExist"));
+      throw new Error(t(($) => $.story.doesNotExist));
     }
   }
 
@@ -406,8 +406,8 @@ class StoryBuilder extends Component<
           videoName={STORY_VIDEO}
         />
         <StoryButton
-          title={t("story.gettingStartedTitle")}
-          btnText={t("story.gettingStarted")}
+          title={t(($) => $.story.gettingStartedTitle)}
+          btnText={t(($) => $.story.gettingStarted)}
           onClick={() => {
             this.props.viewState.setVideoGuideVisible(STORY_VIDEO);
           }}
@@ -437,8 +437,8 @@ class StoryBuilder extends Component<
         <StoryButton
           fullWidth
           disabled={this.state.editingMode}
-          title={t("story.preview")}
-          btnText={t("story.play")}
+          title={t(($) => $.story.preview)}
+          btnText={t(($) => $.story.play)}
           onClick={this.runStories}
         >
           <StyledIcon
@@ -469,10 +469,10 @@ class StoryBuilder extends Component<
   renderStories() {
     const { t, i18n } = this.props;
     const stories = this.props.viewState.terria.stories || [];
-    const storyName = this.state.storyToRemove
+    const storyName: string = this.state.storyToRemove
       ? this.state.storyToRemove.title.length
         ? this.state.storyToRemove.title
-        : t("story.untitledScene")
+        : t(($) => $.story.untitledScene)
       : "";
     return (
       <>
@@ -486,7 +486,7 @@ class StoryBuilder extends Component<
           `}
         >
           <TextSpan textLight uppercase overflowHide overflowEllipsis>
-            {t("story.badgeBarLabel")}{" "}
+            {t(($) => $.story.badgeBarLabel)}{" "}
             {`(${this.props.viewState.terria.stories.length})`}
           </TextSpan>
           <RawButton
@@ -496,7 +496,7 @@ class StoryBuilder extends Component<
             className={Styles.removeButton}
           >
             <Icon glyph={Icon.GLYPHS.cancel} />
-            <TextSpan isLink>{t("story.removeAllStories")}</TextSpan>
+            <TextSpan isLink>{t(($) => $.story.removeAllStories)}</TextSpan>
           </RawButton>
         </Box>
         {this.props.viewState.terria.configParameters
@@ -518,7 +518,7 @@ class StoryBuilder extends Component<
             />
             <Spacing right={1} />
             <TextSpan medium color={this.props.theme.infoColor}>
-              <Trans i18nKey="story.saveInstructions" />
+              <Trans i18nKey={($) => $.story.saveInstructions} />
             </TextSpan>
           </Box>
         )}
@@ -531,20 +531,21 @@ class StoryBuilder extends Component<
                 this.state.storyToRemove ? (
                   <Text textLight large>
                     <Trans
-                      i18nKey="story.removeStoryDialog"
+                      i18nKey={($) => $.story.removeStoryDialog}
                       i18n={i18n}
-                      values={{ storyName }}
-                      components={[
-                        <TextSpan key="storyName" textLight large bold />
-                      ]}
-                      defaults={
-                        "Are you sure you wish to delete <0>{{storyName}}</0>?"
-                      }
-                    />
+                    >
+                      Are you sure you wish to delete
+                      <TextSpan textLight large bold>
+                        {{ storyName }}
+                      </TextSpan>
+                      ?
+                    </Trans>
                   </Text>
                 ) : (
                   <Text textLight large>
-                    {t("story.removeAllStoriesDialog", {
+                    {t(($) => $.story.removeAllStoriesDialog, {
+                      defaultValue:
+                        "Are you sure you wish to delete {{ count }} scene?",
                       count: this.props.viewState.terria.stories.length
                     })}
                   </Text>
@@ -673,13 +674,15 @@ class StoryBuilder extends Component<
         </Box>
         <Box centered paddedHorizontally={2} displayInlineBlock>
           <Text bold extraExtraLarge textLight>
-            {t("story.panelTitle")}
+            {t(($) => $.story.panelTitle)}
           </Text>
           <Spacing bottom={2} />
           <Text medium color={this.props.theme.textLightDimmed} highlightLinks>
-            {`${t("story.panelBody")}${
+            {`${t(($) => $.story.panelBody)}${
               shareMaxRequestSize
-                ? ` ${t("story.panelBodyCapped", { shareMaxRequestSize })}`
+                ? ` ${t(($) => $.story.panelBodyCapped, {
+                    shareMaxRequestSize
+                  })}`
                 : ""
             }`}
           </Text>
@@ -691,7 +694,7 @@ class StoryBuilder extends Component<
         {shareDataTooLong && (
           <Box paddedHorizontally={2}>
             <Text small color={this.props.theme.textWarning} highlightLinks>
-              {t("story.storiesTooLong")}
+              {t(($) => $.story.storiesTooLong)}
             </Text>
           </Box>
         )}
@@ -750,8 +753,8 @@ const CaptureScene: FC<CaptureSceneProps> = (props) => {
   const { t } = useTranslation();
   return (
     <StoryButton
-      title={t("story.captureSceneTitle")}
-      btnText={t("story.captureScene")}
+      title={t(($) => $.story.captureSceneTitle)}
+      btnText={t(($) => $.story.captureScene)}
       onClick={props.onClickCapture}
       disabled={props.disabled}
       fullWidth
@@ -815,7 +818,7 @@ const RemoveDialog: FC<RemoveDialogProps> = (props) => {
           }}
           onClick={props.closeDialog}
         >
-          {t("general.cancel")}
+          {t(($) => $.general.cancel)}
         </Button>
         <Spacing right={2} />
         <Button
@@ -830,7 +833,7 @@ const RemoveDialog: FC<RemoveDialogProps> = (props) => {
             props.closeDialog();
           }}
         >
-          {t("general.confirm")}
+          {t(($) => $.general.confirm)}
         </Button>
       </Box>
     </Box>

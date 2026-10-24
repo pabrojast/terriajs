@@ -15,6 +15,7 @@ import TerriaError from "../../../Core/TerriaError";
 import filterOutUndefined from "../../../Core/filterOutUndefined";
 import getDereferencedIfExists from "../../../Core/getDereferencedIfExists";
 import getPath from "../../../Core/getPath";
+import CatalogFunctionJobMixin from "../../../ModelMixins/CatalogFunctionJobMixin";
 import CatalogMemberMixin, {
   getName
 } from "../../../ModelMixins/CatalogMemberMixin";
@@ -45,6 +46,7 @@ import {
   enableAllControls,
   isControlEnabled
 } from "./WorkbenchControls";
+import raiseErrorNotShownInPreview from "../../Preview/raiseErrorNotShownInPreview";
 
 const BoxViewingControl = styled(Box).attrs({
   centered: true,
@@ -159,7 +161,7 @@ const ViewingControls: React.FC<PropsType> = observer((props) => {
           target.setTrait(
             CommonStrata.user,
             "name",
-            t("splitterTool.workbench.copyName", {
+            t(($) => $.splitterTool.workbench.copyName, {
               name: getName(item)
             })
           );
@@ -227,7 +229,7 @@ const ViewingControls: React.FC<PropsType> = observer((props) => {
       });
     viewState
       .viewCatalogMember(item)
-      .then((result) => result.raiseError(viewState.terria));
+      .then((result) => raiseErrorNotShownInPreview(viewState, item, result));
   }, [item, viewState]);
 
   const exportDataClicked = useCallback(() => {
@@ -306,11 +308,11 @@ const ViewingControls: React.FC<PropsType> = observer((props) => {
           <li key={"workbench.splitItem"}>
             <ViewingControlMenuButton
               onClick={splitItem}
-              title={t("workbench.splitItemTitle")}
+              title={t(($) => $.workbench.splitItemTitle)}
             >
               <BoxViewingControl>
                 <StyledIcon glyph={Icon.GLYPHS.compare} />
-                <span>{t("workbench.splitItem")}</span>
+                <span>{t(($) => $.workbench.splitItem)}</span>
               </BoxViewingControl>
             </ViewingControlMenuButton>
           </li>
@@ -323,11 +325,11 @@ const ViewingControls: React.FC<PropsType> = observer((props) => {
           <li key={"workbench.diffImage"}>
             <ViewingControlMenuButton
               onClick={openDiffTool}
-              title={t("workbench.diffImageTitle")}
+              title={t(($) => $.workbench.diffImageTitle)}
             >
               <BoxViewingControl>
                 <StyledIcon glyph={Icon.GLYPHS.difference} />
-                <span>{t("workbench.diffImage")}</span>
+                <span>{t(($) => $.workbench.diffImage)}</span>
               </BoxViewingControl>
             </ViewingControlMenuButton>
           </li>
@@ -339,11 +341,11 @@ const ViewingControls: React.FC<PropsType> = observer((props) => {
           <li key={"workbench.exportData"}>
             <ViewingControlMenuButton
               onClick={exportDataClicked}
-              title={t("workbench.exportDataTitle")}
+              title={t(($) => $.workbench.exportDataTitle)}
             >
               <BoxViewingControl>
                 <StyledIcon glyph={Icon.GLYPHS.upload} />
-                <span>{t("workbench.exportData")}</span>
+                <span>{t(($) => $.workbench.exportData)}</span>
               </BoxViewingControl>
             </ViewingControlMenuButton>
           </li>
@@ -355,11 +357,11 @@ const ViewingControls: React.FC<PropsType> = observer((props) => {
           <li key={"workbench.searchItem"}>
             <ViewingControlMenuButton
               onClick={searchItem}
-              title={t("workbench.searchItemTitle")}
+              title={t(($) => $.workbench.searchItemTitle)}
             >
               <BoxViewingControl>
                 <StyledIcon glyph={Icon.GLYPHS.search} />
-                <span>{t("workbench.searchItem")}</span>
+                <span>{t(($) => $.workbench.searchItem)}</span>
               </BoxViewingControl>
             </ViewingControlMenuButton>
           </li>
@@ -367,17 +369,27 @@ const ViewingControls: React.FC<PropsType> = observer((props) => {
         <li key={"workbench.removeFromMap"}>
           <ViewingControlMenuButton
             onClick={removeFromMap}
-            title={t("workbench.removeFromMapTitle")}
+            title={t(($) => $.workbench.removeFromMapTitle)}
           >
             <BoxViewingControl>
               <StyledIcon glyph={Icon.GLYPHS.cancel} />
-              <span>{t("workbench.removeFromMap")}</span>
+              <span>{t(($) => $.workbench.removeFromMap)}</span>
             </BoxViewingControl>
           </ViewingControlMenuButton>
         </li>
       </ul>
     );
   };
+
+  const previewButton = CatalogFunctionJobMixin.isMixedInto(item)
+    ? {
+        text: t(($) => $.workbench.previewJob),
+        title: t(($) => $.workbench.previewJobTitle)
+      }
+    : {
+        text: t(($) => $.workbench.previewItem),
+        title: t(($) => $.workbench.previewItemTitle)
+      };
 
   return (
     <Box>
@@ -404,7 +416,7 @@ const ViewingControls: React.FC<PropsType> = observer((props) => {
       >
         <WorkbenchButton
           onClick={zoomTo}
-          title={t("workbench.zoomToTitle")}
+          title={t(($) => $.workbench.zoomToTitle)}
           disabled={
             !controls.idealZoom ||
             // disabled if the item cannot be zoomed to or if a zoom is already in progress
@@ -419,18 +431,18 @@ const ViewingControls: React.FC<PropsType> = observer((props) => {
             )
           }
         >
-          {t("workbench.zoomTo")}
+          {t(($) => $.workbench.zoomTo)}
         </WorkbenchButton>
         <WorkbenchButton
           onClick={previewItem}
-          title={t("workbench.previewItemTitle")}
+          title={previewButton.title}
           iconElement={() => <Icon glyph={Icon.GLYPHS.about} />}
           disabled={
             !controls.aboutData ||
             (CatalogMemberMixin.isMixedInto(item) && item.disableAboutData)
           }
         >
-          {t("workbench.previewItem")}
+          {previewButton.text}
         </WorkbenchButton>
         <WorkbenchButton
           css="flex-grow:0;"
@@ -442,7 +454,7 @@ const ViewingControls: React.FC<PropsType> = observer((props) => {
               setIsOpen(true);
             }
           }}
-          title={t("workbench.showMoreActionsTitle")}
+          title={t(($) => $.workbench.showMoreActionsTitle)}
           iconOnly
           iconElement={() => <Icon glyph={Icon.GLYPHS.menuDotted} />}
         />

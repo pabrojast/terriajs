@@ -87,8 +87,8 @@ export default class TerriaReference extends UrlMixin(
       if (target === undefined) {
         throw new TerriaError({
           sender: this,
-          title: i18next.t("models.catalog.unsupportedTypeTitle"),
-          message: i18next.t("models.catalog.unsupportedTypeMessage", {
+          title: i18next.t(($) => $.models.catalog.unsupportedTypeTitle),
+          message: i18next.t(($) => $.models.catalog.unsupportedTypeMessage, {
             type: `"${targetJson.type}"`
           })
         });
@@ -126,8 +126,8 @@ export default class TerriaReference extends UrlMixin(
 
     throw new TerriaError({
       sender: this,
-      title: i18next.t("models.terria-reference.failedToLoadTarget"),
-      message: i18next.t("models.terria-reference.failedToLoadTarget")
+      title: i18next.t(($) => $.models["terria-reference"].failedToLoadTarget),
+      message: i18next.t(($) => $.models["terria-reference"].failedToLoadTarget)
     });
   });
 }

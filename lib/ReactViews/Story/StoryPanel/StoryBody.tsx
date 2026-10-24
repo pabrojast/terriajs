@@ -6,10 +6,10 @@ import Box from "../../../Styled/Box";
 import Text from "../../../Styled/Text";
 import Terria from "../../../Models/Terria";
 
-const StoryContainer = styled(Box).attrs((props: { isCollapsed: boolean }) => ({
+const StoryContainer = styled(Box).attrs<{ isCollapsed: boolean }>((props) => ({
   paddedVertically: props.isCollapsed ? 0 : 2,
   scroll: true
-}))<{ isCollapsed: boolean }>`
+}))`
   background-color: rgba(255, 255, 255, 0.95);
   backdrop-filter: ${(props) => props.theme.blur};
   color: #000;
@@ -21,7 +21,10 @@ const StoryContainer = styled(Box).attrs((props: { isCollapsed: boolean }) => ({
   overflow-y: ${(props) => (props.isCollapsed ? "hidden" : "auto")};
   opacity: ${(props) => (props.isCollapsed ? 0 : 1)};
   pointer-events: ${(props) => (props.isCollapsed ? "none" : "auto")};
-  transition: max-height 0.2s ease, padding 0.2s ease, opacity 0.2s ease;
+  transition:
+    max-height 0.2s ease,
+    padding 0.2s ease,
+    opacity 0.2s ease;
 
   img {
     max-width: 100%;

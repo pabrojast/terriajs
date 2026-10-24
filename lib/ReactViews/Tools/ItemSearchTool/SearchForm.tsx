@@ -1,10 +1,10 @@
 import isEmpty from "lodash-es/isEmpty";
 import { FC, FormEvent, ChangeEvent, useEffect, useState } from "react";
+import { TFunction } from "i18next";
 import {
   useTranslation,
   WithTranslation,
-  withTranslation,
-  TFunction
+  withTranslation
 } from "react-i18next";
 import ReactSelect, { ActionMeta, OnChangeValue } from "react-select";
 import styled from "styled-components";
@@ -46,6 +46,7 @@ const SearchForm: FC<SearchFormProps> = (props) => {
 
   useEffect(
     function setValuesFromProps() {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setQuery(props.query);
     },
     [props.query]
@@ -96,10 +97,12 @@ const SearchForm: FC<SearchFormProps> = (props) => {
     <Form onSubmit={onSubmit}>
       <Box centered>
         {state.is === "searching" && (
-          <Loading>{t("itemSearchTool.searching")}</Loading>
+          <Loading>{t(($) => $.itemSearchTool.searching)}</Loading>
         )}
         {state.is === "error" && (
-          <ErrorComponent>{t("itemSearchTool.searchError")}</ErrorComponent>
+          <ErrorComponent>
+            {t(($) => $.itemSearchTool.searchError)}
+          </ErrorComponent>
         )}
       </Box>
       <FieldSet disabled={disabled}>
@@ -115,10 +118,10 @@ const SearchForm: FC<SearchFormProps> = (props) => {
           </Field>
         ))}
         <SearchButton primary type="submit" disabled={disabled}>
-          {t("itemSearchTool.searchBtnText")}
+          {t(($) => $.itemSearchTool.searchBtnText)}
         </SearchButton>
         <Button secondary type="reset" onClick={clearForm} disabled={disabled}>
-          {t("itemSearchTool.resetBtnText")}
+          {t(($) => $.itemSearchTool.resetBtnText)}
         </Button>
       </FieldSet>
     </Form>
@@ -175,7 +178,9 @@ export const NumericParameter: FC<NumericParameterProps> = (props) => {
       >
         <HalfWidthLabel>
           <Box column>
-            <Text small>{t("itemSearchTool.numericParameter.minimum")}</Text>
+            <Text small>
+              {t(($) => $.itemSearchTool.numericParameter.minimum)}
+            </Text>
             <Input
               type="number"
               name={`${parameter.id}-min`}
@@ -190,7 +195,9 @@ export const NumericParameter: FC<NumericParameterProps> = (props) => {
         </HalfWidthLabel>
         <HalfWidthLabel>
           <Box column>
-            <Text small>{t("itemSearchTool.numericParameter.maximum")}</Text>
+            <Text small>
+              {t(($) => $.itemSearchTool.numericParameter.maximum)}
+            </Text>
             <Input
               type="number"
               name={`${parameter.id}-max`}

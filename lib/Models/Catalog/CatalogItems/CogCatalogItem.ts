@@ -63,13 +63,12 @@ class CogLoadableStratum extends LoadableStratum(CogCatalogItemTraits) {
   get shortReport(): string | undefined {
     return this.model.terria.currentViewer.type === "Leaflet"
       ? // Warn for 2D mode
-        i18next.t("models.commonModelErrors.3dTypeIn2dMode", this)
+        i18next.t(($) => $.models.commonModelErrors["3dTypeIn2dMode"])
       : this.model._imageryProvider?.tilingScheme &&
           // Show warning for experimental reprojection freature if not using EPSG 3857 or 4326
           isCustomTilingScheme(this.model._imageryProvider?.tilingScheme)
         ? i18next.t(
-            "models.cogCatalogItem.experimentalReprojectionWarning",
-            this
+            ($) => $.models.cogCatalogItem.experimentalReprojectionWarning
           )
         : undefined;
   }
@@ -213,7 +212,7 @@ export default class CogCatalogItem extends MappableMixin(
   @override
   get shortReport(): string | undefined {
     if (this.terria.currentViewer.type === "Leaflet") {
-      return i18next.t("models.commonModelErrors.3dTypeIn2dMode", this);
+      return i18next.t(($) => $.models.commonModelErrors["3dTypeIn2dMode"]);
     }
 
     if (
@@ -221,8 +220,7 @@ export default class CogCatalogItem extends MappableMixin(
       isCustomTilingScheme(this._imageryProvider.tilingScheme)
     ) {
       return i18next.t(
-        "models.cogCatalogItem.experimentalReprojectionWarning",
-        this
+        ($) => $.models.cogCatalogItem.experimentalReprojectionWarning
       );
     }
 

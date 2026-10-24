@@ -45,7 +45,7 @@ const MovementControls: FC<MovementControlsProps> = (props) => {
   return (
     <Container>
       <Title>
-        <Text medium>{t("pedestrianMode.controls.title")}</Text>
+        <Text medium>{t(($) => $.pedestrianMode.controls.title)}</Text>
         <MinimizeMaximizeButton
           onClick={toggleMaximized}
           maximized={isMaximized}
@@ -71,9 +71,7 @@ const Container = styled.div`
   border-radius: 3px;
 `;
 
-const Title = styled(Box).attrs({
-  medium: true
-})`
+const Title = styled(Box)`
   justify-content: space-between;
   align-items: center;
   padding: 0 0.5em;

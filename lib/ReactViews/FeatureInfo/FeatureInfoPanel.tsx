@@ -13,7 +13,8 @@ import {
   type MouseEvent as ReactMouseEvent,
   type TouchEvent as ReactTouchEvent
 } from "react";
-import { withTranslation, TFunction } from "react-i18next";
+import { withTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import Cartesian3 from "terriajs-cesium/Source/Core/Cartesian3";
 import Ellipsoid from "terriajs-cesium/Source/Core/Ellipsoid";
 import CesiumMath from "terriajs-cesium/Source/Core/Math";
@@ -410,7 +411,7 @@ class FeatureInfoPanel extends Component<Props> {
       }
 
       const rowIds = isTerriaFeatureData(feature.data)
-        ? feature.data.rowIds ?? []
+        ? (feature.data.rowIds ?? [])
         : [];
       if (rowIds.length < 2) {
         return;
@@ -653,11 +654,11 @@ class FeatureInfoPanel extends Component<Props> {
       sizeMode === "auto"
         ? undefined
         : viewState.featureInfoPanelIsCollapsed
-        ? currentState?.dimensions
-        : {
-            width: rect.width,
-            height: rect.height
-          };
+          ? currentState?.dimensions
+          : {
+              width: rect.width,
+              height: rect.height
+            };
 
     const nextState: FeatureInfoPanelState = {
       sizeMode,

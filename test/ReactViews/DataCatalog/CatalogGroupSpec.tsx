@@ -1,15 +1,20 @@
 import { render, screen } from "@testing-library/react";
+import i18next from "i18next";
 import CatalogGroup from "../../../lib/ReactViews/DataCatalog/CatalogGroup";
-import { ThemeProvider } from "styled-components";
-import { terriaTheme } from "../../../lib/ReactViews/StandardUserInterface";
+import { TerriaThemeProvider } from "../withContext";
 
 describe("CatalogGroup React", () => {
   describe("Loading", () => {
     it("Shows loader", () => {
       render(
-        <ThemeProvider theme={terriaTheme}>
-          <CatalogGroup open t={() => {}} loading emptyMessage="nothing here" />
-        </ThemeProvider>
+        <TerriaThemeProvider>
+          <CatalogGroup
+            open
+            t={i18next.t}
+            loading
+            emptyMessage="nothing here"
+          />
+        </TerriaThemeProvider>
       );
       // Loader renders a spinning element
       expect(screen.getByText("loader.loadingMessage")).toBeVisible();
@@ -18,11 +23,11 @@ describe("CatalogGroup React", () => {
     });
     it("Doesn't show children when loading", () => {
       render(
-        <ThemeProvider theme={terriaTheme}>
-          <CatalogGroup open t={() => {}} loading>
+        <TerriaThemeProvider>
+          <CatalogGroup open t={i18next.t} loading>
             <span>some child</span>
           </CatalogGroup>
-        </ThemeProvider>
+        </TerriaThemeProvider>
       );
       expect(screen.getByText("loader.loadingMessage")).toBeVisible();
       expect(screen.queryByText("some child")).not.toBeInTheDocument();
@@ -30,11 +35,11 @@ describe("CatalogGroup React", () => {
 
     it("Shows children when not loading", () => {
       render(
-        <ThemeProvider theme={terriaTheme}>
-          <CatalogGroup open t={() => {}} loading={false}>
+        <TerriaThemeProvider>
+          <CatalogGroup open t={i18next.t} loading={false}>
             <span>some child</span>
           </CatalogGroup>
-        </ThemeProvider>
+        </TerriaThemeProvider>
       );
       expect(
         screen.queryByText("loader.loadingMessage")
@@ -46,7 +51,7 @@ describe("CatalogGroup React", () => {
     it("Shows empty message", () => {
       render(
         <CatalogGroup
-          t={() => {}}
+          t={i18next.t}
           open
           emptyMessage="nothing here"
           loading={false}

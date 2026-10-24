@@ -166,8 +166,10 @@ describe("WebMapTileServiceCatalogItem", function () {
 
     await wmts.loadMapItems();
 
-    expect(wmts.imageryProvider?.url).toBe(
-      "http://wmts.marine.copernicus.eu/teroWmts?service=WMTS&version=1.0.0&request=GetTile"
+    // The KVP GetTile endpoint comes from OperationsMetadata; Cesium appends the
+    // remaining KVP template parameters to the provider url.
+    expect(wmts.imageryProvider?.url).toMatch(
+      /^http:\/\/wmts\.marine\.copernicus\.eu\/teroWmts\?service=WMTS&version=1\.0\.0&request=GetTile/
     );
   });
 

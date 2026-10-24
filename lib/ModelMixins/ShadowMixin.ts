@@ -39,12 +39,21 @@ function ShadowMixin<T extends AbstractConstructor<BaseType>>(Base: T) {
       return [
         {
           id: "shadows",
-          name: i18next.t("models.shadow.name"),
+          name: i18next.t(($) => $.models.shadow.name),
           options: [
-            { id: "NONE", name: i18next.t("models.shadow.options.none") },
-            { id: "CAST", name: i18next.t("models.shadow.options.cast") },
-            { id: "RECEIVE", name: i18next.t("models.shadow.options.receive") },
-            { id: "BOTH", name: i18next.t("models.shadow.options.both") }
+            {
+              id: "NONE",
+              name: i18next.t(($) => $.models.shadow.options.none)
+            },
+            {
+              id: "CAST",
+              name: i18next.t(($) => $.models.shadow.options.cast)
+            },
+            {
+              id: "RECEIVE",
+              name: i18next.t(($) => $.models.shadow.options.receive)
+            },
+            { id: "BOTH", name: i18next.t(($) => $.models.shadow.options.both) }
           ],
           selectedId: this.shadows,
           disable: !this.showShadowUi,
@@ -53,7 +62,12 @@ function ShadowMixin<T extends AbstractConstructor<BaseType>>(Base: T) {
             shadow === "RECEIVE" ||
             shadow === "BOTH" ||
             shadow === "NONE"
-              ? runInAction(() => this.setTrait(strata, "shadows", shadow))
+              ? runInAction(() => {
+                  this.setTrait(strata, "shadows", shadow);
+                  if (shadow !== "NONE") {
+                    this.terria.cesium?.notifyIfShadowsSuppressed();
+                  }
+                })
               : null
         }
       ];

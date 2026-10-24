@@ -1,5 +1,6 @@
 import { Component } from "react";
-import { withTranslation, WithTranslation, TFunction } from "react-i18next";
+import { TFunction } from "i18next";
+import { withTranslation, WithTranslation } from "react-i18next";
 import styled, { DefaultTheme, withTheme } from "styled-components";
 import Cartesian3 from "terriajs-cesium/Source/Core/Cartesian3";
 import Ellipsoid from "terriajs-cesium/Source/Core/Ellipsoid";
@@ -188,7 +189,7 @@ class ZoomControlBase extends Component<PropTypes> {
             <RawButton
               type="button"
               onClick={this.zoomIn.bind(this)}
-              title={t("zoomControl.zoomIn")}
+              title={t(($) => $.zoomControl.zoomIn)}
             >
               <Icon glyph={Icon.GLYPHS.zoomIn} />
             </RawButton>
@@ -197,7 +198,7 @@ class ZoomControlBase extends Component<PropTypes> {
             <RawButton
               type="button"
               onClick={this.zoomReset.bind(this)}
-              title={t("zoomControl.zoomReset")}
+              title={t(($) => $.zoomControl.zoomReset)}
             >
               <Icon glyph={Icon.GLYPHS.zoomReset} />
             </RawButton>
@@ -206,7 +207,7 @@ class ZoomControlBase extends Component<PropTypes> {
             <RawButton
               type="button"
               onClick={this.zoomOut.bind(this)}
-              title={t("zoomControl.zoomOut")}
+              title={t(($) => $.zoomControl.zoomOut)}
             >
               <Icon glyph={GLYPHS.zoomOut} />
             </RawButton>

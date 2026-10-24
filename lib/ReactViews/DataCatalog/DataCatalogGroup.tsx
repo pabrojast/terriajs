@@ -14,6 +14,7 @@ import {
   allMappableMembersInWorkbench
 } from "./DisplayGroupHelper";
 import Terria from "../../Models/Terria";
+import raiseErrorNotShownInPreview from "../Preview/raiseErrorNotShownInPreview";
 
 interface GroupModel extends BaseModel {
   isOpen?: boolean;
@@ -70,8 +71,10 @@ const DataCatalogGroup: React.FC<PropsType> = observer((props) => {
       setIsOpenLocal(!isOpenLocal);
     }
 
-    (await viewState.viewCatalogMember(group, !group.isOpen)).raiseError(
-      viewState.terria
+    raiseErrorNotShownInPreview(
+      viewState,
+      group,
+      await viewState.viewCatalogMember(group, !group.isOpen)
     );
   }, [manageIsOpenLocally, isOpenLocal, group, viewState]);
 
@@ -115,7 +118,7 @@ const DataCatalogGroup: React.FC<PropsType> = observer((props) => {
       topLevel={isTopLevel}
       open={isOpen()}
       loading={group.isLoading || group.isLoadingMembers}
-      emptyMessage={t("dataCatalog.groupEmpty")}
+      emptyMessage={t(($) => $.dataCatalog.groupEmpty)}
       onClick={clickGroup}
       removable={removable}
       removeUserAddedData={() => removeUserAddedData(terria, group)}

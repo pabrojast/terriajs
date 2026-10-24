@@ -20,9 +20,9 @@ Vault operativa del repositorio `terriajs`.
 
 ## Hechos rapidos
 
-- Paquete: `terriajs` (fork IHP-WINS sobre upstream 8.12.2+; ver [[Sincronizacion con Upstream]]).
+- Paquete: `terriajs` (fork IHP-WINS sobre upstream 8.13.0+, `adaf90db7`; ver [[Sincronizacion con Upstream]]).
 - Runtime de desarrollo soportado: Node `>= 22`; `.nvmrc` fija `v22.22.3`.
-- Tooling principal: TypeScript 5.9, React 18, MobX 6, terriajs-cesium 23, Leaflet, Webpack 5, Gulp 5, jasmine-browser-runner, msw, ESLint 10 (flat config), Prettier 3.
+- Tooling principal: TypeScript 5.9, React 18, MobX 6, terriajs-cesium 26, styled-components 6, i18next 26, Leaflet, Webpack 5, Gulp 5, jasmine-browser-runner, msw, ESLint 10 (flat config), Prettier 3.
 - Entrypoints operativos del repo:
   - estado raiz: `lib/Models/Terria.ts`
   - estado de UI: `lib/ReactViewModels/ViewState.ts`

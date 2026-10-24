@@ -85,7 +85,7 @@ export class ToolButtonController extends MapNavigationItemController {
   get viewerMode() {
     return this.props.viewerMode === "both"
       ? undefined
-      : this.props.viewerMode ?? ViewerMode.Cesium;
+      : (this.props.viewerMode ?? ViewerMode.Cesium);
   }
 
   get name() {
@@ -151,8 +151,8 @@ class ToolErrorBoundary extends Component<
     const { terria, toolName, t } = this.props;
     terria.raiseErrorToUser(
       new TerriaError({
-        title: t("tool.loadingError.title", { toolName }),
-        message: t("tool.loadingError.message")
+        title: t(($) => $.tool.loadingError.title, { toolName }),
+        message: t(($) => $.tool.loadingError.message)
       })
     );
     this.setState({ hasError: true });

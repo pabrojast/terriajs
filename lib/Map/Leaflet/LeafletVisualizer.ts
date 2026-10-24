@@ -103,7 +103,7 @@ let prevBoundsType = 0;
  **/
 class LeafletGeomVisualizer {
   private readonly _featureGroup: L.FeatureGroup;
-  private readonly _entitiesToVisualize: AssociativeArray;
+  private readonly _entitiesToVisualize: AssociativeArray<Entity>;
   private readonly _entityHash: EntityHash;
 
   constructor(
@@ -203,7 +203,7 @@ class LeafletGeomVisualizer {
       const entity = entities[i];
       const entityDetails = entityHash[entity.id];
 
-      if (isDefined(entity._point)) {
+      if (isDefined(entity.point)) {
         this._updatePoint(
           entity,
           time,
@@ -557,6 +557,11 @@ class LeafletGeomVisualizer {
       time,
       defaultColor
     );
+    const backgroundColor = getValueOrDefault(
+      labelGraphics.backgroundColor,
+      time,
+      Color.TRANSPARENT
+    );
     const verticalOrigin = getValueOrDefault(
       labelGraphics.verticalOrigin,
       time,
@@ -577,6 +582,7 @@ class LeafletGeomVisualizer {
       text: text,
       font: font,
       color: fillColor.toCssColorString(),
+      backgroundColor: backgroundColor.toCssColorString(),
       scale: scale,
       horizontalOrigin: horizontalOrigin, //value: left, center, right
       verticalOrigin: verticalOrigin //value: bottom, center, top
@@ -626,7 +632,9 @@ class LeafletGeomVisualizer {
 
       const canvas = writeTextToCanvas(text, {
         fillColor: fillColor,
-        font: font
+        backgroundColor: backgroundColor,
+        font: font,
+        padding: 5
       });
       if (isDefined(canvas)) {
         const imageUrl = canvas.toDataURL();

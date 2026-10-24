@@ -12,7 +12,8 @@
 import debounce from "lodash-es/debounce";
 import { computed, runInAction, when } from "mobx";
 import { Ref, PureComponent } from "react";
-import { WithTranslation, withTranslation, TFunction } from "react-i18next";
+import { TFunction } from "i18next";
+import { WithTranslation, withTranslation } from "react-i18next";
 import styled, { DefaultTheme, withTheme } from "styled-components";
 import Cartesian2 from "terriajs-cesium/Source/Core/Cartesian2";
 import Cartesian3 from "terriajs-cesium/Source/Core/Cartesian3";
@@ -70,6 +71,17 @@ const getCompassScaleRatio = (compassWidth: string) =>
   (Number(compassWidth) + 10) / Number(compassWidth);
 
 /**
+ * Width of the inner side of the ring. This encircles the arrows icon.
+ */
+const gyroWidth = ({
+  compassWidth,
+  ringWidth
+}: {
+  compassWidth: string;
+  ringWidth: string;
+}) => Number(compassWidth) - Number(ringWidth) - 10;
+
+/**
  * You think 0.9999 is a joke but I kid you not, it's the root of all evil in
  * bandaging these related issues:
  * https://github.com/TerriaJS/terriajs/issues/4261
@@ -97,7 +109,7 @@ const getCompassScaleRatio = (compassWidth: string) =>
 const StyledCompassOuterRing = styled.div<StyledCompassProps>`
   ${(props) => props.theme.centerWithoutFlex()}
   // override the transform provided in centerWithoutFlex()
-  transform: translate(-50%,-50%) scale(0.9999);
+  transform: translate(-50%, -50%) scale(0.9999);
   z-index: ${(props) => (props.active ? "2" : "1")};
   width: 100%;
   ${(props) =>
@@ -231,7 +243,7 @@ class Compass extends PureComponent<PropTypes, IStateTypes> {
 
     const compassElement = e.currentTarget;
     const compassRectangle = e.currentTarget.getBoundingClientRect();
-    const maxDistance = compassRectangle.width / 2.0;
+    const maxDistance = gyroWidth(this.props.theme) / 2;
     const center = new Cartesian2(
       (compassRectangle.right - compassRectangle.left) / 2.0,
       (compassRectangle.bottom - compassRectangle.top) / 2.0
@@ -243,14 +255,18 @@ class Compass extends PureComponent<PropTypes, IStateTypes> {
     const vector = Cartesian2.subtract(clickLocation, center, vectorScratch);
     const distanceFromCenter = Cartesian2.magnitude(vector);
 
-    const distanceFraction = distanceFromCenter / maxDistance;
+    const distanceFraction = distanceFromCenter / (maxDistance + 10);
 
-    const nominalTotalRadius = 145;
-    const nominalGyroRadius = 50;
+    // width of the StyledCompass component
+    const nominalTotalRadius = compassRectangle.width;
+
+    // width of the inner side of the ring (encircling the arrows icon)
+    // when user drags this part we need to trigger orbit
+    const nominalGyroRadius = gyroWidth(this.props.theme);
 
     if (distanceFraction < nominalGyroRadius / nominalTotalRadius) {
       orbit(this, compassElement, vector);
-    } else if (distanceFraction < 1.0) {
+    } else if (distanceFraction < 1.4) {
       rotate(this, compassElement, vector);
     } else {
       return true;
@@ -331,7 +347,7 @@ class Compass extends PureComponent<PropTypes, IStateTypes> {
     };
     const { t } = this.props;
     const active = this.state.active;
-    const description = t("compass.description");
+    const description = t(($) => $.compass.description);
     const showGuidance = !this.props.viewState.terria.getLocalProperty(
       COMPASS_LOCAL_PROPERTY_KEY
     );
@@ -370,7 +386,7 @@ class Compass extends PureComponent<PropTypes, IStateTypes> {
         </StyledCompassOuterRing>
 
         {/* "Center circle icon" */}
-        <StyledCompassInnerRing title={t("compass.title")}>
+        <StyledCompassInnerRing title={t(($) => $.compass.title)}>
           <StyledIcon
             fillColor={this.props.theme.darkWithOverlay}
             glyph={
@@ -535,7 +551,7 @@ function rotate(
     camera.rotateRight(newCameraAngle - currentCameraAngle);
     camera.lookAtTransform(oldTransform);
 
-    // viewModel.props.terria.cesium.notifyRepaintRequired();
+    viewModel.props.terria.cesium?.notifyRepaintRequired();
   };
 
   viewModel.rotateMouseUpFunction = function (_e) {
@@ -654,7 +670,7 @@ function orbit(
 
     camera.lookAtTransform(oldTransform);
 
-    // viewModel.props.terria.cesium.notifyRepaintRequired();
+    viewModel.props.terria.cesium?.notifyRepaintRequired();
 
     viewModel.orbitLastTimestamp = timestamp;
   };
@@ -673,7 +689,7 @@ function orbit(
       orbitCursorOpacity: easedOpacity
     });
 
-    // viewModel.props.terria.cesium.notifyRepaintRequired();
+    viewModel.props.terria.cesium?.notifyRepaintRequired();
   }
 
   viewModel.orbitMouseMoveFunction = function (e) {

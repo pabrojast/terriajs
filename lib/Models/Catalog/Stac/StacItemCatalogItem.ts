@@ -447,7 +447,7 @@ export default class StacItemCatalogItem extends UrlMixin(
       return i18next.t("models.stac.loadError", { message: this._loadError });
     }
     if (this.terria.currentViewer.type === "Leaflet") {
-      return i18next.t("models.commonModelErrors.3dTypeIn2dMode", this);
+      return i18next.t(($) => $.models.commonModelErrors["3dTypeIn2dMode"]);
     }
     return undefined;
   }
@@ -497,7 +497,7 @@ export default class StacItemCatalogItem extends UrlMixin(
 
     const cogAsset = this.findCogAsset(stratum);
     const resolvedCogAssetHref = cogAsset
-      ? resolveStacHref(cogAsset.href, this.url) ?? cogAsset.href
+      ? (resolveStacHref(cogAsset.href, this.url) ?? cogAsset.href)
       : undefined;
     const previewOptions = untracked(() => ({
       credit: this.credit,
@@ -946,8 +946,8 @@ export default class StacItemCatalogItem extends UrlMixin(
         imageryProvider instanceof SingleTileImageryProvider
           ? undefined
           : hasValidCesiumRectangle(this.cesiumRectangle)
-          ? this.cesiumRectangle
-          : undefined;
+            ? this.cesiumRectangle
+            : undefined;
 
       result.push({
         show: this.show,

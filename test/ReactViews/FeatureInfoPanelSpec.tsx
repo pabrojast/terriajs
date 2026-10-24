@@ -2,6 +2,7 @@ import { runInAction } from "mobx";
 
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import i18next from "i18next";
 import PickedFeatures from "../../lib/Map/PickedFeatures/PickedFeatures";
 import CompositeCatalogItem from "../../lib/Models/Catalog/CatalogItems/CompositeCatalogItem";
 import CommonStrata from "../../lib/Models/Definition/CommonStrata";
@@ -57,7 +58,7 @@ describe("FeatureInfoPanel", function () {
       viewState.featureInfoPanelIsVisible = true;
     });
     const { container } = renderWithContexts(
-      <FeatureInfoPanel viewState={viewState} t={(key) => key} />,
+      <FeatureInfoPanel viewState={viewState} t={i18next.t} />,
       viewState
     );
     expect(container.querySelector('[class*="is-visible"]')).toBeTruthy();
@@ -70,7 +71,7 @@ describe("FeatureInfoPanel", function () {
       terria.pickedFeatures = pickedFeatures;
     });
     renderWithContexts(
-      <FeatureInfoPanel viewState={viewState} t={(key) => key} />,
+      <FeatureInfoPanel viewState={viewState} t={i18next.t} />,
       viewState
     );
     // Loader renders a spinning icon (svg) and optional message text
@@ -82,7 +83,7 @@ describe("FeatureInfoPanel", function () {
       viewState.featureInfoPanelIsVisible = false;
     });
     const { container } = renderWithContexts(
-      <FeatureInfoPanel viewState={viewState} t={(key) => key} />,
+      <FeatureInfoPanel viewState={viewState} t={i18next.t} />,
       viewState
     );
     expect(container.querySelector('[class*="is-visible"]')).toBeNull();
@@ -144,7 +145,10 @@ describe("FeatureInfoPanel", function () {
       terria.featureInfoPanelState = { sizeMode: "auto" };
     });
     const { container } = render(
-      <FeatureInfoPanel viewState={viewState} t={(key) => key} />
+      <FeatureInfoPanel
+        viewState={viewState}
+        t={((key: string) => key) as any}
+      />
     );
     await waitFor(() => {
       const wrapper = container.querySelector<HTMLElement>(
@@ -201,7 +205,7 @@ describe("FeatureInfoPanel", function () {
     terria.pickedFeatures = pickedFeatures;
     terria.workbench.items = [simple1, simple2];
     renderWithContexts(
-      <FeatureInfoPanel viewState={viewState} t={(key) => key} />,
+      <FeatureInfoPanel viewState={viewState} t={i18next.t} />,
       viewState
     );
     await waitFor(() =>
@@ -231,7 +235,7 @@ describe("FeatureInfoPanel", function () {
     terria.pickedFeatures = pickedFeatures;
     terria.workbench.items = [simple];
     renderWithContexts(
-      <FeatureInfoPanel viewState={viewState} t={() => {}} />,
+      <FeatureInfoPanel viewState={viewState} t={i18next.t} />,
       viewState
     );
     await waitFor(() =>
@@ -266,7 +270,7 @@ describe("FeatureInfoPanel", function () {
     terria.pickedFeatures = pickedFeatures;
     terria.workbench.items = [simple];
     renderWithContexts(
-      <FeatureInfoPanel viewState={viewState} t={() => {}} />,
+      <FeatureInfoPanel viewState={viewState} t={i18next.t} />,
       viewState
     );
     await waitFor(() =>

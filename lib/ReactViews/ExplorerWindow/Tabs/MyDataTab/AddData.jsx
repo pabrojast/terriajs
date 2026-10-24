@@ -7,7 +7,7 @@ import {
   Category,
   DatatabAction
 } from "../../../../Core/Analytics/analyticEvents";
-import getDataType from "../../../../Core/getDataType";
+import getDataTypes from "../../../../Core/getDataType";
 import TimeVarying from "../../../../ModelMixins/TimeVarying";
 import addUserCatalogMember from "../../../../Models/Catalog/addUserCatalogMember";
 import addUserFiles from "../../../../Models/Catalog/addUserFiles";
@@ -46,13 +46,14 @@ class AddData extends Component {
 
   constructor(props) {
     super(props);
+    const dataTypes = getDataTypes();
 
     const remoteDataTypes =
-      this.props.remoteDataTypes ?? getDataType().remoteDataType;
+      this.props.remoteDataTypes ?? dataTypes.remoteDataType;
 
     // Automatically suffix supported extension types to localDataType names
     const localDataTypes = (
-      this.props.localDataTypes ?? getDataType().localDataType
+      this.props.localDataTypes ?? dataTypes.localDataType
     ).map((dataType) => {
       const extensions = dataType.extensions?.length
         ? ` (${buildExtensionsList(dataType.extensions)})`
@@ -223,10 +224,12 @@ class AddData extends Component {
       <div className={Styles.tabPanels}>
         {this.props.activeTab === "local" && (
           <>
-            <div className={Styles.tabHeading}>{t("addData.localAdd")}</div>
+            <div className={Styles.tabHeading}>
+              {t(($) => $.addData.localAdd)}
+            </div>
             <section className={Styles.tabPanel}>
               <label className={Styles.label}>
-                <Trans i18nKey="addData.localFileType">
+                <Trans i18nKey={($) => $.addData.localFileType}>
                   <strong>Step 1:</strong> Select file type
                 </Trans>
               </label>
@@ -243,7 +246,7 @@ class AddData extends Component {
                   )
                 : null}
               <label className={Styles.label}>
-                <Trans i18nKey="addData.localFile">
+                <Trans i18nKey={($) => $.addData.localFile}>
                   <strong>Step 2:</strong> Select file
                 </Trans>
               </label>
@@ -257,10 +260,12 @@ class AddData extends Component {
         )}
         {this.props.activeTab === "web" && (
           <>
-            <div className={Styles.tabHeading}>{t("addData.webAdd")}</div>
+            <div className={Styles.tabHeading}>
+              {t(($) => $.addData.webAdd)}
+            </div>
             <section className={Styles.tabPanel}>
               <label className={Styles.label}>
-                <Trans i18nKey="addData.webFileType">
+                <Trans i18nKey={($) => $.addData.webFileType}>
                   <strong>Step 1:</strong> Select file or web service type
                 </Trans>
               </label>
@@ -294,7 +299,7 @@ class AddData extends Component {
     return (
       <>
         <label className={Styles.label}>
-          <Trans i18nKey="addData.webFile">
+          <Trans i18nKey={($) => $.addData.webFile}>
             <strong>Step 2:</strong> Enter the URL of the data file or web
             service
           </Trans>
@@ -313,7 +318,7 @@ class AddData extends Component {
             onClick={this.handleUrl.bind(this)}
             className={Styles.urlInputBtn}
           >
-            {t("addData.urlInputBtn")}
+            {t(($) => $.addData.urlInputBtn)}
           </button>
           {this.state.isLoading && <Loader />}
         </form>

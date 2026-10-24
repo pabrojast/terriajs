@@ -1,4 +1,4 @@
-import { TFunction } from "i18next";
+import { keyFromSelector, TFunction } from "i18next";
 import { action } from "mobx";
 import { observer } from "mobx-react";
 import Slider from "rc-slider";
@@ -13,6 +13,7 @@ import {
 import { useTranslation, withTranslation } from "react-i18next";
 import styled, { withTheme } from "styled-components";
 import SplitDirection from "terriajs-cesium/Source/Scene/SplitDirection";
+import { isLowSpecQualityTier } from "../../../Core/QualityTier";
 import CatalogMemberMixin from "../../../ModelMixins/CatalogMemberMixin";
 import MappableMixin from "../../../ModelMixins/MappableMixin";
 import { BaseMapItem } from "../../../Models/BaseMaps/BaseMapsModel";
@@ -37,11 +38,12 @@ import MenuPanel from "../../StandardUserInterface/customizable/MenuPanel";
 import { UnescoDisclaimerModal } from "../BottomBar/Credits/UnescoDisclaimerModal";
 import Styles from "./setting-panel.scss";
 import withControlledVisibility from "../../HOCs/withControlledVisibility";
+import BaseMapOpacitySlider from "./BaseMapOpacitySlider";
 
 const sides = {
-  left: "settingPanel.terrain.left",
-  both: "settingPanel.terrain.both",
-  right: "settingPanel.terrain.right"
+  left: keyFromSelector(($) => $.settingPanel.terrain.left),
+  both: keyFromSelector(($) => $.settingPanel.terrain.both),
+  right: keyFromSelector(($) => $.settingPanel.terrain.right)
 };
 
 const SettingPanel: FC = observer(() => {
@@ -191,6 +193,7 @@ const SettingPanel: FC = observer(() => {
   const onBaseMaximumScreenSpaceErrorChange = (bmsse: number) => {
     terria.setBaseMaximumScreenSpaceError(bmsse);
     terria.setLocalProperty("baseMaximumScreenSpaceError", bmsse.toString());
+    terria.cesium?.notifyIfShadowsSuppressed();
   };
 
   const toggleUseNativeResolution = () => {
@@ -199,9 +202,9 @@ const SettingPanel: FC = observer(() => {
   };
 
   const qualityLabels = {
-    0: t("settingPanel.qualityLabels.maximumPerformance"),
-    1: t("settingPanel.qualityLabels.balancedPerformance"),
-    2: t("settingPanel.qualityLabels.lowerPerformance")
+    0: t(($) => $.settingPanel.qualityLabels.maximumPerformance),
+    1: t(($) => $.settingPanel.qualityLabels.balancedPerformance),
+    2: t(($) => $.settingPanel.qualityLabels.lowerPerformance)
   };
 
   const currentViewer =
@@ -212,13 +215,14 @@ const SettingPanel: FC = observer(() => {
       : "2d";
 
   const useNativeResolution = terria.useNativeResolution;
-  const nativeResolutionLabel = t("settingPanel.nativeResolutionLabel", {
+  const nativeResolutionLabel = t(($) => $.settingPanel.nativeResolutionLabel, {
     resolution1: useNativeResolution
-      ? t("settingPanel.native")
-      : t("settingPanel.screen"),
+      ? t(($) => $.settingPanel.native)
+      : t(($) => $.settingPanel.screen),
+
     resolution2: useNativeResolution
-      ? t("settingPanel.screen")
-      : t("settingPanel.native")
+      ? t(($) => $.settingPanel.screen)
+      : t(($) => $.settingPanel.native)
   });
 
   const dropdownTheme = {
@@ -239,8 +243,8 @@ const SettingPanel: FC = observer(() => {
     supportsDepthTestAgainstTerrain && terria.depthTestAgainstTerrainEnabled;
 
   const depthTestAgainstTerrainLabel = depthTestAgainstTerrainEnabled
-    ? t("settingPanel.terrain.showUndergroundFeatures")
-    : t("settingPanel.terrain.hideUndergroundFeatures");
+    ? t(($) => $.settingPanel.terrain.showUndergroundFeatures)
+    : t(($) => $.settingPanel.terrain.hideUndergroundFeatures);
 
   if (
     terria.configParameters.useCesiumIonTerrain ||
@@ -266,8 +270,8 @@ const SettingPanel: FC = observer(() => {
   const timelineStack = terria.timelineStack;
 
   const alwaysShowTimelineLabel = timelineStack.alwaysShowingTimeline
-    ? t("settingPanel.timeline.alwaysShowLabel")
-    : t("settingPanel.timeline.hideLabel");
+    ? t(($) => $.settingPanel.timeline.alwaysShowLabel)
+    : t(($) => $.settingPanel.timeline.hideLabel);
 
   const baseMapStatusMessage =
     terria.mainViewer.baseMap &&
@@ -278,8 +282,8 @@ const SettingPanel: FC = observer(() => {
     <MenuPanel
       theme={dropdownTheme}
       btnRef={settingButtonRef}
-      btnTitle={t("settingPanel.btnTitle")}
-      btnText={t("settingPanel.btnText")}
+      btnTitle={t(($) => $.settingPanel.btnTitle)}
+      btnText={t(($) => $.settingPanel.btnText)}
       viewState={viewState}
       smallScreen={viewState.useSmallScreenInterface}
       isOpen={viewState.settingsPanelIsVisible}
@@ -289,7 +293,7 @@ const SettingPanel: FC = observer(() => {
     >
       <Box paddedRatio={3} column>
         <Box paddedVertically={1}>
-          <Text as="label">{t("settingPanel.mapView")}</Text>
+          <Text as="label">{t(($) => $.settingPanel.mapView)}</Text>
         </Box>
         <FlexGrid gap={1} elementsNo={3}>
           {Object.entries(MapViewers).map(([key, viewerMode]) => (
@@ -307,10 +311,12 @@ const SettingPanel: FC = observer(() => {
             <Spacing bottom={2} />
             <Box column>
               <Box paddedVertically={1}>
-                <Text as="label">{t("settingPanel.terrain.sideLabel")}</Text>
+                <Text as="label">
+                  {t(($) => $.settingPanel.terrain.sideLabel)}
+                </Text>
               </Box>
               <FlexGrid gap={1} elementsNo={3}>
-                {Object.values(sides).map((side: any) => (
+                {Object.values(sides).map((side) => (
                   <SettingsButton
                     key={side}
                     isActive={side === currentSide}
@@ -332,7 +338,7 @@ const SettingPanel: FC = observer(() => {
                   onChange={toggleDepthTestAgainstTerrainEnabled}
                 >
                   <TextSpan>
-                    {t("settingPanel.terrain.hideUnderground")}
+                    {t(($) => $.settingPanel.terrain.hideUnderground)}
                   </TextSpan>
                 </Checkbox>
               </>
@@ -343,7 +349,7 @@ const SettingPanel: FC = observer(() => {
           <Spacing bottom={2} />
           <Box column>
             <Box paddedVertically={1}>
-              <Text as="label">{t("settingPanel.baseMap")}</Text>
+              <Text as="label">{t(($) => $.settingPanel.baseMap)}</Text>
             </Box>
             <Box paddedVertically={1}>
               <Text as="label" mini>
@@ -392,7 +398,7 @@ const SettingPanel: FC = observer(() => {
           <Spacing bottom={2} />
           <Box column>
             <Box paddedVertically={1}>
-              <Text as="label">{t("settingPanel.timeline.title")}</Text>
+              <Text as="label">{t(($) => $.settingPanel.timeline.title)}</Text>
             </Box>
             <Checkbox
               textProps={{ small: true }}
@@ -405,7 +411,9 @@ const SettingPanel: FC = observer(() => {
                 );
               }}
             >
-              <TextSpan>{t("settingPanel.timeline.alwaysShow")}</TextSpan>
+              <TextSpan>
+                {t(($) => $.settingPanel.timeline.alwaysShow)}
+              </TextSpan>
             </Checkbox>
           </Box>
         </>
@@ -414,7 +422,9 @@ const SettingPanel: FC = observer(() => {
             <Spacing bottom={2} />
             <Box column>
               <Box paddedVertically={1}>
-                <Text as="label">{t("settingPanel.imageOptimisation")}</Text>
+                <Text as="label">
+                  {t(($) => $.settingPanel.imageOptimisation)}
+                </Text>
               </Box>
               <Checkbox
                 textProps={{ small: true }}
@@ -423,14 +433,16 @@ const SettingPanel: FC = observer(() => {
                 title={nativeResolutionLabel}
                 onChange={() => toggleUseNativeResolution()}
               >
-                <TextSpan>{t("settingPanel.nativeResolutionHeader")}</TextSpan>
+                <TextSpan>
+                  {t(($) => $.settingPanel.nativeResolutionHeader)}
+                </TextSpan>
               </Checkbox>
               <Spacing bottom={2} />
               <Box paddedVertically={1}>
-                <Text as="label">{t("settingPanel.mapQuality")}</Text>
+                <Text as="label">{t(($) => $.settingPanel.mapQuality)}</Text>
               </Box>
               <Box verticalCenter>
-                <Text mini>{t("settingPanel.qualityLabel")}</Text>
+                <Text mini>{t(($) => $.settingPanel.qualityLabel)}</Text>
                 <Slider
                   min={1}
                   max={3}
@@ -444,11 +456,20 @@ const SettingPanel: FC = observer(() => {
                     margin-top: 5px;
                   `}
                 />
-                <Text mini>{t("settingPanel.performanceLabel")}</Text>
+                <Text mini>{t(($) => $.settingPanel.performanceLabel)}</Text>
               </Box>
+              {isLowSpecQualityTier(terria.baseMaximumScreenSpaceError) && (
+                <>
+                  <Spacing bottom={1} />
+                  <Text mini textLightDimmed>
+                    {t(($) => $.settingPanel.lowPerformanceQualityNote)}
+                  </Text>
+                </>
+              )}
             </Box>
           </>
         )}
+        <BaseMapOpacitySlider />
       </Box>
       {showUnescoModal && (
         <UnescoDisclaimerModal
@@ -493,8 +514,8 @@ function notifyBaseMapSwitch(
 ) {
   const viewerMode = viewer.viewerMode;
   terria.notificationState.addNotificationToQueue({
-    title: t("settingPanel.baseMapSwitched.title"),
-    message: t("settingPanel.baseMapSwitched.message", {
+    title: t(($) => $.settingPanel.baseMapSwitched.title),
+    message: t(($) => $.settingPanel.baseMapSwitched.message, {
       currentBaseMap: mapDisplayName(currentBaseMap),
       newBaseMap: mapDisplayName(newBaseMap),
       mapMode: viewer.viewerMode === ViewerMode.Cesium ? "3D" : "2D"
@@ -516,8 +537,8 @@ function notifyViewerModeSwitch(
 ) {
   const viewer = terria.mainViewer;
   terria.notificationState.addNotificationToQueue({
-    title: t("settingPanel.viewerModeSwitched.title"),
-    message: t("settingPanel.viewerModeSwitched.message", {
+    title: t(($) => $.settingPanel.viewerModeSwitched.title),
+    message: t(($) => $.settingPanel.viewerModeSwitched.message, {
       newBaseMap: mapDisplayName(newBaseMap),
       currentMode: currentViewerMode === ViewerMode.Cesium ? "3D" : "2D",
       newMode: newViewerMode === ViewerMode.Cesium ? "3D" : "2D"
@@ -546,7 +567,9 @@ function getBaseMapStatusMessage(
       : undefined;
 
   if (viewerMode) {
-    return t("settingPanel.baseMapStatus.requiresViewerMode", { viewerMode });
+    return t(($) => $.settingPanel.baseMapStatus.requiresViewerMode, {
+      viewerMode
+    });
   }
 }
 

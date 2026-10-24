@@ -1,8 +1,9 @@
+import { TFunction } from "i18next";
 import { runInAction } from "mobx";
 import { observer } from "mobx-react";
 import Slider from "rc-slider";
 import { Component } from "react";
-import { WithTranslation, withTranslation, TFunction } from "react-i18next";
+import { WithTranslation, withTranslation } from "react-i18next";
 import styled, { DefaultTheme, withTheme } from "styled-components";
 import CommonStrata from "../../../Models/Definition/CommonStrata";
 import hasTraits from "../../../Models/Definition/hasTraits";
@@ -46,7 +47,7 @@ class OpacitySection extends Component<OpacitySectionProps> {
     return (
       <Box verticalCenter paddedHorizontally={3} paddedVertically={2}>
         <StyledLabel medium htmlFor="opacity">
-          {t("workbench.opacity", {
+          {t(($) => $.workbench.opacity, {
             opacity: Math.round(item.opacity * 100)
           })}
         </StyledLabel>

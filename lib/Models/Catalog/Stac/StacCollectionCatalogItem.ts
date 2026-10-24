@@ -795,7 +795,7 @@ export default class StacCollectionCatalogItem extends UrlMixin(
       return i18next.t("models.stac.loadError", { message: this._loadError });
     }
     if (this.terria.currentViewer.type === "Leaflet") {
-      return i18next.t("models.commonModelErrors.3dTypeIn2dMode", this);
+      return i18next.t(($) => $.models.commonModelErrors["3dTypeIn2dMode"]);
     }
     return undefined;
   }
@@ -836,7 +836,7 @@ export default class StacCollectionCatalogItem extends UrlMixin(
 
     const cogAsset = this.findCogAsset(stratum);
     const resolvedCogAssetHref = cogAsset
-      ? resolveStacHref(cogAsset.href, this.url) ?? cogAsset.href
+      ? (resolveStacHref(cogAsset.href, this.url) ?? cogAsset.href)
       : undefined;
     const previewOptions = untracked(() => ({
       previewRequestSizeLimit: this.previewRequestSizeLimit,
@@ -1591,8 +1591,8 @@ export default class StacCollectionCatalogItem extends UrlMixin(
       previewRequestSizeLimit !== undefined && previewRequestSizeLimit > 0
         ? Math.floor(previewRequestSizeLimit)
         : maximumItems !== undefined && maximumItems > 0
-        ? Math.floor(maximumItems)
-        : candidates.length;
+          ? Math.floor(maximumItems)
+          : candidates.length;
 
     return candidates.slice(0, requestSizeLimit);
   }
@@ -1611,9 +1611,8 @@ export default class StacCollectionCatalogItem extends UrlMixin(
         await Promise.all(
           chunk.map(async (candidate) => {
             try {
-              const candidateBbox = await this.resolvePreviewCandidateBbox(
-                candidate
-              );
+              const candidateBbox =
+                await this.resolvePreviewCandidateBbox(candidate);
               return await this.createPreviewImageryProvider(
                 candidate.hrefs,
                 candidateBbox,
@@ -1730,10 +1729,10 @@ export default class StacCollectionCatalogItem extends UrlMixin(
       typeof item.properties?.datetime === "string"
         ? item.properties.datetime
         : typeof item.properties?.start_datetime === "string"
-        ? item.properties.start_datetime
-        : typeof item.properties?.end_datetime === "string"
-        ? item.properties.end_datetime
-        : undefined;
+          ? item.properties.start_datetime
+          : typeof item.properties?.end_datetime === "string"
+            ? item.properties.end_datetime
+            : undefined;
 
     const normalizedDateTime = dateTime?.trim();
     return normalizedDateTime && normalizedDateTime.length > 0
@@ -1834,8 +1833,8 @@ export default class StacCollectionCatalogItem extends UrlMixin(
       const renderConfig = renderKey
         ? collection.renders?.[renderKey]
         : collection.renders
-        ? Object.values(collection.renders)[0]
-        : undefined;
+          ? Object.values(collection.renders)[0]
+          : undefined;
 
       if (renderConfig) {
         const single: Record<string, unknown> = {};
@@ -1943,8 +1942,8 @@ export default class StacCollectionCatalogItem extends UrlMixin(
         imageryProvider instanceof SingleTileImageryProvider
           ? undefined
           : hasValidCesiumRectangle(this.cesiumRectangle)
-          ? this.cesiumRectangle
-          : undefined;
+            ? this.cesiumRectangle
+            : undefined;
 
       result.push({
         show: this.show,

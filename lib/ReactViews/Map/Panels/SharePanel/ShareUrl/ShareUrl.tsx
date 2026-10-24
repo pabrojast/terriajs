@@ -50,6 +50,7 @@ export const ShareUrl = forwardRef<
   const [shareUrl, setShareUrl] = useState("");
   const [shorteningInProgress, setShorteningInProgress] = useState(false);
   const [placeholder, setPlaceholder] = useState<string>();
+  const [failed, setFailed] = useState(false);
 
   useImperativeHandle(
     forwardRef,
@@ -63,35 +64,33 @@ export const ShareUrl = forwardRef<
 
   useEffect(() => {
     let cancelled = false;
+    setFailed(false);
     if (shouldShorten) {
-      setPlaceholder(t("share.shortLinkShortening"));
+      setPlaceholder(t(($) => $.share.shortLinkShortening));
       setShorteningInProgress(true);
       buildShortShareLink(terria, viewState, { includeStories })
         .then((shareUrl) => {
           if (!cancelled) setShareUrl(shareUrl);
         })
         .catch((error) => {
-          let userMessage = t("models.shareData.generateErrorMessage");
-          if (error instanceof TerriaError) {
-            const highestImportanceError = error.highestImportanceError;
-            const highestImportanceOriginalErrorMessage =
-              highestImportanceError.originalError?.[0].message;
-            if (highestImportanceOriginalErrorMessage?.includes("413")) {
-              userMessage = t(
-                "models.shareData.generateErrorDataExceedsLimitMessage"
-              );
-              terria.raiseErrorToUser(
-                TerriaError.from(error, {
-                  message: userMessage
-                }),
-                {
-                  severity: TerriaErrorSeverity.Error
-                }
-              );
-            }
-          }
+          // `getShareToken` has already chosen the message for this failure
+          // (status code / too large / generic) from the HTTP status.
+          const userMessage =
+            error instanceof TerriaError
+              ? error.highestImportanceError.message
+              : t(($) => $.models.shareData.generateErrorMessage);
           if (!cancelled) {
+            // Also raise the error as a modal so a failed share is hard to
+            // miss. Skip it when cancelled, so a stale request (e.g. after the
+            // share options changed) doesn't pop a modal for a share the user
+            // has moved past.
+            if (error instanceof TerriaError) {
+              terria.raiseErrorToUser(error, {
+                severity: TerriaErrorSeverity.Error
+              });
+            }
             setShareUrl(userMessage);
+            setFailed(true);
           }
         })
         .finally(() => {
@@ -116,15 +115,18 @@ export const ShareUrl = forwardRef<
     <>
       <Explanation>
         {hasStory
-          ? t("clipboard.storyExplanation")
-          : t("clipboard.shareExplanation")}
+          ? t(($) => $.clipboard.storyExplanation)
+          : t(($) => $.clipboard.shareExplanation)}
       </Explanation>
       <Spacing bottom={1} />
       <Clipboard
         text={shareUrl}
+        failed={failed}
         inputPlaceholder={placeholder}
         createdMessage={
-          hasStory ? t("share.storyLinkCreated") : t("share.shareLinkCreated")
+          hasStory
+            ? t(($) => $.share.storyLinkCreated)
+            : t(($) => $.share.shareLinkCreated)
         }
         onCopy={(text) =>
           terria.analytics.logEvent(Category.share, ShareAction.storyCopy, text)

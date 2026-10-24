@@ -15,6 +15,11 @@ export const worker = setupWorker(
   http.get("/build/*.js", () => passthrough()),
   http.get("/build/*.svg", () => passthrough()),
   http.get("/test/*", () => passthrough()),
+  // Fork (IHP-WINS): geotiff probes fixtures with HEAD, and COG/STAC specs that
+  // only stub their JSON would otherwise fail on the TIFF fetches.
+  http.head("/test/*", () => passthrough()),
+  http.get("*.tif", () => new HttpResponse(null, { status: 404 })),
+  http.head("*.tif", () => new HttpResponse(null, { status: 404 })),
 
   http.get("/languages/*.json", () => passthrough()),
   http.get("/images/*", () => passthrough()),

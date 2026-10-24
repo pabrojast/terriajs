@@ -817,6 +817,29 @@ describe("TerriaSpec", function () {
     });
   });
 
+  describe("unregisterModel", function () {
+    let model: SimpleCatalogItem;
+    beforeEach(function () {
+      model = new SimpleCatalogItem("testId", terria);
+      terria.addModel(model);
+    });
+
+    it("frees the model's ID but keeps it on the workbench", async function () {
+      await terria.workbench.add(model);
+      terria.unregisterModel(model);
+      expect(terria.getModelById(BaseModel, "testId")).toBeUndefined();
+      expect(terria.workbench.contains(model)).toBe(true);
+    });
+
+    it("leaves a different model registered under the same ID", function () {
+      terria.unregisterModel(model);
+      const other = new SimpleCatalogItem("testId", terria);
+      terria.addModel(other);
+      terria.unregisterModel(model);
+      expect(terria.getModelById(BaseModel, "testId")).toBe(other);
+    });
+  });
+
   //   it("tells us there's a time enabled WMS with `checkNowViewingForTimeWms()`", function(done) {
   //     terria
   //       .start({
@@ -1006,6 +1029,59 @@ describe("TerriaSpec", function () {
         expect(loadMapItemsArcGisMap).toHaveBeenCalledTimes(1);
       });
 
+      it("when a workbench item is a group containing a nested group", async function () {
+        await terria.applyInitData({
+          initData: {
+            catalog: [
+              {
+                id: "outer-group",
+                type: "group",
+                name: "Outer group",
+                members: [
+                  {
+                    id: "direct-member",
+                    type: "geojson",
+                    name: "Direct member",
+                    geoJsonData: {
+                      type: "Feature",
+                      properties: {},
+                      geometry: { type: "Point", coordinates: [133, -25] }
+                    }
+                  },
+                  {
+                    id: "nested-group",
+                    type: "group",
+                    name: "Nested group",
+                    members: [
+                      {
+                        id: "nested-member",
+                        type: "geojson",
+                        name: "Nested member",
+                        geoJsonData: {
+                          type: "Feature",
+                          properties: {},
+                          geometry: { type: "Point", coordinates: [145, -37] }
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            ],
+            workbench: ["outer-group"]
+          }
+        });
+
+        // The nested group's member used to be dropped: that branch begins with
+        // `await loadMembers()`, so its push landed after the workbench had
+        // already been assigned. The direct member survived only because it is
+        // pushed before the branch reaches its first `await`.
+        expect(terria.workbench.itemIds).toEqual([
+          "direct-member",
+          "nested-member"
+        ]);
+      });
+
       it("when the workbench has more than one items", async function () {
         await terria.applyInitData({
           initData: {
@@ -1084,6 +1160,381 @@ describe("TerriaSpec", function () {
             .withContext("arcgis feature")
             .toHaveBeenCalledTimes(1);
         }
+      });
+    });
+
+    describe("is resilient to broken init data", function () {
+      // A share link should still load everything it can, even when part of it
+      // is broken - see https://github.com/TerriaJS/terriajs/issues/5168
+      const goodItem = {
+        type: "csv",
+        id: "good-item",
+        name: "A good item",
+        csvString: "lat,lon,value\n-37.8,144.9,10"
+      };
+
+      const anotherGoodItem = {
+        type: "csv",
+        id: "another-good-item",
+        name: "Another good item",
+        csvString: "lat,lon,value\n-33.9,151.2,20"
+      };
+
+      beforeEach(function () {
+        // Do not call through - we only care about which items make it to the
+        // workbench, not about actually loading them.
+        spyOn(CsvCatalogItem.prototype, "loadMapItems").and.callFake(() =>
+          Promise.resolve(Result.none())
+        );
+      });
+
+      /** Applies init data, returning any error instead of throwing it */
+      async function applyInitData(initData: any): Promise<unknown> {
+        try {
+          await terria.applyInitData({ initData });
+        } catch (e) {
+          return e;
+        }
+        return undefined;
+      }
+
+      it("loads the workbench when nothing is broken", async function () {
+        const error = await applyInitData({
+          catalog: [goodItem, anotherGoodItem],
+          workbench: ["good-item", "another-good-item"]
+        });
+
+        expect(terria.workbench.itemIds).toEqual([
+          "good-item",
+          "another-good-item"
+        ]);
+        expect(error).toBeUndefined();
+      });
+
+      it("loads the good models when a model has non-object traits", async function () {
+        const error = await applyInitData({
+          catalog: [goodItem, anotherGoodItem],
+          models: {
+            "broken-item": "this should be an object",
+            "good-item": { show: true }
+          },
+          workbench: ["good-item", "another-good-item"]
+        });
+
+        expect(terria.workbench.itemIds).toEqual([
+          "good-item",
+          "another-good-item"
+        ]);
+        expect(error)
+          .withContext("the broken model should still be reported")
+          .toBeDefined();
+      });
+
+      it("loads the good models when a model cannot be dereferenced", async function () {
+        // Share links of catalog items that used to be references contain a
+        // `dereferenced` block. If the catalog has since changed (or the item's
+        // type is no longer registered) the model is no longer a reference.
+        const error = await applyInitData({
+          catalog: [goodItem, anotherGoodItem],
+          models: {
+            "broken-item": {
+              type: "a-type-that-does-not-exist",
+              dereferenced: { type: "csv", name: "Dereferenced item" }
+            },
+            "good-item": { show: true }
+          },
+          workbench: ["good-item", "another-good-item"]
+        });
+
+        expect(terria.workbench.itemIds).toEqual([
+          "good-item",
+          "another-good-item"
+        ]);
+        expect(error)
+          .withContext("the broken model should still be reported")
+          .toBeDefined();
+      });
+
+      it("loads the workbench when a container of a model is broken", async function () {
+        const error = await applyInitData({
+          catalog: [goodItem, anotherGoodItem],
+          models: {
+            "broken-container": "this should be an object",
+            "another-good-item": {
+              show: true,
+              knownContainerUniqueIds: ["broken-container"]
+            }
+          },
+          workbench: ["good-item", "another-good-item"]
+        });
+
+        expect(terria.workbench.itemIds).toEqual([
+          "good-item",
+          "another-good-item"
+        ]);
+        expect(error)
+          .withContext("the broken container should still be reported")
+          .toBeDefined();
+      });
+
+      describe("when a container is referenced but not saved in a story scene", function () {
+        async function applyScene(models: any): Promise<unknown> {
+          try {
+            await terria.applyInitData({
+              initData: {
+                catalog: [goodItem],
+                models,
+                workbench: ["good-item"]
+              },
+              replaceStratum: true
+            });
+          } catch (e) {
+            return e;
+          }
+          return undefined;
+        }
+
+        const childOfTransientGroup = {
+          show: true,
+          knownContainerUniqueIds: ["/", "transient-group"]
+        };
+
+        const transientGroup = {
+          type: "group",
+          name: "More results",
+          isOpen: true,
+          members: ["good-item"]
+        };
+
+        function itemErrors() {
+          return terria.workbench.items.flatMap((item) =>
+            terria.workbench.getItemErrors(item)
+          );
+        }
+
+        it("loads the item without errors when the container is missing", async function () {
+          const error = await applyScene({
+            "good-item": childOfTransientGroup
+          });
+
+          expect(terria.workbench.itemIds).toEqual(["good-item"]);
+          expect(error).toBeUndefined();
+          expect(itemErrors())
+            .withContext("missing container reported on the workbench item")
+            .toEqual([]);
+        });
+
+        it("does not register a stub for a missing container", async function () {
+          await applyScene({ "good-item": childOfTransientGroup });
+
+          expect(
+            terria.getModelById(BaseModel, "transient-group")
+          ).toBeUndefined();
+        });
+
+        it("loads the item without errors when the container is saved as a stub", async function () {
+          const error = await applyScene({
+            "transient-group": { type: "stub" },
+            "good-item": childOfTransientGroup
+          });
+
+          expect(terria.workbench.itemIds).toEqual(["good-item"]);
+          expect(error).toBeUndefined();
+          expect(itemErrors()).toEqual([]);
+        });
+
+        it("loads the item without errors when the container is saved as a group", async function () {
+          const error = await applyScene({
+            "transient-group": transientGroup,
+            "good-item": childOfTransientGroup
+          });
+
+          expect(terria.workbench.itemIds).toEqual(["good-item"]);
+          expect(error).toBeUndefined();
+          expect(itemErrors()).toEqual([]);
+        });
+
+        it("keeps a container from an earlier scene for a later scene that omits it", async function () {
+          await applyScene({
+            "transient-group": transientGroup,
+            "good-item": childOfTransientGroup
+          });
+          const error = await applyScene({
+            "good-item": childOfTransientGroup
+          });
+
+          expect(error).toBeUndefined();
+          expect(itemErrors()).toEqual([]);
+          expect(terria.getModelById(BaseModel, "transient-group")?.type).toBe(
+            "group"
+          );
+        });
+
+        it("loads a container saved as a group after an earlier scene omitted it", async function () {
+          await applyScene({ "good-item": childOfTransientGroup });
+          const error = await applyScene({
+            "transient-group": transientGroup,
+            "good-item": childOfTransientGroup
+          });
+
+          expect(error)
+            .withContext("scene error after the container was first missing")
+            .toBeUndefined();
+          expect(itemErrors()).toEqual([]);
+          expect(terria.getModelById(BaseModel, "transient-group")?.type).toBe(
+            "group"
+          );
+        });
+      });
+
+      it("loads the workbench when `initialCamera` is invalid", async function () {
+        const error = await applyInitData({
+          catalog: [goodItem, anotherGoodItem],
+          initialCamera: { west: "not a number" },
+          workbench: ["good-item", "another-good-item"]
+        });
+
+        expect(terria.workbench.itemIds).toEqual([
+          "good-item",
+          "another-good-item"
+        ]);
+        expect(error)
+          .withContext("the invalid camera should still be reported")
+          .toBeDefined();
+      });
+
+      it("loads the workbench when `homeCamera` is invalid", async function () {
+        const error = await applyInitData({
+          catalog: [goodItem, anotherGoodItem],
+          homeCamera: { west: "not a number" },
+          workbench: ["good-item", "another-good-item"]
+        });
+
+        expect(terria.workbench.itemIds).toEqual([
+          "good-item",
+          "another-good-item"
+        ]);
+        expect(error)
+          .withContext("the invalid camera should still be reported")
+          .toBeDefined();
+      });
+
+      it("still applies init data that comes after a broken model", async function () {
+        await applyInitData({
+          catalog: [goodItem],
+          models: {
+            "broken-item": "this should be an object"
+          },
+          previewedItemId: "good-item",
+          workbench: ["good-item"],
+          timeline: ["good-item"]
+        });
+
+        expect(terria.workbench.itemIds).toEqual(["good-item"]);
+        expect(terria.previewedItemId).toBe("good-item");
+      });
+
+      it("shows workbench item load errors on the item instead of raising them", async function () {
+        (CsvCatalogItem.prototype.loadMapItems as jasmine.Spy).and.callFake(
+          function (this: CsvCatalogItem) {
+            return Promise.resolve(
+              this.uniqueId === "good-item"
+                ? Result.error("Failed to load map items")
+                : Result.none()
+            );
+          }
+        );
+
+        const error = await applyInitData({
+          catalog: [goodItem, anotherGoodItem],
+          workbench: ["good-item", "another-good-item"]
+        });
+
+        expect(error).toBeUndefined();
+        expect(terria.workbench.itemIds).toEqual([
+          "good-item",
+          "another-good-item"
+        ]);
+        const [failedItem, loadedItem] = terria.workbench.items;
+        expect(terria.workbench.getItemErrors(failedItem).length).toBe(1);
+        expect(terria.workbench.getItemErrors(loadedItem)).toEqual([]);
+      });
+
+      it("adds a workbench model that cannot be dereferenced to the workbench with its errors", async function () {
+        const error = await applyInitData({
+          catalog: [goodItem],
+          models: {
+            "broken-item": {
+              type: "a-type-that-does-not-exist",
+              dereferenced: { type: "csv", name: "Dereferenced item" }
+            }
+          },
+          workbench: ["broken-item", "good-item"]
+        });
+
+        expect(error).toBeUndefined();
+        expect(terria.workbench.itemIds).toEqual(["broken-item", "good-item"]);
+        const brokenItem = terria.workbench.items[0];
+        expect(
+          terria.workbench.getItemErrors(brokenItem).length
+        ).toBeGreaterThan(0);
+      });
+
+      it("keeps a workbench item's errors when its ID is in the workbench twice", async function () {
+        await applyInitData({
+          models: {
+            "broken-item": {
+              type: "a-type-that-does-not-exist",
+              dereferenced: { type: "csv", name: "Dereferenced item" }
+            }
+          },
+          workbench: ["broken-item", "broken-item"]
+        });
+
+        expect(terria.workbench.itemIds).toEqual(["broken-item"]);
+        const brokenItem = terria.workbench.items[0];
+        expect(terria.workbench.getItemErrors(brokenItem).length).toBe(2);
+      });
+
+      it("lets a workbench item that cannot be loaded be reordered", async function () {
+        await applyInitData({
+          catalog: [goodItem, anotherGoodItem],
+          models: {
+            "broken-item": {
+              type: "a-type-that-does-not-exist",
+              dereferenced: { type: "csv", name: "Dereferenced item" }
+            }
+          },
+          workbench: ["good-item", "another-good-item", "broken-item"]
+        });
+        const brokenItem = terria.workbench.items[2];
+
+        terria.workbench.moveItemToIndex(brokenItem, 1);
+
+        expect(terria.workbench.itemIds).toEqual([
+          "good-item",
+          "broken-item",
+          "another-good-item"
+        ]);
+      });
+
+      it("clears workbench item errors when init data is applied again", async function () {
+        const loadMapItemsSpy = CsvCatalogItem.prototype
+          .loadMapItems as jasmine.Spy;
+        loadMapItemsSpy.and.returnValue(
+          Promise.resolve(Result.error("Failed to load map items"))
+        );
+        await applyInitData({
+          catalog: [goodItem],
+          workbench: ["good-item"]
+        });
+        const item = terria.workbench.items[0];
+        expect(terria.workbench.getItemErrors(item).length).toBe(1);
+
+        loadMapItemsSpy.and.returnValue(Promise.resolve(Result.none()));
+        await applyInitData({ workbench: ["good-item"] });
+
+        expect(terria.workbench.getItemErrors(item)).toEqual([]);
       });
     });
 
@@ -1220,6 +1671,47 @@ describe("TerriaSpec", function () {
 
       expect(terria.terrainSplitDirection).toBe(SplitDirection.LEFT);
       expect(terria.depthTestAgainstTerrainEnabled).toBeTruthy();
+    });
+  });
+
+  describe("storyAutoStart", function () {
+    it("is false by default", function () {
+      expect(terria.storyAutoStart).toBe(false);
+    });
+
+    it("follows the config parameter", function () {
+      terria.updateParameters({ storyAutoStart: true });
+
+      expect(terria.storyAutoStart).toBe(true);
+    });
+
+    it("is overridden by `settings.storyAutoStart` from an init source", async function () {
+      terria.updateParameters({ storyAutoStart: true });
+
+      await terria.applyInitData({
+        initData: { settings: { storyAutoStart: false } }
+      });
+
+      expect(terria.storyAutoStart).toBe(false);
+    });
+
+    it("is overridden by the `playStory` hash parameter", async function () {
+      terria.updateParameters({ storyAutoStart: false });
+      await terria.applyInitData({
+        initData: { settings: { storyAutoStart: false } }
+      });
+
+      await terria.updateApplicationUrl("http://test.com/#playStory=1");
+
+      expect(terria.storyAutoStart).toBe(true);
+    });
+
+    it("is turned off by `playStory=0`", async function () {
+      terria.updateParameters({ storyAutoStart: true });
+
+      await terria.updateApplicationUrl("http://test.com/#playStory=0");
+
+      expect(terria.storyAutoStart).toBe(false);
     });
   });
 
@@ -1445,6 +1937,7 @@ describe("TerriaSpec", function () {
         await terria.start({ configUrl: "test-config.json" });
         await terria.loadInitSources();
         await when(() => terria.currentViewer.type === "Cesium");
+        await when(() => terria.currentViewer.isMapZooming === false);
 
         const cameraPos = terria.cesium?.scene.camera.positionCartographic;
         expect(cameraPos).toBeDefined();
@@ -1468,6 +1961,7 @@ describe("TerriaSpec", function () {
         });
         // Wait for the switch to happen
         await when(() => terria.mainViewer.currentViewer.type === "Cesium");
+        await when(() => terria.currentViewer.isMapZooming === false);
         // Ensure that the camera position is correctly updated after the switch
         const cameraPos = terria.cesium?.scene.camera.positionCartographic;
         const { longitude, latitude, height } = cameraPos!;

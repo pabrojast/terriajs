@@ -175,7 +175,7 @@ para evidencia y limitaciones.
 La rama `integrate/upstream-8.13-flat-20261023` (ver [[Sincronizacion con Upstream]]) cambia requisitos que TerriaMap (`pabrojast/TerriaMap`) debe acompanar antes de fijar el nuevo sha de `terriajs`:
 
 - `engines.node` `>= 22` y `node:22` en el `Dockerfile` (hoy `node:20`).
-- `terriajs-cesium` igual al de esta biblioteca (`23.0.2` tras la etapa 1; `26.3.0` cuando se complete la etapa 2).
+- `terriajs-cesium` igual al de esta biblioteca: `26.3.0` (y `terriajs-cesium-widgets` `16.2.0`); `styled-components` 6 e `i18next` 26 si TerriaMap los importa directamente.
 - `registerCustomComponentTypes(terria)` debe seguir llamandose en `index.js` (la biblioteca ya no lo hace al cargar `parseCustomMarkdownToReact`).
 - Si se quiere autocompletar la busqueda con Nominatim, configurar `autocompleteEnabled: true` en el proveedor; por defecto el fork solo busca al pulsar Enter/boton.
 

@@ -48,7 +48,7 @@ const ButtonsBox = styled(Box).attrs({})`
   gap: 20px;
 `;
 
-const NavigationButton = styled(BoxSpan).attrs({
+const NavigationButton = styled(BoxSpan).attrs<{ disabled?: boolean }>({
   boxShadow: true,
   centered: true,
   rounded: true
@@ -95,7 +95,7 @@ const CollapsedNavigationPanel: FC<PropTypes> = observer((props: PropTypes) => {
         onClick={() => viewState.closeCollapsedNavigation()}
       />
       <Text extraExtraLarge bold textDarker>
-        {t("mapNavigation.additionalTools")}
+        {t(($) => $.mapNavigation.additionalTools)}
       </Text>
       <Spacing bottom={5} />
       <ButtonsBox>

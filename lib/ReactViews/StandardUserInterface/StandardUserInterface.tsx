@@ -9,7 +9,7 @@ import combine from "terriajs-cesium/Source/Core/combine";
 import ViewState from "../../ReactViewModels/ViewState";
 import Disclaimer from "../Disclaimer";
 import DragDropFile from "../DragDropFile";
-import ExplorerWindow from "../ExplorerWindow/ExplorerWindow";
+import { ExplorerWindowComponents } from "../ExplorerWindow/ExplorerWindowComponents";
 import FeatureInfoPanel from "../FeatureInfo/FeatureInfoPanel";
 import FeedbackForm from "../Feedback/FeedbackForm";
 import { Medium, Small } from "../Generic/Responsive";
@@ -21,7 +21,7 @@ import HelpPanel from "../Map/Panels/HelpPanel/HelpPanel";
 import PrintView from "../Map/Panels/SharePanel/Print/PrintView";
 import TrainerBar from "./TrainerBar/TrainerBar";
 import MobileHeader from "../Mobile/MobileHeader";
-import MapInteractionWindow from "../Notification/MapInteractionWindow";
+import MapInteractionModeRenderer from "../Map/MapInteraction/MapInteractionModeRenderer";
 import Notification from "../Notification/Notification";
 import Branding from "../SidePanel/Branding";
 import FullScreenButton from "../SidePanel/FullScreenButton";
@@ -202,7 +202,7 @@ const StandardUserInterfaceBase: FC<StandardUserInterfaceProps> = observer(
                           <FullScreenButton
                             minified
                             animationDuration={250}
-                            btnText={t("addData.btnHide")}
+                            btnText={t(($) => $.addData.btnHide)}
                           />
                           <Branding version={props.version} />
                           <SidePanel />
@@ -225,7 +225,7 @@ const StandardUserInterfaceBase: FC<StandardUserInterfaceProps> = observer(
                     >
                       <FullScreenButton
                         minified={false}
-                        btnText={t("sui.showWorkbench", {
+                        btnText={t(($) => $.sui.showWorkbench, {
                           count: props.viewState.terria.workbench.items.length
                         })}
                         animationDuration={animationDuration}
@@ -252,7 +252,7 @@ const StandardUserInterfaceBase: FC<StandardUserInterfaceProps> = observer(
                   />
                   <div id="map-data-attribution" />
                   <main>
-                    <ExplorerWindow />
+                    <ExplorerWindowComponents.ExplorerWindow />
                     {props.terria.configParameters.experimentalFeatures &&
                       !props.viewState.hideMapUi && (
                         <ExperimentalFeatures
@@ -278,9 +278,9 @@ const StandardUserInterfaceBase: FC<StandardUserInterfaceProps> = observer(
             {props.viewState.panel}
 
             <Notification />
-            <MapInteractionWindow />
+            <MapInteractionModeRenderer />
             {!customElements.feedback.length &&
-              props.terria.configParameters.feedbackUrl &&
+              props.terria.feedbackService &&
               !props.viewState.hideMapUi &&
               props.viewState.feedbackFormIsVisible && <FeedbackForm />}
             <div

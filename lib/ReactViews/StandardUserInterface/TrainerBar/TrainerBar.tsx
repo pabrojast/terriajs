@@ -1,12 +1,8 @@
 import { observer } from "mobx-react";
 import type { ReactNode } from "react";
 import { ChangeEvent, Component, Fragment } from "react";
-import {
-  Translation,
-  WithTranslation,
-  withTranslation,
-  TFunction
-} from "react-i18next";
+import { TFunction } from "i18next";
+import { Translation, WithTranslation, withTranslation } from "react-i18next";
 import styled, { DefaultTheme, withTheme } from "styled-components";
 import {
   HelpContentItem,
@@ -226,14 +222,14 @@ class StepAccordionRaw extends Component<
                       onClick={() => setIsShowingAllSteps(!isShowingAllSteps)}
                       title={
                         isShowingAllSteps
-                          ? t("trainer.hideAllSteps")
-                          : t("trainer.showAllSteps")
+                          ? t(($) => $.trainer.hideAllSteps)
+                          : t(($) => $.trainer.showAllSteps)
                       }
                     >
                       <TextSpan medium primary isLink textAlignLeft>
                         {isShowingAllSteps
-                          ? t("trainer.hideAllSteps")
-                          : t("trainer.showAllSteps")}
+                          ? t(($) => $.trainer.hideAllSteps)
+                          : t(($) => $.trainer.showAllSteps)}
                       </TextSpan>
                     </RawButton>
                   </>
@@ -249,8 +245,8 @@ class StepAccordionRaw extends Component<
             // onFocus={() => setIsPeeking(true)}
             title={
               isExpanded
-                ? t("trainer.collapseTrainer")
-                : t("trainer.expandTrainer")
+                ? t(($) => $.trainer.collapseTrainer)
+                : t(($) => $.trainer.expandTrainer)
             }
             // onBlur={() => {
             //   if (!isExpanded) setIsPeeking(false);
@@ -438,7 +434,7 @@ export const TrainerBar = observer((props: TrainerBarProps) => {
               );
             }}
           >
-            {t("general.back")}
+            {t(($) => $.general.back)}
           </Button>
           <Spacing right={2} />
           <Button
@@ -454,7 +450,7 @@ export const TrainerBar = observer((props: TrainerBarProps) => {
               );
             }}
           >
-            {t("general.next")}
+            {t(($) => $.general.next)}
           </Button>
           <Spacing right={5} />
           <Box centered>

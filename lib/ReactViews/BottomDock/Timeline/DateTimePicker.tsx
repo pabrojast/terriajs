@@ -137,6 +137,7 @@ const DateTimePicker: React.FC<PropsType> = ({
       day: defaultDay,
       hour: undefined as number | undefined,
       time: undefined as Date | undefined,
+      selectedDate: undefined as Date | undefined,
       get currentView(): DateTimePickerStore["currentView"] {
         const { century, year, month, day, hour } = this;
 
@@ -332,7 +333,7 @@ const DateTimePicker: React.FC<PropsType> = ({
             `}
           >
             <BackButton
-              title={t("dateTime.back")}
+              title={t(($) => $.dateTime.back)}
               disabled={!store.canGoBack}
               type="button"
               onClick={store.goBack}

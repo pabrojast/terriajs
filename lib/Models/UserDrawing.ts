@@ -74,6 +74,9 @@ export default class UserDrawing extends MappableMixin(
   // helper for dragging points around
   private dragHelper?: DragPoints;
 
+  // the MapInteractionMode this UserDrawing pushed onto terria.mapInteractionModeStack, if any - tracked so cleanUp() can remove it by identity
+  private activeMapInteractionMode?: MapInteractionMode;
+
   pointEntities: CustomDataSource;
   otherEntities: CustomDataSource;
   polygon?: Entity;
@@ -99,7 +102,8 @@ export default class UserDrawing extends MappableMixin(
      * Text that appears at the top of the dialog when drawmode is active.
      */
     this.messageHeader =
-      options.messageHeader ?? i18next.t("models.userDrawing.messageHeader");
+      options.messageHeader ??
+      i18next.t(($) => $.models.userDrawing.messageHeader);
 
     /**
      * If true, user can click on first point to close the line, turning it into a polygon.
@@ -503,6 +507,7 @@ export default class UserDrawing extends MappableMixin(
     this.interactionMode = pickPointMode;
     runInAction(() => {
       this.terria.mapInteractionModeStack.push(pickPointMode);
+      this.activeMapInteractionMode = pickPointMode;
     });
     return pickPointMode;
   }
@@ -618,6 +623,16 @@ export default class UserDrawing extends MappableMixin(
 
     runInAction(() => {
       this.inDrawMode = false;
+
+      // Remove the MapInteractionMode entry from the stack if still present.
+      if (this.activeMapInteractionMode !== undefined) {
+        const stack = this.terria.mapInteractionModeStack;
+        const index = stack.indexOf(this.activeMapInteractionMode);
+        if (index !== -1) {
+          stack.splice(index, 1);
+        }
+        this.activeMapInteractionMode = undefined;
+      }
     });
     this.closeLoop = false;
 
@@ -665,13 +680,19 @@ export default class UserDrawing extends MappableMixin(
 
     if (this.drawRectangle && this.pointEntities.entities.values.length >= 2) {
       message +=
-        "<i>" + i18next.t("models.userDrawing.clickToRedrawRectangle") + "</i>";
+        "<i>" +
+        i18next.t(($) => $.models.userDrawing.clickToRedrawRectangle) +
+        "</i>";
     } else if (this.pointEntities.entities.values.length > 0) {
       message +=
-        "<i>" + i18next.t("models.userDrawing.clickToAddAnotherPoint") + "</i>";
+        "<i>" +
+        i18next.t(($) => $.models.userDrawing.clickToAddAnotherPoint) +
+        "</i>";
     } else {
       message +=
-        "<i>" + i18next.t("models.userDrawing.clickToAddFirstPoint") + "</i>";
+        "<i>" +
+        i18next.t(($) => $.models.userDrawing.clickToAddFirstPoint) +
+        "</i>";
     }
     // htmlToReactParser will fail if html doesn't have only one root element.
     return "<div>" + message + "</div>";
@@ -684,8 +705,8 @@ export default class UserDrawing extends MappableMixin(
     return (
       this.buttonText ??
       (this.pointEntities.entities.values.length >= 2
-        ? i18next.t("models.userDrawing.btnDone")
-        : i18next.t("models.userDrawing.btnCancel"))
+        ? i18next.t(($) => $.models.userDrawing.btnDone)
+        : i18next.t(($) => $.models.userDrawing.btnCancel))
     );
   }
 

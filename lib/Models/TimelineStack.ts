@@ -4,7 +4,9 @@ import {
   autorun,
   computed,
   makeObservable,
-  observable
+  observable,
+  runInAction,
+  untracked
 } from "mobx";
 import Clock from "terriajs-cesium/Source/Core/Clock";
 import ClockRange from "terriajs-cesium/Source/Core/ClockRange";
@@ -38,6 +40,14 @@ export default class TimelineStack {
 
   @observable
   defaultTimeVarying: TimeVarying | undefined;
+
+  /**
+   * The start and stop time last applied to the clock from the top layer.
+   * Updated only after the clock has been moved to the top layer, so views of
+   * the clock (e.g. the timeline) can react to it without racing the sync.
+   */
+  @observable.ref
+  clockRange: { start: JulianDate; stop: JulianDate } | undefined;
 
   private _disposeClockAutorun: IReactionDisposer | undefined;
   private _disposeTickSubscription: CesiumEvent.RemoveCallback | undefined;
@@ -82,6 +92,20 @@ export default class TimelineStack {
       this.clock.shouldAnimate = !topLayer.isPaused;
       this.clock.clockRange = ClockRange.LOOP_STOP;
 
+      const appliedRange = untracked(() => this.clockRange);
+      if (
+        !appliedRange ||
+        !JulianDate.equals(appliedRange.start, this.clock.startTime) ||
+        !JulianDate.equals(appliedRange.stop, this.clock.stopTime)
+      ) {
+        runInAction(() => {
+          this.clockRange = {
+            start: JulianDate.clone(this.clock.startTime),
+            stop: JulianDate.clone(this.clock.stopTime)
+          };
+        });
+      }
+
       if (this._disposeTickSubscription === undefined) {
         // We should start synchronizing only after first run of this autorun so that
         // the clock parameters are set correctly.
@@ -109,7 +133,7 @@ export default class TimelineStack {
    */
   @computed
   get top(): TimeVarying | undefined {
-    // Find the first item with a current, start, and stop time.
+    // Find the first item with a current time and a non-empty time range.
     // Use the default if there isn't one.
     return (
       this.items.find((item) => {
@@ -119,8 +143,7 @@ export default class TimelineStack {
             : item;
         return (
           dereferenced.currentTimeAsJulianDate !== undefined &&
-          dereferenced.startTimeAsJulianDate !== undefined &&
-          dereferenced.stopTimeAsJulianDate !== undefined
+          TimeVarying.hasTimeRange(dereferenced)
         );
       }) || this.defaultTimeVarying
     );
