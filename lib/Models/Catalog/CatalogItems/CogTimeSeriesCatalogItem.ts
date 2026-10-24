@@ -277,6 +277,7 @@ class CogTimeSeriesStratum extends LoadableStratum(
     string,
     StratumFromTraits<CogTimeEntryTraits>[]
   >();
+  private _loadingTimeEntries = new Map<string, Promise<void>>();
   private _loadedAreaValues: Map<
     string,
     Array<{ time: string; value: number }>
@@ -489,6 +490,18 @@ class CogTimeSeriesStratum extends LoadableStratum(
       return;
     }
 
+    const pending = this._loadingTimeEntries.get(sourceUrl);
+    if (pending) return pending;
+    const request = this.fetchTimeEntries(sourceUrl);
+    this._loadingTimeEntries.set(sourceUrl, request);
+    try {
+      await request;
+    } finally {
+      this._loadingTimeEntries.delete(sourceUrl);
+    }
+  }
+
+  private async fetchTimeEntries(sourceUrl: string): Promise<void> {
     const url = proxyCatalogItemUrl(this.model, sourceUrl);
     try {
       const json = await loadJson<TimeSeriesJsonDefinition>(url);
@@ -906,6 +919,11 @@ export default class CogTimeSeriesCatalogItem extends DiscretelyTimeVaryingMixin
   /**
    * Load time entries and area calculation data.
    */
+  /** Load the active resolution metadata without requiring a rendered map. */
+  async loadTimeSeriesMetadata(): Promise<void> {
+    if (!this.timeEntries?.length) await this._stratum.loadTimeEntries();
+  }
+
   protected async forceLoadMapItems(): Promise<void> {
     // Load time entries from URL if not defined inline
     if (!this.timeEntries || this.timeEntries.length === 0) {

@@ -1,9 +1,7 @@
 /**
  * CogAreaCalculationPanel — Shows precalculated area statistics for
  * CogTimeSeriesCatalogItem items that have `areaCalculations` with
- * inline or remote values.  Also shows a prominent "Calculate area"
- * button for any cog-time-series item on the workbench so users
- * can easily launch the zonal calculation tool.
+ * inline or remote values. Interactive analysis is available in Tools.
  *
  * Renders in the BottomDock when a qualifying item is on the workbench.
  * Displays: current-time value badges + mini SVG line chart per calculation.
@@ -44,7 +42,8 @@ function getCogTimeSeriesItems(terria: Terria): CogTimeSeriesCatalogItem[] {
     (item): item is CogTimeSeriesCatalogItem =>
       item.type === "cog-time-series" &&
       item instanceof CogTimeSeriesCatalogItem &&
-      !item.waterQuality?.dataUrl
+      !item.waterQuality?.dataUrl &&
+      (item.areaCalculations?.length ?? 0) > 0
   );
 }
 
@@ -61,11 +60,7 @@ const CogAreaCalculationPanel: React.FC<Props> = observer(
       <AnalysisTheme>
         <PanelContainer>
           {items.map((item) => (
-            <ItemAreaPanel
-              key={item.uniqueId}
-              item={item}
-              viewState={viewState}
-            />
+            <ItemAreaPanel key={item.uniqueId} item={item} />
           ))}
         </PanelContainer>
       </AnalysisTheme>
@@ -79,171 +74,155 @@ export default CogAreaCalculationPanel;
 
 interface ItemAreaPanelProps {
   item: CogTimeSeriesCatalogItem;
-  viewState: ViewState;
 }
 
-const ItemAreaPanel: React.FC<ItemAreaPanelProps> = observer(
-  ({ item, viewState }) => {
-    const { t } = useTranslation();
-    const tr = (key: string, options?: Record<string, unknown>) =>
-      t(`models.cogCalculation.${key}`, options);
-    const [expanded, setExpanded] = useState(true);
-    const [selectedCalc, setSelectedCalc] = useState<string | undefined>(
-      undefined
-    );
+const ItemAreaPanel: React.FC<ItemAreaPanelProps> = observer(({ item }) => {
+  const { t } = useTranslation();
+  const tr = (key: string, options?: Record<string, unknown>) =>
+    t(`models.cogCalculation.${key}`, options);
+  const [expanded, setExpanded] = useState(true);
+  const [selectedCalc, setSelectedCalc] = useState<string | undefined>(
+    undefined
+  );
 
-    const currentResults = item.currentAreaCalculationResults;
-    const areaCalcs = item.areaCalculations;
-    const hasAreaCalcs =
-      (areaCalcs?.length ?? 0) > 0 &&
-      (areaCalcs?.some((c) => c.values && c.values.length > 0) ?? false);
+  const currentResults = item.currentAreaCalculationResults;
+  const areaCalcs = item.areaCalculations;
+  const hasAreaCalcs =
+    (areaCalcs?.length ?? 0) > 0 &&
+    (areaCalcs?.some((c) => c.values && c.values.length > 0) ?? false);
 
-    // Default to first calc
-    const activeCalcName = selectedCalc ?? areaCalcs?.[0]?.name;
+  // Default to first calc
+  const activeCalcName = selectedCalc ?? areaCalcs?.[0]?.name;
 
-    const allSeries = useMemo(() => {
-      const map: Record<string, Array<{ time: string; value: number }>> = {};
-      for (const calc of areaCalcs ?? []) {
-        if (!calc.name) continue;
-        const series = item.getAreaCalculationTimeSeries(calc.name);
-        if (series) map[calc.name] = series;
-      }
-      return map;
-    }, [areaCalcs, item]);
+  const allSeries = useMemo(() => {
+    const map: Record<string, Array<{ time: string; value: number }>> = {};
+    for (const calc of areaCalcs ?? []) {
+      if (!calc.name) continue;
+      const series = item.getAreaCalculationTimeSeries(calc.name);
+      if (series) map[calc.name] = series;
+    }
+    return map;
+  }, [areaCalcs, item]);
 
-    const openCalculationTool = useCallback(() => {
-      viewState.openTool({
-        toolName: COG_CALCULATION_TOOL_ID,
-        getToolComponent: () =>
-          import("./CogCalculationTool").then((m) => m.default as any),
-        params: { itemId: item.uniqueId }
-      });
-    }, [viewState, item.uniqueId]);
+  const toggleChartPanel = useCallback(() => {
+    runInAction(() => {
+      item.setTrait(
+        CommonStrata.user,
+        "showInChartPanel",
+        !item.showInChartPanel
+      );
+    });
+  }, [item]);
 
-    const toggleChartPanel = useCallback(() => {
-      runInAction(() => {
-        item.setTrait(
-          CommonStrata.user,
-          "showInChartPanel",
-          !item.showInChartPanel
-        );
-      });
-    }, [item]);
+  const isInChartPanel = item.showInChartPanel;
 
-    const isInChartPanel = item.showInChartPanel;
+  return (
+    <ItemContainer>
+      <HeaderRow>
+        <ItemTitle title={item.name}>
+          <Icon glyph={GLYPHS.lineChart} />
+          <span>{item.name ?? "COG Time Series"}</span>
+        </ItemTitle>
+        <HeaderActions>
+          {hasAreaCalcs ? (
+            <>
+              <ChartToggleButton
+                aria-label={tr(isInChartPanel ? "hideChart" : "showChart")}
+                aria-pressed={isInChartPanel}
+                onClick={toggleChartPanel}
+              >
+                <Icon glyph={GLYPHS.lineChart} />
+              </ChartToggleButton>
+              <CollapseButton
+                aria-label={tr(expanded ? "collapsePanel" : "expandPanel")}
+                aria-expanded={expanded}
+                onClick={() => setExpanded(!expanded)}
+              >
+                <Icon glyph={expanded ? GLYPHS.collapse : GLYPHS.expand} />
+              </CollapseButton>
+            </>
+          ) : null}
+        </HeaderActions>
+      </HeaderRow>
+      {expanded && (
+        <>
+          {/* Current time value badges (only if precalculated values exist) */}
+          {hasAreaCalcs && currentResults.length > 0 && (
+            <>
+              <SectionLabel>{tr("precalculated")}</SectionLabel>
+              <BadgeRow>
+                {currentResults.map((r) => (
+                  <ValueBadge
+                    key={r.name}
+                    active={r.name === activeCalcName}
+                    onClick={() => setSelectedCalc(r.name)}
+                  >
+                    <BadgeLabel>{r.name}</BadgeLabel>
+                    <BadgeValue>
+                      {r.value !== undefined ? formatValue(r.value) : "—"}
+                      {r.unit ? ` ${r.unit}` : ""}
+                    </BadgeValue>
+                  </ValueBadge>
+                ))}
+              </BadgeRow>
 
-    return (
-      <ItemContainer>
-        <HeaderRow>
-          <ItemTitle title={item.name}>
-            <Icon glyph={GLYPHS.lineChart} />
-            <span>{item.name ?? "COG Time Series"}</span>
-          </ItemTitle>
-          <HeaderActions>
-            <CalculateButton data-area-launcher onClick={openCalculationTool}>
-              <Icon glyph={GLYPHS.lineChart} />
-              {tr("calculateArea")}
-            </CalculateButton>
-            {hasAreaCalcs ? (
-              <>
-                <ChartToggleButton
-                  aria-label={tr(isInChartPanel ? "hideChart" : "showChart")}
-                  aria-pressed={isInChartPanel}
-                  onClick={toggleChartPanel}
-                >
-                  <Icon glyph={GLYPHS.lineChart} />
-                </ChartToggleButton>
-                <CollapseButton
-                  aria-label={tr(expanded ? "collapsePanel" : "expandPanel")}
-                  aria-expanded={expanded}
-                  onClick={() => setExpanded(!expanded)}
-                >
-                  <Icon glyph={expanded ? GLYPHS.collapse : GLYPHS.expand} />
-                </CollapseButton>
-              </>
-            ) : null}
-          </HeaderActions>
-        </HeaderRow>
-        {expanded && (
-          <>
-            {/* Current time value badges (only if precalculated values exist) */}
-            {hasAreaCalcs && currentResults.length > 0 && (
-              <>
-                <SectionLabel>{tr("precalculated")}</SectionLabel>
-                <BadgeRow>
-                  {currentResults.map((r) => (
-                    <ValueBadge
-                      key={r.name}
-                      active={r.name === activeCalcName}
-                      onClick={() => setSelectedCalc(r.name)}
-                    >
-                      <BadgeLabel>{r.name}</BadgeLabel>
-                      <BadgeValue>
-                        {r.value !== undefined ? formatValue(r.value) : "—"}
-                        {r.unit ? ` ${r.unit}` : ""}
-                      </BadgeValue>
-                    </ValueBadge>
-                  ))}
-                </BadgeRow>
+              {/* Chart for selected calculation */}
+              {activeCalcName && allSeries[activeCalcName] && (
+                <ChartSection>
+                  <MiniTimeSeriesChart
+                    data={allSeries[activeCalcName]}
+                    currentTime={item.currentDiscreteTimeTag}
+                    unit={
+                      areaCalcs.find((c) => c.name === activeCalcName)?.unit ??
+                      ""
+                    }
+                    label={activeCalcName}
+                  />
+                </ChartSection>
+              )}
 
-                {/* Chart for selected calculation */}
-                {activeCalcName && allSeries[activeCalcName] && (
-                  <ChartSection>
-                    <MiniTimeSeriesChart
-                      data={allSeries[activeCalcName]}
-                      currentTime={item.currentDiscreteTimeTag}
-                      unit={
-                        areaCalcs.find((c) => c.name === activeCalcName)
-                          ?.unit ?? ""
-                      }
-                      label={activeCalcName}
-                    />
-                  </ChartSection>
-                )}
-
-                {/* Values table (collapsible) */}
-                {activeCalcName && allSeries[activeCalcName] && (
-                  <StyledDetails>
-                    <StyledSummary style={{ padding: "0 12px" }}>
-                      <Text as="span" mini textLight>
-                        {tr("viewTable", {
-                          count: allSeries[activeCalcName].length
-                        })}
-                      </Text>
-                    </StyledSummary>
-                    <ValuesTable>
-                      <thead>
-                        <tr>
-                          <th>{tr("date")}</th>
-                          <th>
+              {/* Values table (collapsible) */}
+              {activeCalcName && allSeries[activeCalcName] && (
+                <StyledDetails>
+                  <StyledSummary style={{ padding: "0 12px" }}>
+                    <Text as="span" mini textLight>
+                      {tr("viewTable", {
+                        count: allSeries[activeCalcName].length
+                      })}
+                    </Text>
+                  </StyledSummary>
+                  <ValuesTable>
+                    <thead>
+                      <tr>
+                        <th>{tr("date")}</th>
+                        <th>
+                          {areaCalcs.find((c) => c.name === activeCalcName)
+                            ?.statistic ?? "Value"}
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {allSeries[activeCalcName].map((v, i) => (
+                        <tr key={i}>
+                          <td>{v.time.slice(0, 10)}</td>
+                          <td>
+                            {formatValue(v.value)}{" "}
                             {areaCalcs.find((c) => c.name === activeCalcName)
-                              ?.statistic ?? "Value"}
-                          </th>
+                              ?.unit ?? ""}
+                          </td>
                         </tr>
-                      </thead>
-                      <tbody>
-                        {allSeries[activeCalcName].map((v, i) => (
-                          <tr key={i}>
-                            <td>{v.time.slice(0, 10)}</td>
-                            <td>
-                              {formatValue(v.value)}{" "}
-                              {areaCalcs.find((c) => c.name === activeCalcName)
-                                ?.unit ?? ""}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </ValuesTable>
-                  </StyledDetails>
-                )}
-              </>
-            )}
-          </>
-        )}
-      </ItemContainer>
-    );
-  }
-);
+                      ))}
+                    </tbody>
+                  </ValuesTable>
+                </StyledDetails>
+              )}
+            </>
+          )}
+        </>
+      )}
+    </ItemContainer>
+  );
+});
 
 // ─── Mini SVG Chart ─────────────────────────────────────────────
 
@@ -443,7 +422,7 @@ const PanelContainer = styled.div`
 
 const ItemContainer = styled.div`
   background: ${(p) => p.theme.dark};
-  border: 1px solid #dce4eb;
+  border: 1px solid ${(p) => p.theme.darkLighter};
   box-shadow: 0 2px 8px rgba(31, 41, 55, 0.06);
   border-radius: 10px;
   margin-bottom: 6px;
@@ -456,7 +435,7 @@ const HeaderRow = styled.div`
   justify-content: space-between;
   gap: 12px;
   padding: 8px 12px;
-  color: #1f2937;
+  color: ${(p) => p.theme.textLight};
   @media (max-width: 767px) {
     flex-wrap: wrap;
     gap: 6px;
@@ -471,7 +450,7 @@ const ItemTitle = styled.div`
   font-size: 13px;
   font-weight: 600;
   svg {
-    fill: #0f6b82;
+    fill: ${(p) => p.theme.colorPrimary};
     flex: 0 0 20px;
     width: 20px;
     height: 20px;
@@ -488,41 +467,14 @@ const HeaderActions = styled.div`
   align-items: center;
   flex-shrink: 0;
 `;
-const CalculateButton = styled.button`
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  min-height: 44px;
-  padding: 8px 14px;
-  border: 1px solid #0f6b82;
-  border-radius: 8px;
-  background: #0f6b82;
-  color: white;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  svg {
-    width: 18px;
-    height: 18px;
-    fill: currentColor;
-  }
-  &:hover {
-    background: #09546a;
-  }
-  &:focus-visible {
-    outline: 3px solid #5aa9c1;
-    outline-offset: 2px;
-  }
-`;
 const CollapseButton = styled.button`
   display: grid;
   place-items: center;
   min-width: 44px;
   min-height: 44px;
-  color: #0f6b82;
-  background: #f4f7fa;
-  border: 1px solid #dce4eb;
+  color: ${(p) => p.theme.textLight};
+  background: ${(p) => p.theme.darkWithOverlay};
+  border: 1px solid ${(p) => p.theme.darkLighter};
   border-radius: 8px;
   cursor: pointer;
   svg {

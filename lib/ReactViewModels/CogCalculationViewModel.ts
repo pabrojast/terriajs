@@ -10,7 +10,9 @@ import {
   computed,
   makeObservable,
   observable,
-  runInAction
+  runInAction,
+  reaction,
+  IReactionDisposer
 } from "mobx";
 import Cartesian3 from "terriajs-cesium/Source/Core/Cartesian3";
 import Cartographic from "terriajs-cesium/Source/Core/Cartographic";
@@ -34,6 +36,13 @@ import {
   TimeSeriesProgress
 } from "../Core/CogTimeSeriesCalculator";
 import proxyCatalogItemUrl from "../Models/Catalog/proxyCatalogItemUrl";
+import CommonStrata from "../Models/Definition/CommonStrata";
+import {
+  calendarPeriod,
+  inclusiveDateEnd,
+  periodBoundary,
+  periodInput
+} from "../Core/cogAnalysisPeriod";
 import createAreaPolygon from "../Core/createAreaPolygon";
 import UserDrawing from "../Models/UserDrawing";
 import { BaseModel } from "../Models/Definition/Model";
@@ -69,6 +78,13 @@ const STAT_LABELS: Record<keyof ZonalStatistics, string> = {
   stddev: "Std. deviation"
 };
 
+export interface AreaResultContext {
+  resolutionId?: string;
+  resolutionName: string;
+  period: string;
+  unit?: string;
+}
+
 const TIME_CHART_AXIS: ChartAxis = { name: "Time", scale: "time" };
 
 // ─── ViewModel ──────────────────────────────────────────────────
@@ -85,6 +101,10 @@ export default class CogCalculationViewModel {
   @observable subsampleStep: number = 1;
   @observable overviewLevel: number | undefined = undefined;
 
+  @observable isLoadingResolution = false;
+  @observable resolutionError: string | undefined = undefined;
+  @observable.ref resultContext: AreaResultContext | undefined = undefined;
+
   // Progress
   @observable progress: TimeSeriesProgress | undefined = undefined;
   @observable isCalculating: boolean = false;
@@ -94,6 +114,10 @@ export default class CogCalculationViewModel {
   @observable timeSeriesResults: TimeStepResult[] | undefined = undefined;
   @observable error: string | undefined = undefined;
 
+  private _contextVersion = 0;
+  private _calculationVersion = 0;
+  private _disposed = false;
+  private _disposers: IReactionDisposer[] = [];
   private _abortController: AbortController | undefined = undefined;
   private _userDrawing: UserDrawing | undefined = undefined;
   readonly terria: Terria;
@@ -104,6 +128,40 @@ export default class CogCalculationViewModel {
     this.viewState = viewState;
     this.selectedItemId = itemId;
     makeObservable(this);
+    this._disposers.push(
+      reaction(
+        () =>
+          [
+            this.selectedItem,
+            this.selectedTimeSeriesItem?.activeResolution?.id,
+            this.selectedTimeSeriesItem?.activeBand?.band ??
+              this.selectedTimeSeriesItem?.renderOptions?.single?.band ??
+              1
+          ] as const,
+        ([item, id, band], previous) => {
+          if (
+            previous &&
+            item === previous[0] &&
+            id === previous[1] &&
+            band === previous[2]
+          )
+            return;
+          (
+            previous?.[0] as CogTimeSeriesCatalogItem | undefined
+          )?.clearTemporaryAreaChart?.();
+          this.syncResolution();
+        },
+        { fireImmediately: true }
+      )
+    );
+    this._disposers.push(
+      reaction(
+        () => viewState.currentTool?.toolName,
+        (name) => {
+          if (name !== "cog-calculation-tool") this.dispose();
+        }
+      )
+    );
   }
 
   // ─── Computed ──────────────────────────────────────────────
@@ -154,7 +212,7 @@ export default class CogCalculationViewModel {
     return estimateTimeSeriesWork(
       this.timeEntries as any,
       this.startDate,
-      this.endDate,
+      inclusiveDateEnd(this.endDate),
       this.subsampleStep
     );
   }
@@ -172,10 +230,110 @@ export default class CogCalculationViewModel {
     );
   }
 
+  @computed get resolutions() {
+    return (
+      this.selectedTimeSeriesItem?.resolutions.filter(
+        (r) => r.id !== undefined
+      ) ?? []
+    );
+  }
+  @computed get resolutionId() {
+    return this.selectedTimeSeriesItem?.activeResolution?.id;
+  }
+  @computed get periodType() {
+    return calendarPeriod(this.resolutionId);
+  }
+  @computed get resolutionName(): string {
+    const resolution = this.selectedTimeSeriesItem?.activeResolution;
+    return (
+      resolution?.name ??
+      resolution?.id ??
+      i18next.t("models.cogCalculation.originalResolution")
+    );
+  }
+  @computed get availableYears(): string[] {
+    return Array.from(
+      new Set(this.timeEntries.map((e) => e.time.slice(0, 4)))
+    ).sort();
+  }
+  @computed get analysisUnit(): string | undefined {
+    const item = this.selectedTimeSeriesItem;
+    return (
+      item?.availableBands.find((b) => b.band === this.selectedBand)?.unit ??
+      item?.unit
+    );
+  }
+  @computed get periodLabel(): string {
+    const dates = this.timeEntries
+      .map((e) => e.time)
+      .filter((t) => Number.isFinite(Date.parse(t)))
+      .sort();
+    const start = this.startDate ?? dates[0]?.slice(0, 10);
+    const end = this.endDate ?? dates[dates.length - 1]?.slice(0, 10);
+    if (!start || !end) return i18next.t("models.cogCalculation.noPeriod");
+    const first = periodInput(start, this.resolutionId),
+      last = periodInput(end, this.resolutionId);
+    return first === last ? first : `${first} – ${last}`;
+  }
+
+  @action private invalidateCalculation(): void {
+    this.selectedTimeSeriesItem?.clearTemporaryAreaChart();
+    this._calculationVersion++;
+    this._abortController?.abort();
+    this._abortController = undefined;
+    this.isCalculating = false;
+    this.singleResult = undefined;
+    this.timeSeriesResults = undefined;
+    this.resultContext = undefined;
+    this.progress = undefined;
+    this.error = undefined;
+    if (this.polygon) this.phase = "configuring";
+  }
+
+  @action private syncResolution(): void {
+    this.invalidateCalculation();
+    this.startDate = periodBoundary(this.startDate, this.resolutionId);
+    this.endDate = periodBoundary(this.endDate, this.resolutionId, true);
+    this.selectedBand =
+      this.selectedTimeSeriesItem?.activeBand?.band ??
+      this.selectedTimeSeriesItem?.renderOptions?.single?.band ??
+      1;
+    void this.loadResolution();
+  }
+
+  @action async loadResolution(): Promise<void> {
+    const version = ++this._contextVersion;
+    const item = this.selectedTimeSeriesItem;
+    this.resolutionError = undefined;
+    this.isLoadingResolution = !!item;
+    try {
+      await item?.loadTimeSeriesMetadata();
+    } catch (_error) {
+      if (version === this._contextVersion && !this._disposed)
+        runInAction(() => {
+          this.resolutionError = i18next.t(
+            "models.cogCalculation.resolutionLoadError"
+          );
+        });
+    } finally {
+      if (version === this._contextVersion && !this._disposed)
+        runInAction(() => {
+          this.isLoadingResolution = false;
+        });
+    }
+  }
+
+  @action setResolution(id: string): void {
+    const item = this.selectedTimeSeriesItem;
+    if (!item || !this.resolutions.some((r) => r.id === id)) return;
+    item.setActiveResolution(CommonStrata.user, id);
+  }
+
   // ─── Actions ──────────────────────────────────────────────
 
   @action
   startDrawing(): void {
+    this.invalidateCalculation();
     // Clean up any existing drawing before starting a new one
     if (this._userDrawing) {
       this._userDrawing.endDrawing();
@@ -266,18 +424,24 @@ export default class CogCalculationViewModel {
 
   @action
   setBand(band: number): void {
+    this.invalidateCalculation();
     this.selectedBand = band;
+    const item = this.selectedTimeSeriesItem;
+    const selected = item?.availableBands.find((b) => b.band === band);
+    if (selected?.id) item?.setActiveBand(CommonStrata.user, selected.id);
   }
 
   @action
   setStatistic(stat: keyof ZonalStatistics): void {
+    this.invalidateCalculation();
     this.selectedStatistic = stat;
   }
 
   @action
   setDateRange(start: string | undefined, end: string | undefined): void {
-    this.startDate = start;
-    this.endDate = end;
+    this.invalidateCalculation();
+    this.startDate = periodBoundary(start, this.resolutionId);
+    this.endDate = periodBoundary(end, this.resolutionId, true);
   }
 
   @action
@@ -292,6 +456,14 @@ export default class CogCalculationViewModel {
 
   @action
   async startCalculation(): Promise<void> {
+    if (this._disposed || this.isLoadingResolution || this.resolutionError)
+      return;
+    if (
+      this.isTimeSeries &&
+      (!this.estimatedWork.timeSteps ||
+        (this.startDate && this.endDate && this.startDate > this.endDate))
+    )
+      return;
     if (!this.polygon || !this.selectedItem) {
       this.error = i18next.t("models.cogCalculation.selectLayerAndPolygon");
       this.phase = "error";
@@ -303,13 +475,36 @@ export default class CogCalculationViewModel {
     this.error = undefined;
     this.singleResult = undefined;
     this.timeSeriesResults = undefined;
-    this._abortController = new AbortController();
+    this._abortController?.abort();
+    const controller = (this._abortController = new AbortController());
+    const version = ++this._calculationVersion;
+    this.resultContext = {
+      resolutionId: this.resolutionId,
+      resolutionName: this.resolutionName,
+      period: this.periodLabel,
+      unit:
+        this.selectedStatistic === "count"
+          ? i18next.t("models.cogCalculation.pixels")
+          : this.analysisUnit
+    };
+    const current = () =>
+      version === this._calculationVersion &&
+      !controller.signal.aborted &&
+      !this._disposed;
 
     try {
       if (this.isTimeSeries) {
-        await this._calculateTimeSeries();
+        const result = await this._calculateTimeSeries(controller);
+        if (!current()) return;
+        runInAction(() => {
+          this.timeSeriesResults = result;
+        });
       } else {
-        await this._calculateSingle();
+        const result = await this._calculateSingle(controller);
+        if (!current()) return;
+        runInAction(() => {
+          this.singleResult = result;
+        });
       }
 
       runInAction(() => {
@@ -317,6 +512,7 @@ export default class CogCalculationViewModel {
         this.isCalculating = false;
       });
     } catch (e: any) {
+      if (!current()) return;
       runInAction(() => {
         if (e?.name === "AbortError") {
           this.phase = "configuring";
@@ -331,7 +527,9 @@ export default class CogCalculationViewModel {
     }
   }
 
-  private async _calculateSingle(): Promise<void> {
+  private async _calculateSingle(
+    controller: AbortController
+  ): Promise<ZonalCalculationResult> {
     const item = this.selectedItem as any;
     // For a single COG, get the URL
     let cogUrl: string;
@@ -356,8 +554,10 @@ export default class CogCalculationViewModel {
       valueOffset: item.valueOffset,
       noDataValues: item.noDataValues,
       overviewLevel: this.overviewLevel,
-      signal: this._abortController?.signal,
+      signal: controller.signal,
       onProgress: (fraction) => {
+        if (controller !== this._abortController || controller.signal.aborted)
+          return;
         runInAction(() => {
           this.progress = {
             completed: Math.floor(fraction * 100),
@@ -369,12 +569,12 @@ export default class CogCalculationViewModel {
       }
     });
 
-    runInAction(() => {
-      this.singleResult = result;
-    });
+    return result;
   }
 
-  private async _calculateTimeSeries(): Promise<void> {
+  private async _calculateTimeSeries(
+    controller: AbortController
+  ): Promise<TimeStepResult[]> {
     const item = this.selectedItem as any;
     const entries = item.timeEntries;
     if (!entries || entries.length === 0) {
@@ -395,25 +595,26 @@ export default class CogCalculationViewModel {
       valueOffset: item.valueOffset,
       noDataValues: item.noDataValues,
       startDate: this.startDate,
-      endDate: this.endDate,
+      endDate: inclusiveDateEnd(this.endDate),
       subsampleStep: this.subsampleStep,
       overviewLevel: this.overviewLevel,
       concurrency: 2,
-      signal: this._abortController?.signal,
+      signal: controller.signal,
       onProgress: (progress) => {
+        if (controller !== this._abortController || controller.signal.aborted)
+          return;
         runInAction(() => {
           this.progress = progress;
         });
       }
     });
 
-    runInAction(() => {
-      this.timeSeriesResults = results;
-    });
+    return results;
   }
 
   @action
   cancelCalculation(): void {
+    this._calculationVersion++;
     this._abortController?.abort();
     this._abortController = undefined;
     this.isCalculating = false;
@@ -477,6 +678,8 @@ export default class CogCalculationViewModel {
     item.setTemporaryAreaChart({
       name: `Area ${
         STAT_LABELS[this.selectedStatistic] ?? this.selectedStatistic
+      } · ${this.resultContext?.resolutionName ?? this.resolutionName} · ${
+        this.resultContext?.period ?? this.periodLabel
       }`,
       values
     });
@@ -496,7 +699,11 @@ export default class CogCalculationViewModel {
     const header = [
       `# Analysis: user-drawn polygon; not a water-body core statistic`,
       `# Source: ${item?.name ?? "COG"}`,
-      `# Unit: ${item?.displayUnit ?? "not specified"}; band: ${
+      `# Temporal resolution: ${
+        this.resultContext?.resolutionName ?? this.resolutionName
+      } (${this.resultContext?.resolutionId ?? "original"})`,
+      `# Period: ${this.resultContext?.period ?? this.periodLabel}`,
+      `# Unit: ${this.resultContext?.unit ?? "not specified"}; band: ${
         this.selectedBand
       }`,
       `# Values converted to physical units before aggregation; nodata excluded`,
@@ -524,6 +731,11 @@ export default class CogCalculationViewModel {
   }
 
   dispose(): void {
+    if (this._disposed) return;
+    this._disposed = true;
+    this._contextVersion++;
+    this._disposers.forEach((dispose) => dispose());
+    this._disposers = [];
     this.reset();
   }
 }

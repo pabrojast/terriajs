@@ -4,9 +4,7 @@ import ReactDOM from "react-dom";
 import { useTranslation } from "react-i18next";
 import styled from "styled-components";
 import Icon, { GLYPHS } from "../../../Styled/Icon";
-import AnalysisTheme, {
-  analysisColors as c
-} from "../../../Styled/AnalysisTheme";
+import AnalysisTheme from "../../../Styled/AnalysisTheme";
 import ViewState from "../../../ReactViewModels/ViewState";
 import CogCalculationViewModel from "../../../ReactViewModels/CogCalculationViewModel";
 import WorkflowPanel from "../../Workflow/WorkflowPanel";
@@ -65,7 +63,7 @@ const CogCalculationTool: React.FC<Props> = observer(
         if (opener?.isConnected) opener.focus();
         else
           document
-            .querySelector<HTMLButtonElement>("[data-area-launcher]")
+            .querySelector<HTMLButtonElement>("[data-area-launcher] button")
             ?.focus();
       };
     }, [vm, viewState]);
@@ -259,7 +257,7 @@ const Body = styled.div`
   padding: 18px;
   overflow-y: auto;
   min-height: 0;
-  color: ${c.ink};
+  color: ${(p) => p.theme.textLight};
   @media (max-width: 767px) {
     padding: 12px 16px;
   }
@@ -270,7 +268,7 @@ const Steps = styled.ol`
   gap: 8px;
   padding: 0 0 18px;
   margin: 0;
-  border-bottom: 1px solid ${c.border};
+  border-bottom: 1px solid ${(p) => p.theme.darkLighter};
   margin-bottom: 18px;
   @media (max-width: 767px) {
     padding-bottom: 10px;
@@ -283,15 +281,16 @@ const Step = styled.li<{ $active: boolean }>`
   gap: 5px;
   font-size: 12px;
   font-weight: ${(p) => (p.$active ? 700 : 400)};
-  color: ${(p) => (p.$active ? c.accent : c.secondary)};
+  color: ${(p) => (p.$active ? p.theme.colorPrimary : p.theme.textLightDimmed)};
   span {
     display: inline-grid;
     place-items: center;
     width: 22px;
     height: 22px;
     border-radius: 50%;
-    background: ${(p) => (p.$active ? c.accent : c.muted)};
-    color: ${(p) => (p.$active ? "white" : c.secondary)};
+    background: ${(p) =>
+      p.$active ? p.theme.colorPrimary : p.theme.darkWithOverlay};
+    color: ${(p) => (p.$active ? "white" : p.theme.textLightDimmed)};
   }
 `;
 const DrawingSummary = styled(Card)`
@@ -310,25 +309,25 @@ const PolygonIcon = styled.div`
     overflow: visible;
   }
   path {
-    fill: #e1f0f4;
-    stroke: ${c.accent};
+    fill: ${(p) => p.theme.darkWithOverlay};
+    stroke: ${(p) => p.theme.colorPrimary};
     stroke-width: 2;
   }
   circle {
     fill: white;
-    stroke: ${c.accent};
+    stroke: ${(p) => p.theme.colorPrimary};
     stroke-width: 2;
   }
 `;
 const Progress = styled.div`
   height: 8px;
-  background: ${c.muted};
+  background: ${(p) => p.theme.darkWithOverlay};
   border-radius: 4px;
   overflow: hidden;
   span {
     display: block;
     height: 100%;
-    background: ${c.accent};
+    background: ${(p) => p.theme.colorPrimary};
     transition: width 150ms;
   }
 `;
@@ -341,9 +340,9 @@ const MobileSheet = styled.section<{ $expanded: boolean }>`
   max-height: ${(p) => (p.$expanded ? "70dvh" : "min(380px, 55dvh)")};
   display: flex;
   flex-direction: column;
-  background: white;
-  color: ${c.ink};
-  border: 1px solid ${c.border};
+  background: ${(p) => p.theme.dark};
+  color: ${(p) => p.theme.textLight};
+  border: 1px solid ${(p) => p.theme.darkLighter};
   border-radius: 18px 18px 0 0;
   box-shadow: 0 -4px 24px rgba(31, 41, 55, 0.14);
   padding-bottom: env(safe-area-inset-bottom, 0px);
@@ -355,7 +354,7 @@ const MobileHeader = styled.div`
   gap: 6px;
   align-items: center;
   padding: 10px 12px;
-  border-bottom: 1px solid ${c.border};
+  border-bottom: 1px solid ${(p) => p.theme.darkLighter};
   flex-shrink: 0;
 `;
 const Title = styled.h2`

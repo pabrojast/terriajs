@@ -1,5 +1,4 @@
 import styled from "styled-components";
-import { analysisColors as c } from "../../../Styled/AnalysisTheme";
 
 export const Stack = styled.div`
   display: flex;
@@ -22,19 +21,21 @@ export const Action = styled.button<{ $primary?: boolean }>`
   min-height: 44px;
   padding: 9px 14px;
   border-radius: 8px;
-  border: 1px solid ${(p) => (p.$primary ? c.accent : c.border)};
-  background: ${(p) => (p.$primary ? c.accent : c.surface)};
-  color: ${(p) => (p.$primary ? "#fff" : c.ink)};
+  border: 1px solid
+    ${(p) => (p.$primary ? p.theme.colorPrimary : p.theme.darkLighter)};
+  background: ${(p) => (p.$primary ? p.theme.colorPrimary : p.theme.dark)};
+  color: ${(p) => (p.$primary ? "#fff" : p.theme.textLight)};
   font: inherit;
   font-size: 13px;
   font-weight: 600;
   line-height: 1.3;
   cursor: pointer;
   &:hover:not(:disabled) {
-    background: ${(p) => (p.$primary ? "#09546A" : c.muted)};
+    background: ${(p) =>
+      p.$primary ? p.theme.colorPrimary : p.theme.darkWithOverlay};
   }
   &:focus-visible {
-    outline: 3px solid #5aa9c1;
+    outline: 3px solid ${(p) => p.theme.colorPrimary};
     outline-offset: 2px;
   }
   &:disabled {
@@ -49,20 +50,20 @@ export const Action = styled.button<{ $primary?: boolean }>`
 `;
 export const Card = styled.div`
   padding: 14px;
-  background: ${c.muted};
-  border: 1px solid ${c.border};
+  background: ${(p) => p.theme.darkWithOverlay};
+  border: 1px solid ${(p) => p.theme.darkLighter};
   border-radius: 10px;
 `;
 export const Heading = styled.h3`
   margin: 0;
-  color: ${c.ink};
+  color: ${(p) => p.theme.textLight};
   font-size: 16px;
   font-weight: 600;
   line-height: 1.4;
 `;
 export const Hint = styled.p`
   margin: 6px 0 0;
-  color: ${c.secondary};
+  color: ${(p) => p.theme.textLightDimmed};
   font-size: 13px;
   line-height: 1.55;
 `;
@@ -70,24 +71,25 @@ export const Field = styled.label`
   display: flex;
   flex-direction: column;
   gap: 6px;
-  color: ${c.ink};
+  color: ${(p) => p.theme.textLight};
   font-size: 13px;
   font-weight: 600;
   input,
   select {
+    color-scheme: dark;
     box-sizing: border-box;
     width: 100%;
     min-width: 0;
     min-height: 44px;
     padding: 8px 10px;
-    border: 1px solid #bbcad6;
+    border: 1px solid ${(p) => p.theme.darkLighter};
     border-radius: 7px;
-    background: white;
-    color: ${c.ink};
+    background: ${(p) => p.theme.dark};
+    color: ${(p) => p.theme.textLight};
     font: inherit;
     font-weight: 400;
     &:focus-visible {
-      outline: 2px solid ${c.accent};
+      outline: 2px solid ${(p) => p.theme.colorPrimary};
       outline-offset: 2px;
     }
   }
@@ -98,13 +100,13 @@ export const Grid = styled.div`
   gap: 12px;
 `;
 export const Details = styled.details`
-  border: 1px solid ${c.border};
+  border: 1px solid ${(p) => p.theme.darkLighter};
   border-radius: 8px;
   padding: 0 12px;
   summary {
     cursor: pointer;
     padding: 13px 0;
-    color: ${c.ink};
+    color: ${(p) => p.theme.textLight};
     font-size: 13px;
     font-weight: 600;
   }
@@ -113,9 +115,9 @@ export const Details = styled.details`
   }
 `;
 export const Notice = styled.div`
-  color: #8a3e12;
-  background: #fff5eb;
-  border: 1px solid #f2d5b8;
+  color: ${(p) => p.theme.textLight};
+  background: ${(p) => p.theme.darkWithOverlay};
+  border: 1px solid ${(p) => p.theme.colorPrimary};
   border-radius: 8px;
   padding: 12px;
   font-size: 13px;

@@ -250,3 +250,9 @@ conserva su restriccion previa de visualizacion a Cesium. EN/ES tienen las
 mismas 76 claves y plurales verificados; el consumidor DEV ofrece solo ingles.
 No se cambio esa configuracion. Compartir desde la vista previa conserva por
 igualdad profunda las cuatro historias y las series originales de 37/36 puntos.
+
+### Resolucion temporal, tema y Tools (2026-10-24)
+
+`cogAnalysisPeriodSpec.ts` cubre meses completos, febrero bisiesto, cambio mensual/anual, fechas invalidas y resoluciones personalizadas. `CogCalculationResolutionSpec.ts` cubre sincronizacion en ambos sentidos, inclusion del ultimo dia, cancelacion y respuestas obsoletas, reintento y limpieza al cerrar por el controlador. Se ejecutan junto a las regresiones de dibujo, motor zonal, catalogo COG y estadisticas del grafico: 127 pruebas pasan en Chromium, con un caso previo dependiente de WebGL omitido. TypeScript, ESLint de los archivos modificados, Prettier y compilacion de TerriaMap pasan.
+
+La comprobacion del consumidor usa el enlace original con cuatro historias y dos series. Revisar Tools/medicion, cierre del poligono, mensual/anual/diario, limites inclusivos, CSV, carga fallida/reintento, y pantallas 1440×900, 1024×600, 390×844 y 360×800. Evidencia local en `output/playwright/area-temporal-tools-20261024/`; resultado de la entrega en [[Deployment]]. La revision oscura reemplaza la paleta clara de la entrega del 23, conservando la geometria y dimensionado.

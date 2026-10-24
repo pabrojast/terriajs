@@ -31,6 +31,7 @@ const formatValue = (value: number) =>
 const CogCalculationResultsPanel = observer(
   ({ vm }: { vm: CogCalculationViewModel }) => {
     const { t } = useTranslation();
+    const theme = useTheme();
     const [expanded, setExpanded] = useState(false);
     const expandButton = useRef<HTMLButtonElement>(null);
     const item = vm.selectedTimeSeriesItem;
@@ -46,17 +47,23 @@ const CogCalculationResultsPanel = observer(
           {
             id: "drawn-area",
             key: "drawn-area",
-            name: t(`models.cogCalculation.statistics.${vm.selectedStatistic}`),
+            name: `${t(
+              `models.cogCalculation.statistics.${vm.selectedStatistic}`
+            )} · ${vm.resultContext?.resolutionName ?? vm.resolutionName} · ${
+              vm.resultContext?.period ?? vm.periodLabel
+            }`,
             item,
             type: "line",
             units:
-              vm.selectedStatistic === "count" ? undefined : item.displayUnit,
+              vm.selectedStatistic === "count"
+                ? undefined
+                : vm.resultContext?.unit,
             showInChartPanel: true,
             isSelectedInWorkbench: true,
             xAxis: { name: "Time", scale: "time" },
             points,
             domain: calculateDomain(points),
-            getColor: () => "#0F6B82",
+            getColor: () => theme.colorPrimary,
             updateIsSelectedInWorkbench: () => {}
           }
         ]
@@ -68,6 +75,11 @@ const CogCalculationResultsPanel = observer(
         <div>
           <Heading>{tr("resultsTitle")}</Heading>
           <Hint>{vm.selectedItem?.name}</Hint>
+          {vm.isTimeSeries && (
+            <Hint>
+              {vm.resultContext?.resolutionName} · {vm.resultContext?.period}
+            </Hint>
+          )}
         </div>
         {vm.singleResult ? (
           <>
@@ -96,9 +108,7 @@ const CogCalculationResultsPanel = observer(
               <Heading>{tr(`statistics.${vm.selectedStatistic}`)}</Heading>
               <Hint>
                 {tr("processed", { count: vm.timeSeriesResults.length })}
-                {vm.selectedTimeSeriesItem?.displayUnit
-                  ? ` · ${vm.selectedTimeSeriesItem.displayUnit}`
-                  : ""}
+                {vm.resultContext?.unit ? ` · ${vm.resultContext.unit}` : ""}
               </Hint>
             </Card>
             <TimeSeriesChart
@@ -145,7 +155,9 @@ const CogCalculationResultsPanel = observer(
         <ChartJsModal
           isOpen={expanded}
           onClose={() => setExpanded(false)}
-          title={tr("resultsTitle")}
+          title={`${tr("resultsTitle")} · ${
+            vm.resultContext?.resolutionName ?? ""
+          } · ${vm.resultContext?.period ?? ""}`}
           triggerRef={expandButton}
         >
           <Suspense fallback={<Hint>{t("chart.loading")}</Hint>}>
@@ -345,10 +357,10 @@ const TimeSeriesChart: React.FC<ChartProps> = observer(
 );
 
 const ChartContainer = styled.div`
-  border: 1px solid #dce4eb;
+  border: 1px solid ${(p) => p.theme.darkLighter};
   border-radius: 10px;
   padding: 12px 6px;
-  background: white;
+  background: ${(p) => p.theme.dark};
   svg {
     display: block;
     max-width: 100%;
@@ -366,10 +378,10 @@ const TableScroll = styled.div`
   td {
     text-align: left;
     padding: 9px 6px;
-    border-bottom: 1px solid #dce4eb;
+    border-bottom: 1px solid ${(p) => p.theme.darkLighter};
   }
   th {
-    color: #536579;
+    color: ${(p) => p.theme.textLightDimmed};
     font-weight: 600;
   }
 `;

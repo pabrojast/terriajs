@@ -1,3 +1,4 @@
+import { periodInput } from "../../../Core/cogAnalysisPeriod";
 import { observer } from "mobx-react";
 import { useTranslation } from "react-i18next";
 import CogCalculationViewModel from "../../../ReactViewModels/CogCalculationViewModel";
@@ -10,6 +11,7 @@ import {
   Grid,
   Heading,
   Hint,
+  Notice,
   Stack
 } from "./AnalysisUi";
 
@@ -42,6 +44,38 @@ const CogCalculationConfigPanel = observer(
             ))}
           </select>
         </Field>
+        {vm.isTimeSeries &&
+          (vm.resolutions.length > 1 ? (
+            <Field>
+              {tr("temporalResolution")}
+              <select
+                value={vm.resolutionId ?? ""}
+                onChange={(e) => vm.setResolution(e.target.value)}
+              >
+                {vm.resolutions.map((resolution) => (
+                  <option key={resolution.id} value={resolution.id}>
+                    {resolution.name ?? resolution.id}
+                  </option>
+                ))}
+              </select>
+              <Hint>{tr("syncedResolution")}</Hint>
+            </Field>
+          ) : (
+            <Hint>
+              {tr("temporalResolution")}: {vm.resolutionName}
+            </Hint>
+          ))}
+        {vm.isLoadingResolution && (
+          <Hint role="status">{tr("loadingResolution")}</Hint>
+        )}
+        {vm.resolutionError && (
+          <Notice role="alert">
+            {vm.resolutionError}
+            <Action onClick={() => void vm.loadResolution()}>
+              {tr("retryResolution")}
+            </Action>
+          </Notice>
+        )}
         <Field>
           {tr("statistic")}
           <select
@@ -60,30 +94,15 @@ const CogCalculationConfigPanel = observer(
           </select>
         </Field>
         {vm.isTimeSeries ? (
-          <Grid>
-            <Field>
-              {tr("startDate")}
-              <input
-                type="date"
-                value={vm.startDate ?? ""}
-                max={vm.endDate}
-                onChange={(e) =>
-                  vm.setDateRange(e.target.value || undefined, vm.endDate)
-                }
-              />
-            </Field>
-            <Field>
-              {tr("endDate")}
-              <input
-                type="date"
-                value={vm.endDate ?? ""}
-                min={vm.startDate}
-                onChange={(e) =>
-                  vm.setDateRange(vm.startDate, e.target.value || undefined)
-                }
-              />
-            </Field>
-          </Grid>
+          <>
+            <Grid>
+              <PeriodField vm={vm} />
+              <PeriodField vm={vm} end />
+            </Grid>
+            {(vm.periodType === "monthly" || vm.periodType === "annual") && (
+              <Hint>{tr("completePeriods")}</Hint>
+            )}
+          </>
         ) : null}
         <Field>
           {tr("resolution")}
@@ -111,13 +130,28 @@ const CogCalculationConfigPanel = observer(
           <Grid>
             <Field>
               {tr("band")}
-              <input
-                type="number"
-                min={1}
-                max={20}
-                value={vm.selectedBand}
-                onChange={(e) => vm.setBand(parseInt(e.target.value, 10) || 1)}
-              />
+              {vm.selectedTimeSeriesItem?.availableBands.length ? (
+                <select
+                  value={vm.selectedBand}
+                  onChange={(e) => vm.setBand(Number(e.target.value))}
+                >
+                  {vm.selectedTimeSeriesItem.availableBands.map((b) => (
+                    <option key={b.id} value={b.band}>
+                      {b.name ?? b.id}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  type="number"
+                  min={1}
+                  max={20}
+                  value={vm.selectedBand}
+                  onChange={(e) =>
+                    vm.setBand(parseInt(e.target.value, 10) || 1)
+                  }
+                />
+              )}
             </Field>
             {vm.isTimeSeries ? (
               <Field>
@@ -140,12 +174,20 @@ const CogCalculationConfigPanel = observer(
             <strong>
               {tr("estimate", { count: vm.estimatedWork.timeSteps })}
             </strong>
+            <Hint>{vm.periodLabel}</Hint>
             <Hint>{tr("estimateHelp")}</Hint>
+            {!vm.isLoadingResolution &&
+              !vm.resolutionError &&
+              vm.estimatedWork.timeSteps === 0 && (
+                <Hint role="status">{tr("noDatesInPeriod")}</Hint>
+              )}
           </Card>
         ) : null}
         <Action
           $primary
           disabled={
+            vm.isLoadingResolution ||
+            !!vm.resolutionError ||
             !vm.selectedItem ||
             !vm.polygon ||
             (vm.isTimeSeries && vm.estimatedWork.timeSteps === 0) ||
@@ -160,3 +202,46 @@ const CogCalculationConfigPanel = observer(
   }
 );
 export default CogCalculationConfigPanel;
+
+const PeriodField = observer(
+  ({ vm, end = false }: { vm: CogCalculationViewModel; end?: boolean }) => {
+    const { t } = useTranslation();
+    const value = periodInput(end ? vm.endDate : vm.startDate, vm.resolutionId);
+    const update = (next: string) =>
+      vm.setDateRange(
+        end ? vm.startDate : next || undefined,
+        end ? next || undefined : vm.endDate
+      );
+    const years = Array.from(
+      new Set([...vm.availableYears, value].filter(Boolean))
+    ).sort();
+    return (
+      <Field>
+        {t(`models.cogCalculation.${end ? "endDate" : "startDate"}`)}
+        {vm.periodType === "annual" ? (
+          <select
+            value={value}
+            disabled={vm.isLoadingResolution}
+            onChange={(e) => update(e.target.value)}
+          >
+            <option value="">{t("models.cogCalculation.allYears")}</option>
+            {years.map((year) => (
+              <option key={year} value={year}>
+                {year}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <input
+            type={vm.periodType === "monthly" ? "month" : "date"}
+            value={value}
+            disabled={vm.isLoadingResolution}
+            min={end ? periodInput(vm.startDate, vm.resolutionId) : undefined}
+            max={!end ? periodInput(vm.endDate, vm.resolutionId) : undefined}
+            onChange={(e) => update(e.target.value)}
+          />
+        )}
+      </Field>
+    );
+  }
+);

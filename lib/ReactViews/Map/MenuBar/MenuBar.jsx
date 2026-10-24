@@ -48,7 +48,6 @@ const MenuBar = observer((props) => {
   };
 
   const storyEnabled = terria.configParameters.storyEnabled;
-  const enableTools = terria.userProperties.get("tools") === "1";
 
   return (
     <StyledMenuBar
@@ -69,11 +68,6 @@ const MenuBar = observer((props) => {
     >
       <section>
         <ul className={classNames(Styles.menu)}>
-          {enableTools && (
-            <li className={Styles.menuItem}>
-              <ToolsPanel />
-            </li>
-          )}
           {!viewState.useSmallScreenInterface &&
             props.menuLeftItems.map((element, i) => (
               <li className={Styles.menuItem} key={i}>
@@ -86,6 +80,9 @@ const MenuBar = observer((props) => {
         <ul className={classNames(Styles.menu)}>
           <li className={Styles.menuItem}>
             <SettingPanel />
+          </li>
+          <li className={Styles.menuItem} data-area-launcher>
+            <ToolsPanel />
           </li>
           <li className={Styles.menuItem}>
             <HelpButton viewState={viewState} />

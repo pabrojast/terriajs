@@ -7,6 +7,7 @@ import PropTypes from "prop-types";
 import classNames from "classnames";
 import MobileMenuItem from "./MobileMenuItem";
 import CkanSessionPanel from "../Map/Panels/CkanSessionPanel/CkanSessionPanel";
+import ToolsPanel from "../Map/Panels/ToolsPanel/ToolsPanel";
 import SettingPanel from "../Map/Panels/SettingPanel";
 import SharePanel from "../Map/Panels/SharePanel/SharePanel";
 import { withTranslation } from "react-i18next";
@@ -127,6 +128,9 @@ class MobileMenu extends Component {
           ))}
           <div onClick={() => this.hideMenu()}>
             <SettingPanel />
+          </div>
+          <div data-area-launcher>
+            <ToolsPanel />
           </div>
           <div onClick={() => this.hideMenu()}>
             <SharePanel

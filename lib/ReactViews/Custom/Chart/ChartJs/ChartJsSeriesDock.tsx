@@ -46,7 +46,7 @@ const clampDockHeight = (height: number) =>
 
 const DockHolder = styled.div<{ $hidden?: boolean }>`
   display: ${(p) => (p.$hidden ? "none" : "block")};
-  border: 1px solid #dce4eb;
+  border: 1px solid ${(p) => p.theme.darkLighter};
   box-shadow: 0 3px 16px rgba(31, 41, 55, 0.08);
   left: 0;
   right: 0;

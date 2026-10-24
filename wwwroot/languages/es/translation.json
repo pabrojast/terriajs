@@ -531,12 +531,12 @@
       "advanced": "Opciones avanzadas",
       "band": "Banda",
       "sampling": "Cada N fechas",
-      "estimate": "{{count}} fechas para analizar",
+      "estimate": "{{count}} fecha para analizar",
       "estimateHelp": "Deja las fechas vacías para usar toda la serie. Acota el período para un cálculo más rápido.",
       "calculate": "Calcular",
       "calculateArea": "Calcular por área",
       "resultsTitle": "Resultados del área",
-      "processed": "{{count}} fechas procesadas",
+      "processed": "{{count}} fecha procesada",
       "date": "Fecha",
       "pixels": "Píxeles válidos",
       "table": "Ver tabla de datos",
@@ -560,7 +560,23 @@
         "noDataCount": "Píxeles sin datos",
         "median": "Mediana",
         "stddev": "Desviación estándar"
-      }
+      },
+      "temporalResolution": "Resolución temporal",
+      "syncedResolution": "También actualiza el mapa y las series de puntos.",
+      "originalResolution": "Datos originales",
+      "noPeriod": "No hay fechas disponibles",
+      "resolutionLoadError": "No se pudieron cargar las fechas de esta resolución.",
+      "loadingResolution": "Cargando fechas disponibles…",
+      "retryResolution": "Reintentar",
+      "completePeriods": "Los datos mensuales y anuales representan el periodo publicado completo.",
+      "noDatesInPeriod": "No hay fechas disponibles en este periodo. Elige otro intervalo o resolución.",
+      "allYears": "Todos los años",
+      "estimate_one": "{{count}} fecha para analizar",
+      "estimate_other": "{{count}} fechas para analizar",
+      "processed_one": "{{count}} fecha procesada",
+      "processed_other": "{{count}} fechas procesadas",
+      "estimate_plural": "{{count}} fechas para analizar",
+      "processed_plural": "{{count}} fechas procesadas"
     },
     "cogTimeSeries": {
       "loadTimeEntriesErrorTitle": "Error al cargar la serie temporal COG",
@@ -1061,8 +1077,8 @@
     "btnText": "Configuraciones del mapa"
   },
   "toolsPanel": {
-    "btnText": "Herramienta",
-    "btnTitle": "Caja de Herramientas Avanzada"
+    "btnText": "Herramientas",
+    "btnTitle": "Herramientas del mapa"
   },
   "AR": {
     "confirmText": "Lo tengo",

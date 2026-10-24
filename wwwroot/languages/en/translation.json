@@ -245,8 +245,8 @@
     "mapDataState_plural": "{{count}} datasets enabled on map"
   },
   "toolsPanel": {
-    "btnText": "Tool",
-    "btnTitle": "Advanced toolbox"
+    "btnText": "Tools",
+    "btnTitle": "Map tools"
   },
   "settingPanel": {
     "viewerModeLabels": {
@@ -2383,12 +2383,12 @@
       "advanced": "Advanced options",
       "band": "Band",
       "sampling": "Every N dates",
-      "estimate": "{{count}} dates to analyse",
+      "estimate": "{{count}} date to analyse",
       "estimateHelp": "Leave dates empty to use the full series. Narrow the period for a faster calculation.",
       "calculate": "Calculate",
       "calculateArea": "Calculate by area",
       "resultsTitle": "Area results",
-      "processed": "{{count}} dates processed",
+      "processed": "{{count}} date processed",
       "date": "Date",
       "pixels": "Valid pixels",
       "table": "View data table",
@@ -2412,7 +2412,23 @@
         "noDataCount": "NoData pixels",
         "median": "Median",
         "stddev": "Standard deviation"
-      }
+      },
+      "temporalResolution": "Time resolution",
+      "syncedResolution": "Updates the map and point series too.",
+      "originalResolution": "Original data",
+      "noPeriod": "No dates available",
+      "resolutionLoadError": "Could not load the dates for this resolution.",
+      "loadingResolution": "Loading available dates…",
+      "retryResolution": "Retry",
+      "completePeriods": "Monthly and annual data represent the complete published period.",
+      "noDatesInPeriod": "No dates are available in this period. Choose another range or resolution.",
+      "allYears": "All years",
+      "estimate_one": "{{count}} date to analyse",
+      "estimate_other": "{{count}} dates to analyse",
+      "processed_one": "{{count}} date processed",
+      "processed_other": "{{count}} dates processed",
+      "estimate_plural": "{{count}} dates to analyse",
+      "processed_plural": "{{count}} dates processed"
     },
     "cogTimeSeries": {
       "loadTimeEntriesErrorTitle": "Error loading COG Time Series",

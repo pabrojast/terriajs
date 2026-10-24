@@ -117,7 +117,7 @@ class ErrorBoundary extends Component<ErrorBoundaryProps> {
 const Container = styled.div<{ $analysis?: boolean }>`
   ${(p) =>
     p.$analysis
-      ? `background: #fff; color: #1F2937; border-radius: 12px; overflow: hidden; box-shadow: 0 8px 28px rgba(31,41,55,.14);`
+      ? `background: ${p.theme.transparentDark}; color: ${p.theme.textLight}; border-radius: 12px; overflow: hidden; box-shadow: 0 8px 28px rgba(31,41,55,.14);`
       : ""}
   position: relative;
   display: flex;

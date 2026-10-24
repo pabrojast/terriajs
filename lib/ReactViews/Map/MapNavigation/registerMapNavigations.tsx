@@ -12,6 +12,7 @@ import PedestrianMode, {
   PEDESTRIAN_MODE_ID
 } from "../../Tools/PedestrianMode/PedestrianMode";
 import { COG_CALCULATION_TOOL_ID } from "../../Tools/CogCalculation/CogCalculationTool";
+import CogCalculationToolController from "../../Tools/CogCalculation/CogCalculationToolController";
 import { ToolButtonController } from "../../Tools/Tool";
 import {
   AR_TOOL_ID,
@@ -90,6 +91,10 @@ export const registerMapNavigations = (viewState: ViewState) => {
 
   const measureTool = new MeasureTool({
     terria,
+    onBeforeActivate: () => {
+      if (viewState.currentTool?.toolName === COG_CALCULATION_TOOL_ID)
+        viewState.closeTool();
+    },
     onClose: () => {
       runInAction(() => {
         viewState.panel = undefined;
@@ -174,16 +179,9 @@ export const registerMapNavigations = (viewState: ViewState) => {
   });
 
   // COG Zonal Calculation Tool
-  const cogCalculationToolController = new ToolButtonController({
-    toolName: COG_CALCULATION_TOOL_ID,
-    viewerMode: "both",
-    viewState: viewState,
-    getToolComponent: () =>
-      import("../../Tools/CogCalculation/CogCalculationTool").then(
-        (m) => m.default as any
-      ),
-    icon: GLYPHS.lineChart
-  });
+  const cogCalculationToolController = new CogCalculationToolController(
+    viewState
+  );
   mapNavigationModel.addItem({
     id: COG_CALCULATION_TOOL_ID,
     name: "translate#models.cogCalculation.toolName",

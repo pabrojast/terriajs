@@ -19,6 +19,7 @@ import MapNavigationItemController from "../../../../ViewModels/MapNavigation/Ma
 interface MeasureToolOptions {
   terria: Terria;
   onClose(): void;
+  onBeforeActivate?(): void;
 }
 
 export class MeasureTool extends MapNavigationItemController {
@@ -31,6 +32,7 @@ export class MeasureTool extends MapNavigationItemController {
   private userDrawing: UserDrawing;
 
   onClose: () => void;
+  private readonly onBeforeActivate?: () => void;
   itemRef: RefObject<HTMLDivElement> = createRef();
 
   constructor(props: MeasureToolOptions) {
@@ -46,6 +48,7 @@ export class MeasureTool extends MapNavigationItemController {
       onMakeDialogMessage: this.onMakeDialogMessage.bind(this)
     });
     this.onClose = props.onClose;
+    this.onBeforeActivate = props.onBeforeActivate;
   }
 
   get glyph(): any {
@@ -247,6 +250,7 @@ export class MeasureTool extends MapNavigationItemController {
    * @overrides
    */
   activate() {
+    this.onBeforeActivate?.();
     this.userDrawing.enterDrawMode();
     super.activate();
   }
