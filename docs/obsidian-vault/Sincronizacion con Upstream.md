@@ -70,6 +70,8 @@ Decisiones aplicadas en el merge:
 
 Advertencias medidas:
 
+- Upstream formatea con oxfmt; el hook `pretty-quick` del fork reformatea con Prettier 3 los archivos de upstream que toca cada merge (22 en la etapa 2). Es ruido esperable en futuros merges, no un cambio funcional.
+
 - El merge-base es `upstream-premove`, asi que los 18 archivos de metadatos que quedaron en la raiz del monorepo (`.github/*`, `.vscode/*`, `.nvmrc`, `.prettierrc`, `.prettierignore`, `.editorconfig`, `.gitattributes`, `.gitmodules`, `.husky/pre-commit`, `yarn.lock`) aparecen como borrados: restaurarlos con `git checkout HEAD -- <archivo>` antes de commitear.
 - `package.json` de upstream usa `catalog:<grupo>` y `workspace:*` (pnpm). Conservar el nuestro y portar solo cambios de dependencias resolviendo los catalogos con `pnpm-workspace.yaml` (script `merge-package-json.py` en el scratchpad de la sesion; terriajs-cesium pasa a 26.3.0).
 - `tsconfig.json` de upstream apunta a `../../node_modules`: mantener rutas planas.
