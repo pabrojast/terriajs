@@ -56,6 +56,7 @@ interface StandardUserInterfaceProps {
 const StandardUserInterfaceBase: FC<StandardUserInterfaceProps> = observer(
   (props) => {
     const { t } = useTranslation();
+    const narrative = props.terria.userProperties.get("narrative") === "1";
 
     const acceptDragDropFile = action(() => {
       props.viewState.isDraggingDroppingFile = true;
@@ -101,7 +102,8 @@ const StandardUserInterfaceBase: FC<StandardUserInterfaceProps> = observer(
         !props.viewState.storyShown &&
         // '#hideStory=1' (story-map embeds): the parent page narrates the
         // story itself, so never auto-open the native panel.
-        props.terria.userProperties.get("hideStory") !== "1"
+        props.terria.userProperties.get("hideStory") !== "1" &&
+        !narrative
       ) {
         // Automatically show the story panel without prompting
         props.viewState.storyShown = true;
@@ -143,13 +145,14 @@ const StandardUserInterfaceBase: FC<StandardUserInterfaceProps> = observer(
       <ContextProviders viewState={props.viewState} theme={mergedTheme}>
         <GlobalTerriaStyles />
         <TourPortal />
-        <CollapsedNavigation />
-        <SatelliteHelpPrompt />
+        {!narrative && <CollapsedNavigation />}
+        {!narrative && <SatelliteHelpPrompt />}
         <Medium>
           <SelectableDimensionWorkflow />
         </Medium>
         <div className={Styles.storyWrapper}>
-          {!props.viewState.disclaimerVisible &&
+          {!narrative &&
+            !props.viewState.disclaimerVisible &&
             !(
               props.terria.configParameters.storyEnabled &&
               props.terria.stories &&
@@ -169,7 +172,7 @@ const StandardUserInterfaceBase: FC<StandardUserInterfaceProps> = observer(
               `}
             >
               <div className={Styles.uiInner}>
-                {!props.viewState.hideMapUi && (
+                {!narrative && !props.viewState.hideMapUi && (
                   <>
                     <Small>
                       <MobileHeader
@@ -202,31 +205,38 @@ const StandardUserInterfaceBase: FC<StandardUserInterfaceProps> = observer(
                     </Medium>
                   </>
                 )}
-                <Medium>
-                  <div
-                    className={classNames(Styles.showWorkbenchButton, {
-                      [Styles.showWorkbenchButtonTrainerBarVisible]:
-                        props.viewState.trainerBarVisible,
-                      [Styles.showWorkbenchButtonisVisible]:
-                        props.viewState.isMapFullScreen,
-                      [Styles.showWorkbenchButtonisNotVisible]:
-                        !props.viewState.isMapFullScreen
-                    })}
-                  >
-                    <FullScreenButton
-                      minified={false}
-                      btnText={t("sui.showWorkbench", {
-                        count: props.viewState.terria.workbench.items.length
+                {!narrative && (
+                  <Medium>
+                    <div
+                      className={classNames(Styles.showWorkbenchButton, {
+                        [Styles.showWorkbenchButtonTrainerBarVisible]:
+                          props.viewState.trainerBarVisible,
+                        [Styles.showWorkbenchButtonisVisible]:
+                          props.viewState.isMapFullScreen,
+                        [Styles.showWorkbenchButtonisNotVisible]:
+                          !props.viewState.isMapFullScreen
                       })}
-                      animationDuration={animationDuration}
-                      elementConfig={props.terria.elements.get(
-                        "show-workbench"
-                      )}
-                    />
-                  </div>
-                </Medium>
+                    >
+                      <FullScreenButton
+                        minified={false}
+                        btnText={t("sui.showWorkbench", {
+                          count: props.viewState.terria.workbench.items.length
+                        })}
+                        animationDuration={animationDuration}
+                        elementConfig={props.terria.elements.get(
+                          "show-workbench"
+                        )}
+                      />
+                    </div>
+                  </Medium>
+                )}
 
-                <section className={Styles.map} data-story-map>
+                <section
+                  className={Styles.map}
+                  data-story-map
+                  data-narrative-mode={narrative || undefined}
+                  style={narrative ? { top: 0 } : undefined}
+                >
                   <MapColumn
                     customElements={customElements}
                     animationDuration={animationDuration}
@@ -244,7 +254,7 @@ const StandardUserInterfaceBase: FC<StandardUserInterfaceProps> = observer(
                 </section>
               </div>
             </div>
-            {!props.viewState.hideMapUi && (
+            {!narrative && !props.viewState.hideMapUi && (
               <Medium>
                 <TrainerBar />
               </Medium>

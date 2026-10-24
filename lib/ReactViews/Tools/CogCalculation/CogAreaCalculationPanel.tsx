@@ -41,7 +41,8 @@ function getCogTimeSeriesItems(terria: Terria): CogTimeSeriesCatalogItem[] {
   return terria.workbench.items.filter(
     (item): item is CogTimeSeriesCatalogItem =>
       item.type === "cog-time-series" &&
-      item instanceof CogTimeSeriesCatalogItem
+      item instanceof CogTimeSeriesCatalogItem &&
+      !item.waterQuality?.dataUrl
   );
 }
 

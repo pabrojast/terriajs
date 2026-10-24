@@ -11,6 +11,7 @@ declare namespace StoryEditorScssNamespace {
     contentPane: string;
     control: string;
     controlGrid: string;
+    dashboardGuide: string;
     dialogBody: string;
     dialogHeader: string;
     discardBackdrop: string;

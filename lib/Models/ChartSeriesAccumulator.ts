@@ -25,6 +25,8 @@ export interface ChartSeriesAccumulator {
 }
 
 export interface ChartDockContext {
+  /** Domain-specific analyses can suppress a generic least-squares trend. */
+  showLinearTrend?: boolean;
   /** x (epoch ms) of the date displayed on the map; drawn as a marker. */
   activeX?: number;
   activeXLabel?: string;

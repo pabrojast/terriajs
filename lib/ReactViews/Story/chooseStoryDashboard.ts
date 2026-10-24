@@ -14,13 +14,15 @@ export default function chooseStoryDashboard(): Promise<
 > {
   return new Promise((resolve) => {
     const previous = document.activeElement;
-    const { dialog, body, close } = createStoryDialog(
-      i18next.t("story.editor.design.chooseDashboardTitle"),
-      true
-    );
+    const language =
+      i18next.language?.toLowerCase().split(/[-_]/)[0] === "es" ? "es" : "en";
+    const title = i18next.t("story.editor.design.chooseDashboardTitle", {
+      lng: language
+    });
+    const { dialog, body, close } = createStoryDialog(title, true);
     const frame = document.createElement("iframe");
-    frame.title = "Choose a dashboard";
-    frame.src = "/story-dashboards/picker";
+    frame.title = title;
+    frame.src = `/story-dashboards/picker?lang=${language}`;
     const finish = (dashboard?: StoryDashboard) => {
       window.removeEventListener("message", selected);
       dialog.close();

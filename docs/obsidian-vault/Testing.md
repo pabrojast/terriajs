@@ -171,3 +171,51 @@ La revision final recorre 35 pasos de Tab sin salir del modal y confirma retorno
 La revision desplegada `338ed1c72` / TerriaMap `64c11616` paso seis casos de formato/viewport en DEV (1440×900, 1366×768 y 1024×600), creacion/guardado/reapertura, titulo vacio por atajo, Escape del dialogo de imagen, cancelar/conservar borrador, descarte real y cierre sin falsos cambios con retorno de foco al capitulo. No hubo errores de pagina en ese recorrido. Las rutas publicas Terria, Data Stories, Rapid Response y una imagen de CKAN respondieron HTTP 200. El CI de TerriaMap [37082461923](https://github.com/pabrojast/TerriaMap/actions/runs/37082461923) paso; el CI global final de TerriaJS [37082449753](https://github.com/pabrojast/terriajs/actions/runs/37082449753) confirma los mismos 14 warnings previos en `WebMapTileServiceCatalogItem.ts` y `mustacheExpressions.ts`.
 
 La demo mixta inglesa conservo sus 11 capitulos en el editor publicado. Abrir/cerrar el capitulo real de introduccion mantuvo su texto, presentacion y retorno de foco sin pedir descarte. Se inspeccionaron las capturas de escritorio y del modal reducido; `story-editor-dev-real-demo.png` muestra la edicion de esa demo.
+
+### Pilotos de calidad de agua y zonales físicos
+
+`test/Core/WaterQualitySpec.ts` verifica umbral de cobertura, fechas sin dato,
+separación de fila regional, años parciales, Theil–Sen/Mann–Kendall, clasificación,
+cutoffs temporales, CSV con procedencia y fallos/reintentos del loader JSON.
+`CogZonalEngineSpec.ts` verifica escala/offset antes de estadísticas, nodata,
+metadatos GDAL, polígonos con huecos y propagación del contrato a series zonales.
+
+Validación de esta implementación: 28 specs focalizados pasan en Karma/Chrome;
+TypeScript con `--skipLibCheck` y ESLint/Prettier focalizados. El chequeo sin
+`--skipLibCheck` encuentra tres referencias preexistentes a `AsymmetricMatcher`
+en `@types/testing-library__jasmine-dom`. La validación visual y los datos
+publicados deben comprobarse en el consumidor TerriaMap y DEV, por separado.
+
+Aceptación integrada: selección de Andraikiba y Kyiv, cambios CHL/TUR/SPM y
+resoluciones, fecha gráfico→mapa, comparar cuerpos, CSV, cierre móvil, errores,
+share, clic cuerpo frente a píxel, y Kakhovka antes/después del corte. Revisar
+`narrative=1` en escritorio y 390 px, leyenda/atribución disponibles y ninguna
+petición a `/xcube/`.
+
+`WaterQualitySharingSpec.ts` verifica que compartir conserve IDs seleccionados
+y omita el GeoJSON derivado de límites; este se reconstruye desde la URL de
+analytics al abrir el piloto. Evita enlaces gigantes y duplicación del overlay.
+También comprueba que cambiar CHL/TUR/SPM promueva el producto visible en la
+línea temporal, conserve fecha y cuerpos seleccionados, responda al reloj y
+serialice la resolución y el orden de la línea temporal sin duplicar capas.
+La regresión de reapertura usa `applyInitData` real: el lector reconstruye la
+línea temporal desde el orden del workbench. El observador del piloto recupera
+el producto visible sin tocar fecha, banda ni selección; respeta otras capas y
+deja de observar al desmontarse el panel.
+
+### Guia de dashboards de IHP-WINS (2026-10-12)
+
+`StoryDashboardGuidanceSpec.tsx` monta el editor de composicion con traducciones
+EN/ES. Comprueba normalizacion de en-AU/es-CL, titulo accesible y URL del iframe,
+insercion con filtros copiados sin modificar el original ni elegir una plantilla
+por el autor, y cambio explicito a Mapa y dashboard conservando la seleccion.
+El tercer caso comprueba fallback ingles para fr-FR, cancelacion y retorno de
+foco al boton que abrio el selector. Los specs existentes mantienen las pruebas
+de origen/ventana, esquema de filtros, composicion y ciclo del borrador.
+
+Pasan 32 specs focalizados de Stories en Chrome, TypeScript con `--skipLibCheck`,
+ESLint/Prettier y compilacion webpack focalizada. La compilacion conserva el
+aviso existente de Cesium sobre `import.meta`. El transporte del selector se
+simula desde su iframe; estas pruebas no sustituyen la validacion integrada de
+Pages en DEV. TerriaMap conserva su configuracion de idiomas: probar EN/ES en
+la biblioteca no declara que el visor publicado permita cambiar ambos idiomas.

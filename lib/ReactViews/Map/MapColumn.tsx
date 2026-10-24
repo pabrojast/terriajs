@@ -16,6 +16,12 @@ import { TerriaViewerWrapper } from "./TerriaViewerWrapper";
 import Toast from "./Toast";
 import { BasemapCreditOverlay } from "./BottomBar/Credits/SentinelCreditOverlay";
 import { useTheme } from "styled-components";
+import WaterQualityPanel from "../WaterQuality/WaterQualityPanel";
+import Legend from "../Workbench/Controls/Legend";
+import MappableMixin from "../../ModelMixins/MappableMixin";
+import hasTraits from "../../Models/Definition/hasTraits";
+import LegendOwnerTraits from "../../Traits/TraitsClasses/LegendOwnerTraits";
+import CatalogMemberTraits from "../../Traits/TraitsClasses/CatalogMemberTraits";
 
 interface IMapColumnProps {
   animationDuration: number;
@@ -32,6 +38,7 @@ export const MapColumn: FC<IMapColumnProps> = observer(
     const theme = useTheme();
     const { t } = useTranslation();
     const loaderRef = useRef(null);
+    const narrative = viewState.terria.userProperties.get("narrative") === "1";
 
     return (
       <Box
@@ -62,12 +69,14 @@ export const MapColumn: FC<IMapColumnProps> = observer(
                 ${viewState.explorerPanelIsVisible && "opacity: 0.3;"}
               `}
             >
-              <MenuBar
-                menuItems={customElements.menu}
-                menuLeftItems={customElements.menuLeft}
-                animationDuration={animationDuration}
-                elementConfig={viewState.terria.elements.get("menu-bar")}
-              />
+              {!narrative && (
+                <MenuBar
+                  menuItems={customElements.menu}
+                  menuLeftItems={customElements.menuLeft}
+                  animationDuration={animationDuration}
+                  elementConfig={viewState.terria.elements.get("menu-bar")}
+                />
+              )}
               <MapNavigation
                 viewState={viewState}
                 navItems={customElements.nav}
@@ -83,6 +92,52 @@ export const MapColumn: FC<IMapColumnProps> = observer(
           >
             <TerriaViewerWrapper />
           </Box>
+          {narrative && !viewState.hideMapUi && (
+            <details
+              aria-label="Map legend"
+              css={`
+                position: absolute;
+                z-index: 11;
+                left: 12px;
+                top: 12px;
+                max-width: 230px;
+                max-height: 42%;
+                overflow: auto;
+                padding: 9px 12px;
+                border-radius: 7px;
+                background: ${theme.transparentDark};
+                color: ${theme.textLight};
+                font-size: 12px;
+                summary {
+                  cursor: pointer;
+                  font-weight: 600;
+                }
+              `}
+            >
+              <summary>{t("legend.title", "Map legend")}</summary>
+              {viewState.terria.workbench.items
+                .filter(
+                  (item) =>
+                    MappableMixin.isMixedInto(item) &&
+                    item.show &&
+                    hasTraits(item, LegendOwnerTraits, "legends") &&
+                    item.legends?.length
+                )
+                .map((item) => (
+                  <div key={item.uniqueId}>
+                    <strong>
+                      {hasTraits(item, CatalogMemberTraits, "name")
+                        ? item.name
+                        : item.uniqueId}
+                    </strong>
+                    <Legend item={item} />
+                  </div>
+                ))}
+            </details>
+          )}
+          {!viewState.hideMapUi && !viewState.explorerPanelIsVisible && (
+            <WaterQualityPanel />
+          )}
           {!viewState.hideMapUi && (
             <>
               <ActionBarPortal show={viewState.isActionBarVisible} />

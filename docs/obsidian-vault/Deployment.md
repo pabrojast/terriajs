@@ -14,6 +14,11 @@ Este repo tiene tres salidas de despliegue observables:
 
 Workflow: `.github/workflows/npm-publish.yml`
 
+Se activa con un push a `main`, pero el job completo requiere
+`github.repository_owner == 'TerriaJS'`. En el fork `pabrojast`, integrar
+codigo en `main` no crea tags, no publica en npm y no envia las notificaciones
+Slack de ese workflow. El CI de compilacion y pruebas sigue activo.
+
 Flujo observado:
 
 1. detectar cambio de version en `package.json`
@@ -33,6 +38,10 @@ Referencia adicional: `RELEASE_GUIDE.md`
 ## 3. Deploy CI de aplicacion
 
 Workflow: `.github/workflows/deploy.yml`
+
+Este job tambien requiere el propietario `TerriaJS`; un push al fork no
+despliega la aplicacion de CI. Los despliegues IHP-WINS se realizan mediante
+los workflows explicitos del repositorio `ckan-unesco-docker`.
 
 Script: `buildprocess/ci-deploy.sh`
 
@@ -97,6 +106,24 @@ revisaron a 1440×900, 1366×768 y 1024×600 con acciones visibles y sin
 desbordamiento horizontal. Ver [[Testing]] y la
 [guia de demo](https://github.com/pabrojast/ckan-unesco-docker/blob/miserver-2.10/docs/story-showcase-dev.md)
 para alcance y limitaciones de las verificaciones.
+
+## Integracion del trabajo DEV en main (2026-10-12)
+
+La integracion parte de `main` (`fc75241a5`) y conserva la biblioteca DEV
+`10980da7122df35c73370ae703d34cde8adbb913`, incluidos los pilotos de calidad
+de agua y la guia IHP-WINS de Story Studio. La insercion y renderizacion de
+leyendas del commit exclusivo de `main` ya estan presentes en DEV; se
+conservan al resolver los conflictos del editor, lector y traducciones.
+
+Respecto a esa revision DEV, solo cambian la proteccion del job npm y esta
+documentacion. Integrar o publicar Git no constituye un despliegue DEV ni de
+produccion, y no modifica los pins existentes de los consumidores.
+
+La integracion paso TypeScript (`--noEmit --skipLibCheck`), ESLint de los
+archivos resueltos, formato de workflow/documentacion y 32 specs de Stories
+en Chromium. La comparacion del arbol confirma que `lib`, `test`, `wwwroot`,
+`package.json` y `yarn.lock` son identicos a la revision DEV citada. Estos
+controles focalizados no equivalen a un CI global ni a un despliegue.
 
 ## Vacios detectados
 

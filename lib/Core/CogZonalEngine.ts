@@ -6,6 +6,8 @@
  */
 
 import type { Polygon } from "geojson";
+import { openCogSource } from "./CogSourceCache";
+import { isCogNoData, toPhysicalValue } from "./CogPointReader";
 
 // ─── Public Types ──────────────────────────────────────────────
 
@@ -29,6 +31,11 @@ export interface ZonalCalculationOptions {
   band?: number;
   /** Override nodata value. If undefined, reads from TIFF metadata. */
   noDataValue?: number;
+  /** Extra raw no-data sentinels, before physical conversion. */
+  noDataValues?: readonly number[];
+  /** Explicit physical conversion. Defaults to GDAL band metadata, then 1/0. */
+  valueScale?: number;
+  valueOffset?: number;
   /** Maximum overview level index to use (0 = full res). Undefined = auto-select. */
   overviewLevel?: number;
   /** EPSG code of the COG CRS. If undefined, reads from GeoKeys. */
@@ -72,6 +79,31 @@ function pointInPolygon(x: number, y: number, ring: number[][]): boolean {
     if (intersect) inside = !inside;
   }
   return inside;
+}
+
+/** Holes are excluded, including after reprojection to a projected COG. */
+export function pointInZonalPolygon(
+  x: number,
+  y: number,
+  rings: number[][][]
+): boolean {
+  return (
+    !!rings.length &&
+    pointInPolygon(x, y, rings[0]) &&
+    !rings.slice(1).some((ring) => pointInPolygon(x, y, ring))
+  );
+}
+
+export function zonalPhysicalValue(
+  raw: number,
+  noData: number | undefined,
+  extra: readonly number[] | undefined,
+  scale: number,
+  offset: number
+): number | undefined {
+  return isCogNoData(raw, noData, extra)
+    ? undefined
+    : toPhysicalValue(raw, { scale, offset });
 }
 
 /**
@@ -231,19 +263,14 @@ export async function calculateZonalStatistics(
   signal?.throwIfAborted();
 
   // Dynamic imports (tree-shakeable in webpack)
-  const [{ fromUrl }, proj4Module] = await Promise.all([
-    import("geotiff"),
-    import("proj4-fully-loaded")
-  ]);
+  const proj4Module = await import("proj4-fully-loaded");
   const proj4 = proj4Module.default;
 
   signal?.throwIfAborted();
   onProgress?.(0.05);
 
   // Open the COG
-  const tiff = await fromUrl(cogUrl, {
-    allowFullFile: true
-  });
+  const tiff = await openCogSource(cogUrl);
 
   signal?.throwIfAborted();
   onProgress?.(0.1);
@@ -253,6 +280,16 @@ export async function calculateZonalStatistics(
   const imageCount = await tiff.getImageCount();
   const gt = getGeoTransform(fullImage);
   const noData = userNoData ?? fullImage.getGDALNoData() ?? undefined;
+  const metadata = fullImage.getGDALMetadata(band - 1);
+  const metadataScale = Number(metadata?.SCALE ?? 1);
+  const metadataOffset = Number(metadata?.OFFSET ?? 0);
+  const scale =
+    options.valueScale ?? (Number.isFinite(metadataScale) ? metadataScale : 1);
+  const offset =
+    options.valueOffset ??
+    (Number.isFinite(metadataOffset) ? metadataOffset : 0);
+  if (!Number.isFinite(scale) || !Number.isFinite(offset))
+    throw new Error("Invalid COG value scale or offset");
 
   // Detect EPSG code
   const geoKeys = fullImage.getGeoKeys();
@@ -263,23 +300,24 @@ export async function calculateZonalStatistics(
     4326;
 
   // Reproject polygon from EPSG:4326 to the COG's CRS if needed
-  const outerRing = polygon.coordinates[0];
-  let projectedRing: number[][];
+  let projectedRings: number[][][];
 
   if (epsgCode !== 4326) {
     const projector = proj4("EPSG:4326", `EPSG:${epsgCode}`);
-    projectedRing = outerRing.map(([lon, lat]) =>
-      projector.forward([lon, lat])
+    projectedRings = polygon.coordinates.map((ring) =>
+      ring.map(([lon, lat]) => projector.forward([lon, lat]))
     );
   } else {
-    projectedRing = outerRing.map(([lon, lat]) => [lon, lat]);
+    projectedRings = polygon.coordinates.map((ring) =>
+      ring.map(([lon, lat]) => [lon, lat])
+    );
   }
 
   signal?.throwIfAborted();
   onProgress?.(0.15);
 
   // Compute polygon bbox in CRS coordinates
-  const [bboxMinX, bboxMinY, bboxMaxX, bboxMaxY] = ringBBox(projectedRing);
+  const [bboxMinX, bboxMinY, bboxMaxX, bboxMaxY] = ringBBox(projectedRings[0]);
 
   // Convert bbox to pixel coordinates (full resolution)
   const [pxLeft, pxTop] = geoToPixel(bboxMinX, bboxMaxY, gt);
@@ -395,20 +433,19 @@ export async function calculateZonalStatistics(
       const cy = ovOriginY + (row + 0.5) * ovPixelHeight;
 
       // Check if pixel center is inside the polygon
-      if (!pointInPolygon(cx, cy, projectedRing)) {
+      if (!pointInZonalPolygon(cx, cy, projectedRings)) {
         continue;
       }
 
       const idx = row * ovWidth + col;
-      const value = rasterData[idx];
-
-      if (noData !== undefined && value === noData) {
-        noDataCount++;
-        continue;
-      }
-
-      // Also skip NaN and Infinity
-      if (!isFinite(value)) {
+      const value = zonalPhysicalValue(
+        rasterData[idx],
+        noData,
+        options.noDataValues,
+        scale,
+        offset
+      );
+      if (value === undefined || !Number.isFinite(value)) {
         noDataCount++;
         continue;
       }
