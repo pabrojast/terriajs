@@ -67,6 +67,7 @@ Decisiones aplicadas en el merge:
 - `test/ReactViews/Story/StoryPanel/StoryPanelSpec.ts` de upstream se elimina (prueba `activateStory`, que el `StoryPanel` del fork no expone).
 - `test/ReactViews/StandardUserInterfaceSpec.tsx`: el test "asks the user whether to view the story" pasa a comprobar que el fork abre la historia sin preguntar. `test/mocks/browser.ts` deja pasar `HEAD /test/*` y responde 404 a `*.tif` remotos (geotiff ahora los pide al cargar). `WebMapTileServiceCatalogItemSpec` comprueba el endpoint KVP como prefijo (Cesium 26 expone la plantilla KVP completa en `provider.url`).
 - Tooling que llega con la etapa 2: terriajs-cesium 26.3.0 (+ widgets 16.2.0), styled-components 6, i18next 26 / react-i18next 17, tinymce 7.9, zod, webpack 5.111.
+- `package.json` del fork declara `version` 8.13.0 (la version de `packages/terriajs` en upstream al cerrar la etapa 2); TerriaMap la escribe en `version.json` al construir.
 
 Advertencias medidas:
 
