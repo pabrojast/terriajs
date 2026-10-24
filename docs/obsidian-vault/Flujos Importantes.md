@@ -40,6 +40,7 @@ Estado observable relevante dentro de `initSources`:
 
 - `pickedFeatures` puede restaurar la seleccion consultada en el mapa.
 - `featureInfoPanel` puede restaurar posicion y dimensiones de la ventana flotante de feature info cuando el share/story incluye un pick activo.
+- `accumulatedChartSeries` conserva las series del workbench aunque no exista una seleccion activa o el pick este vacio. Cerrar una seleccion o activar una escena no debe impedir compartir las lineas que siguen visibles; se restauran con sus puntos, colores y metadatos.
 
 ## 3. Registro de tipos de catalogo y busqueda
 

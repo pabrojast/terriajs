@@ -39,6 +39,10 @@ yarn gulp test-firefox
 - La estructura replica bastante bien `lib/`
 - Hay fixtures y datos en `wwwroot/test/`
 
+### Enlaces compartidos y series acumuladas
+
+`BuildShareLinkSpec.ts` verifica que las series de un COG se serializan y se restauran mediante `Terria.applyInitData` tanto sin `pickedFeatures` como con un pick vacio. Esta regresion se detecto al abrir una Story de Dnipro y volver a compartir: el grafico seguia visible, pero el JSON omitia las series. La validacion integrada usa el enlace del usuario, cuatro capitulos y dos series con 37/36 puntos; el WAF se prueba separadamente en `ckan-unesco-docker/deploy/envoy-dev/check_terria_share.py`.
+
 ### Cobertura de styling COG
 
 - `test/Models/Catalog/CatalogItems/CogRenderStyleSpec.ts` cubre resolucion de dominio y paleta, inversion, clamps, rangos inclusivos, validacion y `nativeDomain` cuando hay un `domain` configurado.

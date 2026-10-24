@@ -123,6 +123,7 @@ export function getShareData(
     addTimelineItems(terria, initSource);
     addViewSettings(terria, viewState, initSource);
     addFeaturePicking(terria, initSource);
+    addAccumulatedChartSeries(terria, initSource);
     if (includeStories) {
       // info that are not needed in scene share data
       addStories(terria, initSource);
@@ -422,8 +423,6 @@ function addFeaturePicking(terria: Terria, initSource: InitSourceData) {
         terria.featureInfoPanelState
       );
     }
-
-    addAccumulatedChartSeries(terria, initSource);
   }
 }
 

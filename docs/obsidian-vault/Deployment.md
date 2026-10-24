@@ -125,6 +125,26 @@ en Chromium. La comparacion del arbol confirma que `lib`, `test`, `wwwroot`,
 `package.json` y `yarn.lock` son identicos a la revision DEV citada. Estos
 controles focalizados no equivalen a un CI global ni a un despliegue.
 
+## Enlaces cortos y series en DEV (2026-10-23)
+
+TerriaJS `adf270acb3ee745a9faa8116d0c571a8cd0c5fc0` y TerriaMap
+`a0869a0b1cdb12229c97fbdedee2e23a1a11c5d7` estan publicados en
+`fix/shortlink-series-dev-20261023` en sus respectivos repositorios. Parten de
+las revisiones desplegadas y corrigen la serializacion de series sin un punto
+seleccionado. El [workflow DEV 39985209581](https://github.com/pabrojast/ckan-unesco-docker/actions/runs/39985209581)
+desplego `pabrojast/terriamap:20261023131517-a0869a0`, digest
+`sha256:0656d2b768fbc5daecf7fbae312c32e310c3043a6292d1486e153054830671c8`.
+
+Se verifico en `default/ckan` el pod Ready, sin reinicios, y el pin TerriaJS
+dentro de la imagen. La especificacion del deployment conserva todos los
+campos salvo la imagen; los demas deployments, ingress y PVC conservan sus
+especificaciones e identificadores. La correccion del 403 se despliega aparte
+en la politica WAF de DEV (`ckan-unesco-docker`, commit `81cc3be`).
+
+La evidencia, el enlace original recuperado, las pruebas de navegador y las
+limitaciones de CI estan en el [informe de validacion](https://github.com/pabrojast/ckan-unesco-docker/blob/miserver-2.10/deploy/envoy-dev/validation-terria-shortlink-2026-10-23.md).
+Esta entrega corresponde exclusivamente a DEV.
+
 ## Vacios detectados
 
 - `server-side-config.md` en `doc/customizing/` dice "Coming soon!".
