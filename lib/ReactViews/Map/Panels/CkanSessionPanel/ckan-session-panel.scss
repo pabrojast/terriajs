@@ -1,0 +1,13 @@
+.btn {
+  composes: btn from "../../../../Sass/common/_buttons.scss";
+  composes: btn--map from "../../../../Sass/common/_buttons.scss";
+}
+
+.userName {
+  display: inline-block;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+}

@@ -1,3 +1,4 @@
+import { keyFromSelector } from "i18next";
 import {
   action,
   computed,
@@ -10,7 +11,6 @@ import RuntimeError from "terriajs-cesium/Source/Core/RuntimeError";
 import { JsonObject } from "../../Core/Json";
 import Result from "../../Core/Result";
 import TerriaError from "../../Core/TerriaError";
-import CatalogSearchProviderMixin from "../../ModelMixins/SearchProviders/CatalogSearchProviderMixin";
 import LocationSearchProviderMixin from "../../ModelMixins/SearchProviders/LocationSearchProviderMixin";
 import { SearchBarTraits } from "../../Traits/SearchProviders/SearchBarTraits";
 import SearchProviderTraits from "../../Traits/SearchProviders/SearchProviderTraits";
@@ -25,9 +25,6 @@ import upsertSearchProviderFromJson from "./upsertSearchProviderFromJson";
 
 export class SearchBarModel extends CreateModel(SearchBarTraits) {
   private locationSearchProviders = observable.map<string, BaseModel>();
-
-  @observable
-  catalogSearchProvider: CatalogSearchProviderMixin.Instance | undefined;
 
   constructor(readonly terria: Terria) {
     super("search-bar-model", terria);
@@ -56,7 +53,9 @@ export class SearchBarModel extends CreateModel(SearchBarTraits) {
         new TerriaError({
           sender: SearchProviderFactory,
           title: "SearchProviders",
-          message: { key: "searchProvider.noSearchProviders" }
+          message: {
+            key: keyFromSelector(($) => $.searchProvider.noSearchProviders)
+          }
         })
       );
     }

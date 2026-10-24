@@ -46,7 +46,9 @@ export const ChartItem: FC<IChartItem> = observer(
       <Checkbox
         id="depthTestAgainstTerrain"
         isChecked={chartItem.isSelectedInWorkbench}
-        title={t("chart.showItemInChart", { value: chartItem.name })}
+        title={t(($) => $.chart.showItemInChart, {
+          value: chartItem.name
+        })}
         onChange={toggleActive}
         css={`
           color: ${lineColor};
@@ -79,6 +81,7 @@ const ChartItemSelector: FC<IChartItemSelector> = observer(
         rounded
         backgroundColor={theme?.overlay}
         css={`
+          padding-left: ${theme.spacing}px;
           margin: 10px 5px;
         `}
       >

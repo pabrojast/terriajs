@@ -103,7 +103,7 @@ let prevBoundsType = 0;
  **/
 class LeafletGeomVisualizer {
   private readonly _featureGroup: L.FeatureGroup;
-  private readonly _entitiesToVisualize: AssociativeArray;
+  private readonly _entitiesToVisualize: AssociativeArray<Entity>;
   private readonly _entityHash: EntityHash;
 
   constructor(
@@ -203,7 +203,7 @@ class LeafletGeomVisualizer {
       const entity = entities[i];
       const entityDetails = entityHash[entity.id];
 
-      if (isDefined(entity._point)) {
+      if (isDefined(entity.point)) {
         this._updatePoint(
           entity,
           time,
@@ -500,6 +500,16 @@ class LeafletGeomVisualizer {
         }
       }
     }
+
+    const rotation = getValueOrDefault(
+      markerGraphics.rotation,
+      time,
+      undefined
+    );
+
+    if (rotation !== undefined) {
+      rotateBillboardIcon(marker, rotation);
+    }
   }
 
   private _updateLabel(
@@ -547,6 +557,11 @@ class LeafletGeomVisualizer {
       time,
       defaultColor
     );
+    const backgroundColor = getValueOrDefault(
+      labelGraphics.backgroundColor,
+      time,
+      Color.TRANSPARENT
+    );
     const verticalOrigin = getValueOrDefault(
       labelGraphics.verticalOrigin,
       time,
@@ -567,6 +582,7 @@ class LeafletGeomVisualizer {
       text: text,
       font: font,
       color: fillColor.toCssColorString(),
+      backgroundColor: backgroundColor.toCssColorString(),
       scale: scale,
       horizontalOrigin: horizontalOrigin, //value: left, center, right
       verticalOrigin: verticalOrigin //value: bottom, center, top
@@ -616,7 +632,9 @@ class LeafletGeomVisualizer {
 
       const canvas = writeTextToCanvas(text, {
         fillColor: fillColor,
-        font: font
+        backgroundColor: backgroundColor,
+        font: font,
+        padding: 5
       });
       if (isDefined(canvas)) {
         const imageUrl = canvas.toDataURL();
@@ -1271,6 +1289,25 @@ function recolorBillboard(
 
   context.putImageData(image, 0, 0);
   return canvas.toDataURL();
+}
+
+/**
+ * Use CSS transform to rotate the billboard icon
+ */
+function rotateBillboardIcon(marker: L.Marker, rotation: number) {
+  const el: HTMLElement | undefined = marker.getElement();
+  if (!isDefined(el)) {
+    return;
+  }
+
+  // Rotate w.r.t to center point of the element
+  el.style.transformOrigin = "center center";
+
+  const pos = L.DomUtil.getPosition(el);
+  const translate = isDefined(pos)
+    ? `translate3d(${pos.x}px, ${pos.y}px, 0)`
+    : "";
+  el.style.transform = `${translate} rotateZ(${rotation}rad)`;
 }
 
 function featureClicked(

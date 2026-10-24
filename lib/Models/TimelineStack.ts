@@ -1,10 +1,12 @@
 import {
+  IReactionDisposer,
   action,
   autorun,
   computed,
-  IReactionDisposer,
+  makeObservable,
   observable,
-  makeObservable
+  runInAction,
+  untracked
 } from "mobx";
 import Clock from "terriajs-cesium/Source/Core/Clock";
 import ClockRange from "terriajs-cesium/Source/Core/ClockRange";
@@ -18,6 +20,8 @@ import TimeVarying, {
 import DefaultTimelineModel from "./DefaultTimelineModel";
 import CommonStrata from "./Definition/CommonStrata";
 import Terria from "./Terria";
+
+const DEFAULT_TIMELINE_MODEL_ID = "defaultTimeline";
 
 /**
  * Manages a stack of all the time-varying datasets currently attached to the timeline. Provides
@@ -37,10 +41,21 @@ export default class TimelineStack {
   @observable
   defaultTimeVarying: TimeVarying | undefined;
 
+  /**
+   * The start and stop time last applied to the clock from the top layer.
+   * Updated only after the clock has been moved to the top layer, so views of
+   * the clock (e.g. the timeline) can react to it without racing the sync.
+   */
+  @observable.ref
+  clockRange: { start: JulianDate; stop: JulianDate } | undefined;
+
   private _disposeClockAutorun: IReactionDisposer | undefined;
   private _disposeTickSubscription: CesiumEvent.RemoveCallback | undefined;
 
-  constructor(readonly terria: Terria, readonly clock: Clock) {
+  constructor(
+    readonly terria: Terria,
+    readonly clock: Clock
+  ) {
     makeObservable(this);
   }
 
@@ -77,6 +92,20 @@ export default class TimelineStack {
       this.clock.shouldAnimate = !topLayer.isPaused;
       this.clock.clockRange = ClockRange.LOOP_STOP;
 
+      const appliedRange = untracked(() => this.clockRange);
+      if (
+        !appliedRange ||
+        !JulianDate.equals(appliedRange.start, this.clock.startTime) ||
+        !JulianDate.equals(appliedRange.stop, this.clock.stopTime)
+      ) {
+        runInAction(() => {
+          this.clockRange = {
+            start: JulianDate.clone(this.clock.startTime),
+            stop: JulianDate.clone(this.clock.stopTime)
+          };
+        });
+      }
+
       if (this._disposeTickSubscription === undefined) {
         // We should start synchronizing only after first run of this autorun so that
         // the clock parameters are set correctly.
@@ -104,7 +133,7 @@ export default class TimelineStack {
    */
   @computed
   get top(): TimeVarying | undefined {
-    // Find the first item with a current, start, and stop time.
+    // Find the first item with a current time and a non-empty time range.
     // Use the default if there isn't one.
     return (
       this.items.find((item) => {
@@ -114,8 +143,7 @@ export default class TimelineStack {
             : item;
         return (
           dereferenced.currentTimeAsJulianDate !== undefined &&
-          dereferenced.startTimeAsJulianDate !== undefined &&
-          dereferenced.stopTimeAsJulianDate !== undefined
+          TimeVarying.hasTimeRange(dereferenced)
         );
       }) || this.defaultTimeVarying
     );
@@ -227,14 +255,16 @@ export default class TimelineStack {
 
   @action
   setAlwaysShowTimeline(show = true): void {
-    if (!show) {
-      this.defaultTimeVarying = undefined;
+    if (show) {
+      this.defaultTimeVarying = this.getOrCreateDefaultTimelineModel();
     } else {
-      this.defaultTimeVarying = new DefaultTimelineModel(
-        "defaultTimeVarying",
-        this.terria
-      );
+      if (this.defaultTimeVarying) {
+        // Unregister the model so that it doesn't appear in share links
+        this.terria.removeModelReferences(this.defaultTimeVarying);
+      }
+      this.defaultTimeVarying = undefined;
     }
+    this.terria.currentViewer.notifyRepaintRequired();
   }
 
   @computed
@@ -245,6 +275,18 @@ export default class TimelineStack {
       this.defaultTimeVarying.stopTimeAsJulianDate !== undefined &&
       this.defaultTimeVarying.currentTimeAsJulianDate !== undefined
     );
+  }
+
+  private getOrCreateDefaultTimelineModel(): DefaultTimelineModel {
+    let model = this.terria.getModelById(
+      DefaultTimelineModel,
+      DEFAULT_TIMELINE_MODEL_ID
+    );
+    if (!model) {
+      model = new DefaultTimelineModel(DEFAULT_TIMELINE_MODEL_ID, this.terria);
+      this.terria.addModel(model);
+    }
+    return model;
   }
 }
 

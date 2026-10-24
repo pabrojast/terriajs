@@ -1,7 +1,13 @@
+import {
+  StoryComposition,
+  StoryOptions,
+  StoryPresentation
+} from "./StoryComposition";
 import { JsonObject } from "../Core/Json";
 import Result from "../Core/Result";
 import { TerriaErrorSeverity } from "../Core/TerriaError";
 import { ProviderCoordsMap } from "../Map/PickedFeatures/PickedFeatures";
+import type { AccumulatedSeries } from "../ReactViews/Custom/Chart/ChartJs/ChartJsTypes";
 import { BaseMapsJson } from "./BaseMaps/BaseMapsModel";
 import IElementConfig from "./IElementConfig";
 
@@ -22,6 +28,25 @@ export interface InitSourcePickedFeatures {
   }[];
 }
 
+export interface DraggableElementPosition {
+  x: number;
+  y: number;
+  /** Normalized position within available bounds (0..1). */
+  xRatio?: number;
+  yRatio?: number;
+}
+
+export interface DraggableElementDimensions {
+  width: number;
+  height: number;
+}
+
+export interface FeatureInfoPanelState {
+  sizeMode?: "auto" | "manual";
+  position?: DraggableElementPosition;
+  dimensions?: DraggableElementDimensions;
+}
+
 export type ViewModeJson = "3d" | "3dSmooth" | "2d";
 
 /** Provides loose type hints for ModelJson */
@@ -32,15 +57,21 @@ export interface ModelJson extends JsonObject {
   type?: string;
   shareKeys?: string[];
   members?: (string | JsonObject)[];
+  strata?: { [stratumName: string]: Partial<ModelJson> };
 }
 
 export interface StoryData {
+  presentation?: StoryPresentation;
+  composition?: StoryComposition;
   title: string;
   text: string;
   id: string;
-  shareData: ShareInitSourceData;
+  shareData: StartData;
+  /** Position and dimensions for draggable story panel */
+  position?: DraggableElementPosition;
+  dimensions?: DraggableElementDimensions;
 }
-export interface ShareInitSourceData {
+export interface StartData {
   version: string;
   /** Share data initSources can be a mix of initUrls (string) and initData (InitDataSource/JsonObject) */
   initSources: (InitSourceData | string)[];
@@ -52,6 +83,7 @@ export interface InitSourceData {
   catalog?: JsonObject[];
   elements?: Map<string, IElementConfig>;
   stories?: StoryData[];
+  storyOptions?: StoryOptions;
   viewerMode?: ViewModeJson;
   baseMaps?: BaseMapsJson;
   homeCamera?: JsonObject;
@@ -64,6 +96,13 @@ export interface InitSourceData {
   models?: { [key: string]: ModelJson };
   previewedItemId?: string;
   pickedFeatures?: InitSourcePickedFeatures;
+  featureInfoPanel?: FeatureInfoPanelState;
+  /**
+   * Accumulated Chart.js per-feature time-series, keyed by the backing
+   * `CsvCatalogItem`'s model id. Persisted so a share/story can restore the
+   * lines the user built up by clicking features.
+   */
+  accumulatedChartSeries?: { [modelId: string]: AccumulatedSeries[] };
   /** These settings will override localStorage persistent settings. They are used for shares/stories */
   settings?: {
     baseMaximumScreenSpaceError?: number;
@@ -73,11 +112,17 @@ export interface InitSourceData {
     baseMapId?: string;
     terrainSplitDirection?: number;
     depthTestAgainstTerrainEnabled?: boolean;
-    /** Check or uncheck "Share/Print -> Advanced options -> Shorten the share URL using a web service".
+    /** Check or uncheck "Share/Print -> Shorten the share URL using a web service".
      * See https://github.com/TerriaJS/terriajs/discussions/6848#discussioncomment-6798623 for a typical use case.
      * To disable the shortening url service, set it to false.
      */
     shortenShareUrls?: boolean;
+    /** True to start playing this share's story as soon as it loads, instead of
+     * asking the user whether they want to view it. Overrides the
+     * `storyAutoStart` config parameter, and is overridden by the `playStory`
+     * hash parameter.
+     */
+    storyAutoStart?: boolean;
   };
 }
 

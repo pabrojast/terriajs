@@ -38,7 +38,7 @@ const CatalogGroupButton = styled.button`
  *
  * @constructor
  */
-function CatalogGroup(props) {
+const CatalogGroup = observer((props) => {
   const { t } = useTranslation();
   return (
     <li className={Styles.root}>
@@ -56,8 +56,8 @@ function CatalogGroup(props) {
               className={Styles.addRemoveButton}
               title={
                 props.allItemsLoaded
-                  ? t("models.catalog.removeAll")
-                  : t("models.catalog.addAll")
+                  ? t(($) => $.models.catalog.removeAll)
+                  : t(($) => $.models.catalog.addAll)
               }
               // onClick should call addAll function which I should move out of GroupPreview to separate service file
               onClick={props.addRemoveButtonFunction}
@@ -113,7 +113,7 @@ function CatalogGroup(props) {
                 <button
                   type="button"
                   className={Styles.trashGroup}
-                  title={t("dataCatalog.groupRemove")}
+                  title={t(($) => $.dataCatalog.groupRemove)}
                   onClick={props.removeUserAddedData}
                 >
                   <Icon glyph={Icon.GLYPHS.trashcan} />
@@ -134,21 +134,23 @@ function CatalogGroup(props) {
               <Loader />
             </li>
           )}
-          {!props.loading && props.children.length === 0 && props.emptyMessage && (
-            <li
-              className={classNames(Styles.label, Styles.labelNoResults)}
-              key="empty"
-            >
-              {props.emptyMessage}
-            </li>
-          )}
+          {!props.loading &&
+            props.children.length === 0 &&
+            props.emptyMessage && (
+              <li
+                className={classNames(Styles.label, Styles.labelNoResults)}
+                key="empty"
+              >
+                {props.emptyMessage}
+              </li>
+            )}
 
           {!props.loading ? props.children : null}
         </ul>
       )}
     </li>
   );
-}
+});
 
 CatalogGroup.propTypes = {
   text: PropTypes.string,
@@ -171,4 +173,4 @@ CatalogGroup.propTypes = {
   addRemoveButtonFunction: PropTypes.func
 };
 
-export default observer(CatalogGroup);
+export default CatalogGroup;

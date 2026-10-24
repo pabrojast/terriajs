@@ -1,13 +1,19 @@
 # Client-side config
 
-The file `wwwroot/config.json` in TerriaMap contains client-side configuration parameters. See [this file for an example](https://github.com/TerriaJS/TerriaMap/blob/main/wwwroot/config.json).
+The file `wwwroot/config.json` in TerriaMap contains client-side configuration parameters. See [this file for an example](https://github.com/TerriaJS/terriajs/blob/main/apps/terriamap/wwwroot/config.json).
+
+This file is downloaded by the browser and is public. Do not put passwords,
+private API keys, or other server-side secrets in it. Browser tokens such as a
+Cesium ion or Mapbox token must be restricted to the minimum permissions,
+origins, and assets required by the application. See
+[Security and production deployment](../deploying/security.md#cesium-ion-access-tokens).
 
 It has following structure:
 
 | Name                                          | Required | Type                          | Default | Description                                                                                                                                                                                                             |
 | --------------------------------------------- | -------- | ----------------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [initializationUrls](#intializationurls)      | yes      | **string[]**                  | []      | The list of initialization files which define the catalog content, for more details check [below](#intializationurls).                                                                                                  |
-| [v7initializationUrls](#v7initializationurls) | yes      | **string[]**                  | []      | The list of v7 initialization files &mdash; these will be converted to v8 on the fly using [`catalog-converter`](https://github.com/TerriaJS/catalog-converter). For more details check [below](#v7initializationUrls). |
+| [v7initializationUrls](#v7initializationurls) | yes      | **string[]**                  | []      | The list of v7 initialization files &mdash; these will be converted to v8 on the fly using [`catalog-converter`](https://github.com/TerriaJS/catalog-converter). For more details check [below](#v7initializationurls). |
 | parameters                                    | yes      | **[Parameters](#parameters)** |         | TerriaJS configuration options                                                                                                                                                                                          |
 
 **Example**
@@ -56,7 +62,7 @@ It is also possible to add version 7 init files using the `v7initializationUrls`
 
 ## Parameters
 
-**The best reference for now is [`interface ConfigParameters`](https://github.com/TerriaJS/terriajs/blob/main/lib/Models/Terria.ts#L101) (you may have to search for `interface ConfigParameters` on that page to find it if future code changes change line numbers).**
+**The best reference for now is [`interface ConfigParameters`](https://github.com/TerriaJS/terriajs/blob/main/packages/terriajs/lib/Models/Terria.ts#L101) (you may have to search for `interface ConfigParameters` on that page to find it if future code changes change line numbers).**
 
 Specifies various options for configuring TerriaJS:
 
@@ -72,10 +78,12 @@ Specifies various options for configuring TerriaJS:
 | `corsProxyBaseUrl`                | no       | **string**                                                                                               | `"proxy/"`                                                         | URL of CORS proxy service (part of TerriaJS-Server). This option only needs to be changed in unusual deployments. It has to be changed if deploying as static site, for instance.                                                                                                                      |
 | `proxyableDomainsUrl`             | no       | **string**                                                                                               | `"proxyabledomains/"`                                              | Deprecated, will be determined from serverconfig.                                                                                                                                                                                                                                                      |
 | `serverConfigUrl`                 | no       | **string**                                                                                               | `"serverconfig/"`                                                  |
+| `parentMessageAllowedOrigins`     | no       | **string[]**                                                                                             | `[]`                                                               | Origins permitted to exchange messages with the application through `window.postMessage`. The application's own non-opaque origin is allowed automatically. Cross-origin parent or opener pages must be listed explicitly. The opaque origin `"null"` is never allowed.                                |
 | `shareUrl`                        | no       | **string**                                                                                               | `"share"`                                                          |
 | `feedbackUrl`                     | no       | **string**                                                                                               |                                                                    | URL of the service used to send feedback. If not specified, the "Give Feedback" button will not appear.                                                                                                                                                                                                |
 | `initFragmentPaths`               | yes      | **string[]**                                                                                             | `["init/"]`                                                        | An array of base paths to use to try to use to resolve init fragments in the URL. For example, if this property is `[ "init/", "http://example.com/init/"]`, then a URL with `#test` will first try to load `init/test.json` and, if that fails, next try to load `http://example.com/init/test.json`. |
 | `storyEnabled`                    | yes      | **boolean**                                                                                              | `true`                                                             | Whether the story is enabled. If false story function button won't be available.                                                                                                                                                                                                                       |
+| `storyAutoStart`                  | no       | **boolean**                                                                                              | `false`                                                            | True to start playing a story as soon as a map containing one is loaded, instead of asking the user whether they want to view it. A share that contains a story records this as `settings.storyAutoStart`; the `playStory` hash parameter overrides both.                                              |
 | `interceptBrowserPrint`           | no       | **boolean**                                                                                              | `true`                                                             | True (the default) to intercept the browser's print feature and use a custom one accessible through the Share panel.                                                                                                                                                                                   |
 | `tabbedCatalog`                   | no       | **boolean**                                                                                              | `false`                                                            | True to create a separate explorer panel tab for each top-level catalog group to list its items in.                                                                                                                                                                                                    |
 | `useCesiumIonTerrain`             | no       | **boolean**                                                                                              | `true`                                                             | True to use Cesium World Terrain from Cesium ion. False to use terrain from the URL specified with the `"cesiumTerrainUrl"` property. If this property is false and `"cesiumTerrainUrl"` is not specified, the 3D view will use a smooth ellipsoid instead of a terrain surface. Defaults to true.     |
@@ -91,8 +99,8 @@ Specifies various options for configuring TerriaJS:
 | `disableMyLocation`               | no       | **boolean**                                                                                              | undefined                                                          | True to disable the "Centre map at your current location" button.                                                                                                                                                                                                                                      |
 | `disableSplitter`                 | no       | **boolean**                                                                                              | undefined                                                          | True to disable the use of the splitter control.                                                                                                                                                                                                                                                       |
 | `experimentalFeatures`            | no       | **boolean**                                                                                              | undefined                                                          |                                                                                                                                                                                                                                                                                                        |
+| `nextExperimentalFeatures`        | no       | **[NextExperimentalFeatures](#nextexperimentalfeatures)**                                                | undefined                                                          | Individually toggled experimental features.                                                                                                                                                                                                                                                            |
 | `magdaReferenceHeaders`           | no       | **[MagdaReferenceHeaders](#magdareferenceheaders)**                                                      | undefined                                                          |
-| `locationSearchBoundingBox`       | no       | **number**                                                                                               | undefined                                                          |
 | `googleAnalyticsKey`              | no       | **string**                                                                                               | undefined                                                          | A Google API key for [Google Analytics](https://analytics.google.com). If specified, TerriaJS will send various events about how it's used to Google Analytics.                                                                                                                                        |
 | `errorService`                    | no       | **[ErrorServiceOptions](#errorserviceoptions)**                                                          | undefined                                                          | Optional configuration for the remote error logging service that Terria should log errors to.                                                                                                                                                                                                          |
 | `globalDisclaimer`                | no       | **any**                                                                                                  | undefined                                                          |                                                                                                                                                                                                                                                                                                        |
@@ -115,8 +123,16 @@ Specifies various options for configuring TerriaJS:
 | `storyVideo.videoUrl`             | no       | **string**                                                                                               | https://www.youtube-nocookie.com/embed/fbiQawV8IYY                 | Video to show in Story Editor panel under Getting Started.                                                                                                                                                                                                                                             |
 | `relatedMaps`                     | no       | **[RelatedMap](#relatedmap)[]**                                                                          | See [`lib/Models/RelatedMaps.ts`](../../lib/Models/RelatedMaps.ts) | Maps to show in "Related Maps" menu panel                                                                                                                                                                                                                                                              |
 | `aboutButtonHrefUrl`              | no       | **string**                                                                                               | `"about.html"`                                                     | About button URL. If set to `null`, then the About button will not be shown                                                                                                                                                                                                                            |
-| `searchBar`                       | no       | **[SearchBar](#searchbar)**                                                                              | `new SearchBar()`                                                  | Search bar configuration                                                                                                                                                                                                                                                                               |
+| `searchBarConfig`                 | no       | **[SearchBar](#searchbar)**                                                                              | `new SearchBar()`                                                  | Search bar configuration                                                                                                                                                                                                                                                                               |
 | `searchProviders`                 | no       | \*\*[SearchProviders](search-providers.md)                                                               | `[]`                                                               | Search providers that will be used for search                                                                                                                                                                                                                                                          |
+
+### NextExperimentalFeatures
+
+| Name                | Required | Type        | Default | Description                                                                                                                                  |
+| ------------------- | -------- | ----------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `imageryLayerGuard` | no       | **boolean** | `false` | Stop 3D tilesets with `drapeImagery` destroying the imagery layers draped on them, and recreate memoised imagery layers that were destroyed. |
+
+---
 
 ### MagdaReferenceHeaders
 
@@ -174,6 +190,7 @@ Configuration of items to appear in the search bar
 | languages                 | yes      | **Object**       | `{en: "english"}`                                         | Language abbreviations. Please mind that matching locale files must exist.                                                                                                                                                                                                       |
 | fallbackLanguage          | yes      | **string**       | `"en"`                                                    | Fallback language used if contents are not available in the currently selected language.                                                                                                                                                                                         |
 | changeLanguageOnStartWhen | yes      | **string[]**     | `["querystring", "localStorage", "navigator", "htmlTag"]` | Order of user language detection. See [i18next browser language detection documentation](https://github.com/i18next/i18next-browser-languageDetector) for details.                                                                                                               |
+| lookupCookie              | no       | **string**       | `"i18next"`                                               | Name of the cookie that handles i18n. See [i18next browser language detection documentation](https://github.com/i18next/i18next-browser-languageDetector) for details.                                                                                                           |
 | overridesBaseUrl          | yes      | **string**       |                                                           | Base URL for override namespace translation files. If set, this makes up the base URL for translation override files. Should end in "/". For example, if `overridesBaseUrl = "test/path/"`, then the full path for translation override files will be `"test/path/{{lng}}.json"` |
 
 ---
@@ -204,7 +221,8 @@ Configuration of items to appear in the search bar
     "localStorage",
     "navigator",
     "htmlTag"
-  ]
+  ],
+  "lookupCookie": "i18next"
 }
 ```
 
@@ -240,11 +258,11 @@ Credits/Attribution shown at the bottom of the map. Supports internationalizatio
 [
   {
     "text": "map.extraCreditLinks.dataAttribution",
-    "url": "about.html#data-attribution"
+    "url": "https://terria.io/attributions"
   },
   {
-    "text": "map.extraCreditLinks.disclaimer",
-    "url": "about.html#disclaimer"
+    "text": "map.extraCreditLinks.termsOfUse",
+    "url": "https://terria.io/demo-terms"
   }
 ]
 ```
@@ -264,3 +282,31 @@ search provider values.
 | minCharacters         | no       | **number**    | 3                              | Minimum number of characters required for search to start                                         |
 | boundingBoxLimit      | no       | **Rectangle** | `Cesium.Rectangle.MAX_VALUE`   | Bounding box limits for the search results {west, south, east, north}                             |
 | showSearchInCatalog   | no       | **boolean**   | true                           | True to show "Search in Catalog" link in location search results.                                 |
+
+### WMTS custom feature info
+
+WMTS catalog items can override the default `GetFeatureInfo` call by defining a `featureInfoRequest`
+object. This is useful when a service does not expose features directly but provides a separate
+endpoint (for example an `xcube` time-series API) that should be queried when the map is clicked.
+Templates support double-curly tokens such as `{{longitude}}`, `{{latitude}}`, `{{layer}}`
+(the WMTS Identifier), `{{layerTitle}}`, `{{time}}`, and pixel/tile indices.
+
+```json5
+{
+  type: "wmts",
+  name: "Ukraine turbidity",
+  url: "https://data.dev-wins.com/xcube/wmts/1.0.0/WMTSCapabilities.xml",
+  layer: "ukraine_lwq100_pyramid.turbidity_mean",
+  featureInfoRequest: {
+    url: "https://data.dev-wins.com/xcube/timeseries/{{layerPath}}",
+    method: "POST",
+    body: '{ "type": "Point", "coordinates": [{{longitude}}, {{latitude}}] }',
+    headers: {
+      "Content-Type": "application/json"
+    }
+  }
+}
+```
+
+By default the request expects JSON and will automatically build a feature info table from the JSON
+properties returned by the service.

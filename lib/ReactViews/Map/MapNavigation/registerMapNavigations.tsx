@@ -1,4 +1,4 @@
-import { runInAction } from "mobx";
+import { autorun, runInAction } from "mobx";
 import AugmentedVirtuality from "../../../Models/AugmentedVirtuality";
 import ViewerMode from "../../../Models/ViewerMode";
 import ViewState from "../../../ReactViewModels/ViewState";
@@ -11,6 +11,7 @@ import {
 import PedestrianMode, {
   PEDESTRIAN_MODE_ID
 } from "../../Tools/PedestrianMode/PedestrianMode";
+import { COG_CALCULATION_TOOL_ID } from "../../Tools/CogCalculation/CogCalculationTool";
 import { ToolButtonController } from "../../Tools/Tool";
 import {
   AR_TOOL_ID,
@@ -170,6 +171,34 @@ export const registerMapNavigations = (viewState: ViewState) => {
     ),
     order: 1,
     noExpand: true
+  });
+
+  // COG Zonal Calculation Tool
+  const cogCalculationToolController = new ToolButtonController({
+    toolName: COG_CALCULATION_TOOL_ID,
+    viewerMode: "both",
+    viewState: viewState,
+    getToolComponent: () =>
+      import("../../Tools/CogCalculation/CogCalculationTool").then(
+        (m) => m.default as any
+      ),
+    icon: GLYPHS.lineChart
+  });
+  mapNavigationModel.addItem({
+    id: COG_CALCULATION_TOOL_ID,
+    name: "translate#models.cogCalculation.toolName",
+    title: "translate#models.cogCalculation.toolTitle",
+    location: "TOP",
+    controller: cogCalculationToolController,
+    order: 7
+  });
+  // The tool only works on COG layers: offer it once one is on the workbench
+  // instead of leading to an empty "no COG layers" panel.
+  autorun(() => {
+    const hasCogLayer = terria.workbench.items.some(
+      (item) => item.type === "cog" || item.type === "cog-time-series"
+    );
+    cogCalculationToolController.setVisible(hasCogLayer);
   });
 
   const feedbackController = new FeedbackButtonController(viewState);

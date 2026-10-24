@@ -9,7 +9,7 @@ import combine from "terriajs-cesium/Source/Core/combine";
 import ViewState from "../../ReactViewModels/ViewState";
 import Disclaimer from "../Disclaimer";
 import DragDropFile from "../DragDropFile";
-import ExplorerWindow from "../ExplorerWindow/ExplorerWindow";
+import { ExplorerWindowComponents } from "../ExplorerWindow/ExplorerWindowComponents";
 import FeatureInfoPanel from "../FeatureInfo/FeatureInfoPanel";
 import FeedbackForm from "../Feedback/FeedbackForm";
 import { Medium, Small } from "../Generic/Responsive";
@@ -21,7 +21,7 @@ import HelpPanel from "../Map/Panels/HelpPanel/HelpPanel";
 import PrintView from "../Map/Panels/SharePanel/Print/PrintView";
 import TrainerBar from "./TrainerBar/TrainerBar";
 import MobileHeader from "../Mobile/MobileHeader";
-import MapInteractionWindow from "../Notification/MapInteractionWindow";
+import MapInteractionModeRenderer from "../Map/MapInteraction/MapInteractionModeRenderer";
 import Notification from "../Notification/Notification";
 import Branding from "../SidePanel/Branding";
 import FullScreenButton from "../SidePanel/FullScreenButton";
@@ -56,6 +56,7 @@ interface StandardUserInterfaceProps {
 const StandardUserInterfaceBase: FC<StandardUserInterfaceProps> = observer(
   (props) => {
     const { t } = useTranslation();
+    const narrative = props.terria.userProperties.get("narrative") === "1";
 
     const acceptDragDropFile = action(() => {
       props.viewState.isDraggingDroppingFile = true;
@@ -66,6 +67,9 @@ const StandardUserInterfaceBase: FC<StandardUserInterfaceProps> = observer(
     });
 
     const handleDragOver = (e: DragEvent<HTMLDivElement>) => {
+      if (props.terria.configParameters.disableUserAddedData) {
+        return;
+      }
       if (!e.dataTransfer.types || !e.dataTransfer.types.includes("Files")) {
         return;
       }
@@ -76,6 +80,7 @@ const StandardUserInterfaceBase: FC<StandardUserInterfaceProps> = observer(
     };
 
     const shouldUseMobileInterface = () =>
+      !props.terria.configParameters.disableMobileInterface &&
       document.body.clientWidth < (props.minimumLargeScreenWidth ?? 768);
 
     const resizeListener = action(() => {
@@ -98,25 +103,25 @@ const StandardUserInterfaceBase: FC<StandardUserInterfaceProps> = observer(
         props.terria.configParameters.storyEnabled &&
         props.terria.stories &&
         props.terria.stories.length &&
-        !props.viewState.storyShown
+        !props.viewState.storyShown &&
+        // '#hideStory=1' (story-map embeds): the parent page narrates the
+        // story itself, so never auto-open the native panel.
+        props.terria.userProperties.get("hideStory") !== "1" &&
+        !narrative
       ) {
-        props.terria.notificationState.addNotificationToQueue({
-          title: t("sui.notifications.title"),
-          message: t("sui.notifications.message"),
-          confirmText: t("sui.notifications.confirmText"),
-          denyText: t("sui.notifications.denyText"),
-          confirmAction: action(() => {
-            props.viewState.storyShown = true;
-          }),
-          denyAction: action(() => {
-            props.viewState.storyShown = false;
-          }),
-          type: "story",
-          width: 300
-        });
+        // Automatically show the story panel without prompting
+        props.viewState.storyShown = true;
       }
       /* eslint-disable-next-line react-hooks/exhaustive-deps */
     }, [props.terria.storyPromptShown]);
+
+    // Hide welcome message when story starts
+    useEffect(() => {
+      if (props.viewState.storyShown && props.viewState.showWelcomeMessage) {
+        props.viewState.setShowWelcomeMessage(false);
+      }
+      /* eslint-disable-next-line react-hooks/exhaustive-deps */
+    }, [props.viewState.storyShown]);
 
     // Merge theme in order of highest priority: themeOverrides props -> theme config parameter -> default terriaTheme
     const mergedTheme = combine(
@@ -144,13 +149,19 @@ const StandardUserInterfaceBase: FC<StandardUserInterfaceProps> = observer(
       <ContextProviders viewState={props.viewState} theme={mergedTheme}>
         <GlobalTerriaStyles />
         <TourPortal />
-        <CollapsedNavigation />
-        <SatelliteHelpPrompt />
+        {!narrative && <CollapsedNavigation />}
+        {!narrative && <SatelliteHelpPrompt />}
         <Medium>
           <SelectableDimensionWorkflow />
         </Medium>
         <div className={Styles.storyWrapper}>
-          {!props.viewState.disclaimerVisible && <WelcomeMessage />}
+          {!narrative &&
+            !props.viewState.disclaimerVisible &&
+            !(
+              props.terria.configParameters.storyEnabled &&
+              props.terria.stories &&
+              props.terria.stories.length > 0
+            ) && <WelcomeMessage />}
           <div
             className={Styles.uiRoot}
             css={`
@@ -165,15 +176,17 @@ const StandardUserInterfaceBase: FC<StandardUserInterfaceProps> = observer(
               `}
             >
               <div className={Styles.uiInner}>
-                {!props.viewState.hideMapUi && (
+                {!narrative && !props.viewState.hideMapUi && (
                   <>
-                    <Small>
-                      <MobileHeader
-                        menuItems={customElements.menu}
-                        menuLeftItems={customElements.menuLeft}
-                        version={props.version}
-                      />
-                    </Small>
+                    {!props.terria.configParameters.disableMobileInterface && (
+                      <Small>
+                        <MobileHeader
+                          menuItems={customElements.menu}
+                          menuLeftItems={customElements.menuLeft}
+                          version={props.version}
+                        />
+                      </Small>
+                    )}
                     <Medium>
                       <>
                         <WorkflowPanelPortal
@@ -189,7 +202,7 @@ const StandardUserInterfaceBase: FC<StandardUserInterfaceProps> = observer(
                           <FullScreenButton
                             minified
                             animationDuration={250}
-                            btnText={t("addData.btnHide")}
+                            btnText={t(($) => $.addData.btnHide)}
                           />
                           <Branding version={props.version} />
                           <SidePanel />
@@ -198,38 +211,48 @@ const StandardUserInterfaceBase: FC<StandardUserInterfaceProps> = observer(
                     </Medium>
                   </>
                 )}
-                <Medium>
-                  <div
-                    className={classNames(Styles.showWorkbenchButton, {
-                      [Styles.showWorkbenchButtonTrainerBarVisible]:
-                        props.viewState.trainerBarVisible,
-                      [Styles.showWorkbenchButtonisVisible]:
-                        props.viewState.isMapFullScreen,
-                      [Styles.showWorkbenchButtonisNotVisible]:
-                        !props.viewState.isMapFullScreen
-                    })}
-                  >
-                    <FullScreenButton
-                      minified={false}
-                      btnText={t("sui.showWorkbench", {
-                        count: props.viewState.terria.workbench.items.length
+                {!narrative && (
+                  <Medium>
+                    <div
+                      className={classNames(Styles.showWorkbenchButton, {
+                        [Styles.showWorkbenchButtonTrainerBarVisible]:
+                          props.viewState.trainerBarVisible,
+                        [Styles.showWorkbenchButtonisVisible]:
+                          props.viewState.isMapFullScreen,
+                        [Styles.showWorkbenchButtonisNotVisible]:
+                          !props.viewState.isMapFullScreen
                       })}
-                      animationDuration={animationDuration}
-                      elementConfig={props.terria.elements.get(
-                        "show-workbench"
-                      )}
-                    />
-                  </div>
-                </Medium>
+                    >
+                      <FullScreenButton
+                        minified={false}
+                        btnText={t(($) => $.sui.showWorkbench, {
+                          count: props.viewState.terria.workbench.items.length
+                        })}
+                        animationDuration={animationDuration}
+                        elementConfig={props.terria.elements.get(
+                          "show-workbench"
+                        )}
+                      />
+                    </div>
+                  </Medium>
+                )}
 
-                <section className={Styles.map}>
+                <section
+                  className={classNames(Styles.map, {
+                    [Styles.disableMobileInterface]:
+                      props.terria.configParameters.disableMobileInterface
+                  })}
+                  data-story-map
+                  data-narrative-mode={narrative || undefined}
+                  style={narrative ? { top: 0 } : undefined}
+                >
                   <MapColumn
                     customElements={customElements}
                     animationDuration={animationDuration}
                   />
                   <div id="map-data-attribution" />
                   <main>
-                    <ExplorerWindow />
+                    <ExplorerWindowComponents.ExplorerWindow />
                     {props.terria.configParameters.experimentalFeatures &&
                       !props.viewState.hideMapUi && (
                         <ExperimentalFeatures
@@ -240,24 +263,24 @@ const StandardUserInterfaceBase: FC<StandardUserInterfaceProps> = observer(
                 </section>
               </div>
             </div>
-            {!props.viewState.hideMapUi && (
+            {!narrative && !props.viewState.hideMapUi && (
               <Medium>
                 <TrainerBar />
               </Medium>
             )}
-            <Medium>
-              {/* I think this does what the previous boolean condition does, but without the console error */}
-              {props.viewState.isToolOpen && (
+            {props.viewState.isToolOpen &&
+              (!props.viewState.useSmallScreenInterface ||
+                props.viewState.currentTool?.toolName ===
+                  "cog-calculation-tool") && (
                 <Tool {...props.viewState.currentTool!} />
               )}
-            </Medium>
 
             {props.viewState.panel}
 
             <Notification />
-            <MapInteractionWindow />
+            <MapInteractionModeRenderer />
             {!customElements.feedback.length &&
-              props.terria.configParameters.feedbackUrl &&
+              props.terria.feedbackService &&
               !props.viewState.hideMapUi &&
               props.viewState.feedbackFormIsVisible && <FeedbackForm />}
             <div
@@ -272,14 +295,33 @@ const StandardUserInterfaceBase: FC<StandardUserInterfaceProps> = observer(
                 }
               )}
               tabIndex={0}
-              onClick={action(() => {
+              onPointerDown={action(() => {
                 props.viewState.topElement = "FeatureInfo";
               })}
             >
               <FeatureInfoPanel />
             </div>
             <DragDropFile />
-            {showStoryPanel && <StoryPanel />}
+            {showStoryPanel && (
+              <div
+                className={classNames(
+                  Styles.storyPanel,
+                  props.viewState.topElement === "StoryPanel"
+                    ? "top-element"
+                    : "",
+                  {
+                    [Styles.storyPanelFullScreen]:
+                      props.viewState.isMapFullScreen
+                  }
+                )}
+                tabIndex={0}
+                onPointerDown={action(() => {
+                  props.viewState.topElement = "StoryPanel";
+                })}
+              >
+                <StoryPanel />
+              </div>
+            )}
           </div>
           {props.terria.configParameters.storyEnabled && showStoryBuilder && (
             <StoryBuilder

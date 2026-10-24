@@ -19,8 +19,9 @@ import { useRefForTerria } from "../Hooks/useRefForTerria";
 import SearchBoxAndResults from "../Search/SearchBoxAndResults";
 import { useViewState, withViewState } from "../Context";
 import Workbench from "../Workbench/Workbench";
+import Loader from "../Loader";
 import { applyTranslationIfExists } from "../../Language/languageHelpers";
-import { Category, HelpAction } from "../../Core/AnalyticEvents/analyticEvents";
+import { Category, HelpAction } from "../../Core/Analytics/analyticEvents";
 import { runInAction } from "mobx";
 
 const BoxHelpfulHints = styled(Box)`
@@ -42,7 +43,7 @@ type TransContent = {
 const EmptyWorkbench: FC<EmptyWorkbenchProps> = observer(() => {
   const { t } = useTranslation();
   const viewState = useViewState();
-  const transContent = t("emptyWorkbench", {
+  const transContent = t(($) => $.emptyWorkbenchInfo, {
     returnObjects: true
   }) as TransContent;
 
@@ -58,7 +59,7 @@ const EmptyWorkbench: FC<EmptyWorkbenchProps> = observer(() => {
           overflowY="auto"
           scroll
         >
-          {transContent.map((content, idx) => (
+          {transContent?.map((content, idx) => (
             <div key={idx}>
               {content.heading && (
                 <Text
@@ -85,7 +86,7 @@ const EmptyWorkbench: FC<EmptyWorkbenchProps> = observer(() => {
               textLight
               transparentBg
               onClick={() => {
-                viewState.terria.analytics?.logEvent(
+                viewState.terria.analytics.logEvent(
                   Category.help,
                   HelpAction.takeTour
                 );
@@ -106,7 +107,7 @@ const EmptyWorkbench: FC<EmptyWorkbenchProps> = observer(() => {
               }}
               css={``}
             >
-              {t("helpPanel.takeTour")}
+              {t(($) => $.helpPanel.takeTour)}
             </Button>
           </Box>
         </BoxHelpfulHints>
@@ -165,8 +166,8 @@ const SidePanel = observer<React.FC<SidePanelProps>>(
       viewState.openUserData();
     };
 
-    const addData = t("addData.addDataBtnText");
-    const uploadText = t("models.catalog.upload");
+    const addData = t(($) => $.addData.addDataBtnText);
+    const uploadText = t(($) => $.models.catalog.upload);
     return (
       <Box column styledMinHeight={"0"} flex={1}>
         <div
@@ -183,28 +184,37 @@ const SidePanel = observer<React.FC<SidePanelProps>>(
           />
           <Spacing bottom={2} />
           <Box justifySpaceBetween>
-            <SidePanelButton
-              ref={refForExploreMapData}
-              onClick={onAddDataClicked}
-              title={addData}
-              btnText={addData}
-              styledWidth={"152px"}
-            >
-              <StyledIcon glyph={Icon.GLYPHS.add} light styledWidth={"20px"} />
-            </SidePanelButton>
-            <SidePanelButton
-              ref={refForUploadData}
-              onClick={onAddLocalDataClicked}
-              title={t("addData.load")}
-              btnText={uploadText}
-              styledWidth={"152px"}
-            >
-              <StyledIcon
-                glyph={Icon.GLYPHS.uploadThin}
-                light
-                styledWidth={"20px"}
-              />
-            </SidePanelButton>
+            {terria.elements.get("side-panel-add-data")?.visible !== false && (
+              <SidePanelButton
+                ref={refForExploreMapData}
+                onClick={onAddDataClicked}
+                title={addData}
+                btnText={addData}
+                styledWidth={"152px"}
+              >
+                <StyledIcon
+                  glyph={Icon.GLYPHS.add}
+                  light
+                  styledWidth={"20px"}
+                />
+              </SidePanelButton>
+            )}
+            {terria.elements.get("side-panel-upload-data")?.visible !== false &&
+              !terria.configParameters.disableUserAddedData && (
+                <SidePanelButton
+                  ref={refForUploadData}
+                  onClick={onAddLocalDataClicked}
+                  title={t(($) => $.addData.load)}
+                  btnText={uploadText}
+                  styledWidth={"152px"}
+                >
+                  <StyledIcon
+                    glyph={Icon.GLYPHS.uploadThin}
+                    light
+                    styledWidth={"20px"}
+                  />
+                </SidePanelButton>
+              )}
           </Box>
           <Spacing bottom={2} />
         </div>
@@ -218,6 +228,12 @@ const SidePanel = observer<React.FC<SidePanelProps>>(
         >
           {terria.workbench.items.length > 0 ? (
             <Workbench viewState={viewState} terria={terria} />
+          ) : terria.isProgressivelyLoading ? (
+            // With progressive loading the workbench shows before init
+            // sources have added their items
+            <Box paddedVertically={5}>
+              <Loader light textProps={{ textLight: true }} />
+            </Box>
           ) : (
             <EmptyWorkbench theme={theme} />
           )}

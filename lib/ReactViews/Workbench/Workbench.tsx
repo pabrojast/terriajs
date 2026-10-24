@@ -1,7 +1,8 @@
 import { action, runInAction, makeObservable } from "mobx";
 import { observer } from "mobx-react";
 import { Component } from "react";
-import { withTranslation, WithTranslation, TFunction } from "react-i18next";
+import { TFunction } from "i18next";
+import { withTranslation, WithTranslation } from "react-i18next";
 import getPath from "../../Core/getPath";
 import Terria from "../../Models/Terria";
 import ViewState from "../../ReactViewModels/ViewState";
@@ -14,7 +15,7 @@ import WorkbenchList from "./WorkbenchList";
 import {
   Category,
   DataSourceAction
-} from "../../Core/AnalyticEvents/analyticEvents";
+} from "../../Core/Analytics/analyticEvents";
 import MappableMixin from "../../ModelMixins/MappableMixin";
 
 interface IProps extends WithTranslation {
@@ -55,7 +56,7 @@ class Workbench extends Component<IProps> {
   @action.bound
   removeAll() {
     this.props.terria.workbench.items.forEach((item) => {
-      this.props.terria.analytics?.logEvent(
+      this.props.terria.analytics.logEvent(
         Category.dataSource,
         DataSourceAction.removeAllFromWorkbench,
         getPath(item)
@@ -80,7 +81,7 @@ class Workbench extends Component<IProps> {
     return (
       <Box column fullWidth styledMinHeight={"0"} flex={1}>
         <BadgeBar
-          label={t("workbench.label")}
+          label={t(($) => $.workbench.label)}
           badge={this.props.terria.workbench.items.length}
         >
           {showEnableAll ? (
@@ -100,8 +101,8 @@ class Workbench extends Component<IProps> {
                 styledWidth={"12px"}
                 displayInline
               />
-              <TextSpan textLight small>
-                {t("workbench.enableAll")}
+              <TextSpan textLight small isLink>
+                {t(($) => $.workbench.enableAll)}
               </TextSpan>
             </RawButton>
           ) : (
@@ -121,8 +122,8 @@ class Workbench extends Component<IProps> {
                 styledWidth={"12px"}
                 displayInline
               />
-              <TextSpan textLight small>
-                {t("workbench.disableAll")}
+              <TextSpan textLight small isLink>
+                {t(($) => $.workbench.disableAll)}
               </TextSpan>
             </RawButton>
           )}
@@ -143,8 +144,8 @@ class Workbench extends Component<IProps> {
                 styledWidth={"12px"}
                 displayInline
               />
-              <TextSpan textLight small>
-                {t("workbench.expandAll")}
+              <TextSpan textLight small isLink>
+                {t(($) => $.workbench.expandAll)}
               </TextSpan>
             </RawButton>
           ) : (
@@ -164,8 +165,8 @@ class Workbench extends Component<IProps> {
                 styledWidth={"12px"}
                 displayInline
               />
-              <TextSpan textLight small>
-                {t("workbench.collapseAll")}
+              <TextSpan textLight small isLink>
+                {t(($) => $.workbench.collapseAll)}
               </TextSpan>
             </RawButton>
           )}
@@ -184,13 +185,13 @@ class Workbench extends Component<IProps> {
             `}
           >
             <StyledIcon
-              glyph={Icon.GLYPHS.remove}
+              glyph={Icon.GLYPHS.cancel}
               light
               styledWidth={"12px"}
               displayInline
             />
-            <TextSpan textLight small>
-              {t("workbench.removeAll")}
+            <TextSpan textLight small isLink>
+              {t(($) => $.workbench.removeAll)}
             </TextSpan>
           </RawButton>
         </BadgeBar>

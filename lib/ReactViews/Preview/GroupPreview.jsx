@@ -12,6 +12,7 @@ import SharePanel from "../Map/Panels/SharePanel/SharePanel";
 import DataPreviewSections from "./DataPreviewSections";
 import DataPreviewUrl from "./DataPreviewUrl";
 import Styles from "./mappable-preview.scss";
+import Box from "../../Styled/Box";
 import WarningBox from "./WarningBox";
 
 /**
@@ -62,36 +63,43 @@ class GroupPreview extends Component {
                   this.props.previewed.members,
                   this.props.terria
                 )
-                  ? t("models.catalog.removeAll")
-                  : t("models.catalog.addAll")}
+                  ? t(($) => $.models.catalog.removeAll)
+                  : t(($) => $.models.catalog.addAll)}
               </button>
             )}
-            <SharePanel
-              catalogShare
-              modalWidth={this.props.widthFromMeasureElementHOC}
-              terria={this.props.terria}
-              viewState={this.props.viewState}
-            />
+            {!this.props.terria.configParameters.disableSharePanel && (
+              <SharePanel
+                catalogShare
+                modalWidth={this.props.widthFromMeasureElementHOC}
+                terria={this.props.terria}
+                viewState={this.props.viewState}
+              />
+            )}
           </div>
         </div>
-        {this.props.previewed.loadMetadataResult?.error && (
-          <WarningBox
-            error={this.props.previewed.loadMetadataResult?.error}
-            viewState={this.props.viewState}
-          />
-        )}
-        {this.props.previewed.loadMembersResult?.error && (
-          <WarningBox
-            error={this.props.previewed.loadMembersResult?.error}
-            viewState={this.props.viewState}
-          />
+        {(this.props.previewed.loadMetadataResult?.error ||
+          this.props.previewed.loadMembersResult?.error) && (
+          <Box column gap={2} css={{ marginBottom: "10px" }}>
+            {this.props.previewed.loadMetadataResult?.error && (
+              <WarningBox
+                error={this.props.previewed.loadMetadataResult?.error}
+                viewState={this.props.viewState}
+              />
+            )}
+            {this.props.previewed.loadMembersResult?.error && (
+              <WarningBox
+                error={this.props.previewed.loadMembersResult?.error}
+                viewState={this.props.viewState}
+              />
+            )}
+          </Box>
         )}
         <div className={Styles.previewedInfo}>
           <div className={Styles.url}>
             {this.props.previewed.description &&
               this.props.previewed.description.length > 0 && (
                 <div>
-                  <h4 className={Styles.h4}>{t("description.name")}</h4>
+                  <h4 className={Styles.h4}>{t(($) => $.description.name)}</h4>
                   {parseCustomMarkdownToReact(
                     this.props.previewed.description,
                     { catalogItem: this.props.previewed }
@@ -102,7 +110,9 @@ class GroupPreview extends Component {
 
             {metadataItem.dataCustodian && (
               <div>
-                <h4 className={Styles.h4}>{t("preview.dataCustodian")}</h4>
+                <h4 className={Styles.h4}>
+                  {t(($) => $.preview.dataCustodian)}
+                </h4>
                 {parseCustomMarkdownToReact(metadataItem.dataCustodian, {
                   catalogItem: metadataItem
                 })}

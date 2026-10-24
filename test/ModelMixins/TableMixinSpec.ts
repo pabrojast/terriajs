@@ -1,16 +1,20 @@
+import { http, HttpResponse } from "msw";
 import { runInAction } from "mobx";
 import JulianDate from "terriajs-cesium/Source/Core/JulianDate";
 import CustomDataSource from "terriajs-cesium/Source/DataSources/CustomDataSource";
 import LabelStyle from "terriajs-cesium/Source/Scene/LabelStyle";
 import { getMakiIcon } from "../../lib/Map/Icons/Maki/MakiIcons";
 import { ImageryParts } from "../../lib/ModelMixins/MappableMixin";
+import TableMixin from "../../lib/ModelMixins/TableMixin";
 import CsvCatalogItem from "../../lib/Models/Catalog/CatalogItems/CsvCatalogItem";
 import CommonStrata from "../../lib/Models/Definition/CommonStrata";
+import CreateModel from "../../lib/Models/Definition/CreateModel";
 import createStratumInstance from "../../lib/Models/Definition/createStratumInstance";
 import updateModelFromJson from "../../lib/Models/Definition/updateModelFromJson";
 import TerriaFeature from "../../lib/Models/Feature/Feature";
 import { TerriaFeatureData } from "../../lib/Models/Feature/FeatureData";
 import Terria from "../../lib/Models/Terria";
+import { worker } from "../mocks/browser";
 import TableColorStyleTraits from "../../lib/Traits/TraitsClasses/Table/ColorStyleTraits";
 import TableLabelStyleTraits, {
   EnumLabelSymbolTraits,
@@ -26,6 +30,7 @@ import TablePointStyleTraits, {
   PointSymbolTraits
 } from "../../lib/Traits/TraitsClasses/Table/PointStyleTraits";
 import TableStyleTraits from "../../lib/Traits/TraitsClasses/Table/StyleTraits";
+import TableTraits from "../../lib/Traits/TraitsClasses/Table/TableTraits";
 import TableTimeStyleTraits from "../../lib/Traits/TraitsClasses/Table/TimeStyleTraits";
 import TableTrailStyleTraits, {
   BinTrailSymbolTraits,
@@ -51,7 +56,21 @@ import regionIdsLgaName from "../../wwwroot/data/regionids/region_map-FID_LGA_20
 import regionIdsLgaCode from "../../wwwroot/data/regionids/region_map-FID_LGA_2015_AUST_LGA_CODE15.json";
 import regionIdsLgaNameStates from "../../wwwroot/data/regionids/region_map-FID_LGA_2011_AUST_STE_NAME11.json";
 
-const NUMBER_OF_REGION_MAPPING_TYPES = 144;
+const NUMBER_OF_REGION_MAPPING_TYPES = 155;
+
+// Minimal concrete TableMixin item, used to exercise TableMixin._exportData
+// directly (CsvCatalogItem overrides _exportData, so it never reaches it).
+class SimpleTableCatalogItem extends TableMixin(CreateModel(TableTraits)) {
+  protected forceLoadMapItems(): Promise<void> {
+    return Promise.resolve();
+  }
+  protected forceLoadTableData(): Promise<string[][] | undefined> {
+    return Promise.resolve(undefined);
+  }
+  get mapItems() {
+    return [];
+  }
+}
 
 describe("TableMixin", function () {
   let item: CsvCatalogItem;
@@ -63,32 +82,73 @@ describe("TableMixin", function () {
     });
     item = new CsvCatalogItem("test", terria, undefined);
 
-    jasmine.Ajax.install();
-    jasmine.Ajax.stubRequest(/.*/).andError({});
-
-    jasmine.Ajax.stubRequest(
-      "build/TerriaJS/data/regionMapping.json"
-    ).andReturn({ responseJSON: regionMapping });
-
-    jasmine.Ajax.stubRequest(
-      "https://tiles.terria.io/region-mapping/regionids/region_map-STE_2016_AUST_STE_NAME16.json"
-    ).andReturn({ responseJSON: regionIdsSte });
-
-    jasmine.Ajax.stubRequest(
-      "https://tiles.terria.io/region-mapping/regionids/region_map-FID_LGA_2011_AUST_LGA_NAME11.json"
-    ).andReturn({ responseJSON: regionIdsLgaName });
-
-    jasmine.Ajax.stubRequest(
-      "https://tiles.terria.io/region-mapping/regionids/region_map-FID_LGA_2015_AUST_LGA_CODE15.json"
-    ).andReturn({ responseJSON: regionIdsLgaCode });
-
-    jasmine.Ajax.stubRequest(
-      "https://tiles.terria.io/region-mapping/regionids/region_map-FID_LGA_2011_AUST_STE_NAME11.json"
-    ).andReturn({ responseJSON: regionIdsLgaNameStates });
+    worker.use(
+      http.get("*/build/TerriaJS/data/regionMapping.json", () =>
+        HttpResponse.json(regionMapping)
+      ),
+      http.get(
+        "https://tiles.terria.io/region-mapping/regionids/region_map-STE_2016_AUST_STE_NAME16.json",
+        () => HttpResponse.json(regionIdsSte)
+      ),
+      http.get(
+        "https://tiles.terria.io/region-mapping/regionids/region_map-FID_LGA_2011_AUST_LGA_NAME11.json",
+        () => HttpResponse.json(regionIdsLgaName)
+      ),
+      http.get(
+        "https://tiles.terria.io/region-mapping/regionids/region_map-FID_LGA_2015_AUST_LGA_CODE15.json",
+        () => HttpResponse.json(regionIdsLgaCode)
+      ),
+      http.get(
+        "https://tiles.terria.io/region-mapping/regionids/region_map-FID_LGA_2011_AUST_STE_NAME11.json",
+        () => HttpResponse.json(regionIdsLgaNameStates)
+      )
+    );
   });
 
-  afterEach(function () {
-    jasmine.Ajax.uninstall();
+  describe("exportData", function () {
+    it("sanitises a CSV item's raw csvString against formula injection", async function () {
+      item.setTrait(
+        CommonStrata.user,
+        "csvString",
+        `lat,lon,value
+-33,151,=cmd|'/c calc'!A1
+-34,152,"a,b"
+-35,153,@SUM(A1)`
+      );
+      (await item.loadMapItems()).throwIfError();
+
+      const exported = await item.exportData();
+      const text = await (exported as { name: string; file: Blob }).file.text();
+
+      // Formula-trigger cells are prefixed with a quote so a spreadsheet treats
+      // them as text rather than executing them.
+      expect(text).toContain("'=cmd|'/c calc'!A1");
+      expect(text).toContain("'@SUM(A1)");
+      // No cell is left as a bare formula.
+      expect(text).not.toMatch(/(^|,)=cmd/);
+      // Negative numbers are preserved (not turned into text).
+      expect(text).toContain("-33");
+      // Cells containing a comma are structurally escaped (quoted).
+      expect(text).toContain('"a,b"');
+    });
+
+    it("sanitises re-serialised dataColumnMajor (TableMixin path, no CSV source)", async function () {
+      const tableItem = new SimpleTableCatalogItem("test-table", terria);
+      // Column-major: each column is [header, ...rowValues].
+      tableItem.dataColumnMajor = [
+        ["lat", "-33", "-34"],
+        ["lon", "151", "152"],
+        ["value", "=cmd|'/c calc'!A1", "@SUM(A1)"]
+      ];
+
+      const exported = await tableItem.exportData();
+      const text = await (exported as { name: string; file: Blob }).file.text();
+
+      expect(text).toContain("'=cmd|'/c calc'!A1");
+      expect(text).toContain("'@SUM(A1)");
+      expect(text).not.toMatch(/(^|,)=cmd/);
+      expect(text).toContain("-33");
+    });
   });
 
   describe("when the table has time, lat/lon and id columns", function () {
@@ -590,9 +650,19 @@ describe("TableMixin", function () {
       // We add "additionalRegion.json" - which defines two region types
       // - "SOME_OTHER_REGION" - which is just another region type
       // - "SOME_OVERRIDDEN_REGION" - which will override "LGA_NAME_2011" in "build/TerriaJS/data/regionMapping.json"
-      jasmine.Ajax.stubRequest("additionalRegion.json").andReturn({
-        responseJSON: additionalRegionMapping
-      });
+      worker.use(
+        http.get("*/additionalRegion.json", () =>
+          HttpResponse.json(additionalRegionMapping)
+        ),
+        http.get(
+          "build/TerriaJS/data/regionids/region_map-FID_LGA_2011_AUST_LGA_NAME11.json",
+          () => HttpResponse.json(regionIdsLgaNameStates)
+        ),
+        http.get(
+          "build/TerriaJS/data/regionids/region_map-FID_LGA_2011_AUST_STE_NAME11.json",
+          () => HttpResponse.json(regionIdsLgaName)
+        )
+      );
 
       terria.updateParameters({
         regionMappingDefinitionsUrls: [
@@ -626,9 +696,19 @@ describe("TableMixin", function () {
       // We add "additionalRegion.json" - which defines two region types
       // - "SOME_OTHER_REGION" - which is just another region type
       // - "SOME_OVERRIDDEN_REGION" - which will override "LGA_NAME_2011" in "build/TerriaJS/data/regionMapping.json"
-      jasmine.Ajax.stubRequest("additionalRegion.json").andReturn({
-        responseJSON: additionalRegionMapping
-      });
+      worker.use(
+        http.get("*/additionalRegion.json", () =>
+          HttpResponse.json(additionalRegionMapping)
+        ),
+        http.get(
+          "build/TerriaJS/data/regionids/region_map-FID_LGA_2011_AUST_LGA_NAME11.json",
+          () => HttpResponse.json(regionIdsLgaNameStates)
+        ),
+        http.get(
+          "build/TerriaJS/data/regionids/region_map-FID_LGA_2011_AUST_STE_NAME11.json",
+          () => HttpResponse.json(regionIdsLgaName)
+        )
+      );
 
       terria.updateParameters({
         regionMappingDefinitionsUrl: "build/TerriaJS/data/regionMapping.json",

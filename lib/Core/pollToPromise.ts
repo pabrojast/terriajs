@@ -1,4 +1,4 @@
-import defaultValue from "terriajs-cesium/Source/Core/defaultValue";
+import Frozen from "terriajs-cesium/Source/Core/Frozen";
 import getTimestamp from "terriajs-cesium/Source/Core/getTimestamp";
 
 interface Options {
@@ -7,10 +7,10 @@ interface Options {
 }
 
 const pollToPromise = function (f: () => boolean, options: Options) {
-  options = defaultValue(options, (defaultValue as any).EMPTY_OBJECT);
+  options = options ?? Frozen.EMPTY_OBJECT;
 
-  const pollInterval = defaultValue(options.pollInterval, 1);
-  const timeout = defaultValue(options.timeout, 5000);
+  const pollInterval = options.pollInterval ?? 1;
+  const timeout = options.timeout ?? 5000;
 
   return new Promise<void>((resolve, reject) => {
     const startTimestamp = getTimestamp();
@@ -21,7 +21,7 @@ const pollToPromise = function (f: () => boolean, options: Options) {
         resolve();
       } else {
         if (getTimestamp() > endTimestamp) {
-          reject();
+          reject(new Error("pollToPromise: timed out waiting for condition"));
         } else {
           setTimeout(poller, pollInterval);
         }

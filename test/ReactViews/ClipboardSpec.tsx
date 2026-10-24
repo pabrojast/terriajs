@@ -1,26 +1,23 @@
-import { render, screen } from "@testing-library/react";
+import {
+  render,
+  screen,
+  waitForElementToBeRemoved
+} from "@testing-library/react";
 import { userEvent } from "@testing-library/user-event";
-import { act } from "react-dom/test-utils";
-import { ThemeProvider } from "styled-components";
 import Clipboard from "../../lib/ReactViews/Clipboard";
-import { terriaTheme } from "../../lib/ReactViews/StandardUserInterface";
+import { TerriaThemeProvider } from "./withContext";
 
+// Ideally those test would use a jasmine clock mock but it interferes with promise execution
+// which needs the time to advance but it doesn't work with jasmine clock.
+// We resolve it by setting the timeout to small value
 describe("Clipboard", function () {
-  beforeAll(() => {
-    jasmine.clock().install();
-  });
-
-  afterAll(() => {
-    jasmine.clock().uninstall();
-  });
-
   it("should copy text to clipboard and show checkmark", async () => {
     const user = userEvent.setup({ delay: null });
 
     render(
-      <ThemeProvider theme={terriaTheme}>
-        <Clipboard theme="dark" text="test" />
-      </ThemeProvider>
+      <TerriaThemeProvider>
+        <Clipboard text="test" timeout={100} />
+      </TerriaThemeProvider>
     );
 
     const button = screen.getByRole("button", { name: "clipboard.copy" });
@@ -33,11 +30,9 @@ describe("Clipboard", function () {
       screen.queryByText("clipboard.unsuccessful")
     ).not.toBeInTheDocument();
 
-    act(() => {
-      jasmine.clock().tick(3000);
-    });
-
+    await waitForElementToBeRemoved(screen.queryByText("clipboard.success"));
     expect(screen.queryByText("clipboard.success")).not.toBeInTheDocument();
+
     expect(
       screen.queryByText("clipboard.unsuccessful")
     ).not.toBeInTheDocument();
@@ -50,9 +45,9 @@ describe("Clipboard", function () {
     });
 
     render(
-      <ThemeProvider theme={terriaTheme}>
-        <Clipboard theme="dark" text="test" />
-      </ThemeProvider>
+      <TerriaThemeProvider>
+        <Clipboard text="test" />
+      </TerriaThemeProvider>
     );
 
     const button = screen.queryByRole("button", { name: "clipboard.copy" });
@@ -63,9 +58,9 @@ describe("Clipboard", function () {
     const user = userEvent.setup({ delay: null });
 
     render(
-      <ThemeProvider theme={terriaTheme}>
-        <Clipboard theme="dark" />
-      </ThemeProvider>
+      <TerriaThemeProvider>
+        <Clipboard timeout={100} />
+      </TerriaThemeProvider>
     );
 
     const button = screen.getByRole("button", { name: "clipboard.copy" });
@@ -74,13 +69,48 @@ describe("Clipboard", function () {
     expect(screen.getByText("clipboard.unsuccessful")).toBeVisible();
     expect(screen.queryByText("clipboard.success")).not.toBeInTheDocument();
 
-    // act(() => {
-    jasmine.clock().tick(3000);
-    // });
-
+    await waitForElementToBeRemoved(
+      screen.queryByText("clipboard.unsuccessful")
+    );
     expect(screen.queryByText("clipboard.success")).not.toBeInTheDocument();
     expect(
       screen.queryByText("clipboard.unsuccessful")
     ).not.toBeInTheDocument();
+  });
+
+  it("shows the created message once a result arrives", () => {
+    const { rerender } = render(
+      <TerriaThemeProvider>
+        <Clipboard createdMessage="Saved as new story" />
+      </TerriaThemeProvider>
+    );
+    // text goes from empty to a real result
+    rerender(
+      <TerriaThemeProvider>
+        <Clipboard createdMessage="Saved as new story" text="https://short" />
+      </TerriaThemeProvider>
+    );
+
+    expect(screen.getByText("Saved as new story")).toBeVisible();
+  });
+
+  it("does not show the created message when the result failed", () => {
+    const { rerender } = render(
+      <TerriaThemeProvider>
+        <Clipboard createdMessage="Saved as new story" />
+      </TerriaThemeProvider>
+    );
+    // text becomes non-empty (an error message), but it's flagged as a failure
+    rerender(
+      <TerriaThemeProvider>
+        <Clipboard
+          createdMessage="Saved as new story"
+          text="Something went wrong"
+          failed
+        />
+      </TerriaThemeProvider>
+    );
+
+    expect(screen.queryByText("Saved as new story")).not.toBeInTheDocument();
   });
 });

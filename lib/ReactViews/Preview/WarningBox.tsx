@@ -39,9 +39,15 @@ const WarningBox: FC<{
       <Spacing right={2} />
       <Box backgroundColor="#ffffff" rounded fullWidth paddedRatio={3}>
         {props.error ? (
-          <div>
+          <div
+            css={`
+              & > span:first-child > p:first-child {
+                margin-top: 0;
+              }
+            `}
+          >
             {parseCustomMarkdownToReact(
-              `### ${props.error?.highestImportanceError?.title}`
+              `**${props.error?.highestImportanceError?.title}**`
             )}
             {parseCustomMarkdownToReact(
               props.error?.highestImportanceError?.message,
@@ -63,7 +69,9 @@ const WarningBox: FC<{
                     showErrorNotification(props.viewState!, props.error!)
                   }
                 >
-                  <TextSpan primary>See details</TextSpan>
+                  <TextSpan primary isLink>
+                    See details
+                  </TextSpan>
                 </RawButton>
               </div>
             ) : null}

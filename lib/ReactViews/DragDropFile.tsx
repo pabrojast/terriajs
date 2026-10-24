@@ -3,10 +3,7 @@ import { observer } from "mobx-react";
 import { DragEvent, FC, MouseEvent, useRef, useState } from "react";
 import { Trans } from "react-i18next";
 import styled, { useTheme } from "styled-components";
-import {
-  Category,
-  DataSourceAction
-} from "../Core/AnalyticEvents/analyticEvents";
+import { Category, DataSourceAction } from "../Core/Analytics/analyticEvents";
 import isDefined from "../Core/isDefined";
 import Result from "../Core/Result";
 import CatalogMemberMixin, { getName } from "../ModelMixins/CatalogMemberMixin";
@@ -60,6 +57,10 @@ const DragDropFile: FC = observer(() => {
     []
   );
 
+  if (viewState.terria.configParameters.disableUserAddedData) {
+    return null;
+  }
+
   const handleDrop = async (e: DragEvent) => {
     e.persist();
     e.preventDefault();
@@ -71,7 +72,7 @@ const DragDropFile: FC = observer(() => {
         e.dataTransfer.files[i].type ||
         e.dataTransfer.files[i].name.split(".").pop(); // use file extension if type property is empty
 
-      viewState.terria.analytics?.logEvent(
+      viewState.terria.analytics.logEvent(
         Category.dataSource,
         DataSourceAction.addFromDragAndDrop,
         `File Type: ${fileType}, File Size(B): ${e.dataTransfer.files[i].size}`
@@ -175,7 +176,7 @@ const DragDropFile: FC = observer(() => {
         {viewState.isDraggingDroppingFile ? (
           <Box centered fullWidth fullHeight column>
             <StyledIcon glyph={Icon.GLYPHS.dragDrop} styledHeight="80px" />
-            <Trans i18nKey="dragDrop.text">
+            <Trans i18nKey={($) => $.dragDrop.text}>
               <Text
                 textLight
                 textAlignCenter

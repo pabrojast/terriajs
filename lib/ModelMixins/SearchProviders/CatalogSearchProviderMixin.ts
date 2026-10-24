@@ -19,8 +19,9 @@ function CatalogSearchProviderMixin<
 
     @computed get resultsAreReferences() {
       return (
-        isDefined(this.terria.catalogIndex?.loadPromise) &&
-        fromPromise(this.terria.catalogIndex!.loadPromise).state === "fulfilled"
+        isDefined(this.terria.catalog.index?.loadPromise) &&
+        fromPromise(this.terria.catalog.index!.loadPromise).state ===
+          "fulfilled"
       );
     }
 
@@ -33,8 +34,9 @@ function CatalogSearchProviderMixin<
 }
 
 namespace CatalogSearchProviderMixin {
-  export interface Instance
-    extends InstanceType<ReturnType<typeof CatalogSearchProviderMixin>> {}
+  export interface Instance extends InstanceType<
+    ReturnType<typeof CatalogSearchProviderMixin>
+  > {}
 
   export function isMixedInto(model: any): model is Instance {
     return model && model.hasCatalogSearchProviderMixin;

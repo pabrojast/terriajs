@@ -15,6 +15,7 @@ import MappablePreview from "./MappablePreview";
 import WarningBox from "./WarningBox";
 import Styles from "./data-preview.scss";
 import Icon from "../../Styled/Icon";
+import { getCustomPreviewRenderer } from "./PreviewRenderers";
 
 /**
  * Data preview section, for the preview map see DataPreviewMap
@@ -25,7 +26,9 @@ class DataPreview extends Component {
     terria: PropTypes.object.isRequired,
     viewState: PropTypes.object,
     previewed: PropTypes.object,
-    t: PropTypes.func.isRequired
+    t: PropTypes.func.isRequired,
+    onToggleItemOnMap: PropTypes.func,
+    hideToggleItemOnMap: PropTypes.bool
   };
 
   backToMap() {
@@ -59,12 +62,16 @@ class DataPreview extends Component {
         </div>
       );
     } else if (previewed && previewed.isMappable) {
+      const MappablePreviewRenderer =
+        getCustomPreviewRenderer(previewed.type) ?? MappablePreview;
       return (
         <div className={Styles.previewInner}>
-          <MappablePreview
+          <MappablePreviewRenderer
             previewed={previewed}
             terria={this.props.terria}
             viewState={this.props.viewState}
+            onToggleItemOnMap={this.props.onToggleItemOnMap}
+            hideToggleItemOnMap={this.props.hideToggleItemOnMap}
           />
         </div>
       );
@@ -72,7 +79,7 @@ class DataPreview extends Component {
       return (
         <div className={Styles.previewInner}>
           <h3 className={Styles.h3}>{previewed.name}</h3>
-          <p>{t("preview.doesNotContainGeospatialData")}</p>
+          <p>{t(($) => $.preview.doesNotContainGeospatialData)}</p>
           <div className={Styles.previewChart}>
             {/* TODO: Show a preview chart
                 <Chart
@@ -86,17 +93,21 @@ class DataPreview extends Component {
         </div>
       );
     } else if (previewed && CatalogFunctionMixin.isMixedInto(previewed)) {
+      const FunctionRenderer =
+        getCustomPreviewRenderer(previewed.type) ?? InvokeFunction;
       return (
-        <InvokeFunction
+        <FunctionRenderer
           previewed={previewed}
           terria={this.props.terria}
           viewState={this.props.viewState}
         />
       );
     } else if (previewed && previewed.isGroup) {
+      const GroupPreviewRenderer =
+        getCustomPreviewRenderer(previewed.type) ?? GroupPreview;
       return (
         <div className={Styles.previewInner}>
-          <GroupPreview
+          <GroupPreviewRenderer
             previewed={previewed}
             terria={this.props.terria}
             viewState={this.props.viewState}
@@ -108,9 +119,9 @@ class DataPreview extends Component {
     } else {
       return (
         <div className={Styles.placeholder}>
-          <p>{t("preview.selectToPreviewDataset")}</p>
+          <p>{t(($) => $.preview.selectToPreviewDataset)}</p>
           <p>
-            <Trans i18nKey="preview.selectMultipleDatasets">
+            <Trans i18nKey={($) => $.preview.selectMultipleDatasets}>
               <span>
                 Press <strong>Shift</strong> and click
               </span>
@@ -127,12 +138,12 @@ class DataPreview extends Component {
               <span>to add multiple datasets</span>
             </Trans>
           </p>
-          <p>- {t("preview.selectToPreviewSeparator")} -</p>
+          <p>- {t(($) => $.preview.selectToPreviewSeparator)} -</p>
           <button
             className={Styles.btnBackToMap}
             onClick={() => this.backToMap()}
           >
-            {t("preview.goToTheMap")}
+            {t(($) => $.preview.goToTheMap)}
           </button>
         </div>
       );

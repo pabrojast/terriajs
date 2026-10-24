@@ -4,7 +4,7 @@ import { MouseEvent } from "react";
 import { useTranslation } from "react-i18next";
 import defined from "terriajs-cesium/Source/Core/defined";
 import addedByUser from "../../Core/addedByUser";
-import { DataSourceAction } from "../../Core/AnalyticEvents/analyticEvents";
+import { DataSourceAction } from "../../Core/Analytics/analyticEvents";
 import getPath from "../../Core/getPath";
 import CatalogFunctionMixin from "../../ModelMixins/CatalogFunctionMixin";
 import CatalogMemberMixin from "../../ModelMixins/CatalogMemberMixin";
@@ -15,12 +15,14 @@ import CatalogItem, { ButtonState } from "./CatalogItem";
 import toggleItemOnMapFromCatalog, {
   Op as ToggleOnMapOp
 } from "./toggleItemOnMapFromCatalog";
+import raiseErrorNotShownInPreview from "../Preview/raiseErrorNotShownInPreview";
 
 interface Props {
   item: CatalogMemberMixin.Instance;
   viewState: ViewState;
   removable: boolean;
   terria: Terria;
+  hideActionButton?: boolean;
   onActionButtonClicked?: (item: Props["item"]) => void;
 }
 
@@ -30,15 +32,16 @@ export default observer(function DataCatalogItem({
   item,
   viewState,
   onActionButtonClicked,
-  removable
+  removable,
+  hideActionButton
 }: Props) {
   const { t } = useTranslation();
   const STATE_TO_TITLE = {
-    [ButtonState.Loading]: t("catalogItem.loading"),
-    [ButtonState.Remove]: t("catalogItem.removeFromMap"),
-    [ButtonState.Add]: t("catalogItem.add"),
-    [ButtonState.Trash]: t("catalogItem.trash"),
-    [ButtonState.Preview]: t("catalogItem.preview")
+    [ButtonState.Loading]: t(($) => $.catalogItem.loading),
+    [ButtonState.Remove]: t(($) => $.catalogItem.removeFromMap),
+    [ButtonState.Add]: t(($) => $.catalogItem.add),
+    [ButtonState.Trash]: t(($) => $.catalogItem.trash),
+    [ButtonState.Preview]: t(($) => $.catalogItem.preview)
   };
 
   const isSelected = addedByUser(item)
@@ -48,7 +51,7 @@ export default observer(function DataCatalogItem({
   const setPreviewedItem = () =>
     viewState
       .viewCatalogMember(item)
-      .then((result) => result.raiseError(viewState.terria));
+      .then((result) => raiseErrorNotShownInPreview(viewState, item, result));
 
   const toggleEnable = async (event: MouseEvent<HTMLButtonElement>) => {
     const keepCatalogOpen =
@@ -105,6 +108,7 @@ export default observer(function DataCatalogItem({
       title={getPath(item, " -> ")}
       btnState={btnState}
       onBtnClick={onBtnClicked}
+      hideBtn={hideActionButton}
       // All things are "removable" - meaning add and remove from workbench,
       //    but only user data is "trashable"
       trashable={removable}

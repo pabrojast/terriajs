@@ -7,7 +7,7 @@ import { withTheme } from "styled-components";
 import {
   Category,
   HelpAction
-} from "../../../../Core/AnalyticEvents/analyticEvents";
+} from "../../../../Core/Analytics/analyticEvents";
 import Box from "../../../../Styled/Box";
 import Button, { RawButton } from "../../../../Styled/Button";
 import Icon, { StyledIcon } from "../../../../Styled/Icon";
@@ -72,7 +72,10 @@ class HelpPanel extends Component {
         `}
       >
         <Box position="absolute" paddedRatio={3} topRight>
-          <RawButton onClick={() => this.props.viewState.hideHelpPanel()}>
+          <RawButton
+            onClick={() => this.props.viewState.hideHelpPanel()}
+            aria-label="Close help panel"
+          >
             <StyledIcon
               styledWidth={"16px"}
               fillColor={this.props.theme.textDark}
@@ -93,12 +96,12 @@ class HelpPanel extends Component {
           `}
         >
           <Text extraBold heading textDark>
-            {t("helpPanel.menuPaneTitle")}
+            {t(($) => $.helpPanel.menuPaneTitle)}
           </Text>
           <Spacing bottom={4} />
           <Text medium textDark highlightLinks>
             {parseCustomMarkdownToReact(
-              t("helpPanel.menuPaneBody", {
+              t(($) => $.helpPanel.menuPaneBody, {
                 supportEmail: this.props.viewState.terria.supportEmail
               })
             )}
@@ -110,7 +113,7 @@ class HelpPanel extends Component {
               rounded
               styledMinWidth={"240px"}
               onClick={() => {
-                this.props.viewState.terria.analytics?.logEvent(
+                this.props.viewState.terria.analytics.logEvent(
                   Category.help,
                   HelpAction.takeTour
                 );
@@ -133,7 +136,7 @@ class HelpPanel extends Component {
                 ${(p) => p.theme.addTerriaPrimaryBtnStyles(p)}
               `}
             >
-              {t("helpPanel.takeTour")}
+              {t(($) => $.helpPanel.takeTour)}
             </Button>
           </Box>
         </Box>

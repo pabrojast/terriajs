@@ -5,21 +5,16 @@
   https://github.com/TerriaJS/nsw-digital-twin/issues/248#issuecomment-599919318
  */
 
-import { action, computed, makeObservable, observable } from "mobx";
 import { observer } from "mobx-react";
-import { FC, Component } from "react";
-import {
-  useTranslation,
-  withTranslation,
-  WithTranslation
-} from "react-i18next";
-import styled, { DefaultTheme } from "styled-components";
+import { FC, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
+import styled from "styled-components";
 import isDefined from "../../Core/isDefined";
 import { applyTranslationIfExists } from "../../Language/languageHelpers";
 import LocationSearchProviderMixin from "../../ModelMixins/SearchProviders/LocationSearchProviderMixin";
-import SearchProviderResults from "../../Models/SearchProviders/SearchProviderResults";
-import Terria from "../../Models/Terria";
+import SearchProviderResult from "../../Models/SearchProviders/SearchProviderResults";
 import SearchResultModel from "../../Models/SearchProviders/SearchResult";
+import Terria from "../../Models/Terria";
 import ViewState from "../../ReactViewModels/ViewState";
 import Box, { BoxSpan } from "../../Styled/Box";
 import { RawButton } from "../../Styled/Button";
@@ -40,76 +35,72 @@ const RawButtonAndHighlight = styled(RawButton)`
   }`}
 `;
 
-interface PropsType extends WithTranslation {
+interface LocationSearchResultsProps {
   viewState: ViewState;
-  isWaitingForSearchToStart: boolean;
   terria: Terria;
-  search: SearchProviderResults;
+  searchResult: SearchProviderResult;
   onLocationClick: (result: SearchResultModel) => void;
-  theme: DefaultTheme;
   locationSearchText: string;
+  /** Set when the search only runs on Enter/button: replaces the waiting loader */
+  waitingHint?: string;
 }
 
-@observer
-class LocationSearchResults extends Component<PropsType> {
-  @observable isExpanded = false;
+const LocationSearchResults: React.FC<LocationSearchResultsProps> = observer(
+  ({
+    searchResult,
+    terria,
+    locationSearchText,
+    onLocationClick,
+    waitingHint
+  }: LocationSearchResultsProps) => {
+    const [isExpanded, setIsExpanded] = useState(false);
 
-  constructor(props: PropsType) {
-    super(props);
-    makeObservable(this);
-  }
+    const toggleExpand = () => {
+      setIsExpanded((prev) => !prev);
+    };
 
-  @action.bound
-  toggleExpand() {
-    this.isExpanded = !this.isExpanded;
-  }
+    const validResults = useMemo(() => {
+      const locationSearchBoundingBox = terria.searchBarModel.boundingBoxLimit;
+      let filterResults = false;
+      let west: number | undefined,
+        east: number | undefined,
+        south: number | undefined,
+        north: number | undefined;
+      if (locationSearchBoundingBox) {
+        ({ west, east, south, north } = locationSearchBoundingBox);
 
-  @computed
-  get validResults() {
-    const { search, terria } = this.props;
-    const locationSearchBoundingBox = terria.searchBarModel.boundingBoxLimit;
-    let filterResults = false;
-    let west: number | undefined,
-      east: number | undefined,
-      south: number | undefined,
-      north: number | undefined;
-    if (locationSearchBoundingBox) {
-      ({ west, east, south, north } = locationSearchBoundingBox);
+        filterResults =
+          isDefined(west) &&
+          isDefined(east) &&
+          isDefined(south) &&
+          isDefined(north);
+      }
 
-      filterResults =
-        isDefined(west) &&
-        isDefined(east) &&
-        isDefined(south) &&
-        isDefined(north);
-    }
+      const validResults = filterResults
+        ? searchResult.results.filter(function (r: any) {
+            return (
+              r.location.longitude > west! &&
+              r.location.longitude < east! &&
+              r.location.latitude > south! &&
+              r.location.latitude < north!
+            );
+          })
+        : searchResult.results;
+      return validResults;
+    }, [searchResult.results, terria]);
 
-    const validResults = filterResults
-      ? search.results.filter(function (r: any) {
-          return (
-            r.location.longitude > west! &&
-            r.location.longitude < east! &&
-            r.location.latitude > south! &&
-            r.location.latitude < north!
-          );
-        })
-      : search.results;
-    return validResults;
-  }
-
-  render() {
-    const { search } = this.props;
     const searchProvider: LocationSearchProviderMixin.Instance =
-      search.searchProvider as unknown as LocationSearchProviderMixin.Instance;
+      searchResult.searchProvider as unknown as LocationSearchProviderMixin.Instance;
 
     const maxResults = searchProvider.recommendedListLength || 5;
-    const validResults = this.validResults;
     const results =
       validResults.length > maxResults
-        ? this.isExpanded
+        ? isExpanded
           ? validResults
           : validResults.slice(0, maxResults)
         : validResults;
     const isOpen = searchProvider.isOpen;
+
     return (
       <Box column>
         <RawButtonAndHighlight
@@ -124,11 +115,11 @@ class LocationSearchResults extends Component<PropsType> {
             justifySpaceBetween
           >
             <NameWithLoader
-              name={search.searchProvider.name}
-              length={this.validResults?.length}
+              name={searchProvider.name}
+              length={validResults?.length}
               isOpen={isOpen}
-              search={search}
-              isWaitingForSearchToStart={this.props.isWaitingForSearchToStart}
+              search={searchResult}
+              hideWaitingLoader={!!waitingHint}
             />
             <StyledIcon
               styledWidth={"9px"}
@@ -140,17 +131,17 @@ class LocationSearchResults extends Component<PropsType> {
           {isOpen && (
             <>
               <SearchHeader
-                searchResults={search}
-                isWaitingForSearchToStart={this.props.isWaitingForSearchToStart}
+                searchResult={searchResult}
+                waitingHint={waitingHint}
               />
               <Ul column fullWidth>
                 {results.map((result: SearchResultModel, i: number) => (
                   <SearchResult
                     key={i}
-                    clickAction={this.props.onLocationClick.bind(null, result)}
+                    clickAction={onLocationClick.bind(null, result)}
                     name={result.name}
                     icon="location2"
-                    locationSearchText={this.props.locationSearchText}
+                    locationSearchText={locationSearchText}
                     isLastResult={results.length === i + 1}
                   />
                 ))}
@@ -162,10 +153,10 @@ class LocationSearchResults extends Component<PropsType> {
                   left
                   justifySpaceBetween
                 >
-                  <RawButton onClick={() => this.toggleExpand()}>
+                  <RawButton onClick={toggleExpand}>
                     <TextSpan small isLink>
                       <SearchResultsFooter
-                        isExpanded={this.isExpanded}
+                        isExpanded={isExpanded}
                         name={searchProvider.name}
                       />
                     </TextSpan>
@@ -178,7 +169,7 @@ class LocationSearchResults extends Component<PropsType> {
       </Box>
     );
   }
-}
+);
 
 interface SearchResultsFooterProps {
   isExpanded: boolean;
@@ -190,11 +181,11 @@ const SearchResultsFooter: FC<SearchResultsFooterProps> = (
 ) => {
   const { t, i18n } = useTranslation();
   if (props.isExpanded) {
-    return t("search.viewLess", {
+    return t(($) => $.search.viewLess, {
       name: applyTranslationIfExists(props.name, i18n)
     });
   }
-  return t("search.viewMore", {
+  return t(($) => $.search.viewMore, {
     name: applyTranslationIfExists(props.name, i18n)
   });
 };
@@ -203,8 +194,9 @@ interface NameWithLoaderProps {
   name: string;
   length?: number;
   isOpen: boolean;
-  search: SearchProviderResults;
-  isWaitingForSearchToStart: boolean;
+  search: SearchProviderResult;
+  /** Set when a waiting hint is rendered elsewhere instead of the loader */
+  hideWaitingLoader?: boolean;
 }
 
 const NameWithLoader: FC<NameWithLoaderProps> = observer(
@@ -214,17 +206,21 @@ const NameWithLoader: FC<NameWithLoaderProps> = observer(
       <BoxSpan styledHeight={"25px"}>
         <BoxSpan verticalCenter>
           <TextSpan textDarker uppercase>
-            {`${applyTranslationIfExists(props.name, i18n)} (${
-              props.length || 0
-            })`}
+            {`${applyTranslationIfExists(props.name, i18n)} ${
+              !props.search.isWaitingToStartSearch
+                ? `(${props.length || 0})`
+                : ""
+            }`}
           </TextSpan>
         </BoxSpan>
         {!props.isOpen &&
-          (props.search.isSearching || props.isWaitingForSearchToStart) && (
+          (props.search.isSearching ||
+            (props.search.isWaitingToStartSearch &&
+              !props.hideWaitingLoader)) && (
             <Loader hideMessage boxProps={{ fullWidth: false }} />
           )}
       </BoxSpan>
     );
   }
 );
-export default withTranslation()(LocationSearchResults);
+export default LocationSearchResults;

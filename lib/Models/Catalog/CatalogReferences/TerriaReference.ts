@@ -31,10 +31,22 @@ import proxyCatalogItemUrl from "../proxyCatalogItemUrl";
 export default class TerriaReference extends UrlMixin(
   ReferenceMixin(CreateModel(TerriaReferenceTraits))
 ) {
-  static readonly type = "terria-reference";
+  // Typed as `string` so subclasses (e.g. `CkanPrivateCatalogReference`) can
+  // declare their own `type` without a static-side type clash.
+  static readonly type: string = "terria-reference";
 
   get type() {
     return TerriaReference.type;
+  }
+
+  /**
+   * Fetches the referenced init JSON. Subclasses may wrap it to map errors.
+   * `url` and `cacheDuration` are read synchronously (before the first
+   * `yield` of `forceLoadReference`), so the `AsyncLoader` still re-runs when
+   * they change.
+   */
+  protected loadInitJson(): Promise<unknown> {
+    return loadJson5(proxyCatalogItemUrl(this, this.url!, this.cacheDuration));
   }
 
   protected forceLoadReference = flow(function* (
@@ -45,9 +57,7 @@ export default class TerriaReference extends UrlMixin(
       return undefined;
     }
 
-    const initJson = yield loadJson5(
-      proxyCatalogItemUrl(this, this.url, this.cacheDuration)
-    );
+    const initJson = yield this.loadInitJson();
 
     if (!isJsonObject(initJson) || !Array.isArray(initJson.catalog)) {
       return;
@@ -77,8 +87,8 @@ export default class TerriaReference extends UrlMixin(
       if (target === undefined) {
         throw new TerriaError({
           sender: this,
-          title: i18next.t("models.catalog.unsupportedTypeTitle"),
-          message: i18next.t("models.catalog.unsupportedTypeMessage", {
+          title: i18next.t(($) => $.models.catalog.unsupportedTypeTitle),
+          message: i18next.t(($) => $.models.catalog.unsupportedTypeMessage, {
             type: `"${targetJson.type}"`
           })
         });
@@ -116,8 +126,8 @@ export default class TerriaReference extends UrlMixin(
 
     throw new TerriaError({
       sender: this,
-      title: i18next.t("models.terria-reference.failedToLoadTarget"),
-      message: i18next.t("models.terria-reference.failedToLoadTarget")
+      title: i18next.t(($) => $.models["terria-reference"].failedToLoadTarget),
+      message: i18next.t(($) => $.models["terria-reference"].failedToLoadTarget)
     });
   });
 }

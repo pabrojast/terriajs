@@ -2,19 +2,26 @@ import { runInAction } from "mobx";
 import { observer } from "mobx-react";
 import { useTranslation } from "react-i18next";
 import type CatalogMemberMixin from "../../../ModelMixins/CatalogMemberMixin";
+import MappableMixin from "../../../ModelMixins/MappableMixin";
+import { BaseModel } from "../../../Models/Definition/Model";
 import Box from "../../../Styled/Box";
 import { useViewState } from "../../Context";
-import DataCatalog from "../../DataCatalog/DataCatalog";
 import DataPreview from "../../Preview/DataPreview";
 import Breadcrumbs from "../../Search/Breadcrumbs";
-import SearchBox, { DEBOUNCE_INTERVAL } from "../../Search/SearchBox.jsx";
+import { ExplorerWindowComponents } from "../ExplorerWindowComponents";
 import Styles from "./data-catalog-tab.scss";
-import CatalogSearchProvider from "../../../Models/SearchProviders/CatalogSearchProvider";
 
 interface DataCatalogTabProps {
-  items?: unknown[];
+  items?: readonly BaseModel[];
   searchPlaceholder?: string;
   onActionButtonClicked?: (item: CatalogMemberMixin.Instance) => void;
+  /** Override the default toggleItemOnMap behavior (when "add/remove from map" button is clicked in the data preview panel) */
+  onToggleItemOnMap?: (item: MappableMixin.Instance) => void;
+  hideToggleItemOnMap?: boolean;
+  hideSearch?: boolean;
+  hideActionButton?: boolean;
+  hideBreadcrumbs?: boolean;
+  isLoadingTab?: boolean;
 }
 
 const DataCatalogTab = observer(function DataCatalogTab(
@@ -26,12 +33,12 @@ const DataCatalogTab = observer(function DataCatalogTab(
   const {
     searchState,
     previewedItem: previewed,
-    breadcrumbsShown: showBreadcrumbs,
+    breadcrumbsShown: viewStateBreadcrumbsShown,
     terria
   } = viewState;
 
-  const searchPlaceholder =
-    props.searchPlaceholder || t("addData.searchPlaceholder");
+  const searchPlaceholder: string =
+    props.searchPlaceholder || t(($) => $.addData.searchPlaceholder);
 
   const changeSearchText = (newText: string) => {
     runInAction(() => {
@@ -48,26 +55,19 @@ const DataCatalogTab = observer(function DataCatalogTab(
       <Box fullHeight column>
         <Box fullHeight overflow="hidden">
           <Box className={Styles.dataExplorer} styledWidth="40%">
-            {searchState.catalogSearchProvider && (
-              <SearchBox
+            {!props.hideSearch && searchState.catalogSearchProvider && (
+              <ExplorerWindowComponents.DataCatalogSearch
                 searchText={searchState.catalogSearchText}
                 onSearchTextChanged={changeSearchText}
-                onDoSearch={() => search()}
-                placeholder={searchPlaceholder}
-                debounceDuration={
-                  terria.catalogReferencesLoaded
-                    ? (
-                        searchState.catalogSearchProvider as CatalogSearchProvider
-                      ).debounceDurationOnceLoaded
-                    : DEBOUNCE_INTERVAL
-                }
+                onDoSearch={search}
+                searchPlaceholder={searchPlaceholder}
               />
             )}
-            <DataCatalog
-              terria={terria}
-              viewState={viewState}
+            <ExplorerWindowComponents.DataCatalog
+              hideActionButton={props.hideActionButton}
               onActionButtonClicked={props.onActionButtonClicked}
               items={props.items}
+              isLoading={props.isLoadingTab}
             />
           </Box>
           <Box styledWidth="60%">
@@ -75,11 +75,13 @@ const DataCatalogTab = observer(function DataCatalogTab(
               terria={terria}
               viewState={viewState}
               previewed={previewed}
+              onToggleItemOnMap={props.onToggleItemOnMap}
+              hideToggleItemOnMap={props.hideToggleItemOnMap}
             />
           </Box>
         </Box>
 
-        {showBreadcrumbs && (
+        {!props.hideBreadcrumbs && viewStateBreadcrumbsShown && (
           <Breadcrumbs
             terria={terria}
             viewState={viewState}

@@ -82,7 +82,9 @@ describe("DragWrapper", () => {
       });
     });
 
-    it("should limit to parent bounds", async () => {
+    // Fork (IHP-WINS): useDraggable clamps to the viewport instead of the
+    // parent so panels can be dragged anywhere on screen.
+    it("should allow dragging beyond the parent within the viewport", async () => {
       render(
         <div style={{ position: "relative", width: "200px", height: "200px" }}>
           <DragWrapper
@@ -105,7 +107,7 @@ describe("DragWrapper", () => {
 
       await waitFor(() => {
         expect(dragElement.parentElement).toHaveStyle(
-          "transform: matrix(1, 0, 0, 1, 100, 50);"
+          "transform: matrix(1, 0, 0, 1, 200, 50);"
         );
       });
     });

@@ -84,14 +84,6 @@ declare module "terriajs-cesium/Source/Core/AxisAlignedBoundingBox" {
   import { AxisAlignedBoundingBox } from "terriajs-cesium";
   export default AxisAlignedBoundingBox;
 }
-declare module "terriajs-cesium/Source/Core/barycentricCoordinates" {
-  import { barycentricCoordinates } from "terriajs-cesium";
-  export default barycentricCoordinates;
-}
-declare module "terriajs-cesium/Source/Core/binarySearch" {
-  import { binarySearch } from "terriajs-cesium";
-  export default binarySearch;
-}
 declare module "terriajs-cesium/Source/Core/BingMapsGeocoderService" {
   import { BingMapsGeocoderService } from "terriajs-cesium";
   export default BingMapsGeocoderService;
@@ -111,10 +103,6 @@ declare module "terriajs-cesium/Source/Core/BoxGeometry" {
 declare module "terriajs-cesium/Source/Core/BoxOutlineGeometry" {
   import { BoxOutlineGeometry } from "terriajs-cesium";
   export default BoxOutlineGeometry;
-}
-declare module "terriajs-cesium/Source/Core/buildModuleUrl" {
-  import { buildModuleUrl } from "terriajs-cesium";
-  export default buildModuleUrl;
 }
 declare module "terriajs-cesium/Source/Core/Cartesian2" {
   import { Cartesian2 } from "terriajs-cesium";
@@ -140,6 +128,14 @@ declare module "terriajs-cesium/Source/Core/CatmullRomSpline" {
   import { CatmullRomSpline } from "terriajs-cesium";
   export default CatmullRomSpline;
 }
+declare module "terriajs-cesium/Source/Core/Cesium3DTilesTerrainData" {
+  import { Cesium3DTilesTerrainData } from "terriajs-cesium";
+  export default Cesium3DTilesTerrainData;
+}
+declare module "terriajs-cesium/Source/Core/Cesium3DTilesTerrainProvider" {
+  import { Cesium3DTilesTerrainProvider } from "terriajs-cesium";
+  export default Cesium3DTilesTerrainProvider;
+}
 declare module "terriajs-cesium/Source/Core/CesiumTerrainProvider" {
   import { CesiumTerrainProvider } from "terriajs-cesium";
   export default CesiumTerrainProvider;
@@ -164,10 +160,6 @@ declare module "terriajs-cesium/Source/Core/ClockStep" {
   import { ClockStep } from "terriajs-cesium";
   export default ClockStep;
 }
-declare module "terriajs-cesium/Source/Core/clone" {
-  import { clone } from "terriajs-cesium";
-  export default clone;
-}
 declare module "terriajs-cesium/Source/Core/Color" {
   import { Color } from "terriajs-cesium";
   export default Color;
@@ -175,10 +167,6 @@ declare module "terriajs-cesium/Source/Core/Color" {
 declare module "terriajs-cesium/Source/Core/ColorGeometryInstanceAttribute" {
   import { ColorGeometryInstanceAttribute } from "terriajs-cesium";
   export default ColorGeometryInstanceAttribute;
-}
-declare module "terriajs-cesium/Source/Core/combine" {
-  import { combine } from "terriajs-cesium";
-  export default combine;
 }
 declare module "terriajs-cesium/Source/Core/ComponentDatatype" {
   import { ComponentDatatype } from "terriajs-cesium";
@@ -212,14 +200,6 @@ declare module "terriajs-cesium/Source/Core/CorridorOutlineGeometry" {
   import { CorridorOutlineGeometry } from "terriajs-cesium";
   export default CorridorOutlineGeometry;
 }
-declare module "terriajs-cesium/Source/Core/createGuid" {
-  import { createGuid } from "terriajs-cesium";
-  export default createGuid;
-}
-declare module "terriajs-cesium/Source/Core/createWorldTerrainAsync" {
-  import { createWorldTerrainAsync } from "terriajs-cesium";
-  export default createWorldTerrainAsync;
-}
 declare module "terriajs-cesium/Source/Core/Credit" {
   import { Credit } from "terriajs-cesium";
   export default Credit;
@@ -247,18 +227,6 @@ declare module "terriajs-cesium/Source/Core/CylinderOutlineGeometry" {
 declare module "terriajs-cesium/Source/Core/DefaultProxy" {
   import { DefaultProxy } from "terriajs-cesium";
   export default DefaultProxy;
-}
-declare module "terriajs-cesium/Source/Core/defaultValue" {
-  import { defaultValue } from "terriajs-cesium";
-  export default defaultValue;
-}
-declare module "terriajs-cesium/Source/Core/defined" {
-  import { defined } from "terriajs-cesium";
-  export default defined;
-}
-declare module "terriajs-cesium/Source/Core/destroyObject" {
-  import { destroyObject } from "terriajs-cesium";
-  export default destroyObject;
 }
 declare module "terriajs-cesium/Source/Core/DeveloperError" {
   import { DeveloperError } from "terriajs-cesium";
@@ -328,9 +296,9 @@ declare module "terriajs-cesium/Source/Core/FeatureDetection" {
   import { FeatureDetection } from "terriajs-cesium";
   export default FeatureDetection;
 }
-declare module "terriajs-cesium/Source/Core/formatError" {
-  import { formatError } from "terriajs-cesium";
-  export default formatError;
+declare module "terriajs-cesium/Source/Core/Frozen" {
+  import { Frozen } from "terriajs-cesium";
+  export default Frozen;
 }
 declare module "terriajs-cesium/Source/Core/FrustumGeometry" {
   import { FrustumGeometry } from "terriajs-cesium";
@@ -344,13 +312,13 @@ declare module "terriajs-cesium/Source/Core/Fullscreen" {
   import { Fullscreen } from "terriajs-cesium";
   export default Fullscreen;
 }
-declare module "terriajs-cesium/Source/Core/GeocoderService" {
-  import { GeocoderService } from "terriajs-cesium";
-  export default GeocoderService;
-}
 declare module "terriajs-cesium/Source/Core/GeocodeType" {
   import { GeocodeType } from "terriajs-cesium";
   export default GeocodeType;
+}
+declare module "terriajs-cesium/Source/Core/GeocoderService" {
+  import { GeocoderService } from "terriajs-cesium";
+  export default GeocoderService;
 }
 declare module "terriajs-cesium/Source/Core/GeographicProjection" {
   import { GeographicProjection } from "terriajs-cesium";
@@ -388,30 +356,6 @@ declare module "terriajs-cesium/Source/Core/GeometryPipeline" {
   import { GeometryPipeline } from "terriajs-cesium";
   export default GeometryPipeline;
 }
-declare module "terriajs-cesium/Source/Core/getAbsoluteUri" {
-  import { getAbsoluteUri } from "terriajs-cesium";
-  export default getAbsoluteUri;
-}
-declare module "terriajs-cesium/Source/Core/getBaseUri" {
-  import { getBaseUri } from "terriajs-cesium";
-  export default getBaseUri;
-}
-declare module "terriajs-cesium/Source/Core/getExtensionFromUri" {
-  import { getExtensionFromUri } from "terriajs-cesium";
-  export default getExtensionFromUri;
-}
-declare module "terriajs-cesium/Source/Core/getFilenameFromUri" {
-  import { getFilenameFromUri } from "terriajs-cesium";
-  export default getFilenameFromUri;
-}
-declare module "terriajs-cesium/Source/Core/getImagePixels" {
-  import { getImagePixels } from "terriajs-cesium";
-  export default getImagePixels;
-}
-declare module "terriajs-cesium/Source/Core/getTimestamp" {
-  import { getTimestamp } from "terriajs-cesium";
-  export default getTimestamp;
-}
 declare module "terriajs-cesium/Source/Core/GoogleEarthEnterpriseMetadata" {
   import { GoogleEarthEnterpriseMetadata } from "terriajs-cesium";
   export default GoogleEarthEnterpriseMetadata;
@@ -423,6 +367,10 @@ declare module "terriajs-cesium/Source/Core/GoogleEarthEnterpriseTerrainData" {
 declare module "terriajs-cesium/Source/Core/GoogleEarthEnterpriseTerrainProvider" {
   import { GoogleEarthEnterpriseTerrainProvider } from "terriajs-cesium";
   export default GoogleEarthEnterpriseTerrainProvider;
+}
+declare module "terriajs-cesium/Source/Core/GoogleGeocoderService" {
+  import { GoogleGeocoderService } from "terriajs-cesium";
+  export default GoogleGeocoderService;
 }
 declare module "terriajs-cesium/Source/Core/GoogleMaps" {
   import { GoogleMaps } from "terriajs-cesium";
@@ -464,6 +412,10 @@ declare module "terriajs-cesium/Source/Core/HilbertOrder" {
   import { HilbertOrder } from "terriajs-cesium";
   export default HilbertOrder;
 }
+declare module "terriajs-cesium/Source/Core/ITwinPlatform" {
+  import { ITwinPlatform } from "terriajs-cesium";
+  export default ITwinPlatform;
+}
 declare module "terriajs-cesium/Source/Core/IndexDatatype" {
   import { IndexDatatype } from "terriajs-cesium";
   export default IndexDatatype;
@@ -476,13 +428,13 @@ declare module "terriajs-cesium/Source/Core/Intersect" {
   import { Intersect } from "terriajs-cesium";
   export default Intersect;
 }
-declare module "terriajs-cesium/Source/Core/Intersections2D" {
-  import { Intersections2D } from "terriajs-cesium";
-  export default Intersections2D;
-}
 declare module "terriajs-cesium/Source/Core/IntersectionTests" {
   import { IntersectionTests } from "terriajs-cesium";
   export default IntersectionTests;
+}
+declare module "terriajs-cesium/Source/Core/Intersections2D" {
+  import { Intersections2D } from "terriajs-cesium";
+  export default Intersections2D;
 }
 declare module "terriajs-cesium/Source/Core/Interval" {
   import { Interval } from "terriajs-cesium";
@@ -492,6 +444,10 @@ declare module "terriajs-cesium/Source/Core/Ion" {
   import { Ion } from "terriajs-cesium";
   export default Ion;
 }
+declare module "terriajs-cesium/Source/Core/IonGeocodeProviderType" {
+  import { IonGeocodeProviderType } from "terriajs-cesium";
+  export default IonGeocodeProviderType;
+}
 declare module "terriajs-cesium/Source/Core/IonGeocoderService" {
   import { IonGeocoderService } from "terriajs-cesium";
   export default IonGeocoderService;
@@ -500,9 +456,25 @@ declare module "terriajs-cesium/Source/Core/IonResource" {
   import { IonResource } from "terriajs-cesium";
   export default IonResource;
 }
-declare module "terriajs-cesium/Source/Core/isLeapYear" {
-  import { isLeapYear } from "terriajs-cesium";
-  export default isLeapYear;
+declare module "terriajs-cesium/Source/Core/IonSnapGeometryType" {
+  import { IonSnapGeometryType } from "terriajs-cesium";
+  export default IonSnapGeometryType;
+}
+declare module "terriajs-cesium/Source/Core/IonSnapHeat" {
+  import { IonSnapHeat } from "terriajs-cesium";
+  export default IonSnapHeat;
+}
+declare module "terriajs-cesium/Source/Core/IonSnapMode" {
+  import { IonSnapMode } from "terriajs-cesium";
+  export default IonSnapMode;
+}
+declare module "terriajs-cesium/Source/Core/IonSnapParentGeometryType" {
+  import { IonSnapParentGeometryType } from "terriajs-cesium";
+  export default IonSnapParentGeometryType;
+}
+declare module "terriajs-cesium/Source/Core/IonSnapService" {
+  import { IonSnapService } from "terriajs-cesium";
+  export default IonSnapService;
 }
 declare module "terriajs-cesium/Source/Core/Iso8601" {
   import { Iso8601 } from "terriajs-cesium";
@@ -552,10 +524,6 @@ declare module "terriajs-cesium/Source/Core/Matrix4" {
   import { Matrix4 } from "terriajs-cesium";
   export default Matrix4;
 }
-declare module "terriajs-cesium/Source/Core/mergeSort" {
-  import { mergeSort } from "terriajs-cesium";
-  export default mergeSort;
-}
 declare module "terriajs-cesium/Source/Core/MorphWeightSpline" {
   import { MorphWeightSpline } from "terriajs-cesium";
   export default MorphWeightSpline;
@@ -563,10 +531,6 @@ declare module "terriajs-cesium/Source/Core/MorphWeightSpline" {
 declare module "terriajs-cesium/Source/Core/NearFarScalar" {
   import { NearFarScalar } from "terriajs-cesium";
   export default NearFarScalar;
-}
-declare module "terriajs-cesium/Source/Core/objectToQuery" {
-  import { objectToQuery } from "terriajs-cesium";
-  export default objectToQuery;
 }
 declare module "terriajs-cesium/Source/Core/Occluder" {
   import { Occluder } from "terriajs-cesium";
@@ -628,10 +592,6 @@ declare module "terriajs-cesium/Source/Core/PlaneOutlineGeometry" {
   import { PlaneOutlineGeometry } from "terriajs-cesium";
   export default PlaneOutlineGeometry;
 }
-declare module "terriajs-cesium/Source/Core/pointInsideTriangle" {
-  import { pointInsideTriangle } from "terriajs-cesium";
-  export default pointInsideTriangle;
-}
 declare module "terriajs-cesium/Source/Core/PolygonGeometry" {
   import { PolygonGeometry } from "terriajs-cesium";
   export default PolygonGeometry;
@@ -683,10 +643,6 @@ declare module "terriajs-cesium/Source/Core/Quaternion" {
 declare module "terriajs-cesium/Source/Core/QuaternionSpline" {
   import { QuaternionSpline } from "terriajs-cesium";
   export default QuaternionSpline;
-}
-declare module "terriajs-cesium/Source/Core/queryToObject" {
-  import { queryToObject } from "terriajs-cesium";
-  export default queryToObject;
 }
 declare module "terriajs-cesium/Source/Core/Queue" {
   import { Queue } from "terriajs-cesium";
@@ -740,14 +696,6 @@ declare module "terriajs-cesium/Source/Core/RuntimeError" {
   import { RuntimeError } from "terriajs-cesium";
   export default RuntimeError;
 }
-declare module "terriajs-cesium/Source/Core/sampleTerrain" {
-  import { sampleTerrain } from "terriajs-cesium";
-  export default sampleTerrain;
-}
-declare module "terriajs-cesium/Source/Core/sampleTerrainMostDetailed" {
-  import { sampleTerrainMostDetailed } from "terriajs-cesium";
-  export default sampleTerrainMostDetailed;
-}
 declare module "terriajs-cesium/Source/Core/ScreenSpaceEventHandler" {
   import { ScreenSpaceEventHandler } from "terriajs-cesium";
   export default ScreenSpaceEventHandler;
@@ -767,6 +715,10 @@ declare module "terriajs-cesium/Source/Core/Simon1994PlanetaryPositions" {
 declare module "terriajs-cesium/Source/Core/SimplePolylineGeometry" {
   import { SimplePolylineGeometry } from "terriajs-cesium";
   export default SimplePolylineGeometry;
+}
+declare module "terriajs-cesium/Source/Core/SnapService" {
+  import { SnapService } from "terriajs-cesium";
+  export default SnapService;
 }
 declare module "terriajs-cesium/Source/Core/SphereGeometry" {
   import { SphereGeometry } from "terriajs-cesium";
@@ -788,9 +740,9 @@ declare module "terriajs-cesium/Source/Core/SteppedSpline" {
   import { SteppedSpline } from "terriajs-cesium";
   export default SteppedSpline;
 }
-declare module "terriajs-cesium/Source/Core/subdivideArray" {
-  import { subdivideArray } from "terriajs-cesium";
-  export default subdivideArray;
+declare module "terriajs-cesium/Source/Core/Stereographic" {
+  import { Stereographic } from "terriajs-cesium";
+  export default Stereographic;
 }
 declare module "terriajs-cesium/Source/Core/TaskProcessor" {
   import { TaskProcessor } from "terriajs-cesium";
@@ -828,6 +780,10 @@ declare module "terriajs-cesium/Source/Core/TimeStandard" {
   import { TimeStandard } from "terriajs-cesium";
   export default TimeStandard;
 }
+declare module "terriajs-cesium/Source/Core/TrackingReferenceFrame" {
+  import { TrackingReferenceFrame } from "terriajs-cesium";
+  export default TrackingReferenceFrame;
+}
 declare module "terriajs-cesium/Source/Core/Transforms" {
   import { Transforms } from "terriajs-cesium";
   export default Transforms;
@@ -844,6 +800,10 @@ declare module "terriajs-cesium/Source/Core/TrustedServers" {
   import { TrustedServers } from "terriajs-cesium";
   export default TrustedServers;
 }
+declare module "terriajs-cesium/Source/Core/VRTheWorldTerrainProvider" {
+  import { VRTheWorldTerrainProvider } from "terriajs-cesium";
+  export default VRTheWorldTerrainProvider;
+}
 declare module "terriajs-cesium/Source/Core/VertexFormat" {
   import { VertexFormat } from "terriajs-cesium";
   export default VertexFormat;
@@ -855,10 +815,6 @@ declare module "terriajs-cesium/Source/Core/VideoSynchronizer" {
 declare module "terriajs-cesium/Source/Core/Visibility" {
   import { Visibility } from "terriajs-cesium";
   export default Visibility;
-}
-declare module "terriajs-cesium/Source/Core/VRTheWorldTerrainProvider" {
-  import { VRTheWorldTerrainProvider } from "terriajs-cesium";
-  export default VRTheWorldTerrainProvider;
 }
 declare module "terriajs-cesium/Source/Core/WallGeometry" {
   import { WallGeometry } from "terriajs-cesium";
@@ -884,6 +840,110 @@ declare module "terriajs-cesium/Source/Core/WindingOrder" {
   import { WindingOrder } from "terriajs-cesium";
   export default WindingOrder;
 }
+declare module "terriajs-cesium/Source/Core/barycentricCoordinates" {
+  import { barycentricCoordinates } from "terriajs-cesium";
+  export default barycentricCoordinates;
+}
+declare module "terriajs-cesium/Source/Core/binarySearch" {
+  import { binarySearch } from "terriajs-cesium";
+  export default binarySearch;
+}
+declare module "terriajs-cesium/Source/Core/buildModuleUrl" {
+  import { buildModuleUrl } from "terriajs-cesium";
+  export default buildModuleUrl;
+}
+declare module "terriajs-cesium/Source/Core/clone" {
+  import { clone } from "terriajs-cesium";
+  export default clone;
+}
+declare module "terriajs-cesium/Source/Core/combine" {
+  import { combine } from "terriajs-cesium";
+  export default combine;
+}
+declare module "terriajs-cesium/Source/Core/createGuid" {
+  import { createGuid } from "terriajs-cesium";
+  export default createGuid;
+}
+declare module "terriajs-cesium/Source/Core/createWorldBathymetryAsync" {
+  import { createWorldBathymetryAsync } from "terriajs-cesium";
+  export default createWorldBathymetryAsync;
+}
+declare module "terriajs-cesium/Source/Core/createWorldTerrainAsync" {
+  import { createWorldTerrainAsync } from "terriajs-cesium";
+  export default createWorldTerrainAsync;
+}
+declare module "terriajs-cesium/Source/Core/defined" {
+  import { defined } from "terriajs-cesium";
+  export default defined;
+}
+declare module "terriajs-cesium/Source/Core/destroyObject" {
+  import { destroyObject } from "terriajs-cesium";
+  export default destroyObject;
+}
+declare module "terriajs-cesium/Source/Core/formatError" {
+  import { formatError } from "terriajs-cesium";
+  export default formatError;
+}
+declare module "terriajs-cesium/Source/Core/getAbsoluteUri" {
+  import { getAbsoluteUri } from "terriajs-cesium";
+  export default getAbsoluteUri;
+}
+declare module "terriajs-cesium/Source/Core/getBaseUri" {
+  import { getBaseUri } from "terriajs-cesium";
+  export default getBaseUri;
+}
+declare module "terriajs-cesium/Source/Core/getExtensionFromUri" {
+  import { getExtensionFromUri } from "terriajs-cesium";
+  export default getExtensionFromUri;
+}
+declare module "terriajs-cesium/Source/Core/getFilenameFromUri" {
+  import { getFilenameFromUri } from "terriajs-cesium";
+  export default getFilenameFromUri;
+}
+declare module "terriajs-cesium/Source/Core/getImagePixels" {
+  import { getImagePixels } from "terriajs-cesium";
+  export default getImagePixels;
+}
+declare module "terriajs-cesium/Source/Core/getTimestamp" {
+  import { getTimestamp } from "terriajs-cesium";
+  export default getTimestamp;
+}
+declare module "terriajs-cesium/Source/Core/isLeapYear" {
+  import { isLeapYear } from "terriajs-cesium";
+  export default isLeapYear;
+}
+declare module "terriajs-cesium/Source/Core/mergeSort" {
+  import { mergeSort } from "terriajs-cesium";
+  export default mergeSort;
+}
+declare module "terriajs-cesium/Source/Core/objectToQuery" {
+  import { objectToQuery } from "terriajs-cesium";
+  export default objectToQuery;
+}
+declare module "terriajs-cesium/Source/Core/pointInsideTriangle" {
+  import { pointInsideTriangle } from "terriajs-cesium";
+  export default pointInsideTriangle;
+}
+declare module "terriajs-cesium/Source/Core/queryToObject" {
+  import { queryToObject } from "terriajs-cesium";
+  export default queryToObject;
+}
+declare module "terriajs-cesium/Source/Core/sampleTerrain" {
+  import { sampleTerrain } from "terriajs-cesium";
+  export default sampleTerrain;
+}
+declare module "terriajs-cesium/Source/Core/sampleTerrainMostDetailed" {
+  import { sampleTerrainMostDetailed } from "terriajs-cesium";
+  export default sampleTerrainMostDetailed;
+}
+declare module "terriajs-cesium/Source/Core/srgbToLinear" {
+  import { srgbToLinear } from "terriajs-cesium";
+  export default srgbToLinear;
+}
+declare module "terriajs-cesium/Source/Core/subdivideArray" {
+  import { subdivideArray } from "terriajs-cesium";
+  export default subdivideArray;
+}
 declare module "terriajs-cesium/Source/Core/writeTextToCanvas" {
   import { writeTextToCanvas } from "terriajs-cesium";
   export default writeTextToCanvas;
@@ -903,6 +963,10 @@ declare module "terriajs-cesium/Source/DataSources/BoxGeometryUpdater" {
 declare module "terriajs-cesium/Source/DataSources/BoxGraphics" {
   import { BoxGraphics } from "terriajs-cesium";
   export default BoxGraphics;
+}
+declare module "terriajs-cesium/Source/DataSources/CallbackPositionProperty" {
+  import { CallbackPositionProperty } from "terriajs-cesium";
+  export default CallbackPositionProperty;
 }
 declare module "terriajs-cesium/Source/DataSources/CallbackProperty" {
   import { CallbackProperty } from "terriajs-cesium";
@@ -1020,10 +1084,6 @@ declare module "terriajs-cesium/Source/DataSources/EntityView" {
   import { EntityView } from "terriajs-cesium";
   export default EntityView;
 }
-declare module "terriajs-cesium/Source/DataSources/exportKml" {
-  import { exportKml } from "terriajs-cesium";
-  export default exportKml;
-}
 declare module "terriajs-cesium/Source/DataSources/GeoJsonDataSource" {
   import { GeoJsonDataSource } from "terriajs-cesium";
   export default GeoJsonDataSource;
@@ -1103,6 +1163,10 @@ declare module "terriajs-cesium/Source/DataSources/NodeTransformationProperty" {
 declare module "terriajs-cesium/Source/DataSources/PathGraphics" {
   import { PathGraphics } from "terriajs-cesium";
   export default PathGraphics;
+}
+declare module "terriajs-cesium/Source/DataSources/PathMode" {
+  import { PathMode } from "terriajs-cesium";
+  export default PathMode;
 }
 declare module "terriajs-cesium/Source/DataSources/PathVisualizer" {
   import { PathVisualizer } from "terriajs-cesium";
@@ -1248,6 +1312,10 @@ declare module "terriajs-cesium/Source/DataSources/WallGraphics" {
   import { WallGraphics } from "terriajs-cesium";
   export default WallGraphics;
 }
+declare module "terriajs-cesium/Source/DataSources/exportKml" {
+  import { exportKml } from "terriajs-cesium";
+  export default exportKml;
+}
 declare module "terriajs-cesium/Source/Renderer/PixelDatatype" {
   import { PixelDatatype } from "terriajs-cesium";
   export default PixelDatatype;
@@ -1276,9 +1344,17 @@ declare module "terriajs-cesium/Source/Scene/ArcGisMapService" {
   import { ArcGisMapService } from "terriajs-cesium";
   export default ArcGisMapService;
 }
+declare module "terriajs-cesium/Source/Scene/Atmosphere" {
+  import { Atmosphere } from "terriajs-cesium";
+  export default Atmosphere;
+}
 declare module "terriajs-cesium/Source/Scene/Axis" {
   import { Axis } from "terriajs-cesium";
   export default Axis;
+}
+declare module "terriajs-cesium/Source/Scene/Azure2DImageryProvider" {
+  import { Azure2DImageryProvider } from "terriajs-cesium";
+  export default Azure2DImageryProvider;
 }
 declare module "terriajs-cesium/Source/Scene/Billboard" {
   import { Billboard } from "terriajs-cesium";
@@ -1304,17 +1380,65 @@ declare module "terriajs-cesium/Source/Scene/BlendFunction" {
   import { BlendFunction } from "terriajs-cesium";
   export default BlendFunction;
 }
-declare module "terriajs-cesium/Source/Scene/BlendingState" {
-  import { BlendingState } from "terriajs-cesium";
-  export default BlendingState;
-}
 declare module "terriajs-cesium/Source/Scene/BlendOption" {
   import { BlendOption } from "terriajs-cesium";
   export default BlendOption;
 }
+declare module "terriajs-cesium/Source/Scene/BlendingState" {
+  import { BlendingState } from "terriajs-cesium";
+  export default BlendingState;
+}
 declare module "terriajs-cesium/Source/Scene/BoxEmitter" {
   import { BoxEmitter } from "terriajs-cesium";
   export default BoxEmitter;
+}
+declare module "terriajs-cesium/Source/Scene/BufferPoint" {
+  import { BufferPoint } from "terriajs-cesium";
+  export default BufferPoint;
+}
+declare module "terriajs-cesium/Source/Scene/BufferPointCollection" {
+  import { BufferPointCollection } from "terriajs-cesium";
+  export default BufferPointCollection;
+}
+declare module "terriajs-cesium/Source/Scene/BufferPointMaterial" {
+  import { BufferPointMaterial } from "terriajs-cesium";
+  export default BufferPointMaterial;
+}
+declare module "terriajs-cesium/Source/Scene/BufferPolygon" {
+  import { BufferPolygon } from "terriajs-cesium";
+  export default BufferPolygon;
+}
+declare module "terriajs-cesium/Source/Scene/BufferPolygonCollection" {
+  import { BufferPolygonCollection } from "terriajs-cesium";
+  export default BufferPolygonCollection;
+}
+declare module "terriajs-cesium/Source/Scene/BufferPolygonMaterial" {
+  import { BufferPolygonMaterial } from "terriajs-cesium";
+  export default BufferPolygonMaterial;
+}
+declare module "terriajs-cesium/Source/Scene/BufferPolyline" {
+  import { BufferPolyline } from "terriajs-cesium";
+  export default BufferPolyline;
+}
+declare module "terriajs-cesium/Source/Scene/BufferPolylineCollection" {
+  import { BufferPolylineCollection } from "terriajs-cesium";
+  export default BufferPolylineCollection;
+}
+declare module "terriajs-cesium/Source/Scene/BufferPolylineMaterial" {
+  import { BufferPolylineMaterial } from "terriajs-cesium";
+  export default BufferPolylineMaterial;
+}
+declare module "terriajs-cesium/Source/Scene/BufferPrimitive" {
+  import { BufferPrimitive } from "terriajs-cesium";
+  export default BufferPrimitive;
+}
+declare module "terriajs-cesium/Source/Scene/BufferPrimitiveCollection" {
+  import { BufferPrimitiveCollection } from "terriajs-cesium";
+  export default BufferPrimitiveCollection;
+}
+declare module "terriajs-cesium/Source/Scene/BufferPrimitiveMaterial" {
+  import { BufferPrimitiveMaterial } from "terriajs-cesium";
+  export default BufferPrimitiveMaterial;
 }
 declare module "terriajs-cesium/Source/Scene/Camera" {
   import { Camera } from "terriajs-cesium";
@@ -1348,10 +1472,6 @@ declare module "terriajs-cesium/Source/Scene/Cesium3DTilePointFeature" {
   import { Cesium3DTilePointFeature } from "terriajs-cesium";
   export default Cesium3DTilePointFeature;
 }
-declare module "terriajs-cesium/Source/Scene/Cesium3DTileset" {
-  import { Cesium3DTileset } from "terriajs-cesium";
-  export default Cesium3DTileset;
-}
 declare module "terriajs-cesium/Source/Scene/Cesium3DTileStyle" {
   import { Cesium3DTileStyle } from "terriajs-cesium";
   export default Cesium3DTileStyle;
@@ -1359,6 +1479,10 @@ declare module "terriajs-cesium/Source/Scene/Cesium3DTileStyle" {
 declare module "terriajs-cesium/Source/Scene/Cesium3DTilesVoxelProvider" {
   import { Cesium3DTilesVoxelProvider } from "terriajs-cesium";
   export default Cesium3DTilesVoxelProvider;
+}
+declare module "terriajs-cesium/Source/Scene/Cesium3DTileset" {
+  import { Cesium3DTileset } from "terriajs-cesium";
+  export default Cesium3DTileset;
 }
 declare module "terriajs-cesium/Source/Scene/CircleEmitter" {
   import { CircleEmitter } from "terriajs-cesium";
@@ -1380,6 +1504,14 @@ declare module "terriajs-cesium/Source/Scene/ClippingPlaneCollection" {
   import { ClippingPlaneCollection } from "terriajs-cesium";
   export default ClippingPlaneCollection;
 }
+declare module "terriajs-cesium/Source/Scene/ClippingPolygon" {
+  import { ClippingPolygon } from "terriajs-cesium";
+  export default ClippingPolygon;
+}
+declare module "terriajs-cesium/Source/Scene/ClippingPolygonCollection" {
+  import { ClippingPolygonCollection } from "terriajs-cesium";
+  export default ClippingPolygonCollection;
+}
 declare module "terriajs-cesium/Source/Scene/CloudCollection" {
   import { CloudCollection } from "terriajs-cesium";
   export default CloudCollection;
@@ -1400,29 +1532,13 @@ declare module "terriajs-cesium/Source/Scene/ConeEmitter" {
   import { ConeEmitter } from "terriajs-cesium";
   export default ConeEmitter;
 }
-declare module "terriajs-cesium/Source/Scene/createElevationBandMaterial" {
-  import { createElevationBandMaterial } from "terriajs-cesium";
-  export default createElevationBandMaterial;
-}
-declare module "terriajs-cesium/Source/Scene/createGooglePhotorealistic3DTileset" {
-  import { createGooglePhotorealistic3DTileset } from "terriajs-cesium";
-  export default createGooglePhotorealistic3DTileset;
-}
-declare module "terriajs-cesium/Source/Scene/createOsmBuildingsAsync" {
-  import { createOsmBuildingsAsync } from "terriajs-cesium";
-  export default createOsmBuildingsAsync;
-}
-declare module "terriajs-cesium/Source/Scene/createTangentSpaceDebugPrimitive" {
-  import { createTangentSpaceDebugPrimitive } from "terriajs-cesium";
-  export default createTangentSpaceDebugPrimitive;
-}
-declare module "terriajs-cesium/Source/Scene/createWorldImageryAsync" {
-  import { createWorldImageryAsync } from "terriajs-cesium";
-  export default createWorldImageryAsync;
-}
 declare module "terriajs-cesium/Source/Scene/CreditDisplay" {
   import { CreditDisplay } from "terriajs-cesium";
   export default CreditDisplay;
+}
+declare module "terriajs-cesium/Source/Scene/CubeMapPanorama" {
+  import { CubeMapPanorama } from "terriajs-cesium";
+  export default CubeMapPanorama;
 }
 declare module "terriajs-cesium/Source/Scene/CullFace" {
   import { CullFace } from "terriajs-cesium";
@@ -1460,9 +1576,25 @@ declare module "terriajs-cesium/Source/Scene/DiscardMissingTileImagePolicy" {
   import { DiscardMissingTileImagePolicy } from "terriajs-cesium";
   export default DiscardMissingTileImagePolicy;
 }
+declare module "terriajs-cesium/Source/Scene/DynamicAtmosphereLightingType" {
+  import { DynamicAtmosphereLightingType } from "terriajs-cesium";
+  export default DynamicAtmosphereLightingType;
+}
+declare module "terriajs-cesium/Source/Scene/DynamicEnvironmentMapManager" {
+  import { DynamicEnvironmentMapManager } from "terriajs-cesium";
+  export default DynamicEnvironmentMapManager;
+}
+declare module "terriajs-cesium/Source/Scene/EdgeDisplayMode" {
+  import { EdgeDisplayMode } from "terriajs-cesium";
+  export default EdgeDisplayMode;
+}
 declare module "terriajs-cesium/Source/Scene/EllipsoidSurfaceAppearance" {
   import { EllipsoidSurfaceAppearance } from "terriajs-cesium";
   export default EllipsoidSurfaceAppearance;
+}
+declare module "terriajs-cesium/Source/Scene/EquirectangularPanorama" {
+  import { EquirectangularPanorama } from "terriajs-cesium";
+  export default EquirectangularPanorama;
 }
 declare module "terriajs-cesium/Source/Scene/Expression" {
   import { Expression } from "terriajs-cesium";
@@ -1476,6 +1608,14 @@ declare module "terriajs-cesium/Source/Scene/FrameRateMonitor" {
   import { FrameRateMonitor } from "terriajs-cesium";
   export default FrameRateMonitor;
 }
+declare module "terriajs-cesium/Source/Scene/GaussianSplat3DTileContent" {
+  import { GaussianSplat3DTileContent } from "terriajs-cesium";
+  export default GaussianSplat3DTileContent;
+}
+declare module "terriajs-cesium/Source/Scene/GeoJsonPrimitive" {
+  import { GeoJsonPrimitive } from "terriajs-cesium";
+  export default GeoJsonPrimitive;
+}
 declare module "terriajs-cesium/Source/Scene/GetFeatureInfoFormat" {
   import { GetFeatureInfoFormat } from "terriajs-cesium";
   export default GetFeatureInfoFormat;
@@ -1488,9 +1628,9 @@ declare module "terriajs-cesium/Source/Scene/GlobeTranslucency" {
   import { GlobeTranslucency } from "terriajs-cesium";
   export default GlobeTranslucency;
 }
-declare module "terriajs-cesium/Source/Scene/GltfPipeline/removeExtension" {
-  import { removeExtension } from "terriajs-cesium";
-  export default removeExtension;
+declare module "terriajs-cesium/Source/Scene/Google2DImageryProvider" {
+  import { Google2DImageryProvider } from "terriajs-cesium";
+  export default Google2DImageryProvider;
 }
 declare module "terriajs-cesium/Source/Scene/GoogleEarthEnterpriseImageryProvider" {
   import { GoogleEarthEnterpriseImageryProvider } from "terriajs-cesium";
@@ -1499,6 +1639,10 @@ declare module "terriajs-cesium/Source/Scene/GoogleEarthEnterpriseImageryProvide
 declare module "terriajs-cesium/Source/Scene/GoogleEarthEnterpriseMapsProvider" {
   import { GoogleEarthEnterpriseMapsProvider } from "terriajs-cesium";
   export default GoogleEarthEnterpriseMapsProvider;
+}
+declare module "terriajs-cesium/Source/Scene/GoogleStreetViewCubeMapPanoramaProvider" {
+  import { GoogleStreetViewCubeMapPanoramaProvider } from "terriajs-cesium";
+  export default GoogleStreetViewCubeMapPanoramaProvider;
 }
 declare module "terriajs-cesium/Source/Scene/GridImageryProvider" {
   import { GridImageryProvider } from "terriajs-cesium";
@@ -1544,6 +1688,22 @@ declare module "terriajs-cesium/Source/Scene/I3SNode" {
   import { I3SNode } from "terriajs-cesium";
   export default I3SNode;
 }
+declare module "terriajs-cesium/Source/Scene/I3SStatistics" {
+  import { I3SStatistics } from "terriajs-cesium";
+  export default I3SStatistics;
+}
+declare module "terriajs-cesium/Source/Scene/I3SSublayer" {
+  import { I3SSublayer } from "terriajs-cesium";
+  export default I3SSublayer;
+}
+declare module "terriajs-cesium/Source/Scene/I3SSymbology" {
+  import { I3SSymbology } from "terriajs-cesium";
+  export default I3SSymbology;
+}
+declare module "terriajs-cesium/Source/Scene/ITwinData" {
+  import { ITwinData } from "terriajs-cesium";
+  export default ITwinData;
+}
 declare module "terriajs-cesium/Source/Scene/ImageBasedLighting" {
   import { ImageBasedLighting } from "terriajs-cesium";
   export default ImageBasedLighting;
@@ -1588,6 +1748,14 @@ declare module "terriajs-cesium/Source/Scene/Light" {
   import { Light } from "terriajs-cesium";
   export default Light;
 }
+declare module "terriajs-cesium/Source/Scene/MVTDataProvider" {
+  import { MVTDataProvider } from "terriajs-cesium";
+  export default MVTDataProvider;
+}
+declare module "terriajs-cesium/Source/Scene/MapMode2D" {
+  import { MapMode2D } from "terriajs-cesium";
+  export default MapMode2D;
+}
 declare module "terriajs-cesium/Source/Scene/MapboxImageryProvider" {
   import { MapboxImageryProvider } from "terriajs-cesium";
   export default MapboxImageryProvider;
@@ -1595,10 +1763,6 @@ declare module "terriajs-cesium/Source/Scene/MapboxImageryProvider" {
 declare module "terriajs-cesium/Source/Scene/MapboxStyleImageryProvider" {
   import { MapboxStyleImageryProvider } from "terriajs-cesium";
   export default MapboxStyleImageryProvider;
-}
-declare module "terriajs-cesium/Source/Scene/MapMode2D" {
-  import { MapMode2D } from "terriajs-cesium";
-  export default MapMode2D;
 }
 declare module "terriajs-cesium/Source/Scene/Material" {
   import { Material } from "terriajs-cesium";
@@ -1636,54 +1800,6 @@ declare module "terriajs-cesium/Source/Scene/MetadataType" {
   import { MetadataType } from "terriajs-cesium";
   export default MetadataType;
 }
-declare module "terriajs-cesium/Source/Scene/Model/CustomShader" {
-  import { CustomShader } from "terriajs-cesium";
-  export default CustomShader;
-}
-declare module "terriajs-cesium/Source/Scene/Model/CustomShaderMode" {
-  import { CustomShaderMode } from "terriajs-cesium";
-  export default CustomShaderMode;
-}
-declare module "terriajs-cesium/Source/Scene/Model/CustomShaderTranslucencyMode" {
-  import { CustomShaderTranslucencyMode } from "terriajs-cesium";
-  export default CustomShaderTranslucencyMode;
-}
-declare module "terriajs-cesium/Source/Scene/Model/LightingModel" {
-  import { LightingModel } from "terriajs-cesium";
-  export default LightingModel;
-}
-declare module "terriajs-cesium/Source/Scene/Model/Model" {
-  import { Model } from "terriajs-cesium";
-  export default Model;
-}
-declare module "terriajs-cesium/Source/Scene/Model/ModelAnimation" {
-  import { ModelAnimation } from "terriajs-cesium";
-  export default ModelAnimation;
-}
-declare module "terriajs-cesium/Source/Scene/Model/ModelAnimationCollection" {
-  import { ModelAnimationCollection } from "terriajs-cesium";
-  export default ModelAnimationCollection;
-}
-declare module "terriajs-cesium/Source/Scene/Model/ModelFeature" {
-  import { ModelFeature } from "terriajs-cesium";
-  export default ModelFeature;
-}
-declare module "terriajs-cesium/Source/Scene/Model/ModelNode" {
-  import { ModelNode } from "terriajs-cesium";
-  export default ModelNode;
-}
-declare module "terriajs-cesium/Source/Scene/Model/TextureUniform" {
-  import { TextureUniform } from "terriajs-cesium";
-  export default TextureUniform;
-}
-declare module "terriajs-cesium/Source/Scene/Model/UniformType" {
-  import { UniformType } from "terriajs-cesium";
-  export default UniformType;
-}
-declare module "terriajs-cesium/Source/Scene/Model/VaryingType" {
-  import { VaryingType } from "terriajs-cesium";
-  export default VaryingType;
-}
 declare module "terriajs-cesium/Source/Scene/ModelAnimationLoop" {
   import { ModelAnimationLoop } from "terriajs-cesium";
   export default ModelAnimationLoop;
@@ -1699,6 +1815,14 @@ declare module "terriajs-cesium/Source/Scene/NeverTileDiscardPolicy" {
 declare module "terriajs-cesium/Source/Scene/OpenStreetMapImageryProvider" {
   import { OpenStreetMapImageryProvider } from "terriajs-cesium";
   export default OpenStreetMapImageryProvider;
+}
+declare module "terriajs-cesium/Source/Scene/Panorama" {
+  import { Panorama } from "terriajs-cesium";
+  export default Panorama;
+}
+declare module "terriajs-cesium/Source/Scene/PanoramaProvider" {
+  import { PanoramaProvider } from "terriajs-cesium";
+  export default PanoramaProvider;
 }
 declare module "terriajs-cesium/Source/Scene/Particle" {
   import { Particle } from "terriajs-cesium";
@@ -1792,6 +1916,10 @@ declare module "terriajs-cesium/Source/Scene/ScreenSpaceCameraController" {
   import { ScreenSpaceCameraController } from "terriajs-cesium";
   export default ScreenSpaceCameraController;
 }
+declare module "terriajs-cesium/Source/Scene/SensorVolumePortionToDisplay" {
+  import { SensorVolumePortionToDisplay } from "terriajs-cesium";
+  export default SensorVolumePortionToDisplay;
+}
 declare module "terriajs-cesium/Source/Scene/ShadowMap" {
   import { ShadowMap } from "terriajs-cesium";
   export default ShadowMap;
@@ -1864,6 +1992,14 @@ declare module "terriajs-cesium/Source/Scene/TimeDynamicPointCloud" {
   import { TimeDynamicPointCloud } from "terriajs-cesium";
   export default TimeDynamicPointCloud;
 }
+declare module "terriajs-cesium/Source/Scene/Tonemapper" {
+  import { Tonemapper } from "terriajs-cesium";
+  export default Tonemapper;
+}
+declare module "terriajs-cesium/Source/Scene/UrlTemplate3DTilesDataProvider" {
+  import { UrlTemplate3DTilesDataProvider } from "terriajs-cesium";
+  export default UrlTemplate3DTilesDataProvider;
+}
 declare module "terriajs-cesium/Source/Scene/UrlTemplateImageryProvider" {
   import { UrlTemplateImageryProvider } from "terriajs-cesium";
   export default UrlTemplateImageryProvider;
@@ -1875,6 +2011,14 @@ declare module "terriajs-cesium/Source/Scene/VerticalOrigin" {
 declare module "terriajs-cesium/Source/Scene/ViewportQuad" {
   import { ViewportQuad } from "terriajs-cesium";
   export default ViewportQuad;
+}
+declare module "terriajs-cesium/Source/Scene/VoxelCell" {
+  import { VoxelCell } from "terriajs-cesium";
+  export default VoxelCell;
+}
+declare module "terriajs-cesium/Source/Scene/VoxelContent" {
+  import { VoxelContent } from "terriajs-cesium";
+  export default VoxelContent;
 }
 declare module "terriajs-cesium/Source/Scene/VoxelPrimitive" {
   import { VoxelPrimitive } from "terriajs-cesium";
@@ -1896,8 +2040,139 @@ declare module "terriajs-cesium/Source/Scene/WebMapTileServiceImageryProvider" {
   import { WebMapTileServiceImageryProvider } from "terriajs-cesium";
   export default WebMapTileServiceImageryProvider;
 }
+declare module "terriajs-cesium/Source/Scene/createElevationBandMaterial" {
+  import { createElevationBandMaterial } from "terriajs-cesium";
+  export default createElevationBandMaterial;
+}
+declare module "terriajs-cesium/Source/Scene/createGooglePhotorealistic3DTileset" {
+  import { createGooglePhotorealistic3DTileset } from "terriajs-cesium";
+  export default createGooglePhotorealistic3DTileset;
+}
+declare module "terriajs-cesium/Source/Scene/createOsmBuildingsAsync" {
+  import { createOsmBuildingsAsync } from "terriajs-cesium";
+  export default createOsmBuildingsAsync;
+}
+declare module "terriajs-cesium/Source/Scene/createTangentSpaceDebugPrimitive" {
+  import { createTangentSpaceDebugPrimitive } from "terriajs-cesium";
+  export default createTangentSpaceDebugPrimitive;
+}
+declare module "terriajs-cesium/Source/Scene/createWorldImageryAsync" {
+  import { createWorldImageryAsync } from "terriajs-cesium";
+  export default createWorldImageryAsync;
+}
 declare module "terriajs-cesium/Source/Widget/CesiumWidget" {
   import { CesiumWidget } from "terriajs-cesium";
   export default CesiumWidget;
 }
-// End Generated Declarations
+declare module "terriajs-cesium/Source/Scene/Controllers/Controller" {
+  import { Controller } from "terriajs-cesium";
+  export default Controller;
+}
+declare module "terriajs-cesium/Source/Scene/Controllers/ControllerHost" {
+  import { ControllerHost } from "terriajs-cesium";
+  export default ControllerHost;
+}
+declare module "terriajs-cesium/Source/Scene/Controllers/HybridScreenSpacePanCameraController" {
+  import { HybridScreenSpacePanCameraController } from "terriajs-cesium";
+  export default HybridScreenSpacePanCameraController;
+}
+declare module "terriajs-cesium/Source/Scene/Controllers/MouseButton" {
+  import { MouseButton } from "terriajs-cesium";
+  export default MouseButton;
+}
+declare module "terriajs-cesium/Source/Scene/Controllers/ScreenSpaceElevatorCameraController" {
+  import { ScreenSpaceElevatorCameraController } from "terriajs-cesium";
+  export default ScreenSpaceElevatorCameraController;
+}
+declare module "terriajs-cesium/Source/Scene/Controllers/ScreenSpaceInputBindings" {
+  import { ScreenSpaceInputBindings } from "terriajs-cesium";
+  export default ScreenSpaceInputBindings;
+}
+declare module "terriajs-cesium/Source/Scene/Controllers/ScreenSpaceMapCameraController" {
+  import { ScreenSpaceMapCameraController } from "terriajs-cesium";
+  export default ScreenSpaceMapCameraController;
+}
+declare module "terriajs-cesium/Source/Scene/Controllers/ScreenSpaceTiltOrbitCameraController" {
+  import { ScreenSpaceTiltOrbitCameraController } from "terriajs-cesium";
+  export default ScreenSpaceTiltOrbitCameraController;
+}
+declare module "terriajs-cesium/Source/Scene/Controllers/ScreenSpaceZoomCameraController" {
+  import { ScreenSpaceZoomCameraController } from "terriajs-cesium";
+  export default ScreenSpaceZoomCameraController;
+}
+declare module "terriajs-cesium/Source/Scene/GltfPipeline/removeExtension" {
+  import { removeExtension } from "terriajs-cesium";
+  export default removeExtension;
+}
+declare module "terriajs-cesium/Source/Scene/Model/CustomShader" {
+  import { CustomShader } from "terriajs-cesium";
+  export default CustomShader;
+}
+declare module "terriajs-cesium/Source/Scene/Model/CustomShaderMode" {
+  import { CustomShaderMode } from "terriajs-cesium";
+  export default CustomShaderMode;
+}
+declare module "terriajs-cesium/Source/Scene/Model/CustomShaderTranslucencyMode" {
+  import { CustomShaderTranslucencyMode } from "terriajs-cesium";
+  export default CustomShaderTranslucencyMode;
+}
+declare module "terriajs-cesium/Source/Scene/Model/LightingModel" {
+  import { LightingModel } from "terriajs-cesium";
+  export default LightingModel;
+}
+declare module "terriajs-cesium/Source/Scene/Model/Model" {
+  import { Model } from "terriajs-cesium";
+  export default Model;
+}
+declare module "terriajs-cesium/Source/Scene/Model/ModelAnimation" {
+  import { ModelAnimation } from "terriajs-cesium";
+  export default ModelAnimation;
+}
+declare module "terriajs-cesium/Source/Scene/Model/ModelAnimationCollection" {
+  import { ModelAnimationCollection } from "terriajs-cesium";
+  export default ModelAnimationCollection;
+}
+declare module "terriajs-cesium/Source/Scene/Model/ModelFeature" {
+  import { ModelFeature } from "terriajs-cesium";
+  export default ModelFeature;
+}
+declare module "terriajs-cesium/Source/Scene/Model/ModelNode" {
+  import { ModelNode } from "terriajs-cesium";
+  export default ModelNode;
+}
+declare module "terriajs-cesium/Source/Scene/Model/TextureUniform" {
+  import { TextureUniform } from "terriajs-cesium";
+  export default TextureUniform;
+}
+declare module "terriajs-cesium/Source/Scene/Model/UniformType" {
+  import { UniformType } from "terriajs-cesium";
+  export default UniformType;
+}
+declare module "terriajs-cesium/Source/Scene/Model/VaryingType" {
+  import { VaryingType } from "terriajs-cesium";
+  export default VaryingType;
+}
+declare module "terriajs-cesium/Source/Scene/Model/Extensions/Gpm/AnchorPointDirect" {
+  import { AnchorPointDirect } from "terriajs-cesium";
+  export default AnchorPointDirect;
+}
+declare module "terriajs-cesium/Source/Scene/Model/Extensions/Gpm/AnchorPointIndirect" {
+  import { AnchorPointIndirect } from "terriajs-cesium";
+  export default AnchorPointIndirect;
+}
+declare module "terriajs-cesium/Source/Scene/Model/Extensions/Gpm/CorrelationGroup" {
+  import { CorrelationGroup } from "terriajs-cesium";
+  export default CorrelationGroup;
+}
+declare module "terriajs-cesium/Source/Scene/Model/Extensions/Gpm/GltfGpmLocal" {
+  import { GltfGpmLocal } from "terriajs-cesium";
+  export default GltfGpmLocal;
+}
+declare module "terriajs-cesium/Source/Scene/Model/Extensions/Gpm/Spdcf" {
+  import { Spdcf } from "terriajs-cesium";
+  export default Spdcf;
+}
+declare module "terriajs-cesium/Source/Scene/Model/Extensions/Gpm/StorageType" {
+  import { StorageType } from "terriajs-cesium";
+  export default StorageType;
+}

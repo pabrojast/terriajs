@@ -11,7 +11,7 @@ type MouseTooltipProps = {
 
 const MouseTooltip: FC<MouseTooltipProps> = (props) => {
   const { scene, text } = props;
-  const tooltipText = useRef<typeof TooltipText>(null);
+  const tooltipText = useRef<HTMLDivElement>(null);
 
   useEffect(function tooltipFollowMouse() {
     const setTooltipPosition = (position: { x: number; y: number }) => {
@@ -34,6 +34,7 @@ const MouseTooltip: FC<MouseTooltipProps> = (props) => {
   });
 
   useEffect(function setCursor() {
+    // eslint-disable-next-line react-hooks/immutability
     scene.canvas.style.cursor = `crosshair`;
     return () => {
       scene.canvas.style.cursor = `auto`;

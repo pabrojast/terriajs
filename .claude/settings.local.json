@@ -1,0 +1,42 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep:*)",
+      "Bash(npm run build-for-node:*)",
+      "Bash(npx eslint:*)",
+      "Bash(npx prettier:*)",
+      "Bash(gulp lint:*)",
+      "Bash(npx gulp lint:*)",
+      "Bash(npm run prettier-check:*)",
+      "Bash(npm run prettier:*)",
+      "Bash(gulp:*)",
+      "Bash(python3:*)",
+      "Bash(npx tsc:*)",
+      "Bash(find:*)",
+      "WebFetch(domain:data.dev-wins.com)",
+      "Bash(curl -s \"https://data.dev-wins.com/xcube/wmts/1.0.0/WMTSCapabilities.xml\")",
+      "Bash(curl -X POST \"https://data.dev-wins.com/xcube/timeseries/ukraine_lwq300_pyramid/tsm_mean\" -H \"Content-Type: application/json\" -d \"{ \"\"type\"\": \"\"Point\"\", \"\"coordinates\"\": [30.5, 47.5] }\")",
+      "Bash(curl -s -X POST \"https://data.dev-wins.com/xcube/timeseries/ukraine_lwq300_pyramid/tsm_mean\" -H \"Content-Type: application/json\" -d '{ \"\"\"\"type\"\"\"\": \"\"\"\"Point\"\"\"\", \"\"\"\"coordinates\"\"\"\": [32.76034, 49.34278] }')",
+      "Bash(cat:*)",
+      "Bash(yarn tsc:*)",
+      "Bash(tee:*)",
+      "Bash(curl:*)",
+      "Bash(npx gulp build:*)",
+      "Bash(./node_modules/.bin/tsc:*)",
+      "Bash(npm run build:*)",
+      "Bash(yarn build-for-node)",
+      "mcp__ide__getDiagnostics",
+      "Bash(git check-ignore *)",
+      "Bash(git fetch *)",
+      "Bash(git rev-list *)",
+      "Bash(git ls-tree *)",
+      "Bash(git stash *)",
+      "Bash(echo \"EXIT=$?\")",
+      "Bash(*)"
+    ],
+    "deny": [],
+    "additionalDirectories": [
+      "C:\\Users\\Lenovo\\Proyectos\\TerriaMap"
+    ]
+  }
+}

@@ -29,7 +29,7 @@ const StyledMapIconButton = styled(RawButton)<IStyledMapIconButtonProps>`
   ${(props) => props.roundLeft && `border-radius: 16px 0 0 16px;`}
   ${(props) => props.roundRight && `border-radius: 0 16px 16px 0;`}
 
-  background:  ${(props) => props.theme.dark};
+  background: ${(props) => props.theme.dark};
   color: ${(props) => props.theme.textLight};
   border: 1px solid ${(props) => props.theme.darkLighter};
 
@@ -76,7 +76,6 @@ const StyledMapIconButton = styled(RawButton)<IStyledMapIconButtonProps>`
       fill: ${props.theme.textLight};
     }
   `}
-
 
   ${(props) =>
     props.disabled &&
@@ -170,8 +169,11 @@ function MapIconButton(props: IMapIconButtonProps) {
             medium
             css={`
               display: block;
-              transition: visibility 0.3s ease, max-width 0.3s ease,
-                margin-right 0.3s ease, opacity 0.3s ease;
+              transition:
+                visibility 0.3s ease,
+                max-width 0.3s ease,
+                margin-right 0.3s ease,
+                opacity 0.3s ease;
               visibility: ${expanded ? `visible` : `hidden`};
               max-width: ${expanded ? `150px` : `0px`};
               margin-right: ${expanded ? `10px` : `0px`};

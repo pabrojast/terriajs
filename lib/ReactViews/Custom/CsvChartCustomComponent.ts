@@ -9,8 +9,7 @@ import ChartCustomComponent, {
 } from "./ChartCustomComponent";
 import { ProcessNodeContext } from "./CustomComponent";
 
-interface CsvChartCustomComponentAttributes
-  extends ChartCustomComponentAttributes {
+interface CsvChartCustomComponentAttributes extends ChartCustomComponentAttributes {
   /** If present, the chart is updated from [poll-sources] every [poll-seconds] seconds.
    *  TODO: Returned data is merged into existing data and shown. */
   pollSeconds?: number;
@@ -49,6 +48,10 @@ export default class CsvChartCustomComponent extends ChartCustomComponent<CsvCat
       "chart-type",
       "chart-glyph-style"
     ]);
+  }
+
+  get urlAttributes(): string[] {
+    return super.urlAttributes.concat(["poll-sources"]);
   }
 
   protected constructCatalogItem(

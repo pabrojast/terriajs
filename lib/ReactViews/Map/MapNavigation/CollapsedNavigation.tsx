@@ -32,7 +32,9 @@ const CollapsedNavigationBox = styled(Box).attrs({
   left: 50%;
   top: 50%;
   transform: translate(-50%, -50%);
-  box-shadow: 0 6px 6px 0 rgba(0, 0, 0, 0.12), 0 10px 20px 0 rgba(0, 0, 0, 0.05);
+  box-shadow:
+    0 6px 6px 0 rgba(0, 0, 0, 0.12),
+    0 10px 20px 0 rgba(0, 0, 0, 0.05);
   @media (max-width: ${(props) => props.theme.mobile}px) {
     width: 100%;
   }
@@ -46,7 +48,7 @@ const ButtonsBox = styled(Box).attrs({})`
   gap: 20px;
 `;
 
-const NavigationButton = styled(BoxSpan).attrs({
+const NavigationButton = styled(BoxSpan).attrs<{ disabled?: boolean }>({
   boxShadow: true,
   centered: true,
   rounded: true
@@ -93,7 +95,7 @@ const CollapsedNavigationPanel: FC<PropTypes> = observer((props: PropTypes) => {
         onClick={() => viewState.closeCollapsedNavigation()}
       />
       <Text extraExtraLarge bold textDarker>
-        {t("mapNavigation.additionalTools")}
+        {t(($) => $.mapNavigation.additionalTools)}
       </Text>
       <Spacing bottom={5} />
       <ButtonsBox>

@@ -7,10 +7,12 @@ import { withTranslation } from "react-i18next";
 import styled from "styled-components";
 import defined from "terriajs-cesium/Source/Core/defined";
 import MappableMixin from "../../ModelMixins/MappableMixin";
+import GroupMixin from "../../ModelMixins/GroupMixin";
 import DataCatalogTab from "./Tabs/DataCatalogTab";
 import MyDataTab from "./Tabs/MyDataTab/MyDataTab";
 import Styles from "./tabs.scss";
 import { ThemeContext } from "styled-components";
+import raiseErrorNotShownInPreview from "../Preview/raiseErrorNotShownInPreview";
 
 @observer
 class Tabs extends Component {
@@ -49,23 +51,11 @@ class Tabs extends Component {
       return this.props.tabs;
     }
 
-    const myDataTab = {
-      title: "my-data",
-      name: t("addData.myData"),
-      category: "my-data",
-      panel: (
-        <MyDataTab
-          terria={this.props.terria}
-          viewState={this.props.viewState}
-          onFileAddFinished={(files) => this.onFileAddFinished(files)}
-          onUrlAddFinished={() => this.onUrlAddFinished()}
-        />
-      )
-    };
+    const tabs = [];
 
     if (this.props.terria.configParameters.tabbedCatalog) {
-      return [].concat(
-        this.props.terria.catalog.group.memberModels
+      tabs.push(
+        ...this.props.terria.catalog.group.memberModels
           .filter(
             (member) => member !== this.props.terria.catalog.userAddedDataGroup
           )
@@ -77,28 +67,55 @@ class Tabs extends Component {
             panel: (
               <DataCatalogTab
                 items={member.memberModels || [member]}
-                searchPlaceholder={t("addData.searchPlaceholderWhole")}
+                searchPlaceholder={t(($) => $.addData.searchPlaceholderWhole)}
+                isLoadingTab={
+                  GroupMixin.isMixedInto(member) && member.isLoadingMembers
+                }
               />
             )
-          })),
-        [myDataTab]
+          }))
       );
     } else {
-      return [
-        {
-          name: t("addData.data"),
-          title: "data-catalog",
-          category: "data-catalog",
-          panel: (
-            <DataCatalogTab
-              items={this.props.terria.catalog.group.memberModels}
-              searchPlaceholder={t("addData.searchPlaceholder")}
-            />
-          )
-        },
-        myDataTab
-      ];
+      tabs.push({
+        name: t(($) => $.addData.data),
+        title: "data-catalog",
+        category: "data-catalog",
+        panel: (
+          <DataCatalogTab
+            items={this.props.terria.catalog.group.memberModels}
+            searchPlaceholder={t(($) => $.addData.searchPlaceholder)}
+            // With progressive loading the catalog can be opened before its
+            // init sources have loaded. Init sources keep loading workbench
+            // items after the catalog arrives, so only while it's still empty.
+            isLoadingTab={
+              this.props.terria.isProgressivelyLoading &&
+              this.props.terria.catalog.group.memberModels.every(
+                (member) =>
+                  member === this.props.terria.catalog.userAddedDataGroup
+              )
+            }
+          />
+        )
+      });
     }
+
+    if (!this.props.terria.configParameters.disableUserAddedData) {
+      tabs.push({
+        title: "my-data",
+        name: t(($) => $.addData.myData),
+        category: "my-data",
+        panel: (
+          <MyDataTab
+            terria={this.props.terria}
+            viewState={this.props.viewState}
+            onFileAddFinished={(files) => this.onFileAddFinished(files)}
+            onUrlAddFinished={() => this.onUrlAddFinished()}
+          />
+        )
+      });
+    }
+
+    return tabs;
   }
 
   async activateTab(category, idInCategory) {
@@ -114,7 +131,13 @@ class Tabs extends Component {
           if (defined(member)) {
             this.props.viewState
               .viewCatalogMember(member)
-              .then((result) => result.raiseError(this.props.viewState.terria));
+              .then((result) =>
+                raiseErrorNotShownInPreview(
+                  this.props.viewState,
+                  member,
+                  result
+                )
+              );
           }
         }
       }
@@ -132,17 +155,17 @@ class Tabs extends Component {
       )[0] ||
       sameCategory[0] ||
       tabs[0];
-      
-    const theme = this.context;
 
     return (
       <div className={Styles.tabs}>
-        <div style={{ 
-          display: "flex", 
-          background: "#fff", 
-          padding: "10px 24px", 
-          alignItems: "center"
-        }}>
+        <div
+          style={{
+            display: "flex",
+            background: "#fff",
+            padding: "10px 24px",
+            alignItems: "center"
+          }}
+        >
           <ul
             className={Styles.tabList}
             role="tablist"
@@ -174,8 +197,6 @@ class Tabs extends Component {
               </li>
             ))}
           </ul>
-          
-
         </div>
 
         <section

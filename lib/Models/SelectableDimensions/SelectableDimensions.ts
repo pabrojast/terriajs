@@ -44,6 +44,7 @@ export interface NumericalDimension extends Dimension {
 export interface TextDimension extends Dimension {
   readonly value?: string;
   readonly allowUndefined?: boolean;
+  readonly inputType?: "text" | "password";
 }
 
 export interface ColorDimension extends Dimension {
@@ -70,7 +71,7 @@ export type SelectableDimensionType =
   | "button"
   | "color";
 
-export type Placement = "default" | "belowLegend";
+export type Placement = "default" | "belowLegend" | "top";
 export const DEFAULT_PLACEMENT: Placement = "default";
 
 /** Base SelectableDimension interface. Each following SelectableDimension will extend this and the Dimension interface above */
@@ -80,6 +81,7 @@ export interface SelectableDimensionBase<T = string> {
   /** Placement of dimension in Workbench:
    * - default (above legend and short-report sections)
    * - belowLegend
+   * - top (first control of the item, above opacity and the date selector)
    * This is only relevant to top level SelectableDimensions (not nested in groups)
    */
   placement?: Placement;
@@ -91,30 +93,36 @@ export type OptionRenderer = (option: {
 }) => ReactNode;
 
 export interface SelectableDimensionEnum
-  extends SelectableDimensionBase<string>,
-    EnumDimension {
+  extends SelectableDimensionBase<string>, EnumDimension {
   type?: undefined | "select";
   /** Render ReactNodes for each option - instead of plain label */
   optionRenderer?: OptionRenderer;
+  /**
+   * How the options are presented. "pills" shows every option at once as a
+   * segmented control — for a handful of short, mutually exclusive choices that
+   * people switch between often. Defaults to a dropdown ("select").
+   */
+  display?: "select" | "pills";
 }
 
 /** Similar to SelectableDimensionEnum, but supports multiple selected values */
 export interface SelectableDimensionMultiEnum
-  extends SelectableDimensionBase<string[]>,
-    MultiEnumDimension {
+  extends SelectableDimensionBase<string[]>, MultiEnumDimension {
   type?: undefined | "select-multi";
   /** Render ReactNodes for each option - instead of plain label */
   optionRenderer?: OptionRenderer;
 }
 
 export interface SelectableDimensionCheckbox
-  extends SelectableDimensionBase<"true" | "false">,
+  extends
+    SelectableDimensionBase<"true" | "false">,
     EnumDimension<"true" | "false"> {
   type: "checkbox";
 }
 
 export interface SelectableDimensionCheckboxGroup
-  extends SelectableDimensionBase<"true" | "false">,
+  extends
+    SelectableDimensionBase<"true" | "false">,
     Omit<SelectableDimensionGroup, "type">,
     EnumDimension<"true" | "false"> {
   type: "checkbox-group";
@@ -132,32 +140,27 @@ export interface SelectableDimensionCheckboxGroup
 }
 
 export interface SelectableDimensionButton
-  extends SelectableDimensionBase<true>,
-    ButtonDimension {
+  extends SelectableDimensionBase<true>, ButtonDimension {
   type: "button";
 }
 
 export interface SelectableDimensionNumeric
-  extends SelectableDimensionBase<number>,
-    NumericalDimension {
+  extends SelectableDimensionBase<number>, NumericalDimension {
   type: "numeric";
 }
 
 export interface SelectableDimensionText
-  extends SelectableDimensionBase<string>,
-    TextDimension {
+  extends SelectableDimensionBase<string>, TextDimension {
   type: "text";
 }
 
 export interface SelectableDimensionColor
-  extends SelectableDimensionBase<string>,
-    ColorDimension {
+  extends SelectableDimensionBase<string>, ColorDimension {
   type: "color";
 }
 
 export interface SelectableDimensionGroup
-  extends Omit<SelectableDimensionBase, "setDimensionValue">,
-    Dimension {
+  extends Omit<SelectableDimensionBase, "setDimensionValue">, Dimension {
   type: "group";
 
   /** Group is **closed** by default */

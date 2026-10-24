@@ -44,10 +44,9 @@ export const shareConvertNotification = (
       <>
         <Text>
           {parseCustomMarkdownToReact(
-            i18next.t("share.convertNotificationMessage")
+            i18next.t(($) => $.share.convertNotificationMessage)
           )}
         </Text>
-
         <RawButton
           fullWidth
           onClick={showHelp}
@@ -55,13 +54,12 @@ export const shareConvertNotification = (
             text-align: left;
           `}
         >
-          <TextSpan textLight bold medium>
+          <TextSpan textLight bold medium isLink>
             {parseCustomMarkdownToReact(
-              i18next.t("share.convertNotificationHelp")
+              i18next.t(($) => $.share.convertNotificationHelp)
             )}
           </TextSpan>
         </RawButton>
-
         <RawButton
           fullWidth
           onClick={showFeedback}
@@ -69,18 +67,16 @@ export const shareConvertNotification = (
             text-align: left;
           `}
         >
-          <TextSpan textLight bold medium>
+          <TextSpan textLight bold medium isLink>
             {parseCustomMarkdownToReact(
-              i18next.t("share.convertNotificationFeedback")
+              i18next.t(($) => $.share.convertNotificationFeedback)
             )}
           </TextSpan>
         </RawButton>
-
         <Spacing bottom={2} />
-
         <Collapsible
           btnRight
-          title={i18next.t("share.convertNotificationWarningsTitle")}
+          title={i18next.t(($) => $.share.convertNotificationWarningsTitle)}
           titleTextProps={{ large: true }}
           bodyBoxProps={{ padded: true }}
         >
@@ -103,7 +99,7 @@ export const shareConvertNotification = (
                 title={
                   path && path !== ""
                     ? path
-                    : i18next.t("share.convertNotificationWarningsTitle")
+                    : i18next.t(($) => $.share.convertNotificationWarningsTitle)
                 }
               >
                 <ul>

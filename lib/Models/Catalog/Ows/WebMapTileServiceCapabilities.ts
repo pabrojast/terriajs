@@ -9,8 +9,8 @@ import {
   CapabilitiesLegend,
   OnlineResource,
   OwsKeywordList,
-  ServiceIdentification,
-  ServiceProvider
+  type CapabilitiesBaseType,
+  type RequestMethodType
 } from "./OwsInterfaces";
 
 export interface WmtsLayer {
@@ -21,9 +21,32 @@ export interface WmtsLayer {
   readonly WGS84BoundingBox?: BoundingBox;
   readonly Style?: CapabilitiesStyle | CapabilitiesStyle[];
   readonly Format?: string | ReadonlyArray<string>;
+  readonly InfoFormat?: string | ReadonlyArray<string>;
   readonly infoFormat?: string | ReadonlyArray<string>;
   readonly TileMatrixSetLink?: TileMatrixSetLink | TileMatrixSetLink[];
   readonly ResourceURL?: ResourceUrl | ResourceUrl[];
+  readonly Dimension?: WmtsDimension | WmtsDimension[];
+}
+
+/**
+ * WMTS 1.0.0 `<Dimension>` element (per OGC 07-057r7 section 7.1.2).
+ *
+ * Unlike WMS, where the dimension's value list is the element's text content,
+ * WMTS nests the value list under one or more child `<Value>` elements, with
+ * the dimension name in `<Identifier>` and an optional `<Default>`.
+ *
+ * NOTE: only the time dimension is consumed by the catalog stratum today.
+ * Other dimensions (elevation, band, etc.) parse fine but are ignored.
+ */
+export interface WmtsDimension {
+  readonly Identifier: string;
+  readonly Title?: string;
+  readonly Abstract?: string;
+  readonly UOM?: string;
+  readonly UnitSymbol?: string;
+  readonly Default?: string;
+  readonly Current?: boolean;
+  readonly Value?: string | ReadonlyArray<string>;
 }
 
 /* For some reason LegendUrls are formatted differently from WMS - this makes me very upset >:(
@@ -44,7 +67,7 @@ export interface WmtsCapabilitiesLegend extends CapabilitiesLegend {
 
 export interface ResourceUrl {
   format: string;
-  resourceType: "tile";
+  resourceType: "tile" | "FeatureInfo";
   template: string;
 }
 
@@ -59,31 +82,38 @@ export interface CapabilitiesStyle {
   readonly isDefault?: boolean;
 }
 
-interface CapabilitiesJson {
-  readonly Version: string;
+interface WMTSCapabilitiesJson extends CapabilitiesBaseType {
   readonly Contents?: Contents;
-  readonly ServiceIdentification?: ServiceIdentification;
-  readonly ServiceProvider?: ServiceProvider;
-  readonly OperationsMetadata?: OperationsMetadata;
   readonly ServiceMetadataURL?: OnlineResource;
 }
 
-interface OperationsMetadata {
-  readonly Operation: Operation;
+export interface OperationsMetadata {
+  readonly Operation?: Operation | Operation[];
+}
+
+interface OperationEndpoint extends OnlineResource {
+  readonly Constraint?: OwsConstraint | ReadonlyArray<OwsConstraint>;
+}
+
+interface OwsConstraint {
+  readonly name?: string;
+  readonly AllowedValues?: {
+    readonly Value?: string | ReadonlyArray<string>;
+  };
 }
 
 interface Operation {
-  name: string;
-  DCP: {
-    HTTP: {
-      Get?: OnlineResource;
+  name?: string;
+  DCP?: {
+    HTTP?: {
+      Get?: OperationEndpoint | ReadonlyArray<OperationEndpoint>;
     };
   };
 }
 
 interface Contents {
-  readonly Layer: WmtsLayer;
-  readonly TileMatrixSet: TileMatrixSet;
+  readonly Layer: WmtsLayer | WmtsLayer[];
+  readonly TileMatrixSet: TileMatrixSet | TileMatrixSet[];
 }
 
 export interface TileMatrixSetLink {
@@ -134,48 +164,33 @@ export default class WebMapTileServiceCapabilities {
         if (!capabilitiesXml || !defined(json.ServiceIdentification)) {
           throw networkRequestError({
             title: i18next.t(
-              "models.webMapTileServiceCatalogGroup.invalidCapabilitiesTitle"
+              ($) =>
+                $.models.webMapTileServiceCatalogGroup.invalidCapabilitiesTitle
             ),
             message: i18next.t(
-              "models.webMapTileServiceCatalogGroup.invalidCapabilitiesMessage",
+              ($) =>
+                $.models.webMapTileServiceCatalogGroup
+                  .invalidCapabilitiesMessage,
               {
-                url: url
+                url
               }
             )
           });
         }
 
-        return new WebMapTileServiceCapabilities(capabilitiesXml, json);
+        return new WebMapTileServiceCapabilities(json);
       });
     });
 
   readonly layers: WmtsLayer[];
   readonly tileMatrixSets: TileMatrixSet[];
 
-  private constructor(
-    readonly xml: XMLDocument,
-    readonly json: CapabilitiesJson
-  ) {
-    this.layers = [];
-    this.tileMatrixSets = [];
-
-    const layerElements = this.json.Contents?.Layer as
-      | Array<WmtsLayer>
-      | WmtsLayer;
-    if (layerElements && Array.isArray(layerElements)) {
-      this.layers.push(...layerElements);
-    } else if (layerElements) {
-      this.layers.push(layerElements as WmtsLayer);
-    }
-
-    const tileMatrixSetsElements = this.json.Contents?.TileMatrixSet as
-      | Array<TileMatrixSet>
-      | TileMatrixSet;
-    if (tileMatrixSetsElements && Array.isArray(tileMatrixSetsElements)) {
-      this.tileMatrixSets.push(...tileMatrixSetsElements);
-    } else if (tileMatrixSetsElements) {
-      this.tileMatrixSets.push(tileMatrixSetsElements as TileMatrixSet);
-    }
+  // `json` is read by the fork's WebMapTileServiceCatalogItem (REST templates, dimensions, GetFeatureInfo).
+  private constructor(readonly json: WMTSCapabilitiesJson) {
+    this.layers = this.parseLayers(this.json.Contents?.Layer);
+    this.tileMatrixSets = this.parseTileMatrixSets(
+      this.json.Contents?.TileMatrixSet
+    );
   }
 
   get ServiceIdentification() {
@@ -183,7 +198,32 @@ export default class WebMapTileServiceCapabilities {
   }
 
   get OperationsMetadata() {
-    return this.json.OperationsMetadata;
+    const operationsMetadata = this.json.OperationsMetadata;
+    if (!operationsMetadata) {
+      return undefined;
+    }
+
+    const operation = Array.isArray(operationsMetadata.Operation)
+      ? operationsMetadata.Operation
+      : [operationsMetadata.Operation];
+    return operation.reduce(
+      (acc, operation) => {
+        if (!acc[operation.name]) {
+          acc[operation.name] = {
+            Get: Array.isArray(operation.DCP.HTTP.Get)
+              ? operation.DCP.HTTP.Get
+              : [operation.DCP.HTTP.Get]
+          };
+        }
+        return acc;
+      },
+      {} as Record<
+        string,
+        {
+          Get: RequestMethodType[];
+        }
+      >
+    );
   }
 
   get ServiceProvider() {
@@ -231,5 +271,23 @@ export default class WebMapTileServiceCapabilities {
     return this.tileMatrixSets.find(
       (tileMatrixSet) => tileMatrixSet.Identifier === set
     );
+  }
+
+  private parseLayers(layers: WmtsLayer | WmtsLayer[] | undefined) {
+    if (!layers) {
+      return [];
+    }
+
+    return Array.isArray(layers) ? layers : [layers];
+  }
+
+  private parseTileMatrixSets(
+    tileMatrixSets: TileMatrixSet | TileMatrixSet[] | undefined
+  ) {
+    if (!tileMatrixSets) {
+      return [];
+    }
+
+    return Array.isArray(tileMatrixSets) ? tileMatrixSets : [tileMatrixSets];
   }
 }

@@ -86,7 +86,7 @@
       "copyName": "{{name}} (copy)"
     }
   },
-  "zoomCotrol": {
+  "zoomControl": {
     "zoomIn": "Zoom in",
     "zoomReset": "Reset zoom",
     "zoomOut": "Zoom out"
@@ -208,14 +208,14 @@
     "shortLinkError": "An error occurred while attempting to shorten the URL.  Please check your internet connection and try again.",
     "localDataNote": "<0><0>Note:</0></0><1>The following data sources will NOT be shared because they include data from this local system or from an authenticated online service. To share these data sources, publish their data on a web server and <2>add them using a url</2>.</1>",
     "generatingUrl": "Generating share URL...",
-    "printTitle": "Print Map",
+    "printTitle": "Print map",
     "printExplanation": "Open a printable version of this map.",
     "downloadMap": "Download map (png)",
     "printViewButton": "Show Print View",
     "btnAdvanced": "Advanced options",
     "embedTitle": "Embed map",
-    "embedDescription": "To embed, copy this code to embed this map into an HTML page:",
-    "shortenUsingService": "Shorten the share URL using a web service",
+    "embedDescription": "Copy this code to embed the map in an HTML page.",
+    "shortenUsingService": "Shorten the share link",
     "btnCatalogShareText": "Share",
     "btnStoryShareText": "Share",
     "btnMapShareText": "Share / Print",
@@ -229,7 +229,10 @@
     "convertNotificationWarningsTitle": "Technical details",
     "convertErrorTitle": "Could not upgrade share link to V8",
     "convertErrorMessage": "This share link is based on an older version of TerriaJS - the software powering this web map. An error has occurred trying to upgrade the share data.",
-    "getShareSaveHelpMessage": "How to Bookmark Sharelinks"
+    "getShareSaveHelpMessage": "How to Bookmark Sharelinks",
+    "shareStoryLink": "Share story link",
+    "storyLinkCreated": "Saved as new story",
+    "shareLinkCreated": "Share link created"
   },
   "countDatasets": {
     "btnText": "Start",
@@ -241,8 +244,8 @@
     "title": "Count Datasets",
     "btnCount": "Count datasets",
     "noMapDataEnabled": "No map data enabled",
-    "mapDataState": "{{count}} dataset enabled on map",
-    "mapDataState_plural": "{{count}} datasets enabled on map"
+    "mapDataState_one": "{{count}} dataset enabled on map",
+    "mapDataState_other": "{{count}} datasets enabled on map"
   },
   "toolsPanel": {
     "btnText": "Tool",
@@ -271,6 +274,19 @@
     "mapQuality": "Map Quality:",
     "qualityLabel": "Quality",
     "performanceLabel": "Performance",
+    "baseMapOpacity": "Base Map Opacity:",
+    "lowPerformanceQualityNote": "Also disables shadows and reduces resolution to improve performance.",
+    "baseMapStatus": {
+      "requiresViewerMode": "⚠️ The selected base map can only be viewed in {{viewerMode}}"
+    },
+    "viewerModeSwitched": {
+      "title": "Viewer mode switched",
+      "message": "The '{{newBaseMap}}' base map cannot be viewed in {{currentMode}}. The Map View has been changed to {{newMode}}"
+    },
+    "baseMapSwitched": {
+      "title": "Base map switched",
+      "message": "The '{{currentBaseMap}}' base map cannot be viewed in {{mapMode}}. The Base Map has been changed to '{{newBaseMap}}'"
+    },
     "timeline": {
       "title": "Timeline",
       "alwaysShowLabel": "Press to start only showing the timeline when there are time-varying datasets on the workbench",
@@ -354,7 +370,8 @@
   },
   "story": {
     "panelTitle": "Story editor",
-    "panelBody": "Create and share interactive stories directly from your map",
+    "panelBody": "Create and share interactive stories directly from your map.",
+    "panelBodyCapped": "Each story is capped at {{ shareMaxRequestSize }} - split large data or many scenes into multiple stories to stay under the limit.",
     "gettingStarted": "Getting started",
     "gettingStartedTitle": "Getting started",
     "badgeBarLabel": "Scenes",
@@ -371,9 +388,10 @@
     "delete": "Delete",
     "untitledScene": "untitled scene",
     "doesNotExist": "Story does not exist",
-    "removeAllStories": "Remove All",
-    "removeAllStoriesDialog": "Are you sure you wish to delete {{ count }} scene?",
-    "removeAllStoriesDialog_plural": "Are you sure you wish to delete {{ count }} scenes?",
+    "saveInstructions": "Click share to create a new story link.",
+    "removeAllStories": "Remove all scenes",
+    "removeAllStoriesDialog_one": "Are you sure you wish to delete {{ count }} scene?",
+    "removeAllStoriesDialog_other": "Are you sure you wish to delete {{ count }} scenes?",
     "removeStoryDialog": "Are you sure you wish to delete '<1>{{storyName}}</1>'?",
     "preview": "preview stories",
     "play": "Play",
@@ -387,8 +405,112 @@
       "placeholder": "Enter a title here",
       "cancelBtn": "cancel",
       "cancelEditing": "Cancel",
-      "saveBtn": "save",
-      "saveStory": "Save"
+      "saveBtn": "done",
+      "saveStory": "Done",
+      "presentationLabel": "Presentation",
+      "presentationClassic": "Classic window",
+      "presentationComposed": "Composition",
+      "presentationClassicHelp": "Drag the title bar and resize the window from its lower corner. Side panels and interactive references are available in Composition; their settings are kept when you switch formats.",
+      "presentationComposedHelp": "Place text beside maps, dashboards and media. You can return to the classic window without losing these settings.",
+      "legend": {
+        "insert": "Insert legend",
+        "empty": "No legends available"
+      },
+      "design": {
+        "eyebrow": "STORY STUDIO",
+        "newChapter": "New chapter",
+        "editChapter": "Edit chapter",
+        "intro": "Shape your narrative, then choose how it appears on the map.",
+        "close": "Close story editor",
+        "content": "Story content",
+        "contentHint": "Write, illustrate and connect your ideas.",
+        "title": "Chapter title",
+        "required": "Required",
+        "titlePlaceholder": "Give this chapter a meaningful title",
+        "settings": "Chapter settings",
+        "loading": "Preparing your writing space…",
+        "imageHint": "Add images from your IHP-WINS library, or paste and upload them directly into your story.",
+        "classicShort": "A floating window on your map",
+        "composedShort": "Text beside maps and visuals",
+        "classicHelp": "Move and resize the window while reading. Its saved size and position are kept when you edit.",
+        "composedHelp": "Choose a layout below. Your settings stay with the chapter when you switch formats.",
+        "yourMap": "THE MAP IS PART OF YOUR STORY",
+        "classicNoteTitle": "A familiar window, your own perspective.",
+        "classicNote": "The chapter captures your current map view when you save. For an existing chapter, use Recapture from the chapter menu to update its map.",
+        "classicDashboardHint": "To add a dashboard from IHP-WINS, choose “{{composition}}”, then “{{dashboardLayout}}” or “{{combinedLayout}}”.",
+        "saveChapter": "Save chapter",
+        "savingButton": "Saving…",
+        "saving": "Uploading images and saving your chapter…",
+        "saveHint": "Save adds this chapter to your story. Use Share to create a link.",
+        "uploadFailed": "Unable to upload images. Please retry.",
+        "discardTitle": "Discard your changes?",
+        "discardDescription": "Your changes to this chapter have not been saved. You can keep editing or discard them.",
+        "keepEditing": "Keep editing",
+        "discard": "Discard changes",
+        "layout": "Layout",
+        "textPosition": "Text position",
+        "textWidth": "Text width",
+        "left": "Left",
+        "right": "Right",
+        "third": "One third",
+        "half": "Half",
+        "twoThirds": "Two thirds",
+        "dashboards": "Dashboards",
+        "dashboardEmpty": "A dashboard is an interactive panel of charts, indicators and filters.",
+        "chooseDashboard": "Add dashboard from IHP-WINS",
+        "dashboardSearchStep": "Search IHP-WINS and choose a dashboard.",
+        "dashboardConfigureStep": "Optionally choose filters and a chart to highlight for this chapter. The original dashboard stays unchanged.",
+        "dashboardInsertStep": "Insert the dashboard, choose “{{dashboardLayout}}” or “{{combinedLayout}}” to display it, then save the chapter.",
+        "filterCount": "{{count}} saved filter",
+        "filterCount_plural": "{{count}} saved filters",
+        "media": "Images & multimedia",
+        "mediaEmpty": "Add photographs, illustrations, video or audio to this chapter.",
+        "myImages": "My images",
+        "addUrl": "Add from a URL",
+        "mediaType": "Media type",
+        "image": "Image",
+        "videoAudio": "Video / audio",
+        "mediaUrl": "Media URL",
+        "addMedia": "Add media",
+        "invalidMedia": "Use an image URL, YouTube/Vimeo link or a direct video/audio file.",
+        "caption": "Caption",
+        "alt": "Alternative text",
+        "moveUp": "Move up",
+        "moveDown": "Move down",
+        "remove": "Remove",
+        "references": "Narrative links",
+        "referenceHint": "Select words in the story, then link them to a map scene or a dashboard.",
+        "linkVisualization": "Link visualization",
+        "playback": "Playback",
+        "playbackHint": "Used when a reader chooses Play in a fully composed story. Playback never starts automatically.",
+        "duration": "Slide duration (seconds)",
+        "compositionSettings": "Composition settings",
+        "templates": {
+          "map": "Text + map",
+          "dashboard": "Text + dashboard",
+          "combined": "Map & dashboard",
+          "media": "Image / multimedia",
+          "full": "Narrative only",
+          "auto": "Automatic"
+        },
+        "chooseImageTitle": "My images",
+        "chooseDashboardTitle": "Choose an IHP-WINS dashboard",
+        "closeDialog": "Close dialog",
+        "mapScene": "Map scene",
+        "dashboard": "Dashboard",
+        "keepMap": "Keep current map",
+        "keepDashboard": "Keep current dashboard",
+        "unavailableScene": "Unavailable saved scene",
+        "onEnter": "Also activate when this paragraph is reached",
+        "chooseFilters": "Choose dashboard and filters",
+        "apply": "Apply",
+        "cancel": "Cancel",
+        "removeReference": "Remove reference",
+        "chooseTarget": "Choose a map scene or dashboard.",
+        "allCharts": "all charts",
+        "referenceSummary": "{{count}} filters · {{widget}}",
+        "chapterActions": "Chapter actions: {{title}}"
+      }
     },
     "locationBtn": "center scene",
     "exitBtn": "exit story",
@@ -406,9 +528,11 @@
     "dismissText": "Got it, thanks!",
     "mobileViewStory": "View Stories {{storiesLength}}",
     "storyEditor": "Story Editor",
+    "storiesTooLong": "This story exceeds the maximum size allowed. Try reducing the number of visible datasets, or capture fewer scenes.",
     "hideStoryPanel": "hide story builder",
     "loadSceneErrorTitle": "Error loading Story Scene",
-    "loadSceneErrorMessage": "An error occurred while loading data for story scene: `{{title}}`."
+    "loadSceneErrorMessage": "An error occurred while loading data for story scene: `{{title}}`.",
+    "mixedManualHelp": "This story includes classic windows. Use Previous and Next to read at your own pace."
   },
   "satelliteGuidance": {
     "menuTitle": "You can access map guides at any time by looking in the <2>help menu</2>.",
@@ -451,7 +575,9 @@
     "dragDrop": "Drag and Drop",
     "infoText": "<0>Drag and drop a file here to view it locally on the map</0><1>(it won’t be saved or uploaded to the internet)</1>",
     "back": "Back",
-    "note": "<0>Note: </0>Data added in this way is not saved or made visible to others."
+    "note": "<0>Note: </0>Data added in this way is not saved or made visible to others.",
+    "cesiumIonToken": "Cesium ion Token:",
+    "cesiumIonStep2": "Step 2:"
   },
   "search": {
     "resultsLabel": "Search Results",
@@ -462,7 +588,10 @@
     "viewLess": "View less {{name}} results",
     "viewMore": "View more {{name}} results",
     "placeholder": "Search for locations",
-    "searchCatalogue": "Search the catalogue"
+    "searchCatalogue": "Search the catalogue",
+    "submit": "Search",
+    "submitLocations": "Search locations",
+    "submitHint": "Press Enter or click Search to look up this place."
   },
   "mobile": {
     "toggleNavigation": "toggle navigation",
@@ -499,7 +628,11 @@
     "modified": "Modified",
     "updateFrequency": "Update Frequency",
     "dataCustodian": "Data Custodian",
-    "mayBeExperiencingIssues": "This dataset may currently be experiencing issues"
+    "mayBeExperiencingIssues": "This dataset may currently be experiencing issues",
+    "terrascopeLoginAndDownload": "Login in Terrascope and download",
+    "openAssetLink": "Open",
+    "assetRequiresLogin": "requires login",
+    "openPreviewImage": "Open preview image"
   },
   "description": {
     "name": "Description",
@@ -538,6 +671,8 @@
     "previewItemTitle": "About this data",
     "showMoreActionsTitle": "Show more actions",
     "previewItem": "About Data",
+    "previewJob": "About Job",
+    "previewJobTitle": "About this job",
     "splitItemTitle": "Duplicate and show splitter",
     "splitItem": "Compare",
     "diffImageTitle": "View image differences between two dates",
@@ -553,6 +688,7 @@
     "disableAll": "Disable All",
     "enableAll": "Enable All",
     "toggleVisibility": "Data show/hide",
+    "showErrors": "Show problems loading this data",
     "addItemErrorTitle": "Catalog item could not be added to workbench.",
     "addItemErrorMessage": "An error occurred while loading the catalog item.",
     "searchItem": "Search",
@@ -606,22 +742,23 @@
   "clipboard": {
     "success": "Copied to clipboard",
     "unsuccessful": "Copy unsuccessful...",
-    "shareURL": "Share URL",
-    "shareExplanation": "Anyone with this URL will be able to access this map.",
+    "shareURL": "Share link",
+    "shareExplanation": "Anyone with this link will be able to access this map.",
+    "storyExplanation": "Anyone with this link will be able to access this map.",
     "copy": "Copy"
   },
   "includeStory": {
-    "message": "Include Story in Share"
+    "message": "Include current story in link"
   },
   "dragDrop": {
     "text": "<0>Drag & Drop</0><1>Your data anywhere to view on the map<1>",
-    "notification": "<0>\"{{fileNames}}\"</0> has been added to <4>My Data</4>.",
-    "notification_plural": "<0>\"{{fileNames}}\"</0> have been added to <4>My Data</4>."
+    "notification_one": "<0>\"{{fileNames}}\"</0> has been added to <4>My Data</4>.",
+    "notification_other": "<0>\"{{fileNames}}\"</0> have been added to <4>My Data</4>."
   },
   "loader": {
     "loadingMessage": "Loading"
   },
-  "emptyWorkbench": [
+  "emptyWorkbenchInfo": [
     {
       "heading": "Add a dataset here",
       "body": "When you add a dataset, its legend and settings appear here."
@@ -668,13 +805,46 @@
     "download": "Download",
     "showItemInChart": "Show {{value}} in chart",
     "loading": "Loading chart data...",
-    "noData": "No chart data found."
+    "noData": "No chart data found.",
+    "viewLarger": "View larger",
+    "zoomIn": "Zoom in",
+    "zoomOut": "Zoom out",
+    "resetZoom": "Reset zoom",
+    "removeSeries": "Remove series",
+    "toggleSeries": "Show/hide series",
+    "isolateSeries": "Show only this series",
+    "statAvg": "avg",
+    "statMin": "min",
+    "statMax": "max",
+    "downloadPng": "Download image",
+    "downloadCsv": "Download CSV",
+    "chartTab": "Chart",
+    "dataTab": "Data",
+    "showAllRows": "Show all {{count}} rows",
+    "seriesLabel": "series",
+    "viewAll": "View all series",
+    "clearSeries": "Clear",
+    "cancel": "Stop",
+    "readingSeries": "Reading time series… {{loaded}}/{{total}} dates",
+    "seriesReadErrors": "{{count}} date could not be read.",
+    "seriesReadErrors_plural": "{{count}} dates could not be read.",
+    "kpi": {
+      "current": "Displayed date",
+      "mean": "Mean",
+      "max": "Maximum",
+      "trend": "Trend",
+      "perYear": "per year",
+      "perYearWithUnit": "{{unit}} per year"
+    },
+    "collapse": "Collapse",
+    "dragToMove": "Drag to move",
+    "resize": "Drag to resize"
   },
   "viewModels": {
     "searchNoLocations": "Sorry, no locations match your search query.",
     "searchErrorOccurred": "An error occurred while searching.  Please check your internet connection or try again later.",
-    "searchMinCharacters": "You need to enter minimum {{count}} character",
-    "searchMinCharacters_plural": "You need to enter minimum {{count}} characters",
+    "searchMinCharacters_one": "You need to enter minimum {{count}} character",
+    "searchMinCharacters_other": "You need to enter minimum {{count}} characters",
     "searchAddresses": "Addresses",
     "searchPlaceNames": "Official Place Names",
     "searchNoPlaceNames": "Sorry, no official place names match your search query.",
@@ -682,7 +852,8 @@
     "searchCatalogueItem": "Catalogue Items",
     "searchNoCatalogueItem": "Sorry, no catalogue items match your search query.",
     "inMultipleLocations": "In multiple locations including: ",
-    "inDataCatalogue": "In Data Catalogue"
+    "inDataCatalogue": "In Data Catalogue",
+    "enterToStartSearch": "Press Enter to start searching"
   },
   "terriaViewer": {
     "slowWebGLAvailableTitle": "Poor WebGL performance",
@@ -752,7 +923,10 @@
       "ifc": "IFC",
       "cog": "Cloud Optimised Geotiff",
       "i3s": "I3S",
-      "cesium-ion": "Cesium ion"
+      "cesium-ion": "Cesium ion",
+      "stac-collection": "STAC Collection",
+      "stac-catalog": "STAC Catalog",
+      "stac-item": "STAC Item"
     },
     "printWindow": {
       "errorTitle": "Error printing",
@@ -862,9 +1036,11 @@
     },
     "extraCreditLinks": {
       "dataAttribution": "Data attribution",
-      "disclaimer": "Disclaimer",
-      "basemap": "Basemap",
-      "dataProvider": "Data provided by:"
+      "termsOfUse": "Terms of use",
+      "credits": "Credits",
+      "mapCredits": "Map credits",
+      "dataProvider": "Data provided by:",
+      "searchProvider": "Search provided by:"
     }
   },
   "models": {
@@ -950,6 +1126,9 @@
       "exportFailedMessage": "The Web Coverage Service failed",
       "exportFailedMessageII": "The Web Coverage Service failed: {{error}}"
     },
+    "carto-v3": {
+      "name": "Carto V3"
+    },
     "cartoMap": {
       "name": "Carto Map",
       "noUrlTitle": "No URL",
@@ -990,6 +1169,9 @@
       "notCompatibleTitle": "No compatible resources found",
       "notCompatibleMessageI": "The CKAN dataset does not have a resource with the ID {{resourceId}} or it does not have a supported format.",
       "notCompatibleMessageII": "The CKAN dataset does not have any resources with a supported format."
+    },
+    "composite": {
+      "name": "Composite Catalog Item"
     },
     "arcgisPortal": {
       "nameGroup": "ArcGIS Portal Group",
@@ -1044,7 +1226,8 @@
       "unableToLoadTitle": "Unable to load CSV file",
       "unableToLoadMessage": "See the <a href=\"https://github.com/TerriaJS/nationalmap/wiki/csv-geo-au\">csv-geo-au</a> specification for supported CSV formats.\n\n {{message}}",
       "unableToLoadItemTitle": "No CSV available",
-      "unableToLoadItemMessage": "The CSV catalog item cannot be loaded because it was not configured with a `url` or `csvString` property."
+      "unableToLoadItemMessage": "The CSV catalog item cannot be loaded because it was not configured with a `url` or `csvString` property.",
+      "useChartJsTimeSeries": "Interactive time-series chart (zoom & pan)"
     },
     "csw": {
       "name": "Catalogue Service (CSW)",
@@ -1223,7 +1406,8 @@
       "errorTitle": "An error occurred",
       "notificationFeedback": "For questions or feedback, click here.",
       "notificationFeedbackEmail": "For questions or feedback, please contact {{email}}",
-      "developerDetails": "Developer details"
+      "developerDetails": "Developer details",
+      "seeDetails": "See details"
     },
     "regionMapping": {
       "noDataForDate": "No data for the selected date.",
@@ -1294,10 +1478,15 @@
       "invalidInitialTimeSource": "Invalid initialTimeSource specified in config file: {{initialTimeSource}}"
     },
     "shareData": {
-      "generateErrorTitle": "Couldn't generate short URL.",
-      "generateErrorMessage": "Something went wrong when trying to use the share data service to generate a short URL.",
+      "generateErrorTitle": "Couldn't create share link",
+      "generateErrorMessage": "Something went wrong",
+      "generateErrorMessageWithStatus": "Something went wrong ({{statusCode}})",
+      "generateErrorMessageUnauthorized": "Something went wrong (401)",
+      "generateErrorDataExceedsLimitMessage": "The story or share link is too large. Try removing some content or scenes, then try again.",
       "expandErrorTitle": "Couldn't expand URL",
-      "expandErrorMessage": "The share data service used to launch {{appName}} was not located. This may indicate an error in the link or that the service is unavailable at this time."
+      "expandErrorMessage": "The share data service used to launch {{appName}} was not located. This may indicate an error in the link or that the service is unavailable at this time.",
+      "shareNotFoundTitle": "Link not found",
+      "shareNotFoundMessage": "The story or share link doesn't exist. Either it was removed, or the URL is incorrect."
     },
     "socrataServer": {
       "name": "Socrata Server",
@@ -1551,6 +1740,10 @@
         "receive": "Receive Only",
         "both": "Cast and Receive"
       }
+    },
+    "shadowsDisabledForPerformance": {
+      "title": "Shadows disabled",
+      "message": "Maximum performance is on. The map is lower quality and shadows are off. <settingspanel title='Open map quality settings'>Display settings</settingspanel>"
     },
     "clippingBox": {
       "groupName": "Clipping Box",
@@ -2075,6 +2268,180 @@
     },
     "cogCatalogItem": {
       "experimentalReprojectionWarning": "This COG is not in a native projection (EPSG:4326 or EPSG:3857). Reprojecting is experimental and may not work as expected. If you have control of the source data we recommend reprojecting to EPSG:4326 or EPSG:3857 using GDAL or similar."
+    },
+    "stac": {
+      "collectionName": "STAC Collection",
+      "catalogName": "STAC Catalog",
+      "itemName": "STAC Item",
+      "noCogAssetFound": "No COG asset found in STAC data",
+      "loadError": "Failed to load STAC imagery: {{message}}"
+    },
+    "cog": {
+      "editStyle": "Edit style",
+      "legendTitle": "Values"
+    },
+    "cogStyling": {
+      "name": "Style COG",
+      "reset": "Reset to default style",
+      "colorScheme": "Color",
+      "colorHelp": "Choose a colour palette and rendering mode.",
+      "colorScale": "Color scale",
+      "defaultColorScale": "Default (black to white)",
+      "reverseColors": "Reverse colors",
+      "renderType": "Render type",
+      "continuous": "Continuous",
+      "discrete": "Discrete",
+      "legendSteps": "Legend steps",
+      "domain": {
+        "title": "Color scale range",
+        "help": "Stretches the colour scale across these values. Leave them automatic to use the current COG data range.",
+        "autoDetect": "Use automatic COG range",
+        "clearManual": "Clear manual values",
+        "invalidRange": "The color scale range is not applied because it requires two finite values with minimum less than maximum."
+      },
+      "minimumValue": "Color scale min",
+      "maximumValue": "Color scale max",
+      "displayRange": "Transparency",
+      "applyDisplayRange": "Hide values outside range",
+      "displayRangeMin": "Show from (inclusive)",
+      "displayRangeMax": "Show to (inclusive)",
+      "transparency": {
+        "help": "Values below the minimum or above the maximum become transparent. Both limits remain visible.",
+        "noDataColor": "No-data fill color",
+        "invalidRange": "The transparency range is not applied because it requires two finite values with minimum less than or equal to maximum.",
+        "outsideRangeWarning": "Transparency range ({{trMin}} – {{trMax}}) is outside the color scale range ({{dMin}} – {{dMax}}). Some data may be hidden."
+      },
+      "timeSeries": {
+        "autoFit": "Auto-fit color scale to current timestep"
+      },
+      "customColors": {
+        "name": "Custom Colors",
+        "addStop": "Add Color Stop",
+        "clear": "Clear Custom Colors",
+        "stopColor": "Stop {{index}} color",
+        "stopPosition": "Stop {{index}} position (0-1)",
+        "remove": "Remove stop"
+      },
+      "legend": {
+        "name": "Legend",
+        "title": "Legend title",
+        "auto": "Use automatic legend",
+        "autoInfo": "Legend follows the {{scale}} color scale with {{steps}} steps. Click \"Disable auto mode\" to edit.",
+        "disableAuto": "Disable auto mode",
+        "itemColor": "Legend item {{index}} color",
+        "itemTitle": "Legend item {{index}} label",
+        "addItem": "Add legend item",
+        "removeItem": "Remove legend item",
+        "defaultItemLabel": "Item {{index}}",
+        "itemValue": "Legend item {{index}} value",
+        "generate": "Generate legend from color scale",
+        "sync": "Sync legend with color scale",
+        "reset": "Use automatic legend"
+      },
+      "advanced": "Advanced",
+      "band": "Band",
+      "clampLow": "Clamp below color scale",
+      "clampHigh": "Clamp above color scale"
+    },
+    "cogCalculation": {
+      "toolName": "COG zonal statistics",
+      "toolTitle": "Calculate statistics of a COG layer inside a polygon",
+      "needThreePoints": "A polygon needs at least 3 points.",
+      "selectLayerAndPolygon": "Select a layer and draw a polygon first.",
+      "calculationError": "The calculation failed.",
+      "noCogs": "This layer has no COG files to read.",
+      "noTimeEntries": "This layer has no time steps to read.",
+      "title": "Area analysis",
+      "steps": "Analysis steps",
+      "areaStep": "Area",
+      "settingsStep": "Settings",
+      "resultsStep": "Results",
+      "drawTitle": "Draw your area",
+      "drawHelp": "Click the map to add vertices. Select the first vertex or Close area to continue.",
+      "vertices": "{{count}} vertex",
+      "vertices_plural": "{{count}} vertices",
+      "vertices_one": "{{count}} vertex",
+      "vertices_other": "{{count}} vertices",
+      "readyToClose": "Ready to close and configure.",
+      "minimumVertices": "Add at least three vertices.",
+      "invalidArea": "Draw an area with at least three distinct vertices and no crossing edges.",
+      "undo": "Undo",
+      "restart": "Restart",
+      "closeArea": "Close area",
+      "noLayers": "Add a layer to begin",
+      "addLayer": "Choose a COG or COG time series layer from the catalogue.",
+      "calculating": "Calculating your area",
+      "calculationHelp": "The selected area stays on the map. You can cancel without losing it.",
+      "progress": "{{completed}} of {{total}} dates processed",
+      "cancelCalculation": "Cancel calculation",
+      "backToSettings": "Back to settings",
+      "closeTool": "Close area analysis",
+      "collapsePanel": "Collapse panel",
+      "expandPanel": "Expand panel",
+      "areaReady": "Area selected",
+      "redraw": "Redraw",
+      "layer": "Layer",
+      "statistic": "Statistic",
+      "startDate": "From",
+      "endDate": "To",
+      "resolution": "Calculation precision",
+      "automatic": "Automatic · approximate",
+      "native": "Full resolution · native pixels",
+      "approximateHelp": "Uses reduced-resolution imagery for faster results. These are statistics for your polygon, not precomputed water-body cores.",
+      "nativeHelp": "Uses native pixels. Large areas and long series can take longer.",
+      "advanced": "Advanced options",
+      "band": "Band",
+      "sampling": "Every N dates",
+      "estimate": "{{count}} dates to analyse",
+      "estimateHelp": "Leave dates empty to use the full series. Narrow the period for a faster calculation.",
+      "calculate": "Calculate",
+      "calculateArea": "Calculate by area",
+      "resultsTitle": "Area results",
+      "processed": "{{count}} dates processed",
+      "date": "Date",
+      "pixels": "Valid pixels",
+      "table": "View data table",
+      "export": "Download CSV",
+      "newCalculation": "New area",
+      "expandChart": "Expand chart",
+      "collapseChart": "Collapse chart",
+      "noResults": "No valid results for this area.",
+      "noValues": "No valid values to chart.",
+      "overview": "Overview {{level}} · resolution {{resolution}} units/px",
+      "precalculated": "Precalculated values",
+      "viewTable": "View table ({{count}} dates)",
+      "showChart": "Show in chart panel",
+      "hideChart": "Remove from chart panel",
+      "statistics": {
+        "mean": "Mean",
+        "min": "Minimum",
+        "max": "Maximum",
+        "sum": "Sum",
+        "count": "Valid pixels",
+        "noDataCount": "NoData pixels",
+        "median": "Median",
+        "stddev": "Standard deviation"
+      }
+    },
+    "cogTimeSeries": {
+      "loadTimeEntriesErrorTitle": "Error loading COG Time Series",
+      "loadTimeEntriesErrorMessage": "Failed to load time series definition from {{url}}.",
+      "loadImageryErrorTitle": "Error loading COG imagery",
+      "loadImageryErrorMessage": "Failed to load one or more COG files for the current time step.",
+      "noTimeEntries": "No time entries available for this dataset.",
+      "noDataAtPoint": "No data here",
+      "resolution": "Time resolution",
+      "statistic": "Statistic",
+      "places": "Places",
+      "goToPlace": "Go to a place…",
+      "pointSeriesWindow": "Showing the {{read}} dates closest to the displayed one, of {{available}}. Move in time and click again to read another period.",
+      "colorRange": "Colour range",
+      "fitRangeToDate": "Fit to this date",
+      "resetRange": "Reset range",
+      "partialCoverageHint": "Each date only covers part of the area. If the map is empty here, try another date.",
+      "pointSeriesLoading": "Reading time series… {{loaded}}/{{total}} dates",
+      "pointSeriesErrors": "{{count}} date could not be read.",
+      "pointSeriesErrors_plural": "{{count}} dates could not be read."
     }
   },
   "searchProvider": {
@@ -2130,8 +2497,8 @@
     "searchBtnText": "Search",
     "resetBtnText": "Clear input",
     "backBtnText": "Search again",
-    "resultsCount": "{{count}} match found",
-    "resultsCount_plural": "{{count}} matches found",
+    "resultsCount_one": "{{count}} match found",
+    "resultsCount_other": "{{count}} matches found",
     "actions": {
       "highlightAll": "Highlight all",
       "showMatchingOnly": "Show matching only"
@@ -2207,5 +2574,47 @@
     "buttonTitle": "See related maps",
     "panelHeading": "Related Maps",
     "panelText": "Clicking on a map below will open it in a separate window or tab."
+  },
+  "ckanSession": {
+    "btnLogin": "Log in",
+    "btnLoginTitle": "Log in to the data portal to see the private datasets you have access to (opens in a new tab)",
+    "checking": "Checking session…",
+    "pendingLogin": "Finish logging in…",
+    "pendingLoginTitle": "Complete the login in the new tab and come back; the map detects your session automatically. Click to check now.",
+    "pendingLoginPrompt": "Log in using the new tab, then come back here. Your map stays exactly as it is.",
+    "checkNow": "Check now",
+    "btnTitleAuthenticated": "Signed in as {{user}}",
+    "signedInAs": "Signed in as",
+    "sysadmin": "Portal administrator",
+    "privateCatalogName": "Private datasets ({{user}})",
+    "organisations": "Organisations",
+    "groupDescription": "Datasets that are not public but that **{{user}}** is authorised to use in the data portal. This list is personal: it is not visible to other visitors and it updates when your access changes. If it is empty, no restricted dataset has been shared with you yet.",
+    "openPrivateCatalog": "Open my private datasets",
+    "refresh": "Refresh session",
+    "profile": "Portal profile",
+    "logout": "Log out",
+    "newTabHint": "Profile and log out open in a new tab; your map is preserved.",
+    "errorShort": "Session unavailable",
+    "error": "The data portal did not answer the session check. Click to try again.",
+    "errors": {
+      "title": "Private datasets",
+      "sessionExpired": "Your portal session has expired. Use **Log in** in the top menu and come back to this tab; your map will be kept.",
+      "forbidden": "Your account is not allowed to access this private dataset.",
+      "invalidResponse": "The portal returned an unexpected response while checking your session."
+    },
+    "notifications": {
+      "loggedOutTitle": "Logged out",
+      "loggedOutMessage": "You are no longer logged in to the data portal. {{count}} private layer(s) were removed from the map.",
+      "shareRequiresLoginTitle": "This map contains private datasets",
+      "shareRequiresLoginMessage": "Some layers in this shared map come from private datasets. Log in to the data portal to load them; the rest of the map works without logging in.",
+      "dismiss": "Continue without logging in"
+    }
+  },
+  "unescoDisclaimer": {
+    "title": "UNESCO Disclaimer",
+    "content": "The platform is strictly informative and does not commit UNESCO or the United Nations as a whole. The designations employed and the presentation of material on this map do not imply the expression of any opinion whatsoever on the part of the UNESCO or the Secretariat of the United Nations concerning the legal status of any country, territory, city or any area or of its authorities, or concerning the delimitation of its frontiers or boundaries.",
+    "linkText": "To access the UNESCO general disclaimer on maps, please visit: https://www.unesco.org/en/geospatial/disclaimer",
+    "accept": "Accept Terms and Conditions",
+    "cancel": "Cancel"
   }
 }

@@ -1,7 +1,9 @@
 # =====================
 # From .gitignore. Update this list when .gitignore changes
 
-docs/
+docs/*
+!docs/obsidian-vault/
+!docs/obsidian-vault/**
 node_modules/
 .idea/
 build/
@@ -38,6 +40,11 @@ yarn.lock
 
 # Third party files
 /wwwroot/third_party
+/wwwroot/mockServiceWorker.js
 
 # Ignore some files
 doc/acknowledgements/attributions.md
+
+# Local tooling / per-user config (not source)
+.claude/
+.mix/

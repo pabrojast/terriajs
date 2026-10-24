@@ -1,15 +1,18 @@
 import i18next from "i18next";
 import {
+  action,
   computed,
   makeObservable,
   observable,
   onBecomeObserved,
   onBecomeUnobserved,
   override,
+  reaction,
   runInAction
 } from "mobx";
 import GeographicTilingScheme from "terriajs-cesium/Source/Core/GeographicTilingScheme";
 import CesiumMath from "terriajs-cesium/Source/Core/Math";
+import Rectangle from "terriajs-cesium/Source/Core/Rectangle";
 import WebMercatorTilingScheme from "terriajs-cesium/Source/Core/WebMercatorTilingScheme";
 import type TIFFImageryProvider from "terriajs-tiff-imagery-provider";
 import CatalogMemberMixin from "../../../ModelMixins/CatalogMemberMixin";
@@ -23,6 +26,23 @@ import StratumFromTraits from "../../Definition/StratumFromTraits";
 import StratumOrder from "../../Definition/StratumOrder";
 import Terria from "../../Terria";
 import proxyCatalogItemUrl from "../proxyCatalogItemUrl";
+import Icon from "../../../Styled/Icon";
+import { ViewingControl } from "../../ViewingControls";
+import { runWorkflow } from "../../Workflows/SelectableDimensionWorkflow";
+import CogStylingWorkflow from "../../Workflows/CogStylingWorkflow";
+import { CogLegendStratum } from "./CogLegendStratum";
+import {
+  createCogImageryProvider,
+  destroyCogImageryProvider
+} from "./CogProviderFactory";
+import { applyCogNoDataColor } from "./CogRasterPostProcessor";
+import {
+  buildCogRenderOptions,
+  CogEffectiveStyle,
+  finalizeCogProviders,
+  getCogRebuildReactionSnapshot,
+  getCogStyleReactionSnapshot
+} from "./CogRenderStyle";
 
 /**
  * Loadable stratum for overriding CogCatalogItem traits
@@ -43,12 +63,14 @@ class CogLoadableStratum extends LoadableStratum(CogCatalogItemTraits) {
   get shortReport(): string | undefined {
     return this.model.terria.currentViewer.type === "Leaflet"
       ? // Warn for 2D mode
-        i18next.t("models.commonModelErrors.3dTypeIn2dMode", this)
+        i18next.t(($) => $.models.commonModelErrors["3dTypeIn2dMode"])
       : this.model._imageryProvider?.tilingScheme &&
-        // Show warning for experimental reprojection feature if not using EPSG 3857 or 4326
-        isCustomTilingScheme(this.model._imageryProvider?.tilingScheme)
-      ? i18next.t("models.cogCatalogItem.experimentalReprojectionWarning", this)
-      : undefined;
+          // Show warning for experimental reprojection freature if not using EPSG 3857 or 4326
+          isCustomTilingScheme(this.model._imageryProvider?.tilingScheme)
+        ? i18next.t(
+            ($) => $.models.cogCatalogItem.experimentalReprojectionWarning
+          )
+        : undefined;
   }
 
   @computed
@@ -69,6 +91,7 @@ class CogLoadableStratum extends LoadableStratum(CogCatalogItemTraits) {
 }
 
 StratumOrder.addLoadStratum(CogLoadableStratum.stratumName);
+StratumOrder.addLoadStratum(CogLegendStratum.stratumName);
 
 /**
  * Creates a Cloud Optimised Geotiff catalog item.
@@ -88,6 +111,18 @@ export default class CogCatalogItem extends MappableMixin(
    */
   @observable
   _imageryProvider: TIFFImageryProvider | undefined;
+
+  @observable.ref
+  private _effectiveCogStyle: CogEffectiveStyle | undefined;
+
+  /** New rectangle identity forces Cesium to drop cached tiles after a restyle. */
+  @observable.ref
+  private _styleClipRectangle: Rectangle | undefined;
+
+  @computed
+  get effectiveCogStyle(): CogEffectiveStyle | undefined {
+    return this._effectiveCogStyle;
+  }
 
   /**
    * The reprojector function to use for reprojecting non native projections
@@ -111,6 +146,7 @@ export default class CogCatalogItem extends MappableMixin(
       CogLoadableStratum.stratumName,
       new CogLoadableStratum(this)
     );
+    this.strata.set(CogLegendStratum.stratumName, new CogLegendStratum(this));
 
     // Destroy the imageryProvider when `mapItems` is no longer consumed. This
     // is so that the webworkers and other resources created by the
@@ -119,8 +155,10 @@ export default class CogCatalogItem extends MappableMixin(
     // mapItems becoming observed or unobserved.
     onBecomeUnobserved(this, "mapItems", () => {
       if (this._imageryProvider) {
-        this._imageryProvider.destroy();
+        destroyCogImageryProvider(this._imageryProvider);
         this._imageryProvider = undefined;
+        this._effectiveCogStyle = undefined;
+        this._styleClipRectangle = undefined;
       }
     });
 
@@ -131,19 +169,61 @@ export default class CogCatalogItem extends MappableMixin(
         this.loadMapItems(true);
       }
     });
+
+    // Restyle in place when the provider is already loaded. Rebuilding the
+    // TIFF provider is only needed if there is nothing to restyle yet.
+    reaction(
+      () => getCogStyleReactionSnapshot(this.renderOptions),
+      () => {
+        if (this._applyLiveCogStyle()) return;
+        if (this._imageryProvider && !this.isLoadingMapItems) {
+          this.loadMapItems(true);
+        }
+      }
+    );
+
+    // Options the provider only reads while being built (band, no-data,
+    // resampling) cannot be restyled in place.
+    reaction(
+      () => getCogRebuildReactionSnapshot(this.renderOptions),
+      () => {
+        if (this._imageryProvider && !this.isLoadingMapItems) {
+          this.loadMapItems(true);
+        }
+      }
+    );
+  }
+
+  @override
+  get viewingControls(): ViewingControl[] {
+    return [
+      ...super.viewingControls,
+      {
+        id: CogStylingWorkflow.type,
+        name: i18next.t("models.cog.editStyle"),
+        onClick: action((viewState) =>
+          runWorkflow(viewState, new CogStylingWorkflow(this))
+        ),
+        icon: { glyph: Icon.GLYPHS.layers }
+      }
+    ];
   }
 
   @override
   get shortReport(): string | undefined {
     if (this.terria.currentViewer.type === "Leaflet") {
-      return i18next.t("models.commonModelErrors.3dTypeIn2dMode", this);
+      return i18next.t(($) => $.models.commonModelErrors["3dTypeIn2dMode"]);
     }
-    
-    if (this._imageryProvider?.tilingScheme && 
-        isCustomTilingScheme(this._imageryProvider.tilingScheme)) {
-      return i18next.t("models.cogCatalogItem.experimentalReprojectionWarning", this);
+
+    if (
+      this._imageryProvider?.tilingScheme &&
+      isCustomTilingScheme(this._imageryProvider.tilingScheme)
+    ) {
+      return i18next.t(
+        ($) => $.models.cogCatalogItem.experimentalReprojectionWarning
+      );
     }
-    
+
     return undefined;
   }
 
@@ -152,10 +232,17 @@ export default class CogCatalogItem extends MappableMixin(
       return;
     }
     const url = proxyCatalogItemUrl(this, this.url);
-    const imageryProvider = await this.createImageryProvider(url);
+    const { imageryProvider, effectiveStyle } =
+      await this.createImageryProvider(url);
+    const previous = this._imageryProvider;
     runInAction(() => {
       this._imageryProvider = imageryProvider;
+      this._effectiveCogStyle = effectiveStyle;
     });
+    // A reload replaces the provider; free the old one's tiles and GL state.
+    if (previous && previous !== imageryProvider) {
+      destroyCogImageryProvider(previous);
+    }
   }
 
   @computed get mapItems(): MapItem[] {
@@ -168,61 +255,63 @@ export default class CogCatalogItem extends MappableMixin(
       {
         show: this.show,
         alpha: this.opacity,
-        // The 'requestImage' method in Cesium's ImageryProvider has a return type that is stricter than necessary.
-        // In our custom ImageryProvider, we return ImageData, which is also a valid return type.
-        // However, since the current Cesium type definitions do not reflect this flexibility, we use a TypeScript ignore comment ('@ts-ignore')
-        // to suppress the type checking error. This is a temporary solution until the type definitions in Cesium are updated to accommodate ImageData.
-        // @ts-expect-error - The return type of 'requestImage' method in our custom ImageryProvider can be ImageData, which is not currently allowed in Cesium's type definitions, but is fine.
-        imageryProvider,
-        clippingRectangle: this.cesiumRectangle
+        imageryProvider: imageryProvider as any,
+        clippingRectangle: this._styleClipRectangle ?? this.cesiumRectangle
       }
     ];
+  }
+
+  @action
+  private _applyLiveCogStyle(): boolean {
+    const provider = this._imageryProvider;
+    if (!provider?.plot) return false;
+    const effectiveStyle = finalizeCogProviders(
+      [provider],
+      this.renderOptions?.single
+    );
+    applyCogNoDataColor(
+      provider,
+      this.renderOptions?.single?.band,
+      this.renderOptions?.single?.noDataColor
+    );
+    this._effectiveCogStyle = effectiveStyle;
+    const rectangle = this.cesiumRectangle ?? provider.rectangle;
+    this._styleClipRectangle = rectangle
+      ? Rectangle.clone(rectangle)
+      : undefined;
+    return true;
   }
 
   /**
    * Create TIFFImageryProvider for the given url.
    */
-  private async createImageryProvider(
-    url: string
-  ): Promise<TIFFImageryProvider> {
-    // lazy load the imagery provider, only when needed
-    const [{ default: TIFFImageryProvider }, { default: proj4 }] =
-      await Promise.all([
-        import("terriajs-tiff-imagery-provider"),
-        import("proj4-fully-loaded")
-      ]);
+  private async createImageryProvider(url: string): Promise<{
+    imageryProvider: TIFFImageryProvider;
+    effectiveStyle: CogEffectiveStyle | undefined;
+  }> {
+    const { default: proj4 } = await import("proj4-fully-loaded");
+    const renderOptions = buildCogRenderOptions(this.renderOptions);
 
-    return runInAction(() =>
-      TIFFImageryProvider.fromUrl(url, {
-        credit: this.credit,
-        tileSize: this.tileSize,
-        maximumLevel: this.maximumLevel,
-        minimumLevel: this.minimumLevel,
-        enablePickFeatures: this.allowFeaturePicking,
-        hasAlphaChannel: this.hasAlphaChannel,
-        // used for reprojecting from an unknown projection to 4326/3857
-        projFunc: this.reprojector(proj4),
-        // make sure we omit `undefined` options so as not to override the library defaults
-        renderOptions: omitUndefined({
-          single: omitUndefined({
-            band: this.renderOptions.single?.band,
-            colorScale: this.renderOptions.single?.colorScale,
-            colors: this.renderOptions.single?.colors,
-            useRealValue: this.renderOptions.single?.useRealValue,
-            type: this.renderOptions.single?.type,
-            domain: this.renderOptions.single?.domain,
-            displayRange: this.renderOptions.single?.displayRange,
-            applyDisplayRange: this.renderOptions.single?.applyDisplayRange,
-            clampLow: this.renderOptions.single?.clampLow,
-            clampHigh: this.renderOptions.single?.clampHigh,
-            expression: this.renderOptions.single?.expression
-          }),
-          nodata: this.renderOptions.nodata,
-          convertToRGB: this.renderOptions.convertToRGB,
-          resampleMethod: this.renderOptions.resampleMethod
-        })
-      })
+    const imageryProvider = await createCogImageryProvider(url, {
+      credit: this.credit,
+      tileSize: this.tileSize,
+      maximumLevel: this.maximumLevel,
+      minimumLevel: this.minimumLevel,
+      enablePickFeatures: this.allowFeaturePicking,
+      hasAlphaChannel: this.hasAlphaChannel,
+      projFunc: this.reprojector(proj4),
+      renderOptions
+    });
+    const effectiveStyle = finalizeCogProviders(
+      [imageryProvider],
+      this.renderOptions?.single
     );
+    applyCogNoDataColor(
+      imageryProvider,
+      this.renderOptions?.single?.band,
+      this.renderOptions?.single?.noDataColor
+    );
+    return { imageryProvider, effectiveStyle };
   }
 }
 
@@ -258,11 +347,5 @@ function isCustomTilingScheme(tilingScheme: object) {
   return (
     tilingScheme.constructor !== WebMercatorTilingScheme &&
     tilingScheme.constructor !== GeographicTilingScheme
-  );
-}
-
-function omitUndefined(obj: object) {
-  return Object.fromEntries(
-    Object.entries(obj).filter(([_, value]) => value !== undefined)
   );
 }

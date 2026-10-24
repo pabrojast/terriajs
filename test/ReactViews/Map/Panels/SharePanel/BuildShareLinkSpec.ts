@@ -5,15 +5,18 @@ import Entity from "terriajs-cesium/Source/DataSources/Entity";
 import SplitDirection from "terriajs-cesium/Source/Scene/SplitDirection";
 import URI from "urijs";
 import { USER_ADDED_CATEGORY_ID } from "../../../../../lib/Core/addedByUser";
-import loadBlob from "../../../../../lib/Core/loadBlob";
 import PickedFeatures from "../../../../../lib/Map/PickedFeatures/PickedFeatures";
 import addUserCatalogMember from "../../../../../lib/Models/Catalog/addUserCatalogMember";
+import CogTimeSeriesCatalogItem from "../../../../../lib/Models/Catalog/CatalogItems/CogTimeSeriesCatalogItem";
 import GeoJsonCatalogItem from "../../../../../lib/Models/Catalog/CatalogItems/GeoJsonCatalogItem";
 import WebMapServiceCatalogItem from "../../../../../lib/Models/Catalog/Ows/WebMapServiceCatalogItem";
 import CommonStrata from "../../../../../lib/Models/Definition/CommonStrata";
 import { BaseModel } from "../../../../../lib/Models/Definition/Model";
 import TerriaFeature from "../../../../../lib/Models/Feature/Feature";
-import { InitSourceData } from "../../../../../lib/Models/InitSource";
+import {
+  InitSourceData,
+  StoryData
+} from "../../../../../lib/Models/InitSource";
 import Terria from "../../../../../lib/Models/Terria";
 import { setViewerMode } from "../../../../../lib/Models/ViewerMode";
 import ViewState from "../../../../../lib/ReactViewModels/ViewState";
@@ -22,6 +25,8 @@ import {
   isShareable,
   SHARE_VERSION
 } from "../../../../../lib/ReactViews/Map/Panels/SharePanel/BuildShareLink";
+
+import bikeRacksGeoJson from "../../../../../wwwroot/test/GeoJSON/bike_racks.geojson" with { type: "json" };
 
 let terria: Terria;
 let viewState: ViewState;
@@ -35,8 +40,7 @@ beforeEach(function () {
   // };
 
   viewState = new ViewState({
-    terria: terria,
-    catalogSearchProvider: undefined
+    terria: terria
   });
 });
 
@@ -64,55 +68,73 @@ describe("BuildShareLink", function () {
     expect(initSources.previewedItemId).toBeUndefined();
   });
 
+  it("strips the CKAN proxy token from private catalog items", async function () {
+    const privateId = "__ckan_private_catalog__/nonce/resource/r1/view/0";
+    const publicId = "public-wms";
+    for (const id of [privateId, publicId]) {
+      const model = new WebMapServiceCatalogItem(id, terria);
+      model.setTrait(
+        CommonStrata.definition,
+        "url",
+        "/api/terria/resource/r1/content/a.tif?token=123.abc&keep=1"
+      );
+      terria.addModel(model);
+      await terria.workbench.add(model);
+    }
+
+    const params = decodeAndParseStartHash(buildShareLink(terria, viewState));
+    const models = flattenInitSources(params.initSources).models as any;
+
+    expect(models[privateId].url).toBe(
+      "/api/terria/resource/r1/content/a.tif?keep=1"
+    );
+    expect(models[publicId].url).toContain("token=123.abc");
+  });
+
   describe("user added model containing local data", function () {
-    it("should not be serialized", function (done) {
+    it("should not be serialized", async function () {
       const modelId = "Test";
       const model = new GeoJsonCatalogItem(modelId, terria);
 
-      loadBlob("test/GeoJSON/bike_racks.geojson", {})
-        .then((blob) => {
-          model.setFileInput(blob as File);
-          terria.addModel(model);
+      const blob = new Blob([JSON.stringify(bikeRacksGeoJson)], {
+        type: "application/json"
+      });
 
-          expect(terria.getModelById(BaseModel, modelId)).toBe(model);
-          expect(isShareable(terria)(modelId)).toBe(false);
-          return addUserCatalogMember(terria, model);
-        })
-        .then(() => {
-          const shareLink = buildShareLink(terria, viewState);
-          const params = decodeAndParseStartHash(shareLink);
-          const initSources = flattenInitSources(params.initSources);
+      model.setFileInput(blob as File);
+      terria.addModel(model);
 
-          expect(
-            initSources.models?.[USER_ADDED_CATEGORY_ID].members
-          ).not.toContain(model.uniqueId);
+      expect(terria.getModelById(BaseModel, modelId)).toBe(model);
+      expect(isShareable(terria)(modelId)).toBe(false);
+      await addUserCatalogMember(terria, model);
 
-          done();
-        });
+      const shareLink = buildShareLink(terria, viewState);
+      const params = decodeAndParseStartHash(shareLink);
+      const initSources = flattenInitSources(params.initSources);
+
+      expect(
+        initSources.models?.[USER_ADDED_CATEGORY_ID].members
+      ).not.toContain(model.uniqueId);
     });
 
-    it("should not be added to workbench in generated url", function (done) {
+    it("should not be added to workbench in generated url", async function () {
       const modelId = "Test";
       const model = new GeoJsonCatalogItem(modelId, terria);
 
-      loadBlob("test/GeoJSON/bike_racks.geojson", {})
-        .then((blob) => {
-          model.setFileInput(blob as File);
-          terria.addModel(model);
-          return addUserCatalogMember(terria, model);
-        })
-        .then(() => {
-          return terria.workbench.add(model);
-        })
-        .then(() => {
-          const shareLink = buildShareLink(terria, viewState);
-          const params = decodeAndParseStartHash(shareLink);
-          const initSources = flattenInitSources(params.initSources);
+      const blob = new Blob([JSON.stringify(bikeRacksGeoJson)], {
+        type: "application/json"
+      });
 
-          expect(initSources.workbench).not.toContain(model.uniqueId);
+      model.setFileInput(blob as File);
+      terria.addModel(model);
+      await addUserCatalogMember(terria, model);
 
-          done();
-        });
+      await terria.workbench.add(model);
+
+      const shareLink = buildShareLink(terria, viewState);
+      const params = decodeAndParseStartHash(shareLink);
+      const initSources = flattenInitSources(params.initSources);
+
+      expect(initSources.workbench).not.toContain(model.uniqueId);
     });
   });
 
@@ -131,36 +153,29 @@ describe("BuildShareLink", function () {
       terria.addModel(model);
     });
 
-    it("should be serialized", function (done) {
-      addUserCatalogMember(terria, model).then(() => {
-        const shareLink = buildShareLink(terria, viewState);
-        const params = decodeAndParseStartHash(shareLink);
-        const initSources = flattenInitSources(params.initSources);
+    it("should be serialized", async function () {
+      await addUserCatalogMember(terria, model);
+      const shareLink = buildShareLink(terria, viewState);
+      const params = decodeAndParseStartHash(shareLink);
+      const initSources = flattenInitSources(params.initSources);
 
-        expect(model.uniqueId).toBeDefined();
-        expect(isShareable(terria)(model.uniqueId ?? "")).toBe(true);
-        expect(initSources.models?.[USER_ADDED_CATEGORY_ID].members).toContain(
-          model.uniqueId
-        );
-
-        done();
-      });
+      expect(model.uniqueId).toBeDefined();
+      expect(isShareable(terria)(model.uniqueId ?? "")).toBe(true);
+      expect(initSources.models?.[USER_ADDED_CATEGORY_ID].members).toContain(
+        model.uniqueId
+      );
     });
 
-    it("should be added to workbench in generated url", function (done) {
-      addUserCatalogMember(terria, model)
-        .then(() => {
-          return terria.workbench.add(model);
-        })
-        .then(() => {
-          const shareLink = buildShareLink(terria, viewState);
-          const params = decodeAndParseStartHash(shareLink);
-          const initSources = flattenInitSources(params.initSources);
+    it("should be added to workbench in generated url", async function () {
+      await addUserCatalogMember(terria, model);
 
-          expect(initSources.workbench).toContain(model.uniqueId);
+      await terria.workbench.add(model);
 
-          done();
-        });
+      const shareLink = buildShareLink(terria, viewState);
+      const params = decodeAndParseStartHash(shareLink);
+      const initSources = flattenInitSources(params.initSources);
+
+      expect(initSources.workbench).toContain(model.uniqueId);
     });
   });
 
@@ -313,6 +328,212 @@ describe("BuildShareLink", function () {
         expect(entities?.[1].hash).toBeDefined();
       })
     );
+
+    it(
+      "captures the feature info panel geometry",
+      action(function () {
+        terria.pickedFeatures = new PickedFeatures();
+        terria.pickedFeatures.pickPosition = new Cartesian3(
+          17832.12,
+          83234.52,
+          952313.73
+        );
+        terria.pickedFeatures.features.push(new TerriaFeature({}));
+        terria.featureInfoPanelState = {
+          position: { x: 24, y: 36, xRatio: 0.25, yRatio: 0.5 },
+          dimensions: { width: 360, height: 280 }
+        };
+
+        const shareLink = buildShareLink(terria, viewState);
+        const params = decodeAndParseStartHash(shareLink);
+        const initSources = flattenInitSources(params.initSources);
+
+        expect(initSources.featureInfoPanel).toEqual({
+          position: { x: 24, y: 36, xRatio: 0.25, yRatio: 0.5 },
+          dimensions: { width: 360, height: 280 }
+        });
+      })
+    );
+
+    it("does not capture feature info panel geometry without picked features", function () {
+      terria.featureInfoPanelState = {
+        position: { x: 12, y: 18, xRatio: 0.1, yRatio: 0.2 },
+        dimensions: { width: 300, height: 220 }
+      };
+
+      const shareLink = buildShareLink(terria, viewState);
+      const params = decodeAndParseStartHash(shareLink);
+      const initSources = flattenInitSources(params.initSources);
+
+      expect(initSources.featureInfoPanel).toBeUndefined();
+    });
+  });
+
+  describe("sharing accumulated point series", function () {
+    [false, true].forEach((emptyPick) => {
+      it(`preserves series with ${
+        emptyPick ? "an empty" : "no"
+      } feature selection`, async function () {
+        const item = new CogTimeSeriesCatalogItem("chl-dnipro", terria);
+        item.setTrait(CommonStrata.definition, "unit", "mg m-3");
+        terria.addModel(item);
+        await terria.workbench.add(item);
+        for (const [index, lat] of [48.63, 48.57].entries()) {
+          item.addAccumulatedSeries({
+            key: `point-${index}`,
+            name: `P${index + 1}`,
+            color: "#0072B2",
+            units: "mg m-3",
+            points: [{ x: 1717200000000, y: 40 + index }],
+            meta: { kind: "point", lat, lon: 34.42 }
+          });
+        }
+        runInAction(() => {
+          terria.pickedFeatures = emptyPick ? new PickedFeatures() : undefined;
+        });
+
+        const params = decodeAndParseStartHash(
+          buildShareLink(terria, viewState)
+        );
+        const initSource = flattenInitSources(params.initSources);
+        expect(initSource.pickedFeatures).toBeUndefined();
+        expect(initSource.accumulatedChartSeries?.[item.uniqueId!]).toEqual(
+          item.accumulatedChartSeries
+        );
+
+        const restored = new Terria({ baseUrl: "./" });
+        await restored.applyInitData({ initData: initSource });
+        const restoredItem = restored.getModelById(
+          CogTimeSeriesCatalogItem,
+          item.uniqueId!
+        );
+        expect(restoredItem?.accumulatedChartSeries).toEqual(
+          item.accumulatedChartSeries
+        );
+      });
+    });
+  });
+
+  describe("sharing a story", function () {
+    const story: StoryData = {
+      id: "story-1",
+      title: "Test story",
+      text: "Some text",
+      shareData: { version: SHARE_VERSION, initSources: [] }
+    };
+
+    const shareInitSources = (options?: { includeStories: boolean }) =>
+      flattenInitSources(
+        decodeAndParseStartHash(buildShareLink(terria, viewState, options))
+          .initSources
+      );
+
+    it("includes the current camera when the story does not start by itself", function () {
+      runInAction(() => {
+        terria.stories = [story];
+      });
+
+      const initSources = shareInitSources();
+
+      expect(initSources.initialCamera).toBeDefined();
+      expect(initSources.settings?.storyAutoStart).toBe(false);
+    });
+
+    it("omits the current camera when the story starts by itself", function () {
+      runInAction(() => {
+        terria.stories = [story];
+        terria.updateParameters({ storyAutoStart: true });
+      });
+
+      const initSources = shareInitSources();
+
+      expect(initSources.initialCamera).toBeUndefined();
+      // the home camera is not the current view, so it is still shared
+      expect(initSources.homeCamera).toBeDefined();
+      expect(initSources.stories?.length).toBe(1);
+      expect(initSources.settings?.storyAutoStart).toBe(true);
+    });
+
+    it("includes the current camera when there is no story to start", function () {
+      runInAction(() => {
+        terria.updateParameters({ storyAutoStart: true });
+      });
+
+      const initSources = shareInitSources();
+
+      expect(initSources.initialCamera).toBeDefined();
+      expect(initSources.settings?.storyAutoStart).toBeUndefined();
+    });
+
+    it("includes the current camera when the story is excluded from the share", function () {
+      runInAction(() => {
+        terria.stories = [story];
+        terria.updateParameters({ storyAutoStart: true });
+      });
+
+      const initSources = shareInitSources({ includeStories: false });
+
+      expect(initSources.initialCamera).toBeDefined();
+      expect(initSources.stories).toBeUndefined();
+      expect(initSources.settings?.storyAutoStart).toBeUndefined();
+    });
+
+    it("records the `playStory` hash parameter over the config parameter", function () {
+      runInAction(() => {
+        terria.stories = [story];
+        terria.userProperties.set("playStory", "1");
+      });
+
+      const initSources = shareInitSources();
+
+      expect(initSources.initialCamera).toBeUndefined();
+      expect(initSources.settings?.storyAutoStart).toBe(true);
+    });
+  });
+
+  describe("hash parameters of the current url", function () {
+    const setDocumentUrl = (url: string) =>
+      Object.defineProperty(document, "URL", {
+        value: url,
+        configurable: true
+      });
+
+    const shareLinkHashParams = () =>
+      queryToObject(
+        URI.parse(buildShareLink(terria, viewState)).fragment ?? ""
+      );
+
+    afterEach(function () {
+      // remove the shadowing own property, exposing `Document.prototype.URL` again
+      delete (document as any).URL;
+    });
+
+    it("are carried over as key and value pairs", function () {
+      setDocumentUrl("http://example.com/#playStory=1&hideExplorerPanel=1");
+
+      const params = shareLinkHashParams();
+
+      expect(params["playStory"]).toBe("1");
+      expect(params["hideExplorerPanel"]).toBe("1");
+      // an encoded `=` would be read back as the name of an init file to load
+      expect(Object.keys(params)).not.toContain("playStory=1");
+    });
+
+    it("drop the state the new link replaces", function () {
+      setDocumentUrl("http://example.com/#share=some-token&playStory=1");
+
+      const params = shareLinkHashParams();
+
+      expect(params["share"]).toBeUndefined();
+      expect(params["start"]).toBeDefined();
+      expect(params["playStory"]).toBe("1");
+    });
+
+    it("do not lose their value to an unset user property", function () {
+      setDocumentUrl("http://example.com/#activeTabId=my-tab");
+
+      expect(shareLinkHashParams()["activeTabId"]).toBe("my-tab");
+    });
   });
 
   describe("map settings", function () {

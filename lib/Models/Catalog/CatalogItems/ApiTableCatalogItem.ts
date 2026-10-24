@@ -87,7 +87,7 @@ export class ApiTableCatalogItem extends AutoRefreshingMixin(
   protected loadDataFromApis() {
     const apisWithUrl = this.apis.filter((api) => api.url);
     const apiUrls = apisWithUrl.map((api) =>
-      proxyCatalogItemUrl(this, api.url!)
+      proxyCatalogItemUrl(this, this.addQueryParams(api))
     );
     return Promise.all(
       apisWithUrl.map(async (api, idx) => {
@@ -288,8 +288,8 @@ function getResponseDataPath(data: JsonValue, jsonPath: string) {
     path === ""
       ? data
       : Array.isArray(data)
-      ? _map(data, path)
-      : _get(data, path);
+        ? _map(data, path)
+        : _get(data, path);
   return pathSegments.reduce(
     (nextData, segment) => getPath(nextData, segment),
     data

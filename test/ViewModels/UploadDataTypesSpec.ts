@@ -16,7 +16,8 @@ describe("UploadDataTypes", function () {
     });
 
     it("returns all the builtin remote upload types", function () {
-      expect(UploadDataTypes.getDataTypes().remoteDataType.length).toEqual(26);
+      // 26 upstream types + 3 fork STAC types (stac-catalog, stac-collection, stac-item)
+      expect(UploadDataTypes.getDataTypes().remoteDataType.length).toEqual(29);
     });
   });
 

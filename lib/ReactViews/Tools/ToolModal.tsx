@@ -1,6 +1,7 @@
 import { observer } from "mobx-react";
 import { FC, useState } from "react";
-import { useTranslation, TFunction } from "react-i18next";
+import { TFunction } from "i18next";
+import { useTranslation } from "react-i18next";
 import styled, { useTheme } from "styled-components";
 import ViewState from "../../ReactViewModels/ViewState";
 import Box, { BoxSpan } from "../../Styled/Box";
@@ -98,7 +99,7 @@ const ToolCloseButton: FC<ToolCloseButtonProps> = (props) => {
   return (
     <RawButton onClick={() => props.viewState.closeTool()}>
       <Text textLight small semiBold uppercase>
-        {props.t("tool.exitBtnTitle")}
+        {props.t(($) => $.tool.exitBtnTitle)}
       </Text>
     </RawButton>
   );

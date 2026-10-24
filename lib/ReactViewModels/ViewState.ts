@@ -2,19 +2,19 @@ import {
   action,
   computed,
   IReactionDisposer,
+  makeObservable,
   observable,
   reaction,
-  runInAction,
-  makeObservable
+  runInAction
 } from "mobx";
-import { ReactNode, MouseEvent, ComponentType, Ref } from "react";
+import { ComponentType, MouseEvent, ReactNode, Ref } from "react";
 import defined from "terriajs-cesium/Source/Core/defined";
 import addedByUser from "../Core/addedByUser";
 import {
   Category,
   HelpAction,
   StoryAction
-} from "../Core/AnalyticEvents/analyticEvents";
+} from "../Core/Analytics/analyticEvents";
 import Result from "../Core/Result";
 import triggerResize from "../Core/triggerResize";
 import PickedFeatures from "../Map/PickedFeatures/PickedFeatures";
@@ -22,9 +22,12 @@ import CatalogMemberMixin, { getName } from "../ModelMixins/CatalogMemberMixin";
 import GroupMixin from "../ModelMixins/GroupMixin";
 import MappableMixin from "../ModelMixins/MappableMixin";
 import ReferenceMixin from "../ModelMixins/ReferenceMixin";
+import CatalogSearchProviderMixin from "../ModelMixins/SearchProviders/CatalogSearchProviderMixin";
+import CzmlCatalogItem from "../Models/Catalog/CatalogItems/CzmlCatalogItem";
 import CommonStrata from "../Models/Definition/CommonStrata";
 import { BaseModel } from "../Models/Definition/Model";
 import getAncestors from "../Models/getAncestors";
+import { getMarkerCatalogItem } from "../Models/LocationMarkerUtils";
 import { SelectableDimension } from "../Models/SelectableDimensions/SelectableDimensions";
 import Terria from "../Models/Terria";
 import { ViewingControl } from "../Models/ViewingControls";
@@ -37,9 +40,6 @@ import {
   TourPoint
 } from "./defaultTourPoints";
 import SearchState from "./SearchState";
-import CatalogSearchProviderMixin from "../ModelMixins/SearchProviders/CatalogSearchProviderMixin";
-import { getMarkerCatalogItem } from "../Models/LocationMarkerUtils";
-import CzmlCatalogItem from "../Models/Catalog/CatalogItems/CzmlCatalogItem";
 
 export const DATA_CATALOG_NAME = "data-catalog";
 export const USER_DATA_NAME = "my-data";
@@ -50,8 +50,10 @@ export const WORKBENCH_RESIZE_ANIMATION_DURATION = 500;
 
 interface ViewStateOptions {
   terria: Terria;
-  catalogSearchProvider: CatalogSearchProviderMixin.Instance | undefined;
-  errorHandlingProvider?: any;
+  /**
+   * @deprecated
+   */
+  catalogSearchProvider?: CatalogSearchProviderMixin.Instance;
 }
 
 /**
@@ -107,6 +109,7 @@ export default class ViewState {
   @observable currentTrainerStepIndex: number = 0;
 
   @observable printWindow: Window | null = null;
+  @observable storyHasUnsavedChanges: boolean = false;
 
   /**
    * The currently-selected web service type on the My Data -> Add web data panel.
@@ -203,11 +206,14 @@ export default class ViewState {
     }
   }
 
-  /**
-   * ID of the workbench item whose ViewingControls menu is currently open.
-   */
-  @observable
-  workbenchItemWithOpenControls: string | undefined = undefined;
+  @action
+  setStoryHasUnsavedChanges(dirty: boolean): void {
+    this.storyHasUnsavedChanges = dirty;
+  }
+  @action
+  setStoryListScrollTop(value: number): void {
+    this.storyListScrollTop = value;
+  }
 
   errorProvider: any | null = null;
 
@@ -218,6 +224,8 @@ export default class ViewState {
   @observable storyShown: boolean | null = null;
 
   @observable currentStoryId: number = 0;
+  // Persist scroll position for StoryBuilder stories list so it doesn't jump to top when toggling views
+  @observable storyListScrollTop: number = 0;
   @observable featurePrompts: any[] = [];
 
   /**
@@ -373,6 +381,8 @@ export default class ViewState {
    */
   @observable retainSharePanel: boolean = false; // The large share panel accessed via Share/Print button
 
+  @observable settingsPanelIsVisible: boolean = false;
+
   /**
    * The currently open tool
    */
@@ -395,13 +405,14 @@ export default class ViewState {
     makeObservable(this);
     const terria = options.terria;
     this.searchState = new SearchState({
-      terria,
-      catalogSearchProvider: options.catalogSearchProvider
+      terria
     });
+    if (options.catalogSearchProvider) {
+      runInAction(() => {
+        this.terria.catalog.searchProvider = options.catalogSearchProvider;
+      });
+    }
 
-    this.errorProvider = options.errorHandlingProvider
-      ? options.errorHandlingProvider
-      : null;
     this.terria = terria;
 
     // When features are picked, show the feature info panel.
@@ -424,6 +435,8 @@ export default class ViewState {
       (disclaimerVisible) => {
         this.isMapFullScreen =
           disclaimerVisible ||
+          terria.userProperties.get("narrative") === "1" ||
+          terria.elements.get("show-workbench")?.visible === false ||
           terria.userProperties.get("hideWorkbench") === "1" ||
           terria.userProperties.get("hideExplorerPanel") === "1";
       }
@@ -431,6 +444,8 @@ export default class ViewState {
 
     this._isMapFullScreenSubscription = reaction(
       () =>
+        terria.userProperties.get("narrative") === "1" ||
+        terria.elements.get("show-workbench")?.visible === false ||
         terria.userProperties.get("hideWorkbench") === "1" ||
         terria.userProperties.get("hideExplorerPanel") === "1",
       (isMapFullScreen: boolean) => {
@@ -438,20 +453,34 @@ export default class ViewState {
 
         // if /#hideWorkbench=1 exists in url onload, show stories directly
         // any show/hide workbench will not automatically show story
-        if (!defined(this.storyShown)) {
-          // why only check config params here? because terria.stories are not
-          // set at the moment, and that property will be checked in rendering
-          // Here are all are checking are: is terria story enabled in this app?
-          // if so we should show it when app first load, if workbench is hidden
+        // '#hideStory=1' (story-map embeds) suppresses this: the parent
+        // page narrates the story itself.
+        if (
+          !defined(this.storyShown) &&
+          terria.userProperties.get("hideStory") !== "1" &&
+          terria.userProperties.get("narrative") !== "1"
+        ) {
+          // Always show stories if they are enabled and available
+          // This will be checked again in StandardUserInterface when stories are loaded
           this.storyShown = terria.configParameters.storyEnabled;
         }
-      }
+      },
+      { fireImmediately: terria.userProperties.get("narrative") === "1" }
     );
 
+    // Covers a story being asked to auto-start after load, e.g. `#playStory=1`
+    // arriving on a hash change. The load-time case is handled where the "view
+    // this story?" prompt would otherwise be raised.
     this._showStoriesSubscription = reaction(
-      () => Boolean(terria.userProperties.get("playStory")),
-      (playStory: boolean) => {
-        this.storyShown = terria.configParameters.storyEnabled && playStory;
+      () => terria.storyAutoStart,
+      (storyAutoStart: boolean) => {
+        if (storyAutoStart && terria.configParameters.storyEnabled) {
+          if (terria.stories.length > 0) {
+            this.runStories();
+          }
+        } else {
+          this.storyShown = false;
+        }
       }
     );
 
@@ -511,9 +540,10 @@ export default class ViewState {
         }
 
         try {
-          const result = await this.terria.getModelByIdShareKeyOrCatalogIndex(
-            previewedItemId
-          );
+          const result =
+            await this.terria.getModelByIdShareKeyOrCatalogIndex(
+              previewedItemId
+            );
           result.throwIfError();
           const model = result.throwIfUndefined();
           this.viewCatalogMember(model);
@@ -533,9 +563,9 @@ export default class ViewState {
     };
 
     this._storyBeforeUnloadSubscription = reaction(
-      () => this.terria.stories.length > 0,
-      (hasScenes) => {
-        if (hasScenes) {
+      () => this.storyHasUnsavedChanges,
+      (hasUnsaved) => {
+        if (hasUnsaved) {
           window.addEventListener("beforeunload", handleWindowClose);
         } else {
           window.removeEventListener("beforeunload", handleWindowClose);
@@ -601,6 +631,9 @@ export default class ViewState {
 
   @action
   openUserData(): void {
+    if (this.terria.configParameters.disableUserAddedData) {
+      return;
+    }
     this.explorerPanelIsVisible = true;
     this.activeTabCategory = USER_DATA_NAME;
   }
@@ -617,6 +650,14 @@ export default class ViewState {
     this.openAddData();
     this.searchState.catalogSearchText = query;
     this.searchState.searchCatalog();
+  }
+
+  /**
+   * Open settings panel
+   */
+  @action
+  openSettingsPanel(): void {
+    this.settingsPanelIsVisible = true;
   }
 
   @action
@@ -672,11 +713,7 @@ export default class ViewState {
           runInAction(() => {
             this.openAddData();
             if (this.terria.configParameters.tabbedCatalog) {
-              const parentGroups = getAncestors(item);
-              if (parentGroups.length > 0) {
-                // Go to specific tab
-                this.activeTabIdInCategory = parentGroups[0].uniqueId;
-              }
+              this.selectParentTab(item);
             }
           });
         }
@@ -685,6 +722,16 @@ export default class ViewState {
         if (!GroupMixin.isMixedInto(item)) {
           this.switchMobileView(this.mobileViewOptions.preview);
         }
+      }
+
+      // Open each ancestor group so the item is revealed. We only ever open
+      // ancestors here - collapsing an item must never collapse its parents.
+      if (isOpen) {
+        getAncestors(item).forEach((ancestor) => {
+          if (GroupMixin.isMixedInto(ancestor)) {
+            ancestor.setTrait(stratum, "isOpen", true);
+          }
+        });
       }
 
       if (GroupMixin.isMixedInto(item)) {
@@ -702,6 +749,37 @@ export default class ViewState {
     return Result.none();
   }
 
+  /**
+   * Load the parent tab of the given item
+   */
+  private selectParentTab(item: BaseModel) {
+    const findParentTab = (item: BaseModel) =>
+      getAncestors(item).find((m) =>
+        this.terria.catalog.group.memberModels.includes(m)
+      );
+
+    let parentGroup = findParentTab(item);
+    if (!parentGroup) {
+      // It is possible that the loadMembers() was not called on the top level
+      // tab groups on app load and therefore the parent -> member links were
+      // not established. Manually call refreshKnownContainerUniqueIds on the
+      // top level tab groups and retry getting the ancestors.
+      this.terria.catalog.group.memberModels.forEach((m) => {
+        if (GroupMixin.isMixedInto(m)) {
+          m.refreshKnownContainerUniqueIds(m.uniqueId);
+        }
+      });
+      parentGroup = findParentTab(item);
+    }
+    if (parentGroup) {
+      // Go to specific tab
+      this.activeTabIdInCategory = parentGroup.uniqueId;
+      if (GroupMixin.isMixedInto(parentGroup)) {
+        parentGroup.loadMembers().then((result) => result.throwIfError());
+      }
+    }
+  }
+
   @action
   switchMobileView(viewName: string | null): void {
     this.mobileView = viewName;
@@ -709,7 +787,7 @@ export default class ViewState {
 
   @action
   showHelpPanel(): void {
-    this.terria.analytics?.logEvent(Category.help, HelpAction.panelOpened);
+    this.terria.analytics.logEvent(Category.help, HelpAction.panelOpened);
     this.showHelpMenu = true;
     this.helpPanelExpanded = false;
     this.selectedHelpMenuItem = "";
@@ -849,7 +927,7 @@ export default class ViewState {
 
     this.terria.currentViewer.notifyRepaintRequired();
 
-    this.terria.analytics?.logEvent(Category.story, StoryAction.runStory);
+    this.terria.analytics.logEvent(Category.story, StoryAction.runStory);
   }
 
   @computed

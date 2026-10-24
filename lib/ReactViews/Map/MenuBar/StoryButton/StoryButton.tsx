@@ -11,12 +11,13 @@ import Prompt from "../../../Generic/Prompt";
 import { useRefForTerria } from "../../../Hooks/useRefForTerria";
 
 import Styles from "./story-button.scss";
+import withControlledVisibility from "../../../HOCs/withControlledVisibility";
 
 interface Props {
   terria: Terria;
   theme: DefaultTheme;
   viewState: ViewState;
-  animationDuration: number;
+  animationDuration?: number;
 }
 
 interface ButtonProps extends Props {
@@ -28,23 +29,24 @@ const STORY_BUTTON_NAME = "MenuBarStoryButton";
 export const onStoryButtonClick = (props: Props) => () => {
   props.viewState.toggleStoryBuilder();
   props.terria.currentViewer.notifyRepaintRequired();
-  // Allow any animations to finish, then trigger a resize.
-  setTimeout(function () {
-    triggerResize();
-  }, props.animationDuration || 1);
+  // Allow any animations to finish, then trigger a resize in the next frame.
+  // Using rAF reduces click handler jank vs setTimeout.
+  requestAnimationFrame(() => {
+    setTimeout(() => triggerResize(), props.animationDuration || 1);
+  });
   props.viewState.toggleFeaturePrompt("story", false, true);
 };
 
 const promptHtml = (hasStories: boolean) => (
   <Text textLight textAlignCenter>
     {hasStories ? (
-      <Trans i18nKey="story.promptHtml1">
+      <Trans i18nKey={($) => $.story.promptHtml1}>
         <Text extraLarge>
           You can view and create stories at any time by clicking here.
         </Text>
       </Trans>
     ) : (
-      <Trans i18nKey="story.promptHtml2">
+      <Trans i18nKey={($) => $.story.promptHtml2}>
         <div>
           <Text>INTRODUCING</Text>
           <Text bold extraExtraLarge styledLineHeight={"32px"}>
@@ -95,7 +97,7 @@ const StoryButton = (props: Props) => {
         `}
       >
         <Icon glyph={Icon.GLYPHS.story} />
-        <span>{t("story.story")}</span>
+        <span>{t(($) => $.story.story)}</span>
       </button>
       <Prompt
         centered
@@ -104,10 +106,10 @@ const StoryButton = (props: Props) => {
         }
         content={promptHtml(props.terria.stories.length > 0)}
         displayDelay={delayTime}
-        dismissText={t("story.dismissText")}
+        dismissText={t(($) => $.story.dismissText)}
         dismissAction={dismissAction}
       />
     </div>
   );
 };
-export default StoryButton;
+export default withControlledVisibility(StoryButton);

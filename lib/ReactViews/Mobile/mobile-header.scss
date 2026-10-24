@@ -92,9 +92,29 @@
 .group-left {
   position: absolute;
   left: 5px;
+  right: 180px; // Reserve space for right buttons
+  max-width: calc(100vw - 200px); // Responsive max width
+  overflow: hidden;
 
   > * {
     display: inline-block;
+  }
+
+  // Ensure branding container is responsive
+  > div {
+    max-width: 100%;
+    overflow: hidden;
+  }
+
+  // Additional responsiveness for very small screens
+  @media (max-width: 480px) {
+    right: 200px; // More space on very small screens
+    max-width: calc(100vw - 220px);
+  }
+
+  @media (max-width: 360px) {
+    right: 220px; // Even more space on extra small screens
+    max-width: calc(100vw - 240px);
   }
 }
 
@@ -102,6 +122,7 @@
   position: absolute;
   right: 0;
   z-index: 1;
+  min-width: 180px; // Ensure minimum space for buttons
 
   > * {
     display: inline-block;

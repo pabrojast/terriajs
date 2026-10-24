@@ -1,4 +1,5 @@
 import { action } from "mobx";
+import { http, passthrough } from "msw";
 import {
   Filter,
   GeomType,
@@ -17,6 +18,7 @@ import MapboxVectorTileCatalogItem from "../../../../lib/Models/Catalog/CatalogI
 import CommonStrata from "../../../../lib/Models/Definition/CommonStrata";
 import updateModelFromJson from "../../../../lib/Models/Definition/updateModelFromJson";
 import Terria from "../../../../lib/Models/Terria";
+import { worker } from "../../../mocks/browser";
 
 describe("MapboxVectorTileCatalogItem", function () {
   let mvt: MapboxVectorTileCatalogItem;
@@ -146,6 +148,12 @@ describe("MapboxVectorTileCatalogItem", function () {
     });
 
     it("correctly picks features", async function () {
+      worker.use(
+        http.get("*.pbf", () => {
+          return passthrough();
+        })
+      );
+
       // Get polygon
       const polygon = await imageryProvider.pickFeatures(
         1881,
@@ -166,6 +174,35 @@ describe("MapboxVectorTileCatalogItem", function () {
         -0.5945282912087255
       );
       expect(nothingToSelect.length).toBe(0);
+    });
+
+    it("picks features whose props have a null prototype", async function () {
+      const view = (imageryProvider as any).view;
+
+      spyOn(view, "getDisplayTile").and.returnValue(Promise.resolve({}));
+      spyOn(view, "queryFeatures").and.returnValue([
+        {
+          layerName: "FID_LGA_2013_AUST",
+          feature: {
+            props: Object.assign(Object.create(null), {
+              LGA_CODE13: "11450",
+              name: "Blacktown"
+            })
+          }
+        }
+      ]);
+
+      const picked = await imageryProvider.pickFeatures(
+        1881,
+        1229,
+        11,
+        2.630470869072516,
+        -0.5932730847619763
+      );
+
+      expect(picked.length).toBe(1);
+      expect(picked[0]?.properties?.LGA_CODE13).toBe("11450");
+      expect(picked[0]?.name).toBe("Blacktown");
     });
   });
 

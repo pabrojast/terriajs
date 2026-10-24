@@ -1,5 +1,5 @@
 import { observer } from "mobx-react";
-import { FC } from "react";
+import { FC, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import Box from "../../Styled/Box";
 import ActionBarPortal from "../ActionBar/ActionBarPortal";
@@ -14,7 +14,14 @@ import MenuBar from "./MenuBar/MenuBar";
 import { ProgressBar } from "./ProgressBar";
 import { TerriaViewerWrapper } from "./TerriaViewerWrapper";
 import Toast from "./Toast";
+import { BasemapCreditOverlay } from "./BottomBar/Credits/SentinelCreditOverlay";
 import { useTheme } from "styled-components";
+import WaterQualityPanel from "../WaterQuality/WaterQualityPanel";
+import Legend from "../Workbench/Controls/Legend";
+import MappableMixin from "../../ModelMixins/MappableMixin";
+import hasTraits from "../../Models/Definition/hasTraits";
+import LegendOwnerTraits from "../../Traits/TraitsClasses/LegendOwnerTraits";
+import CatalogMemberTraits from "../../Traits/TraitsClasses/CatalogMemberTraits";
 
 interface IMapColumnProps {
   animationDuration: number;
@@ -30,6 +37,8 @@ export const MapColumn: FC<IMapColumnProps> = observer(
     const viewState = useViewState();
     const theme = useTheme();
     const { t } = useTranslation();
+    const loaderRef = useRef(null);
+    const narrative = viewState.terria.userProperties.get("narrative") === "1";
 
     return (
       <Box
@@ -60,12 +69,14 @@ export const MapColumn: FC<IMapColumnProps> = observer(
                 ${viewState.explorerPanelIsVisible && "opacity: 0.3;"}
               `}
             >
-              <MenuBar
-                menuItems={customElements.menu}
-                menuLeftItems={customElements.menuLeft}
-                animationDuration={animationDuration}
-                elementConfig={viewState.terria.elements.get("menu-bar")}
-              />
+              {!narrative && (
+                <MenuBar
+                  menuItems={customElements.menu}
+                  menuLeftItems={customElements.menuLeft}
+                  animationDuration={animationDuration}
+                  elementConfig={viewState.terria.elements.get("menu-bar")}
+                />
+              )}
               <MapNavigation
                 viewState={viewState}
                 navItems={customElements.nav}
@@ -81,13 +92,62 @@ export const MapColumn: FC<IMapColumnProps> = observer(
           >
             <TerriaViewerWrapper />
           </Box>
+          {narrative && !viewState.hideMapUi && (
+            <details
+              aria-label="Map legend"
+              css={`
+                position: absolute;
+                z-index: 11;
+                left: 12px;
+                top: 12px;
+                max-width: 230px;
+                max-height: 42%;
+                overflow: auto;
+                padding: 9px 12px;
+                border-radius: 7px;
+                background: ${theme.transparentDark};
+                color: ${theme.textLight};
+                font-size: 12px;
+                summary {
+                  cursor: pointer;
+                  font-weight: 600;
+                }
+              `}
+            >
+              <summary>{t("legend.title", "Map legend")}</summary>
+              {viewState.terria.workbench.items
+                .filter(
+                  (item) =>
+                    MappableMixin.isMixedInto(item) &&
+                    item.show &&
+                    hasTraits(item, LegendOwnerTraits, "legends") &&
+                    item.legends?.length
+                )
+                .map((item) => (
+                  <div key={item.uniqueId}>
+                    <strong>
+                      {hasTraits(item, CatalogMemberTraits, "name")
+                        ? item.name
+                        : item.uniqueId}
+                    </strong>
+                    <Legend item={item} />
+                  </div>
+                ))}
+            </details>
+          )}
+          {!viewState.hideMapUi && !viewState.explorerPanelIsVisible && (
+            <WaterQualityPanel />
+          )}
           {!viewState.hideMapUi && (
             <>
               <ActionBarPortal show={viewState.isActionBarVisible} />
-              <SlideUpFadeIn isVisible={viewState.isMapZooming}>
-                <Toast>
+              <SlideUpFadeIn
+                isVisible={viewState.isMapZooming}
+                nodeRef={loaderRef}
+              >
+                <Toast ref={loaderRef}>
                   <Loader
-                    message={t("toast.mapIsZooming")}
+                    message={t(($) => $.toast.mapIsZooming)}
                     textProps={{
                       style: {
                         padding: "0 5px"
@@ -99,21 +159,28 @@ export const MapColumn: FC<IMapColumnProps> = observer(
               <div
                 css={`
                   position: absolute;
-                  margin-left: ${viewState.useSmallScreenInterface
+                  margin-left: ${viewState.useSmallScreenInterface ||
+                  viewState.terria.elements.get("show-workbench")?.visible ===
+                    false
                     ? `0px`
                     : viewState.isMapFullScreen
-                    ? `${theme.workbenchMargin}px`
-                    : `calc(${theme.workbenchWidth}px + 2 * ${theme.workbenchMargin}px)`};
-                  margin-right: ${viewState.useSmallScreenInterface
+                      ? `${theme.workbenchMargin}px`
+                      : `calc(${theme.workbenchWidth}px + 2 * ${theme.workbenchMargin}px)`};
+                  margin-right: ${viewState.useSmallScreenInterface ||
+                  viewState.terria.elements.get("show-workbench")?.visible ===
+                    false
                     ? `0px`
                     : `calc(34px + 2 *${theme.workbenchMargin}px)`};
-                  bottom: ${viewState.useSmallScreenInterface
+                  bottom: ${viewState.useSmallScreenInterface ||
+                  viewState.terria.elements.get("show-workbench")?.visible ===
+                    false
                     ? `0px`
                     : `${theme.workbenchMargin}px`};
                   left: 0;
                   right: 0;
                 `}
               >
+                <BasemapCreditOverlay terria={viewState.terria} />
                 <BottomLeftBar />
                 <BottomDock
                   terria={viewState.terria}

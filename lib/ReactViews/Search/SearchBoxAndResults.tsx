@@ -1,7 +1,7 @@
 import { action, runInAction } from "mobx";
 import { observer } from "mobx-react";
 import PropTypes from "prop-types";
-import { useEffect, useRef, type FC } from "react";
+import { useCallback, useEffect, useRef, type FC } from "react";
 import { useTranslation } from "react-i18next";
 import styled, { useTheme } from "styled-components";
 import { addMarker, removeMarker } from "../../Models/LocationMarkerUtils";
@@ -27,10 +27,6 @@ export function SearchInDataCatalog({
       fullWidth
       onClick={() => {
         const { searchState } = viewState;
-        // Set text here as a separate action so that it doesn't get batched up and the catalog
-        // search text has a chance to set isWaitingToStartCatalogSearch
-        searchState.setCatalogSearchText(searchState.locationSearchText);
-
         viewState.searchInCatalog(searchState.locationSearchText);
         if (handleClick) {
           handleClick();
@@ -41,8 +37,8 @@ export function SearchInDataCatalog({
         <StyledIcon styledWidth={"14px"} glyph={Icon.GLYPHS["dataCatalog"]} />
         <Spacing right={2} />
         <Text textAlignLeft textLight large fullWidth>
-          {t("search.searchInDataCatalog", {
-            locationSearchText: locationSearchText
+          {t(($) => $.search.searchInDataCatalog, {
+            locationSearchText
           })}
         </Text>
         <StyledIcon glyph={Icon.GLYPHS.right2} styledWidth={"14px"} light />
@@ -83,18 +79,11 @@ export const SearchBoxAndResults: FC<SearchBoxAndResultsProps> = observer(
 
     const viewState = useViewState();
     const theme = useTheme();
+    const { t } = useTranslation();
 
     useEffect(() => {
       viewState.updateAppRef(LOCATION_SEARCH_INPUT_NAME, locationSearchRef);
     }, [viewState]);
-
-    useEffect(() => {
-      // TODO(wing): why is this a reaction here and not in viewState itself?
-      // Close the search results when the Now Viewing changes (so that it's visible).
-      runInAction(() => {
-        viewState.searchState.showLocationSearchResults = false;
-      });
-    }, [viewState.searchState, viewState.terria.workbench.items]);
 
     const toggleShowLocationSearchResults = action((bool: boolean) => {
       viewState.searchState.showLocationSearchResults = bool;
@@ -121,11 +110,11 @@ export const SearchBoxAndResults: FC<SearchBoxAndResultsProps> = observer(
       }
     };
 
-    const search = () => {
+    const search = useCallback(() => {
       viewState.searchState.searchLocations();
-    };
+    }, [viewState]);
 
-    const startLocationSearch = () => {
+    const showLocationSearchResults = () => {
       toggleShowLocationSearchResults(true);
     };
 
@@ -137,17 +126,63 @@ export const SearchBoxAndResults: FC<SearchBoxAndResultsProps> = observer(
       searchState.showLocationSearchResults;
 
     return (
-      <Text textDarker>
+      <Text textDarker className="search-box-and-results">
         <Box fullWidth>
-          <PresentationBox highlightBottom={shouldShowResults}>
-            <SearchBox
-              ref={locationSearchRef}
-              onSearchTextChanged={changeSearchText}
-              onDoSearch={search}
-              onFocus={startLocationSearch}
-              searchText={searchState.locationSearchText}
-              placeholder={placeholder}
-            />
+          <PresentationBox column highlightBottom={shouldShowResults}>
+            <Box
+              fullWidth
+              css={`
+                gap: 8px;
+                align-items: center;
+              `}
+            >
+              <SearchBox
+                ref={locationSearchRef}
+                onSearchTextChanged={changeSearchText}
+                onDoSearch={search}
+                onFocus={showLocationSearchResults}
+                searchText={searchState.locationSearchText}
+                placeholder={placeholder}
+              />
+              <button
+                type="button"
+                onClick={search}
+                aria-label={t("search.submitLocations")}
+                style={{
+                  padding: "6px 12px",
+                  cursor: "pointer",
+                  alignSelf: "stretch",
+                  border: 0,
+                  borderRadius: 4,
+                  font: "inherit",
+                  color: theme.textLight,
+                  backgroundColor: theme.colorPrimary
+                }}
+              >
+                {t("search.submit")}
+              </button>
+            </Box>
+            {viewState.terria.searchBarModel.locationSearchProvidersArray.some(
+              (provider) => provider.type === "nominatim-search-provider"
+            ) && (
+              <small
+                style={{
+                  display: "block",
+                  padding: "6px 0",
+                  color: theme.textLight
+                }}
+              >
+                Locations:{" "}
+                <a
+                  href="https://www.openstreetmap.org/copyright"
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{ color: "inherit" }}
+                >
+                  © OpenStreetMap contributors
+                </a>
+              </small>
+            )}
           </PresentationBox>
           {/* Results */}
           {shouldShowResults && (
@@ -158,13 +193,11 @@ export const SearchBoxAndResults: FC<SearchBoxAndResultsProps> = observer(
               css={`
                 top: 100%;
                 background-color: ${theme.greyLightest};
-                max-height: calc(100vh - 120px);
+                max-height: calc(100vh - 200px);
                 border-radius: 0 0 ${theme.radiusLarge} ${theme.radiusLarge};
+                overflow: hidden;
               `}
             >
-              {/* search {searchterm} in data catalog */}
-              {/* ~TODO: Put this back once we add a MobX DataCatalogSearch Provider~ */}
-              {/* TODO2: Implement a more generic MobX DataCatalogSearch */}
               {viewState.terria.searchBarModel.showSearchInCatalog &&
                 searchState.catalogSearchProvider && (
                   <Box column paddedRatio={2}>
@@ -182,13 +215,12 @@ export const SearchBoxAndResults: FC<SearchBoxAndResultsProps> = observer(
                   overflow-y: auto;
                 `}
               >
-                {searchState.locationSearchResults.map((search) => (
+                {searchState.locationSearchProviders.map((searchProvider) => (
                   <LocationSearchResults
-                    theme={theme}
-                    key={search.searchProvider.uniqueId}
+                    key={searchProvider.uniqueId}
                     terria={viewState.terria}
                     viewState={viewState}
-                    search={search}
+                    searchResult={searchProvider.searchResult}
                     locationSearchText={locationSearchText}
                     onLocationClick={(result) => {
                       if (!result.location) return;
@@ -201,9 +233,7 @@ export const SearchBoxAndResults: FC<SearchBoxAndResultsProps> = observer(
                         searchState.showLocationSearchResults = false;
                       });
                     }}
-                    isWaitingForSearchToStart={
-                      searchState.isWaitingToStartLocationSearch
-                    }
+                    waitingHint={t("search.submitHint")}
                   />
                 ))}
               </Box>

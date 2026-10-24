@@ -1,0 +1,77 @@
+# Troubleshooting
+
+Ver tambien: [[Setup Local]], [[Comandos Utiles]], [[Variables de Entorno]]
+
+## Build o install se queda sin memoria
+
+Sintoma:
+
+- `yarn install`, `yarn gulp` o `yarn gulp docs` fallan por memoria
+
+Accion:
+
+```bash
+export NODE_OPTIONS=--max_old_space_size=4096
+```
+
+## `terriajs-server` falla o no responde
+
+Accion:
+
+- revisar `terriajs-server.log`
+- confirmar que el puerto `3002` esta libre
+
+## `yarn hot` falla
+
+- **Pendiente por confirmar:** el script apunta a `buildprocess/webpack.config.hot.js`, archivo no presente en el repo actual.
+- Mientras no se confirme, preferir `yarn gulp dev` o `yarn gulp watch` + `yarn start`.
+
+## Build de docs falla con `mkdocs`
+
+Accion:
+
+```bash
+pip install -r requirements.txt
+yarn gulp docs
+```
+
+## Problemas de CORS/proxy al consumir datos
+
+- Este repo usa `terriajs-server`/proxy en muchos flujos.
+- Para apps consumidoras, revisar `allowProxyFor`, `corsProxyBaseUrl` y `serverConfig`.
+- Material fuente: `doc/connecting-to-data/cross-origin-resource-sharing.md`
+
+## Mapa base o capa de teselas carga a pedazos, o no carga en 3D
+
+- Sintoma: en 2D las teselas llegan por tandas y en 3D el globo queda sin imagen; en la red aparecen `429` sobre `proxy/...`.
+- Causa observada (2026-09-19, produccion): las teselas pasaban por el proxy de `terriajs-server` y el frontal HTTP (Varnish) aplica un limite global de peticiones por IP; un globo 3D pide cientos de teselas de golpe.
+- `CorsProxy.shouldUseProxy` proxifica **siempre** un recurso `http://` desde una pagina `https`, aunque el host este en `corsDomains`. Algunos WMTS (p. ej. EOX `tiles.maps.eox.at`) publican plantillas `ResourceURL` en `http://` pese a servir el capabilities por `https`.
+- `WebMapTileServiceCatalogItem` usa `matchCapabilitiesProtocol`: si el capabilities se cargo por `https` y la plantilla apunta al mismo host en `http://`, las teselas se piden por `https`. Con el host en `corsDomains` del init, el navegador las pide directo al servidor de teselas y no pasan por el proxy.
+- Para otros servidores: comprobar que envian `Access-Control-Allow-Origin` en las teselas antes de agregarlos a `corsDomains`.
+
+## Un COG pinta toda la tierra con el color mas bajo de la paleta
+
+- Causa habitual: `renderOptions.nodata` en el catalogo. Ese valor reemplaza al no-data declarado en el GeoTIFF (p. ej. `nodata: 0` pisa un `-9999` real). Con `clampLow` activo (por defecto), los pixeles sin dato caen bajo el dominio y se pintan con el primer color.
+- Solucion: quitar `renderOptions.nodata` y dejar que se use el no-data del archivo (`gdalinfo` lo muestra como `NoData Value`). Configurarlo solo cuando el archivo no lo declara.
+- Un `noDataColor` transparente es innecesario: el no-data ya se pinta transparente.
+- Si los valores se ven fuera de escala, revisar si el raster trae `Scale`/`Offset` (`gdalinfo`): en `cog-time-series` van en `valueScale` / `valueOffset`, y `domain` se escribe en unidades fisicas.
+
+## Cambios en TerriaJS no se reflejan al probar con TerriaMap
+
+- Evitar `npm link`.
+- Preferir Yarn workspaces, segun `doc/contributing/development-environment.md`.
+
+## Enlace corto devuelve 403 en IHP-WINS DEV
+
+- Caso confirmado (2026-10-23): `POST /terria/share` se bloquea en Envoy/Coraza al compartir la capa Dnipro y sus cuatro capitulos. Los enlaces `#share=...` existentes se siguen leyendo con HTTP 200.
+- La regla CRS `932130` transforma la descripcion HTML `</strong> (4 years)` en `>(4 years)` y la interpreta como una expresion de shell. El fallo se reprodujo con el JSON exacto del usuario, incluyendo sus dos series de puntos.
+- La correccion pertenece a `ckan-unesco-docker`, rama `miserver-2.10`, en `deploy/envoy-dev/coraza.conf`: exclusion de esa firma sobre las descripciones de modelos/catalogos en `initSources`, incluyendo escenas anidadas. El patron debe ser insensible a mayusculas por la normalizacion de claves de Coraza. Es una exclusion por campo JSON en cualquier URL; las otras firmas y campos siguen inspeccionados.
+- Prueba reproducible: `python3 deploy/envoy-dev/check_terria_share.py` desde Docker; usa las imagenes fijadas y un backend local en memoria. La comprobacion real requiere generar un enlace en el navegador, abrirlo sin sesion y verificar capa, fecha, camara, cuatro capitulos y series de 37/36 puntos.
+- Despliegue del WAF: workflow `push.yml` con `envoy_only=true`, contexto `default`, namespace `ckan`. La correccion del 403 no requiere recompilar TerriaJS/TerriaMap. Evidencia y alcance en la [guia del gateway DEV](https://github.com/pabrojast/ckan-unesco-docker/blob/miserver-2.10/deploy/envoy-dev/README.md#terria-short-link-compatibility-2026-10-23).
+- La reapertura detecto otra condicion previa: `addAccumulatedChartSeries` dependia de un pick activo. Se ejecuta ahora independientemente de `addFeaturePicking`, para conservar los graficos al compartir tras cerrar la seleccion o activar una Story. Esta correccion si requiere fijar la nueva revision de TerriaJS en TerriaMap y desplegar la aplicacion DEV; ver [[Testing]].
+
+## Tests no levantan en local
+
+- confirmar que ya corriste `yarn gulp`
+- probar `yarn gulp test-firefox`
+- abrir `http://localhost:3002/SpecRunner.html` para inspeccion manual

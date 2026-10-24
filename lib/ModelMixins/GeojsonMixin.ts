@@ -5,7 +5,7 @@ import {
   MultiPolygon,
   Point,
   Polygon
-} from "@turf/helpers";
+} from "geojson";
 import i18next from "i18next";
 import {
   action,
@@ -91,8 +91,10 @@ import StyleTraits from "../Traits/TraitsClasses/StyleTraits";
 import { DiscreteTimeAsJS } from "./DiscretelyTimeVaryingMixin";
 import { ExportData } from "./ExportableMixin";
 import FeatureInfoUrlTemplateMixin from "./FeatureInfoUrlTemplateMixin";
-import { isDataSource } from "./MappableMixin";
+import { ImageryParts, isDataSource } from "./MappableMixin";
 import TableMixin from "./TableMixin";
+import PinBuilder from "terriajs-cesium/Source/Core/PinBuilder";
+import VerticalOrigin from "terriajs-cesium/Source/Scene/VerticalOrigin";
 
 export const FEATURE_ID_PROP = "_id_";
 
@@ -111,6 +113,37 @@ const SIMPLE_STYLE_KEYS = [
   "fill",
   "fill-opacity"
 ];
+
+/**
+ * Checks that a GeoJSON geometry's coordinates array has enough vertices to
+ * form a valid shape of the given type. A geometry with too few vertices
+ * (eg an unclosed/degenerate polygon ring) can never produce a valid Cesium
+ * bounding sphere, which causes zoomTo() to hang until it times out.
+ */
+function hasMinimumVerticesForGeometryType(
+  geometryType: string,
+  coordinates: unknown[]
+): boolean {
+  switch (geometryType) {
+    // Point coordinates are a flat [x, y(, z)] tuple, not an array of points
+    case "Point":
+      return coordinates.length >= 2;
+    case "MultiPoint":
+      return coordinates.length >= 1;
+    case "LineString":
+      return coordinates.length >= 2;
+    case "MultiLineString":
+      return (coordinates as unknown[][]).every((line) => line.length >= 2);
+    case "Polygon":
+      return (coordinates as unknown[][]).every((ring) => ring.length >= 4);
+    case "MultiPolygon":
+      return (coordinates as unknown[][][]).every((polygon) =>
+        polygon.every((ring) => ring.length >= 4)
+      );
+    default:
+      return true;
+  }
+}
 
 class GeoJsonStratum extends LoadableStratum(GeoJsonTraits) {
   static stratumName = "geojson";
@@ -362,12 +395,12 @@ function GeoJsonMixin<T extends AbstractConstructor<BaseType>>(Base: T) {
         points,
         this._dataSource,
         this._imageryProvider
-          ? {
+          ? ({
               imageryProvider: this._imageryProvider,
               show: this.show,
               alpha: this.opacity,
               clippingRectangle: undefined
-            }
+            } as ImageryParts)
           : undefined
       ]);
     }
@@ -469,6 +502,7 @@ function GeoJsonMixin<T extends AbstractConstructor<BaseType>>(Base: T) {
         geoJsonWgs84.features = [];
 
         let currentFeatureId = 0;
+        let degenerateFeatureCount = 0;
         for (let i = 0; i < features.length; i++) {
           const feature = features[i];
 
@@ -476,12 +510,21 @@ function GeoJsonMixin<T extends AbstractConstructor<BaseType>>(Base: T) {
           if (!isJsonObject(feature.geometry, false) || !feature.geometry.type)
             continue;
 
-          // Ignore features with invalid coordinates
+          // Ignore features with invalid or geometrically degenerate
+          // coordinates (eg a Polygon ring with too few points to form a
+          // shape) - Cesium can never compute a bounding sphere for these,
+          // which causes zoomTo() to hang until it times out.
           if (
             !isJsonArray(feature.geometry.coordinates, false) ||
-            feature.geometry.coordinates.length === 0
-          )
+            feature.geometry.coordinates.length === 0 ||
+            !hasMinimumVerticesForGeometryType(
+              feature.geometry.type,
+              feature.geometry.coordinates
+            )
+          ) {
+            degenerateFeatureCount++;
             continue;
+          }
 
           if (!feature.properties) {
             feature.properties = {};
@@ -539,6 +582,13 @@ function GeoJsonMixin<T extends AbstractConstructor<BaseType>>(Base: T) {
           currentFeatureId++;
         }
 
+        // Report dropped features
+        if (degenerateFeatureCount > 0) {
+          TerriaError.from(
+            `Skipped ${degenerateFeatureCount} GeoJSON feature(s) with too few coordinates to form a valid geometry`
+          ).log();
+        }
+
         runInAction(() => {
           this.featureCounts = featureCounts;
           if (featureCounts.total === 0) {
@@ -561,6 +611,32 @@ function GeoJsonMixin<T extends AbstractConstructor<BaseType>>(Base: T) {
           });
         } else {
           const dataSource = await this.loadGeoJsonDataSource(geoJsonWgs84);
+
+          if (this.clustering.enabled) {
+            const pinBackgroundColor = this.clustering.pinBackgroundColor;
+            const pinSize = this.clustering.pinSize;
+
+            const pinBuilder = new PinBuilder();
+            dataSource.clustering.enabled = true;
+            dataSource.clustering.pixelRange = this.clustering.pixelRange;
+            dataSource.clustering.minimumClusterSize =
+              this.clustering.minimumClusterSize;
+            dataSource.clustering.clusterEvent.addEventListener(
+              function (entities, cluster) {
+                cluster.label.show = false;
+                cluster.billboard.verticalOrigin = VerticalOrigin.BOTTOM;
+                cluster.billboard.image = pinBuilder
+                  .fromText(
+                    entities.length.toLocaleString(),
+                    Color.fromCssColorString(pinBackgroundColor),
+                    pinSize
+                  )
+                  .toDataURL();
+                cluster.billboard.show = true;
+              }
+            );
+          }
+
           runInAction(() => {
             this._dataSource = dataSource;
             this._imageryProvider = undefined;
@@ -572,8 +648,8 @@ function GeoJsonMixin<T extends AbstractConstructor<BaseType>>(Base: T) {
       } catch (e) {
         throw networkRequestError(
           TerriaError.from(e, {
-            title: i18next.t("models.geoJson.errorLoadingTitle"),
-            message: i18next.t("models.geoJson.errorParsingMessage")
+            title: i18next.t(($) => $.models.geoJson.errorLoadingTitle),
+            message: i18next.t(($) => $.models.geoJson.errorParsingMessage)
           })
         );
       }
@@ -747,7 +823,7 @@ function GeoJsonMixin<T extends AbstractConstructor<BaseType>>(Base: T) {
       // Set czml properties to feature properties
       for (let i = 0; i < geoJson.features.length; i++) {
         const feature = geoJson.features[i];
-        if (feature === null || feature.geometry.type === "Line") {
+        if (feature === null) {
           continue;
         }
 
@@ -1074,7 +1150,10 @@ function GeoJsonMixin<T extends AbstractConstructor<BaseType>>(Base: T) {
               styles.clampToGround
                 ? HeightReference.RELATIVE_TO_GROUND
                 : undefined
-            )
+            ),
+            disableDepthTestDistance: this.disableDepthTest
+              ? new ConstantProperty(Number.POSITIVE_INFINITY)
+              : undefined
           });
           if (
             properties &&
@@ -1249,8 +1328,9 @@ function GeoJsonMixin<T extends AbstractConstructor<BaseType>>(Base: T) {
 }
 
 namespace GeoJsonMixin {
-  export interface Instance
-    extends InstanceType<ReturnType<typeof GeoJsonMixin>> {}
+  export interface Instance extends InstanceType<
+    ReturnType<typeof GeoJsonMixin>
+  > {}
   export function isMixedInto(model: any): model is Instance {
     return model && model.isGeoJson;
   }

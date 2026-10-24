@@ -8,11 +8,16 @@ import {
   Uint8ArrayWriter as ZipUint8ArrayWriter
 } from "@zip.js/zip.js";
 
-interface ZipEntries {
-  fileName: string;
-  isDirectory: boolean;
-  data: Uint8Array;
-}
+type ZipEntries =
+  | {
+      isDirectory: true;
+      fileName: string;
+    }
+  | {
+      isDirectory: false;
+      fileName: string;
+      data: Uint8Array<ArrayBuffer>;
+    };
 
 export default function loadBlob(
   urlOrResource: string,
@@ -40,23 +45,23 @@ export function isZip(uri: string) {
 }
 
 /** Get zipjs ZipReader for given Blob */
-function getZipReader(blob: Blob): any {
+function getZipReader(blob: Blob) {
   return new ZipReader(new ZipBlobReader(blob));
 }
 
 /** Parse zipped blob into JsonValue */
-export function parseZipJsonBlob(blob: Blob): Promise<JsonValue> {
+export async function parseZipJsonBlob(blob: Blob): Promise<JsonValue> {
   const reader = getZipReader(blob);
 
   return reader.getEntries().then(function (entries: any) {
     for (let i = 0; i < entries.length; i++) {
       const entry = entries[i];
       if (isJson(entry.filename)) {
-        return entry
-          .getData(new ZipData64URIWriter())
-          .then(function (uri: string) {
-            return loadJson(uri);
-          });
+        return entry.getData(new ZipData64URIWriter()).then(function (
+          uri: string
+        ) {
+          return loadJson(uri);
+        });
       }
     }
     return undefined;
@@ -70,13 +75,14 @@ export async function parseZipArrayBuffers(blob: Blob): Promise<ZipEntries[]> {
   const entries = await reader.getEntries();
 
   return await Promise.all(
-    entries.map(async (entry: any) => {
-      const data = await entry.getData(new ZipUint8ArrayWriter());
-      return {
-        fileName: entry.filename,
-        isDirectory: entry.directory === true,
-        data
-      };
+    entries.map(async (entry) => {
+      return entry.directory
+        ? { fileName: entry.filename, isDirectory: true }
+        : {
+            fileName: entry.filename,
+            isDirectory: false,
+            data: await entry.getData(new ZipUint8ArrayWriter())
+          };
     })
   );
 }

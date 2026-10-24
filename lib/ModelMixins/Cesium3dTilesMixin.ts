@@ -24,16 +24,25 @@ import Cesium3DTilePointFeature from "terriajs-cesium/Source/Scene/Cesium3DTileP
 import Cesium3DTileset from "terriajs-cesium/Source/Scene/Cesium3DTileset";
 import AbstractConstructor from "../Core/AbstractConstructor";
 import { JsonObject, isJsonObject } from "../Core/Json";
+import {
+  getQualityTierFraction,
+  isLowSpecQualityTier
+} from "../Core/QualityTier";
 import TerriaError from "../Core/TerriaError";
 import isDefined from "../Core/isDefined";
 import runLater from "../Core/runLater";
 import proxyCatalogItemUrl from "../Models/Catalog/proxyCatalogItemUrl";
 import CommonStrata from "../Models/Definition/CommonStrata";
-import Model from "../Models/Definition/Model";
+import LoadableStratum from "../Models/Definition/LoadableStratum";
+import Model, { BaseModel } from "../Models/Definition/Model";
+import StratumOrder from "../Models/Definition/StratumOrder";
 import createStratumInstance from "../Models/Definition/createStratumInstance";
 import TerriaFeature from "../Models/Feature/Feature";
+import { SelectableDimension } from "../Models/SelectableDimensions/SelectableDimensions";
 import Cesium3DTilesCatalogItemTraits from "../Traits/TraitsClasses/Cesium3DTilesCatalogItemTraits";
-import Cesium3dTilesTraits, {
+import {
+  default as Cesium3DTilesTraits,
+  default as Cesium3dTilesTraits,
   OptionsTraits
 } from "../Traits/TraitsClasses/Cesium3dTilesTraits";
 import CatalogMemberMixin, { getName } from "./CatalogMemberMixin";
@@ -42,8 +51,9 @@ import ClippingMixin from "./ClippingMixin";
 import MappableMixin from "./MappableMixin";
 import ShadowMixin from "./ShadowMixin";
 
-interface Cesium3DTilesCatalogItemIface
-  extends InstanceType<ReturnType<typeof Cesium3dTilesMixin>> {}
+interface Cesium3DTilesCatalogItemIface extends InstanceType<
+  ReturnType<typeof Cesium3dTilesMixin>
+> {}
 
 export class ObservableCesium3DTileset extends Cesium3DTileset {
   _catalogItem?: Cesium3DTilesCatalogItemIface;
@@ -67,6 +77,23 @@ export class ObservableCesium3DTileset extends Cesium3DTileset {
   }
 }
 
+class Cesium3dTilesLoadableStratum extends LoadableStratum(
+  Cesium3DTilesTraits
+) {
+  static stratumName = "cesium3dTilesLoadableStratum";
+
+  duplicateLoadableStratum(newModel: BaseModel): this {
+    return new Cesium3dTilesLoadableStratum(newModel) as this;
+  }
+
+  get supportsReordering() {
+    // Enable reordering in workbench if draping is enabled
+    return this.drapeImagery;
+  }
+}
+
+StratumOrder.addLoadStratum(Cesium3dTilesLoadableStratum.stratumName);
+
 type BaseType = Model<Cesium3dTilesTraits>;
 
 function Cesium3dTilesMixin<T extends AbstractConstructor<BaseType>>(Base: T) {
@@ -78,6 +105,11 @@ function Cesium3dTilesMixin<T extends AbstractConstructor<BaseType>>(Base: T) {
     constructor(...args: any[]) {
       super(...args);
       makeObservable(this);
+
+      this.strata.set(
+        Cesium3dTilesLoadableStratum.stratumName,
+        new Cesium3dTilesLoadableStratum(this)
+      );
     }
 
     get hasCesium3dTilesMixin() {
@@ -162,7 +194,16 @@ function Cesium3dTilesMixin<T extends AbstractConstructor<BaseType>>(Base: T) {
           anyTileset._catalogItem = this;
           anyTileset.destroyed = tileset.isDestroyed();
           const superDestroy = anyTileset.destroy;
+          const terria = this.terria;
           anyTileset.destroy = function () {
+            // Draped imagery layers are shared with the globe, so detach them
+            // rather than letting the tileset destroy them
+            if (
+              terria.configParameters.nextExperimentalFeatures
+                ?.imageryLayerGuard
+            ) {
+              this.imageryLayers?.removeAll(false);
+            }
             superDestroy.call(this);
             // TODO: we are running later to prevent this
             // modification from happening in some computed up the call chain.
@@ -203,7 +244,7 @@ function Cesium3dTilesMixin<T extends AbstractConstructor<BaseType>>(Base: T) {
       let scale = Matrix4.getScale(modelMatrix, new Cartesian3());
       const position = Matrix4.getTranslation(modelMatrix, new Cartesian3());
       let orientation = Quaternion.fromRotationMatrix(
-        Matrix4.getMatrix3(modelMatrix, new Matrix3())
+        Matrix4.getRotation(modelMatrix, new Matrix3())
       );
 
       const { latitude, longitude, height } = this.origin;
@@ -285,9 +326,74 @@ function Cesium3dTilesMixin<T extends AbstractConstructor<BaseType>>(Base: T) {
       this.tileset.maximumScreenSpaceError =
         tilesetBaseSse * this.terria.baseMaximumScreenSpaceError;
 
+      // dynamicScreenSpaceError sub-params: each dataset's own (or Cesium's
+      // default) base value, scaled up to 2x at the low-spec end of the
+      // quality slider (value 3), unscaled at the high-quality end (value 1).
+      const qualityTierFraction = getQualityTierFraction(
+        this.terria.baseMaximumScreenSpaceError
+      );
+
+      const dynamicScreenSpaceErrorDensityBase =
+        this.options.dynamicScreenSpaceErrorDensity ?? 2.0e-4;
+      this.tileset.dynamicScreenSpaceErrorDensity =
+        dynamicScreenSpaceErrorDensityBase * (1 + qualityTierFraction);
+
+      const dynamicScreenSpaceErrorFactorBase =
+        this.options.dynamicScreenSpaceErrorFactor ?? 24.0;
+      this.tileset.dynamicScreenSpaceErrorFactor =
+        dynamicScreenSpaceErrorFactorBase * (1 + qualityTierFraction);
+
+      const dynamicScreenSpaceErrorHeightFalloffBase =
+        this.options.dynamicScreenSpaceErrorHeightFalloff ?? 0.25;
+      this.tileset.dynamicScreenSpaceErrorHeightFalloff =
+        dynamicScreenSpaceErrorHeightFalloffBase * (1 + qualityTierFraction);
+
+      const isTilesetLowSpecQualityTier = isLowSpecQualityTier(
+        this.terria.baseMaximumScreenSpaceError
+      );
+
+      // pointCloudShading: attenuation is a boolean, so it flips only at
+      // the low-spec tier (like the settings in B.6); geometricErrorScale
+      // is continuous and scales smoothly, same pattern as
+      // dynamicScreenSpaceError above.
+      const pointCloudShadingAttenuationBase =
+        this.options.pointCloudShading?.attenuation ?? false;
+      this.tileset.pointCloudShading.attenuation = isTilesetLowSpecQualityTier
+        ? false
+        : pointCloudShadingAttenuationBase;
+
+      const pointCloudShadingGeometricErrorScaleBase =
+        this.options.pointCloudShading?.geometricErrorScale ?? 1.0;
+      this.tileset.pointCloudShading.geometricErrorScale =
+        pointCloudShadingGeometricErrorScaleBase * (1 + qualityTierFraction);
+
+      // cacheBytes/maximumCacheOverflowBytes: a hard ceiling at the
+      // low-spec end of the quality slider only - unlike the settings
+      // above, this is a crash-prevention safety valve, not a fidelity
+      // dial, so a dataset's own authored value must not be able to slip
+      // through uncapped once the low-spec tier is reached (a smooth
+      // multiplier wouldn't protect against a dangerously high authored
+      // value at a mid-range slider position).
+      const cacheBytesLowSpecCeiling = 128 * 1024 * 1024;
+      const maximumCacheOverflowBytesLowSpecCeiling = 64 * 1024 * 1024;
+
+      const cacheBytesBase = this.options.cacheBytes ?? 512 * 1024 * 1024;
+      this.tileset.cacheBytes = isTilesetLowSpecQualityTier
+        ? Math.min(cacheBytesBase, cacheBytesLowSpecCeiling)
+        : cacheBytesBase;
+
+      const maximumCacheOverflowBytesBase =
+        this.options.maximumCacheOverflowBytes ?? 512 * 1024 * 1024;
+      this.tileset.maximumCacheOverflowBytes = isTilesetLowSpecQualityTier
+        ? Math.min(
+            maximumCacheOverflowBytesBase,
+            maximumCacheOverflowBytesLowSpecCeiling
+          )
+        : maximumCacheOverflowBytesBase;
+
       this.tileset.modelMatrix = this.modelMatrix;
 
-      this.tileset.clippingPlanes = toJS(this.clippingPlaneCollection)!;
+      this.tileset.clippingPlanes = this.clippingPlaneCollection!;
       this.clippingMapItems.forEach((mapItem) => {
         mapItem.show = this.show;
       });
@@ -298,7 +404,7 @@ function Cesium3dTilesMixin<T extends AbstractConstructor<BaseType>>(Base: T) {
     @override
     get shortReport(): string | undefined {
       if (this.terria.currentViewer.type === "Leaflet") {
-        return i18next.t("models.commonModelErrors.3dTypeIn2dMode", this);
+        return i18next.t(($) => $.models.commonModelErrors["3dTypeIn2dMode"]);
       }
       return super.shortReport;
     }
@@ -515,14 +621,24 @@ function Cesium3dTilesMixin<T extends AbstractConstructor<BaseType>>(Base: T) {
         }
       });
     }
+
+    @override
+    get selectableDimensions(): SelectableDimension[] {
+      return [
+        ...super.selectableDimensions,
+        ...super.shadowDimensions,
+        ...super.clippingDimensions
+      ];
+    }
   }
 
   return Cesium3dTilesMixin;
 }
 
 namespace Cesium3dTilesMixin {
-  export interface Instance
-    extends InstanceType<ReturnType<typeof Cesium3dTilesMixin>> {}
+  export interface Instance extends InstanceType<
+    ReturnType<typeof Cesium3dTilesMixin>
+  > {}
   export function isMixedInto(model: any): model is Instance {
     return model && model.hasCesium3dTilesMixin;
   }

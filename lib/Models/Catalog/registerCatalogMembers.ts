@@ -1,3 +1,4 @@
+import DefaultTimelineModel from "../DefaultTimelineModel";
 import YDYRCatalogFunction from "./CatalogFunctions/YDYRCatalogFunction";
 import YDYRCatalogFunctionJob from "./CatalogFunctions/YDYRCatalogFunctionJob";
 import CatalogGroup from "./CatalogGroup";
@@ -10,6 +11,7 @@ import CartoMapV1CatalogItem from "./CatalogItems/CartoMapV1CatalogItem";
 import CartoMapV3CatalogItem from "./CatalogItems/CartoMapV3CatalogItem";
 import Cesium3DTilesCatalogItem from "./CatalogItems/Cesium3DTilesCatalogItem";
 import CesiumTerrainCatalogItem from "./CatalogItems/CesiumTerrainCatalogItem";
+import CogCatalogItem from "./CatalogItems/CogCatalogItem";
 import CompositeCatalogItem from "./CatalogItems/CompositeCatalogItem";
 import CsvCatalogItem from "./CatalogItems/CsvCatalogItem";
 import CzmlCatalogItem from "./CatalogItems/CzmlCatalogItem";
@@ -28,10 +30,11 @@ import SenapsLocationsCatalogItem from "./CatalogItems/SenapsLocationsCatalogIte
 import ShapefileCatalogItem from "./CatalogItems/ShapefileCatalogItem";
 import SocrataMapViewCatalogItem from "./CatalogItems/SocrataMapViewCatalogItem";
 import StubCatalogItem from "./CatalogItems/StubCatalogItem";
+import TileMapServiceCatalogItem from "./CatalogItems/TileMapServiceCatalogItem";
 import UrlTemplateImageryCatalogItem from "./CatalogItems/UrlTemplateImageryCatalogItem";
 import CatalogMemberFactory from "./CatalogMemberFactory";
 import CatalogIndexReference from "./CatalogReferences/CatalogIndexReference";
-import MagdaReference from "./CatalogReferences/MagdaReference";
+import CkanPrivateCatalogReference from "./CatalogReferences/CkanPrivateCatalogReference";
 import SplitItemReference from "./CatalogReferences/SplitItemReference";
 import TerriaReference from "./CatalogReferences/TerriaReference";
 import UrlReference, {
@@ -64,11 +67,18 @@ import WebProcessingServiceCatalogFunctionJob from "./Ows/WebProcessingServiceCa
 import WebProcessingServiceCatalogGroup from "./Ows/WebProcessingServiceCatalogGroup";
 import SdmxJsonCatalogGroup from "./SdmxJson/SdmxJsonCatalogGroup";
 import SdmxJsonCatalogItem from "./SdmxJson/SdmxJsonCatalogItem";
-import CogCatalogItem from "./CatalogItems/CogCatalogItem";
+import CogTimeSeriesCatalogItem from "./CatalogItems/CogTimeSeriesCatalogItem";
+import StacCollectionCatalogItem from "./Stac/StacCollectionCatalogItem";
+import StacCatalogGroup from "./Stac/StacCatalogGroup";
+import StacItemCatalogItem from "./Stac/StacItemCatalogItem";
 
 export default function registerCatalogMembers() {
   CatalogMemberFactory.register(CatalogGroup.type, CatalogGroup);
   CatalogMemberFactory.register(StubCatalogItem.type, StubCatalogItem);
+  CatalogMemberFactory.register(
+    DefaultTimelineModel.type,
+    DefaultTimelineModel
+  );
   CatalogMemberFactory.register(
     WebMapServiceCatalogItem.type,
     WebMapServiceCatalogItem
@@ -156,8 +166,11 @@ export default function registerCatalogMembers() {
     OpenStreetMapCatalogItem.type,
     OpenStreetMapCatalogItem
   );
-  CatalogMemberFactory.register(MagdaReference.type, MagdaReference);
   CatalogMemberFactory.register(TerriaReference.type, TerriaReference);
+  CatalogMemberFactory.register(
+    CkanPrivateCatalogReference.type,
+    CkanPrivateCatalogReference
+  );
   CatalogMemberFactory.register(KmlCatalogItem.type, KmlCatalogItem);
   CatalogMemberFactory.register(
     MapboxVectorTileCatalogItem.type,
@@ -241,8 +254,22 @@ export default function registerCatalogMembers() {
     UrlTemplateImageryCatalogItem.type,
     UrlTemplateImageryCatalogItem
   );
+  CatalogMemberFactory.register(
+    TileMapServiceCatalogItem.type,
+    TileMapServiceCatalogItem
+  );
   CatalogMemberFactory.register(AssImpCatalogItem.type, AssImpCatalogItem);
   CatalogMemberFactory.register(CogCatalogItem.type, CogCatalogItem);
+  CatalogMemberFactory.register(
+    CogTimeSeriesCatalogItem.type,
+    CogTimeSeriesCatalogItem
+  );
+  CatalogMemberFactory.register(
+    StacCollectionCatalogItem.type,
+    StacCollectionCatalogItem
+  );
+  CatalogMemberFactory.register(StacCatalogGroup.type, StacCatalogGroup);
+  CatalogMemberFactory.register(StacItemCatalogItem.type, StacItemCatalogItem);
 
   UrlToCatalogMemberMapping.register(
     matchesExtension("csv"),
@@ -294,6 +321,25 @@ export default function registerCatalogMembers() {
     CogCatalogItem.type
   );
 
+  // STAC URL patterns
+  // STAC Item pattern: /collections/{collection}/items/{item}
+  UrlToCatalogMemberMapping.register(
+    matchesUrl(/\/collections\/[^/]+\/items\/[^/]+$/i),
+    StacItemCatalogItem.type,
+    true
+  );
+  // STAC Collection pattern: /collections/{collection}
+  UrlToCatalogMemberMapping.register(
+    matchesUrl(/\/collections\/[^/]+$/i),
+    StacCollectionCatalogItem.type,
+    true
+  );
+  UrlToCatalogMemberMapping.register(
+    matchesUrl(/stac.*\/$/i),
+    StacCatalogGroup.type,
+    true
+  );
+
   // These items work by trying to match a URL, then loading the data. If it fails, they move on.
   UrlToCatalogMemberMapping.register(
     matchesUrl(/\/wms|=wms/i),
@@ -309,6 +355,14 @@ export default function registerCatalogMembers() {
     matchesUrl(/\/wmts|=wmts/i),
     WebMapTileServiceCatalogGroup.type,
     true
+  );
+  // I3S SceneServer endpoints, eg
+  // .../arcgis/rest/services/<name>/SceneServer. Registered before the generic
+  // ArcGIS matchers below so that a SceneServer URL is not swallowed by the
+  // /arcgis/rest/ ArcGisCatalogGroup matcher.
+  UrlToCatalogMemberMapping.register(
+    matchesUrl(/\/SceneServer\b/i),
+    I3SCatalogItem.type
   );
   UrlToCatalogMemberMapping.register(
     matchesUrl(/\/arcgis\/rest\/.*\/MapServer\/\d+\b/i),

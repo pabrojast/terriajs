@@ -1,8 +1,290 @@
 # Change Log
 
-#### next release (8.9.3)
+#### Fork IHP-WINS (`pabrojast/terriajs`) - unreleased, not published to npm
 
+Changes carried by this fork on top of upstream TerriaJS. Later fork features (story editor, water quality, area analysis, CKAN session, Chart.js for CSV, series share links) are documented in `docs/obsidian-vault/`.
+
+- Add support for **STAC (SpatioTemporal Asset Catalog)** with two new catalog types:
+  - `stac-collection`: Load and visualize individual STAC Collections with COG assets as imagery layers. Supports the STAC render extension for styling, temporal and spatial filtering, and automatic metadata extraction.
+  - `stac-catalog`: Browse STAC Catalogs and APIs, listing all available collections as navigable children.
+- Fix STAC `sortBy` handling: automatically route to the `/search` endpoint when sorting is configured (the STAC Sort Extension is not supported on `/items` by many servers), and use the correct STAC Sort Extension array format in POST requests instead of a plain string.
+- Changing the color scale in the COG styling panel now overrides dataset-provided custom color ramps so the selection always affects the rendered imagery (use the Reset button to restore the original legend if needed).
+- Fix COG transparency filters and "No data" additional color by post-processing TIFF tiles so the configured display range and fill color are applied to the rendered imagery.
+- Edit legend entries for COG layers directly from the Edit Style panel (generate from current colors, tweak per-item colors/labels/values, add/remove rows, and toggle back to the automatic legend at any time).
+- Legend sync now carries numeric breakpoints forward, so continuous ramps show real values instead of percentages when you regenerate or auto-sync.
+- Add UI controls to define, reorder and clear custom color stops for COG items so their legends can be edited like other formats.
+- Custom color stops automatically refresh the legend entries so there's a label for every colour step (and you can still rename them manually).
+- Improve continuous legend color interpolation for COG items by using d3-scale-chromatic interpolation functions where available (greys, greens, ylgnbu, ylorrd, rdbu, cool, warm) and Lab color space interpolation for other scales, resulting in perceptually uniform and more visually accurate color gradients that better match the rendered imagery.
+- **Continuous COG legends now display as horizontal SVG gradients** instead of stacked colored blocks, providing a true continuous color scale visualization similar to professional GIS applications. The gradient is generated dynamically with 50 interpolated color stops and displays min/max values. Discrete legends remain unchanged with categorical ranges.
+- Add `featureInfoRequest` support for WMTS items to configure custom (e.g. POST) feature info requests, including templated coordinates and access to layer identifiers for services without native GetFeatureInfo.
+
+#### next release (8.x.x)
+
+- **Breaking changes:**
+  - Removed option `uiMode` from `MapInteractionMode`. This was mostly only used internally for difftool.
+  - A group on the workbench now contributes its nested-group members and its reference members, not just its direct mappable members. `Terria.pushAndLoadMapItems` previously started member loads without awaiting them, so anything pushed after an `await` — members of nested groups, and the targets of `ReferenceMixin` members — was pushed only after the workbench had already been assigned and was silently dropped; direct members were pushed in time but their `loadMapItems()` was never waited on. Applying init data now blocks until a workbench group's members have loaded.
+
+- Migrate to pnpm
+- Added the experimental `nextExperimentalFeatures.progressiveLoading` config parameter (default `false`) for showing the map before everything has loaded, and the `Terria#progressiveLoading`, `Terria#isProgressivelyLoading` and `Terria#preloadedWorldTerrain` getters. When it's on:
+  - `Terria#start` loads the language files and the server config in parallel instead of one after the other.
+  - `Terria#start` starts loading Cesium world terrain as soon as the config asks for it, and the globe is held back until the initial terrain is ready. Previously it drew on flat terrain and swapped terrain in, which discarded every tile and made the globe vanish for a moment.
+  - An init source's `initialCamera` applied while restoring app state is jumped to instead of flown to, so a map that's already on screen doesn't animate from the home view (and a story starting straight away no longer cancels that flight).
+  - The bare globe is a muted ocean colour instead of solid blue while the base map loads.
+  - The data catalogue, and the workbench in place of its "Add a dataset here" tips, show a loading indicator while they're still empty because app state is being restored or init sources are loading, instead of briefly showing empty states.
+- Fixed the `<feedbacklink>` custom component rendering a literal `{{email}}` in error messages. An `email-message` override now has its `{{email}}` placeholder replaced with the support email address, instead of always having the address appended.
+- Added `storyAutoStart` config parameter (default `false`). Set it to `true` to start playing a story as soon as a map containing one loads, instead of asking the user whether they want to view it. A share link that contains a story records the value in effect when it was created (as `settings.storyAutoStart`), so it keeps opening the same way if the map's configuration changes later. Because an auto-starting story sets the camera from its first scene, the current view is left out of share links that contain a story.
+- The `playStory` hash parameter now overrides `storyAutoStart` and shares its code path. It previously relied on a MobX reaction that never fired if the parameter was already set before `ViewState` was constructed, so `#playStory=1` did nothing in applications that create their `ViewState` after `Terria#start`.
+- Fixed share links dropping the `=` from the hash parameters they carry over from the current URL (e.g. creating a share while `#playStory=1` was set produced `#playStory%3D1&share=…`). The map read the mangled parameter as the name of an init file and failed to load it.
+- Share links (and other init sources) are now resilient to a single broken part: applying init data no longer aborts when one model has invalid traits, a model has a `dereferenced` block but cannot be dereferenced, or `initialCamera`/`homeCamera` are invalid. Every part of the init data that can be applied is applied - including individual workbench items, so the layers that load are added to the workbench even if others fail - and the failures are still reported to the user as a combined error. [#5168](https://github.com/TerriaJS/terriajs/issues/5168)
+- Non-blocking load errors are now shown on the workbench item instead of as a modal. A workbench item with errors shows a warning icon (with a count when there is more than one), which opens a dropdown with the error details. This applies to items loaded from share links and story scenes, items added from the catalog, and imagery layers that are disabled after too many tile errors (the error is cleared when the layer is shown again). Items that can't be loaded at all - for example because their type is no longer registered - are now added to the workbench with their errors instead of being dropped. Base maps, and errors that can't be attached to a workbench item, are still raised as before.
+- Fixed a share link with `storyAutoStart` still raising a modal (e.g. "A network request error occurred") for a broken workbench item. The chart panel reloads workbench items and raised their errors once loaded; a story scene that replaced the workbench meanwhile had cleared the errors shown on the item, so the chart panel no longer raises errors for items that have left the workbench.
+- Errors from activating a story scene that can't be shown on a workbench item (e.g. an invalid camera) are now shown as a non-blocking toast with a link to the full error, instead of as a modal. Added `Terria.raiseErrorToUserAsToast` and `TerriaError.toToastNotification`.
+- Load errors when previewing a dataset in the catalog are now only shown in the preview panel, instead of also being raised as a modal. Stacked warnings in the preview panel are now spaced apart, and a warning's title is no longer a larger heading than its message.
+- Imagery layers in the workbench are no longer switched off when their tiles keep failing with a 4xx status (e.g. S3 returning 403 for missing keys). The first error is shown on the workbench item and the layer stays visible. Base maps, items outside the workbench, 5xx errors and errors without a status code still disable the layer. Set `nextExperimentalFeatures.keepLayersOnMissingTiles` to `false` to restore the previous behaviour.
+- Added `Workbench.getItemErrors`, `Workbench.setItemErrors` and `Workbench.showsItemErrors`, and a `showErrorsOnItem` option for `Workbench.add`, to attach errors to workbench items.
+- Fixed a click on a workbench item (e.g. its visibility toggle) with a little mouse movement being treated as a drag, which could move the item to a different position. Sorting now only starts once the mouse has moved at least 5px.
+- Fixed the timeline crashing (`Start time must come before end time`, followed by `this.disposeZoomAutorun is not a function` on removal) when a time-enabled layer has a single instant, e.g. a WMTS `<Value>2019-04-18/2019-04-18/P1429D</Value>`. Such a layer no longer drives the timeline or the clock, and the workbench hides its "use timeline" button.
+- `WebMapTileServiceCatalogItem` now supports a time dimension. A time `<Dimension>` in GetCapabilities is turned into discrete times, so the layer appears on the timeline and can be animated, and the selected time is sent with each tile request - as a `{Time}` template value for RESTful requests, or as a `Time` query parameter for KVP. Where a layer advertises several RESTful tile templates, the one carrying a `{Time}` placeholder is preferred; previously a template without one could be chosen, so every frame served whichever time the server defaulted to. [#7742](https://github.com/TerriaJS/terriajs/issues/7742)
+- A concrete `<Default>` in a WMTS time `<Dimension>` is used as the initially selected time. The `current` and `default` keywords, and a missing `<Default>`, fall back to `initialTimeSource` as they do for WMS.
+- Added `timeValues` and `maxRefreshIntervals` traits to `wmts` catalog items. `timeValues` accepts ISO 8601 timestamps and intervals (e.g. `2024-01-01/2024-12-31/P1D`) and overrides the times advertised by GetCapabilities, for servers that serve a time dimension without advertising one - GeoServer's GeoWebCache strips `<Dimension>` from its capabilities document. `maxRefreshIntervals` (default `10000`) caps how many discrete times a single interval expands into.
+- A malformed `currentTime`, `startTime` or `stopTime` no longer throws while map items are evaluated - `DiscretelyTimeVaryingMixin` now treats it as no date, as it already did for invalid discrete times.
+- **Breaking:** Removed `WebMapTileServiceCatalogItem.imageryProvider`. Read the provider from `mapItems` (filter with `ImageryParts.is`) as for other imagery catalog items.
+- Added `GetFeatureInfo` support to `WebMapTileServiceCatalogItem`. Feature picking uses the `FeatureInfo` ResourceURL template advertised by GetCapabilities (RESTful) or the endpoint the service advertises for `GetFeatureInfo` in `OperationsMetadata` (KVP), with the response formats taken from the layer's `<InfoFormat>` list, and the selected time is included in the request. A new `getFeatureInfoUrl` trait overrides the endpoint. Picking is disabled on layers that advertise no feature info at all (e.g. NASA GIBS), which previously sent `GetFeatureInfo` requests to the tile endpoint.
+- Picked raster features whose position comes back with latitude and longitude transposed (e.g. Copernicus Marine) are now placed correctly, by choosing whichever reading is nearer the clicked location.
+- A `GetFeatureInfo` response in GeoJSON is now reprojected only when it says it is projected. GeoServer answers in the CRS that was requested and names it in the response's `crs` member; a response that names no CRS is read as the longitude/latitude that GeoJSON requires, rather than being reprojected because the layer's tiling scheme happens to be projected. This affects WMS as well as WMTS.
+- Fixed WMTS layers losing data (Asia was missing from NASA GIBS geographic layers) when a `<TileMatrixSet>` does not divide the world the way Cesium's tiling schemes do. GIBS' geographic sets run 2, 3, 5, 10, 20, 40 columns, so requests went past the columns the server has and failed with `TileOutOfRange`. The tiling scheme is now rooted at the first matrix from which the grid tiles the globe evenly, and a matrix set that never does, or whose coarsest usable matrix would need thousands of tiles to show the globe, is not used.
+- A WMTS layer offering several tile matrix sets now prefers a Web Mercator one, so it still works in the 2D map when the server lists a geographic set first. A layer whose only tile matrix set is geographic now explains in the workbench that it cannot be shown in 2D, as WMS already did, instead of appearing blank — unlike WMS, a WMTS server cannot reproject on request.
+- Added `panel` option to `MapInteractionMode`, allowing the map interaction UI to be replaced with a custom component registered via `registerMapInteractionModePanel()`.
+- The map quality slider now also scales several Cesium rendering settings for performance, instead of just `maximumScreenSpaceError`: globe `tileCacheSize`, `preloadAncestors`, `resolutionScale`, atmospheric `fog.density`, and `shadowMap.enabled` (shadows are switched off entirely at the slider's low-spec end). For 3D Tiles datasets, it also scales each tileset's `dynamicScreenSpaceErrorDensity`/`dynamicScreenSpaceErrorFactor`/`dynamicScreenSpaceErrorHeightFalloff` and `pointCloudShading.attenuation`/`geometricErrorScale`, and caps `cacheBytes`/`maximumCacheOverflowBytes` at the low-spec end to guard against memory blowouts. A toast now warns when the slider has turned shadows off for a workbench item that wants them, and automatically dismisses itself once quality is raised again, a per-item shadow override takes over, or that item is removed from the workbench.
+- Fixed Cesium crashing (`Cannot read properties of undefined (reading 'red')`) after a 3D tileset with `drapeImagery` was removed while imagery layers draped on it stayed on the map. Destroying the tileset also destroyed those imagery layers, which are shared with the globe. When the `nextExperimentalFeatures.imageryLayerGuard` config parameter is `true`, tilesets now detach their draped layers before being destroyed, and a memoised imagery layer that has been destroyed is recreated.
+- Fixed the map quality slider snapping back on every story scene change. Scenes captured the author's `baseMaximumScreenSpaceError` and `useNativeResolution` and re-applied them when viewed; these are now treated as viewer device preferences and skipped when a scene is activated. Other scene `settings` still apply.
+- Add `pickEvent` and `mouseMoveEvent` to `MapInteractionMode`, raised for both 2D and 3D maps while the mode is active. Add an opt-in `enableScenePicking` option which, in 3D mode, also resolves a position on the picked scene features (3D tiles, primitives, terrain) and exposes it as `scenePosition` on both events and on `PickedFeatures`. Cesium mouse move handling is now throttled to 30/sec and `mouseMoveEvent` is throttled to one event per animation frame.
+- The distance legend (scale bar) no longer recalculates on every rendered frame in the 3D view. It skips frames where the camera and canvas size are unchanged and otherwise updates at most every 200ms, so panning and zooming no longer run two globe picks, a MobX action and a React re-render per frame.
+- Fix label background color for leaflet map. Previously label background color was being ignored.
+- Upgrade Cesium to 1.145
+- Fixed story scenes and share links failing a model with `Could not create unknown model type .` when one of its `knownContainerUniqueIds` was not saved in the init data and can't be found in the catalog (e.g. a transient search results group). Such containers are now skipped instead of being created as a stub, which also broke later scenes that did save the container.
+- Fixed a time-varying layer staying on the timeline after it was removed from the workbench while the catalogue was still adding it. The catalogue now only adds an item to the timeline if it is still on the workbench once it has loaded, and no longer adds an item that failed to be added to the workbench.
+- The "Shadows disabled" toast now closes when its "Display settings" link is clicked to open the settings panel. Other `<settingspanel>` links are unchanged.
+- Workbench items from an init source or share link now load concurrently instead of one at a time, so applying init data takes about as long as the slowest item rather than the sum of every item.
+- Fixed the timeline needle sometimes disappearing after a story scene (or any change of the top time-series layer) switched to a layer with a different time range. The timeline zoomed to the new layer's range before the clock had been moved to it, so it was clamped to the previous layer's range and the needle was drawn off-screen. Added `TimelineStack#clockRange`, the range last applied to the clock, which the timeline now follows.
+- Fixed CZML layers taking over the timeline clock in 3D. The Cesium widget copied each newly added data source's clock over the one `TimelineStack` had set, and the next clock tick then saved those values on the top layer. Switching story scenes while the timeline was playing could give a layer another layer's time range: its timeline disappeared (start after stop), or it showed nothing and couldn't be zoomed to. Terria now creates the widget with `automaticallyTrackDataSourceClocks: false`; each CZML item already applies its own clock through the timeline.
 - [The next improvement]
+
+#### 8.13.0 - 2026-09-11
+
+- `UrlTemplateImageryCatalogItem` now uses `TileErrorHandlerMixin`, so tile load failures are handled gracefully (out-of-extent tiles are ignored, 403/404 handling follows `tileErrorHandlingOptions`, retries use backoff) instead of Cesium logging an uncaught "Failed to obtain image tile" error for every missing tile.
+- Fixed React "unknown prop" console warnings introduced by the styled-components 6 upgrade.
+- Fixed the share panel showing a false "link created"/"saved" success message when generating a short share link actually failed.
+- The share panel now surfaces the real HTTP status of a failed share-link request (a data-too-large message for 413, otherwise a generic message that includes the status code) instead of string-matching `"413"` in the error text.
+- A failed share link now also raises an error notification, not just an inline message.
+- **Breaking:** `updateApplicationOnMessageFromParentWindow` now validates the `window.postMessage` sender's `event.origin` against an allowlist instead of trusting `window.parent`/`window.opener`. The application's own origin is always allowed; cross-origin pages that embed or open the app must be listed in the new `parentMessageAllowedOrigins` config parameter (empty by default) to send start data. The `event.data.allowOrigin` mechanism has been removed, and the `"ready"` message is now posted only to allowed origins rather than `"*"`. This prevents any page that frames or opens TerriaJS from injecting start data.
+
+- Harden the custom markdown/HTML sanitizer: replaced the blanket `ALLOW_UNKNOWN_PROTOCOLS` DOMPurify option (which preserved OS/app-handler schemes such as `vscode:`, `ms-its:` and `slack:` on links and images) with a scoped `uponSanitizeAttribute` hook. The hook keeps custom components' free-text attributes verbatim (so values may contain `:`, e.g. a chart's `column-titles`) while scheme-validating their URL attributes per URL, closing a gap where a dangerous scheme could hide in a comma-separated `sources`/`downloads` list.
+- Upgrade terriajs-server to 5.0.0-alpha.4
+- Document security best practices for production deployment of terriajs
+- Fix an error when picking features on a Mapbox vector tile layer: `@mapbox/vector-tile` now builds feature props with a null prototype, which broke Cesium's `ImageryLayerFeatureInfo` methods that call `hasOwnProperty` directly. Props are now copied into a plain object before use.
+- Move catalog index from terria.ts class to catalog instance
+- Fix data preview title not wrapping long unbroken names (e.g. URLs), which caused a horizontal scrollbar in the preview panel and embedded iframes.
+- Improved ideal zoom behaviour when zooming to a mappable items rectangle.
+- Show spinner when loading tab group members
+- Changed `disablePreview` to also hide `Add to map` in preview modal.
+- Changed `About data` button to `About job` in workbench for CatalogFunctionJob instances.
+- Add `edit` stratum for tracking temporary user changes that shouldn't be captured in share link - example form edits.
+- Fix viewCatalogMember to correctly switch to the parent tab
+- Integrate terriajs-server into monorepo
+
+#### 8.12.5 - 2026-07-28
+
+- Automatically detect I3S layers by URL when adding web data, so ArcGIS `SceneServer` URLs resolve to an `I3SCatalogItem`.
+- Upgraded `terriajs-cesium` to `26.0.0` and `terriajs-cesium-widgets` to `16.0.0`. We are now using cesium 1.142.
+- Upgraded terriajs-server to v5.0.0-alpha.3
+- Upgraded to i18next v26 and migrated to i18next select pattern `(t($ => translation.key))` #7882
+- Upgraded `papaparse` to `5.5.4` (and `@types/papaparse` to `5.5.2`).
+- Guard CSV exports against spreadsheet formula injection (CWE-1236): the feature-info "Download" CSV, table data export, and `CsvCatalogItem`'s inline `csvString` export now prefix cells a spreadsheet would treat as a formula (`= + - @`, tab, CR) with a `'`, while leaving legitimate numbers (e.g. `-5`) untouched. `TableMixin` table exports now also structurally escape values via `papaparse` (previously they were joined with `,` unescaped). Downloads of a remote `url` are unchanged (the original file is served directly).
+
+#### 8.12.4 - 2026-06-19
+
+- Fix story editor rich-text toolbar dropdowns (paragraph style, alignment, table, text colour) and dialogs (image/media/link) being rendered invisibly behind the editor modal due to z-index stacking context. Add `underline` and `subscript` buttons to the toolbar.
+- Refactor feedback sending into a `FeedbackService` class instantiated on `Terria` when `feedbackUrl` is configured. The `sendFeedback` standalone function has been removed; consumers should use `terria.feedbackService?.sendFeedback(...)` instead.
+
+#### 8.12.3 - 2026-06-17
+
+- Add config parameters to optionally disable parts of the UI for locked-down deployments: `disableMobileInterface`, `disableSharePanel`, `disableShareEmbed`, `disableUserAddedData` and `cesiumIonDisableDefaultToken` (all default `false`).
+- Add `shareRequestHeaders`/`feedbackRequestHeaders` callbacks and `shareClientBaseUrl` config parameters to customise share-link and feedback requests, and show a dedicated "link not found" message on a `404` from the share service.
+- Add `zoomMapOnPreviewedItem` config parameter to zoom the catalogue preview map to the previewed item.
+- Add `postHogAnalyticsKey`/`postHogAnalyticsHost` config parameters.
+- TSify `MenuBar` and `Groups`, and add an elements config for `MenuBar`. Panels and buttons now support `withControlledVisibility`/`showCloseButton`.
+- Move catalogue-item `zoomTo` (incl. `idealZoom`) handling into `GlobeOrMap.zoomTo`.
+- `Terria.start()` now accepts an optional `loadConfig` callback (`() => Promise<{ config, baseUri, configUrl? }>`) as an alternative to `configUrl`/`configUrlHeaders`, enabling Terria to load its config in a non-browser environment (e.g. server-side rendering). The existing `configUrl`/`configUrlHeaders` options continue to work unchanged; the exported `defaultLoadConfig(configUrl, configUrlHeaders?)` helper reproduces the default behaviour (including Magda config support).
+- Add support for nested `strata` in model JSON: `updateModelFromJson` now recurses into a `strata` object, and `combineModelStrata` is exported from `createCombinedModel`.
+- Improve non-browser (Node) compatibility: guard `window`/`localStorage` access, fall back to the raw key in `TerriaError` when i18next is not initialised, allow injecting a `CorsProxy` via `TerriaOptions`, and make SDMX structure loading use `fetchText`.
+- Refactor analytics into `lib/Core/analytics/` module, make `analytics` always defined using `NoopAnalytics` default, and remove auto-detection logic from `Terria`. Analytics instance must now be supplied via `TerriaOptions` or defaults to no-op. ([7817](https://github.com/TerriaJS/terriajs/pull/7817))
+- Upgrade dev dependencies
+  - Upgrade dompurify to version 3.3.3 to resolve security vulnerabilities.
+  - Replace unmaintained jsdom-global with maintained global-jsom.
+  - Upgrade babel packages to latest versions (7.28.0/7.29.0).
+  - Upgrade webpack to version 5.105.4.
+- Upgrade eslint to v10 and migrate to eslint flat config.
+- Update `csv-geo-au` support to include the Australian Mesh Blocks 2021.
+- We no longer start terriajs-server when running `yarn gulp dev` as it is not needed for running tests in the browser with jasmine-browser-runner. If you need terriajs-server, you can start it separately by running `yarn gulp terriajs-server` in another terminal.
+- Search result IDs are checked against workbench IDs to determine `add` or `remove` status.
+- Search providers refactor:
+  - Debounce logic is now handled on the search model level rather than in the UI component.
+  - Fixed a bug where new search was trigger on every keystroke without respecting the debounce delay.
+  - Added `autocompleteEnabled` trait to `LocationSearchProviderTraits`, replacing the previous `supportsAutocomplete()` method. When any provider has `autocompleteEnabled: false` (e.g. Nominatim), that provider displays a "Press Enter to start searching" message and only searches on manual submission. This changes behavior introduced in 8.11.0 where autocomplete was disabled globally when Nominatim was used, which was not ideal for other providers that support autocomplete.
+  - Fixed a crash when searching for strings containing regex special characters (e.g. `mel\`) by escaping the search string before using it in the keyword highlight regex.
+  - Nominatim default URL updated to `https://`.
+- Move catalog-search-provider instance from SearchBarModel to Catalog class. Setting catalog search provider from ViewState is now deprecated.
+- Fix to improve marker rotation rendering in pedestrian mode minimap [7860](https://github.com/TerriaJS/terriajs/pull/7860)
+- Simplify initialization of user added data group and make it a separate from the main catalog group.
+- Deprecate MagdaReference model from terria core, as we are not aware of any implementations using it. If you need this model please reach out to the Terria team to discuss your use case and alternatives.
+- Drop support for loading magda config by default - If you need support for loading magda config, you can provide your own implementation of loadConfig function and load magda config in it.
+
+#### 8.12.2 - 2026-03-27
+
+- Update attributions to make publish workflow pass.
+
+#### 8.12.1 - 2026-03-27
+
+- Fix `npm-publish.yml` workflow.
+
+#### 8.12.0 - 2026-03-27
+
+- Update prettier to v3.
+  - When merging the changes make sure to use pre-prettier-v3 and post-prettier-v3 tags to make merging easier. You can follow the guide for prettier v2 update https://github.com/TerriaJS/terriajs/discussions/6517.
+- Test environment modernization:
+  - Refactor tests to use @testing-library/react instead of react-test-renderer and react-shallow-testutils, and remove deprecated libraries.(#7755, #7763)
+  - Replace jasmine-ajax and fetch-mock with `msw` for mocking API requests in tests. (#7766, #7767, #7795, #7796, #7797, #7801)
+  - Replace karma test runner with jasmine-browser-runner and upgrade jasmine to v6. (#7807)
+  - Test runner is now exposed at port so to run tests in the browser, run `yarn gulp dev` and open `http://localhost:9876` in the browser.
+  - If you have custom tests this might require significant changes to your tests, so please reach out if you need help with this.
+
+- Capture default timeline state in share links including current time,
+  playback etc.
+- Added support for draping imagery on 3D tilesets. This can be enabled per-tileset by setting the [drapeImagery](https://github.com/TerriaJS/terriajs/blob/23a2bb2b9c1058e1c7141b5e678de51af58da82b/lib/Traits/TraitsClasses/Cesium3dTilesTraits.ts#L195-L201) trait to `true`. Then from the workbench, drag the imagery layers that need to be draped, above the tileset item.
+- Underline text buttons
+- Replace node-fetch with node native fetch.
+- TSify most of `lib/Core`. [#7417](https://github.com/TerriaJS/terriajs/pull/7417/)
+- Update gulpfile.js to gulp V4 syntax, which provides task descriptions in `yarn gulp --tasks`.
+- Fix splitter failing for local file catalog items by storing file data as blob URLs in the `url` trait instead of private instance fields, ensuring `duplicateModel()` preserves the data. [#7762](https://github.com/TerriaJS/terriajs/pull/7762)
+- Replace react-uid with react useId hook for generating unique ids.
+- Remove ts-essentials dependency and replace with custom type utility.
+- Remove fs-extra dependency and replace with native fs.
+- Convert test `done` callbacks to async/await for modern test patterns.
+- Update Checkbox component icon and remove unused indeterminate prop.
+- Story Panel and Share Panel UX improvements:
+  - Update Share Panel layout
+  - Remove light theme variant of Clipboard
+  - Simplify Clipboard component and add success message.
+  - Add Story Builder instructions behind a config parameter.
+- Fix Scene capture popup z-index appearing underneath the workbench.
+- [Documentation] Replace obsolete Nexis dataset example with LGA 2025 data in model-dimensions.md
+- Upgraded `terriajs-cesium` to `23.0.2` and `terriajs-cesium-widgets` to `14.4.2`.
+
+#### 8.11.3 - 2026-02-02
+
+- Change to OIDC publishing to npm
+
+#### 8.11.2 - 2026-01-15
+
+- Add `token` to `ArcGisMapServerCatalogItem`, `ArcGisMapServerCatalogGroup`, `ArcGisFeatureServerCatalogItem`, `ArcGisFeatureServerCatalogGroup`, `ArcGisImageServerCatalogItem`, `I3SCatalogItem` and `ArcGisCatalogGroup` - if defined, it will be added to the `token` parameter for all ArcGIS Rest API requests.
+  - Added `tokenUrl` to `ArcGisImageServerCatalogItem`, and tweaked behaviour in `ArcGisMapServerCatalogItem` and `ArcGisImageServerCatalogItem` so that if both `token` and `tokenUrl` are defined, then `tokenUrl` will be used. This allows the token to be refreshed if needed.
+- WMTS read URL from operations metadata #7371
+- Add `workbenchControlFlags` trait to all catalog members for enabling or disabling workbench controls.
+- Add `<settingspanel>` custom component to open Map settings panel from template code (like short report, feature info etc).
+- Add UI to show toast messages.
+- Fix "Add data" button width for some languages #7726.
+- Make `<StoryPanel>` draggable
+
+#### 8.11.1 - 2025-12-04
+
+- ##### Security fixes
+  - Upgrades terriajs-server to v4.0.3. See [terriajs-server changes](https://github.com/TerriaJS/terriajs-server/blob/master/CHANGES.md#security-fixes).
+- Fix translations key typo "zoomCotrol".
+- Update docs for Client-side config: change `searchBar` parameter to `searchBarConfig`
+- Fix to show preview map when used outside the explorer panel.
+- Update `csv-geo-au` support to include the latest Australian Government regions.
+- Add `backgroundColor` trait to base maps for changing the map container background in 2D/Leaflet mode ([7718](https://github.com/TerriaJS/terriajs/pull/7718))
+- Keep camera steady when switching between viewer modes.
+- Fix sharing when using initfile.
+- Fix a bug where some georeferenced tiles where incorrectly positioned in Terria.
+
+#### 8.11.0 - 2025-10-09
+
+- **Breaking changes:**
+  - Replace unmaintained `svg-sprite-loader` with custom implementation of SvgSprite plugin based on `svg-sprite` package.
+    - New implementation consists of svg sprite loader that loads svgs and svg webpack plugin that compiles them into a single sprite file.
+
+- Fix app crash when switching back and forth between 3D and 2D mode with clipping box enabled.
+- Fix app crash when encountering unsupported WPS input types.
+- Warn the user when the story causes shareData size exceed the limit set on the server as `shareMaxRequestSize`. #7636
+- Adds new `TileMapServiceCatalogItem` for loading Tile Map Service (TMS) imagery tilesets.
+- Add coordinate position to MapboxSearchProvider results when using reverse geocoder functionality (configurable).
+- Removes webpack-dev-server from dependencies as it is no longer used.
+- Upgrade babel to the latest version 7.27/7.28
+- Fix analytics tracking for the MapboxSearchProvider.
+- Remove unmaintained @mapbox/geojson-merge dependency and replace it with a simple merge function.
+- Upgrade Typescript to `^5.9.2`. Also switched the `target` in `tsconfig.json` to `esnext`.
+- Upgrade `mobx` to version `^6.13.7`.
+- Upgraded `terriajs-cesium` to `21.0.0` and `terriajs-cesium-widgets` to `13.2.0`.
+- Fix zooming by mouse wheel in charts #7654
+- Added `attributions` trait to all location search providers, displayed in the map credits dialog under a new "Search provided by:" section.
+- Nominatim search provider now logs a console warning that it is not suitable for production use.
+- When Nominatim is configured, autocomplete is disabled across all search providers to comply with the [Nominatim usage policy](https://operations.osmfoundation.org/policies/nominatim/) — users must press Enter to trigger a search.
+
+#### 8.10.0 - 2025-07-08
+
+- **Breaking changes:**
+  - Update `protomaps-leafet` package to 5.0.1 which only support protomaps basempap tileset >v4.0
+    - See [protomaps leaflet CHANGELOG](https://github.com/protomaps/protomaps-leaflet/blob/main/CHANGELOG.md#500).
+  - Update react and react-dom to version 18
+  - Update mobx-react to version 9
+    - It no longer convert props automatically to observable in class components. See [MobX React v9 class components guide](https://github.com/mobxjs/mobx/blob/mobx-react%409.2.0/packages/mobx-react/README.md#class-components) for more details on how to migrate
+
+- Fix a bug where `.pmtiles` urls with a query string at the end was not being rendered as PMTILES.
+- Add internationalization support to tinymce editor used in story editor
+- Add `MapboxSearchProvider` for geocoding using Mapbox.
+- Upgrade yarn to 1.22.22
+- Fix `ApiTableCatalogItem` to add `queryParameters` and `updateQueryParameters` to the API requests. These were previously being ignored.
+- Apply clipping rectangle for `ArcGisFeatureServerCatalogItem` reducing the number of requests made to server in tiled mode.
+
+#### 8.9.5 - 2025-06-03
+
+- Upgrade terriajs-server to version 4.0.2
+
+#### 8.9.4 - 2025-06-03
+
+- Remove regenerator-runtime polyfill as generators are now widely supported. #7615
+- Remove direct usage of core-js polyfills. #7615
+- TSify `ChartPanel` and convert to a functional component #7581
+- Convert `Chart` component of `FeatureInfoPanelChart` to functional component. #7598
+- TSify `DataCatalogGroup` and convert to a functional component. #7575
+- TSify `BottomDockChart`, `ChartPanel`, `LineAndPointChart`, `LineChart`, `MomentLinesChart`, `MomentPointsChart`, `Chart Tooltip` to typescript and convert to functional components. #7617
+- Upgrade mkdocs to 1.6.1
+- Refactor the `DateTimePicker` component and split it into multiple components. #7585
+- Update data-attribution and terms of conditions links to point to terria.io. #7627
+- Hide the related maps button. #7627
+- Change `BingMapSearchProvider` to correctly logs bing search action. #7601
+- fix `MapboxStyleCatalogItem` scaleFactor bug where tiles are always scaled-up in Cesium. #7639
+
+#### 8.9.3 - 2025-04-24
+
+- Remove unused d3-array dependency.
+- Update to plugin-error 2.0.1
+- TSify `MenuButton` and convert it to functional component. #7576
+- Convert `WorkbenchItem` to functional component #7564
+- Remove BrowserStack and SauceLabs gulp tasks.
+- Remove `test-travis` gulp task.
+- Allow to modify `lookupCookie` for i18next
+- TSify dropdown and convert it to a functional component. #7577
+- Convert SettingPanel to a functional component. #7589
+- Update html-to-react to 1.7.0
+- Pass explicit refs to css transition component to avoid findDomNode usage. #7590
+- TSify FadeIn component. #7590
+- Convert `ViewingControls` to a functional component. #7574
+- DOMPurify updated to 3.2.5 to fix CVE-2025-26791.
+- Fix pmtiles rendering issue. #7607
+- Remove unused types/rbush dependency.
 
 #### 8.9.2 - 2025-03-31
 
@@ -19,18 +301,17 @@
 - Update to shpjs 6.1.0.
 - Enable `noUncheckedSideEffectImports` in `tsconfig.json` to get errors from tsc when non-existent modules are imported for side effects.
 - Return lat/lon as numbers from `geoJsonGeometryFromGeoRssSimpleGeometry` and `geoJsonGeometryFromW3cGeometry`.
+- Remove unused babel/parser dependency.
 
 #### 8.9.1 - 2025-03-24
 
 - Tweak `ArcGisFeatureServerCatalogItem.imageryProvider` to return undefined until metadata has finished loading
 - Fix scss theming regression by restoring webpack alias
-- Remove unused babel/parser dependency.
 
 #### 8.9.0 - 2025-03-17
 
 - **Breaking changes:**
 - Major changes to UI
-
   - Changed workbench and bottom dock to absolute positioned over map with transparent background
   - Generally increase padding and font sizes to improve readability
   - Generally use a darker default theme
@@ -145,7 +426,6 @@
 #### 8.7.7 - 2024-10-01
 
 - **Breaking changes:**
-
   - Remove RollbarErrorServiceProvder
   - Error services now instantiated externally to terriajs
 
@@ -177,6 +457,7 @@
 
 #### 8.7.5 - 2024-06-26
 
+- Add clustering trait to GeoJson (and consequently to WFS, ...) using Cesium as viewer.
 - TSify some `js` and `jsx` files and provide `.d.ts` ambient type files for a few others. This is so that running `tsc` on an external project that imports Terria code will typecheck successfully.
 - Upgraded a bunch of d3 dependencies for fixing security errors.
 - Show rectangle selector for WPS bounding box parameter
@@ -378,7 +659,6 @@
 #### 8.3.0 - 2023-05-22
 
 - **Breaking changes:**
-
   - **Upgraded Mobx to version 6.7.x**
   - **Upgraded Typescript to version 4.9.x**
   - See https://github.com/TerriaJS/terriajs/discussions/6787 for how to upgrade your map

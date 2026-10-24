@@ -1,7 +1,9 @@
+/* eslint-disable react-hooks/immutability */
 import DOMPurify from "dompurify";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import ReactDOM from "react-dom";
 import { StyleSheetManager, ThemeProvider } from "styled-components";
+import { shouldForwardProp } from "../../../../../Styled/shouldForwardProp";
 import { terriaTheme } from "../../../../StandardUserInterface";
 import { useViewState } from "../../../../Context";
 import { DistanceLegend } from "../../../BottomBar/DistanceLegend";
@@ -137,7 +139,6 @@ const PrintView = (props: Props) => {
   const viewState = useViewState();
   const rootNode = useRef(document.createElement("main"));
 
-  const [screenshot, setScreenshot] = useState<Promise<string> | null>(null);
   const [shareLink, setShareLink] = useState("");
 
   useEffect(() => {
@@ -148,9 +149,9 @@ const PrintView = (props: Props) => {
     /* eslint-disable-next-line react-hooks/exhaustive-deps */
   }, [props.window]);
 
-  useEffect(() => {
-    setScreenshot(viewState.terria.currentViewer.captureScreenshot());
-    /* eslint-disable-next-line react-hooks/exhaustive-deps */
+  const screenshot = useMemo(() => {
+    return viewState.terria.currentViewer.captureScreenshot();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [props.window]);
 
   useEffect(() => {
@@ -167,6 +168,7 @@ const PrintView = (props: Props) => {
           })
         );
     } else {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setShareLink(
         buildShareLink(viewState.terria, viewState, {
           includeStories: false
@@ -176,7 +178,10 @@ const PrintView = (props: Props) => {
   }, [viewState.terria, viewState]);
 
   return ReactDOM.createPortal(
-    <StyleSheetManager target={props.window.document.head}>
+    <StyleSheetManager
+      target={props.window.document.head}
+      shouldForwardProp={shouldForwardProp}
+    >
       <ThemeProvider theme={terriaTheme}>
         <PrintViewButtons window={props.window} screenshot={screenshot} />
         <section className="mapSection">

@@ -7,11 +7,12 @@ import {
   reaction,
   runInAction
 } from "mobx";
+import HeightReference from "terriajs-cesium/Source/Scene/HeightReference";
+import ColorMaterialProperty from "terriajs-cesium/Source/DataSources/ColorMaterialProperty";
 import Cartesian3 from "terriajs-cesium/Source/Core/Cartesian3";
 import Cartographic from "terriajs-cesium/Source/Core/Cartographic";
 import Color from "terriajs-cesium/Source/Core/Color";
 import createGuid from "terriajs-cesium/Source/Core/createGuid";
-import defaultValue from "terriajs-cesium/Source/Core/defaultValue";
 import Ellipsoid from "terriajs-cesium/Source/Core/Ellipsoid";
 import JulianDate from "terriajs-cesium/Source/Core/JulianDate";
 import PolygonHierarchy from "terriajs-cesium/Source/Core/PolygonHierarchy";
@@ -22,7 +23,6 @@ import CustomDataSource from "terriajs-cesium/Source/DataSources/CustomDataSourc
 import DataSource from "terriajs-cesium/Source/DataSources/DataSource";
 import Entity from "terriajs-cesium/Source/DataSources/Entity";
 import PolylineGlowMaterialProperty from "terriajs-cesium/Source/DataSources/PolylineGlowMaterialProperty";
-import filterOutUndefined from "../Core/filterOutUndefined";
 import isDefined from "../Core/isDefined";
 import DragPoints from "../Map/DragPoints/DragPoints";
 import MappableMixin from "../ModelMixins/MappableMixin";
@@ -49,6 +49,11 @@ interface Options {
   onDrawingComplete?: (params: OnDrawingCompleteParams) => void;
   onCleanUp?: () => void;
   invisible?: boolean;
+  /** Opt-in polygon workflow; legacy measurement keeps its current behaviour. */
+  polygonStyle?: { stroke: string; fill: string };
+  completeOnClose?: boolean;
+  retainDrawingOnFinish?: boolean;
+  canComplete?: (points: Cartesian3[]) => boolean;
 }
 
 export default class UserDrawing extends MappableMixin(
@@ -69,6 +74,9 @@ export default class UserDrawing extends MappableMixin(
   // helper for dragging points around
   private dragHelper?: DragPoints;
 
+  // the MapInteractionMode this UserDrawing pushed onto terria.mapInteractionModeStack, if any - tracked so cleanUp() can remove it by identity
+  private activeMapInteractionMode?: MapInteractionMode;
+
   pointEntities: CustomDataSource;
   otherEntities: CustomDataSource;
   polygon?: Entity;
@@ -80,24 +88,27 @@ export default class UserDrawing extends MappableMixin(
   private drawRectangle: boolean;
 
   private mousePointEntity?: Entity;
+  private interactionMode?: MapInteractionMode;
+  private readonly drawingOptions: Options;
+  private previousAllowFeatureInfoRequests = true;
 
   constructor(options: Options) {
     super(createGuid(), options.terria);
 
     makeObservable(this);
+    this.drawingOptions = options;
 
     /**
      * Text that appears at the top of the dialog when drawmode is active.
      */
-    this.messageHeader = defaultValue(
-      options.messageHeader,
-      i18next.t("models.userDrawing.messageHeader")
-    );
+    this.messageHeader =
+      options.messageHeader ??
+      i18next.t(($) => $.models.userDrawing.messageHeader);
 
     /**
      * If true, user can click on first point to close the line, turning it into a polygon.
      */
-    this.allowPolygon = defaultValue(options.allowPolygon, true);
+    this.allowPolygon = options.allowPolygon ?? true;
 
     /**
      * Callback that occurs when the dialog is redrawn, to add additional information to dialog.
@@ -150,7 +161,7 @@ export default class UserDrawing extends MappableMixin(
      */
     this.closeLoop = false;
 
-    this.drawRectangle = defaultValue(options.drawRectangle, false);
+    this.drawRectangle = options.drawRectangle ?? false;
 
     this.invisible = options.invisible;
   }
@@ -189,6 +200,9 @@ export default class UserDrawing extends MappableMixin(
   }
 
   enterDrawMode(): void {
+    if (this.inDrawMode || this.closeLoop) return;
+    this.previousAllowFeatureInfoRequests =
+      this.terria.allowFeatureInfoRequests;
     // Create and setup a new dragHelper
     this.dragHelper = new DragPoints(this.terria, (customDataSource) => {
       if (typeof this.onPointMoved === "function") {
@@ -290,11 +304,18 @@ export default class UserDrawing extends MappableMixin(
             return pos;
           }, false),
 
-          material: new PolylineGlowMaterialProperty({
-            color: new Color(0.0, 0.0, 0.0, 0.1),
-            glowPower: 0.25
-          } as any),
-          width: 20
+          clampToGround: !!this.drawingOptions.polygonStyle,
+          material: this.drawingOptions.polygonStyle
+            ? new ColorMaterialProperty(
+                Color.fromCssColorString(
+                  this.drawingOptions.polygonStyle.stroke
+                )
+              )
+            : new PolylineGlowMaterialProperty({
+                color: new Color(0.0, 0.0, 0.0, 0.1),
+                glowPower: 0.25
+              } as any),
+          width: this.drawingOptions.polygonStyle ? 3 : 20
         } as any
       } as any);
     }
@@ -311,6 +332,7 @@ export default class UserDrawing extends MappableMixin(
             await pickedFeatures.allFeaturesAvailablePromise;
           }
           if (isDefined(pickedFeatures.pickPosition)) {
+            if (!this.inDrawMode) return;
             const pickedPoint = pickedFeatures.pickPosition;
             this.addPointToPointEntities("First Point", pickedPoint);
             reaction.dispose();
@@ -329,7 +351,26 @@ export default class UserDrawing extends MappableMixin(
       name: name,
       position: new ConstantPositionProperty(position),
       billboard: {
-        image: this.svgPoint,
+        image: this.drawingOptions.polygonStyle
+          ? "data:image/svg+xml," +
+            encodeURIComponent(
+              `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"><circle cx="16" cy="16" r="${
+                this.pointEntities.entities.values.length === 0 ? 10 : 7
+              }" fill="white" stroke="${
+                this.drawingOptions.polygonStyle.stroke
+              }" stroke-width="3"/>${
+                this.pointEntities.entities.values.length === 0
+                  ? `<circle cx="16" cy="16" r="4" fill="${this.drawingOptions.polygonStyle.stroke}"/>`
+                  : ""
+              }</svg>`
+            )
+          : this.svgPoint,
+        heightReference: this.drawingOptions.polygonStyle
+          ? HeightReference.CLAMP_TO_GROUND
+          : HeightReference.NONE,
+        disableDepthTestDistance: this.drawingOptions.polygonStyle
+          ? Number.POSITIVE_INFINITY
+          : 0,
         eyeOffset: new Cartesian3(0.0, 0.0, -50.0)
       } as any
     });
@@ -346,15 +387,90 @@ export default class UserDrawing extends MappableMixin(
     }
   }
 
-  endDrawing(): void {
-    this.dragHelper?.destroy();
-    if (this.disposePickedFeatureSubscription) {
-      this.disposePickedFeatureSubscription();
-    }
-    runInAction(() => {
-      this.terria.mapInteractionModeStack.pop();
-      this.cleanUp();
+  /** Finish from either the first vertex or a caller's explicit button. */
+  finishDrawing(): boolean {
+    if (!this.inDrawMode) return false;
+    const points = this.getPointsForShape() ?? [];
+    if (
+      this.drawingOptions.canComplete &&
+      !this.drawingOptions.canComplete(points)
+    )
+      return false;
+    if (points.length < 2) return false;
+    if (this.drawingOptions.completeOnClose) this.closePolygon();
+    this.onDrawingComplete?.({
+      points,
+      rectangle: this.getRectangleForShape()
     });
+    this.stopInteraction();
+    if (!this.drawingOptions.retainDrawingOnFinish) this.cleanUp();
+    this.terria.currentViewer.notifyRepaintRequired();
+    return true;
+  }
+
+  undoLastPoint(): void {
+    if (!this.inDrawMode || this.closeLoop) return;
+    const last = this.pointEntities.entities.values.slice(-1)[0];
+    if (last) this.pointEntities.entities.remove(last);
+    this.dragHelper?.updateDraggableObjects(this.pointEntities);
+    this.onPointClicked?.(this.pointEntities);
+    this.prepareToAddNewPoint();
+    this.terria.currentViewer.notifyRepaintRequired();
+  }
+
+  private removeInteractionMode(): void {
+    const mode = this.interactionMode;
+    if (!mode) return;
+    runInAction(() => {
+      const index = this.terria.mapInteractionModeStack.indexOf(mode);
+      if (index >= 0) this.terria.mapInteractionModeStack.splice(index, 1);
+    });
+    this.interactionMode = undefined;
+  }
+
+  private stopInteraction(): void {
+    this.dragHelper?.destroy();
+    this.dragHelper = undefined;
+    this.disposePickedFeatureSubscription?.();
+    this.disposePickedFeatureSubscription = undefined;
+    this.removeInteractionMode();
+    runInAction(() => {
+      if (this.inDrawMode)
+        this.terria.allowFeatureInfoRequests =
+          this.previousAllowFeatureInfoRequests;
+      this.inDrawMode = false;
+    });
+    const canvas = this.terria.cesium?.cesiumWidget.canvas;
+    if (canvas) canvas.style.cursor = "auto";
+    else if (this.terria.leaflet) {
+      const container = document.getElementById("cesiumContainer");
+      if (container) container.style.cursor = "auto";
+    }
+  }
+
+  endDrawing(): void {
+    this.stopInteraction();
+    this.cleanUp();
+  }
+
+  private closePolygon(): void {
+    if (this.closeLoop) return;
+    const style = this.drawingOptions.polygonStyle;
+    this.polygon = this.otherEntities.entities.add({
+      name: "User polygon",
+      polygon: {
+        hierarchy: new CallbackProperty(
+          () => new PolygonHierarchy(this.getPointsForShape()),
+          false
+        ),
+        material: style
+          ? Color.fromCssColorString(style.fill)
+          : new Color(0.0, 0.666, 0.843, 0.25),
+        perPositionHeight: !style
+      }
+    });
+    this.closeLoop = true;
+    this.onPointClicked?.(this.pointEntities);
   }
 
   /**
@@ -365,21 +481,7 @@ export default class UserDrawing extends MappableMixin(
       message: this.getDialogMessage(),
       buttonText: this.getButtonText(),
       onCancel: () => {
-        runInAction(() => {
-          if (this.onDrawingComplete) {
-            const isDrawingComplete =
-              this.pointEntities.entities.values.length >= 2;
-            const points = this.getPointsForShape();
-
-            if (isDrawingComplete && points) {
-              this.onDrawingComplete({
-                points: filterOutUndefined(points),
-                rectangle: this.getRectangleForShape()
-              });
-            }
-          }
-        });
-        this.endDrawing();
+        if (!this.finishDrawing()) this.endDrawing();
       },
       onEnable: (viewState: ViewState) => {
         runInAction(() => (viewState.explorerPanelIsVisible = false));
@@ -402,8 +504,10 @@ export default class UserDrawing extends MappableMixin(
       },
       invisible: this.invisible
     });
+    this.interactionMode = pickPointMode;
     runInAction(() => {
       this.terria.mapInteractionModeStack.push(pickPointMode);
+      this.activeMapInteractionMode = pickPointMode;
     });
     return pickPointMode;
   }
@@ -412,10 +516,9 @@ export default class UserDrawing extends MappableMixin(
    * Called after a point has been added, prepares to add and draw another point, as well as updating the dialog.
    */
   private prepareToAddNewPoint() {
-    runInAction(() => {
-      this.terria.mapInteractionModeStack.pop();
-    });
-
+    if (!this.inDrawMode) return;
+    this.disposePickedFeatureSubscription?.();
+    this.removeInteractionMode();
     const pickPointMode = this.addMapInteractionMode();
     this.disposePickedFeatureSubscription = reaction(
       () => pickPointMode.pickedFeatures,
@@ -425,6 +528,7 @@ export default class UserDrawing extends MappableMixin(
             await pickedFeatures.allFeaturesAvailablePromise;
           }
           if (isDefined(pickedFeatures.pickPosition)) {
+            if (!this.inDrawMode) return;
             const pickedPoint = pickedFeatures.pickPosition;
             // If existing point was picked, _clickedExistingPoint handles that, and returns true.
             // getDragCount helps us determine if the point was actually dragged rather than clicked. If it was
@@ -476,22 +580,10 @@ export default class UserDrawing extends MappableMixin(
         // Probably a layer or feature that has nothing to do with what we're drawing.
         return;
       } else if (index === 0 && !this.closeLoop && this.allowPolygon) {
-        // Index is zero if it's the first point, meaning we have a closed shape
-        this.polygon = this.otherEntities.entities.add({
-          name: "User polygon",
-          polygon: {
-            hierarchy: new CallbackProperty(function () {
-              return new PolygonHierarchy(that.getPointsForShape());
-            }, false),
-            material: new Color(0.0, 0.666, 0.843, 0.25),
-            outlineColor: new Color(1.0, 1.0, 1.0, 1.0),
-            perPositionHeight: true as any
-          } as any
-        } as any) as Entity;
-        this.closeLoop = true;
-        // A point has not been added, but conceptually it has because the first point is now also the last point.
-        if (typeof that.onPointClicked === "function") {
-          that.onPointClicked(that.pointEntities);
+        if (this.drawingOptions.completeOnClose) {
+          this.finishDrawing();
+        } else {
+          this.closePolygon();
         }
         userClickedExistingPoint = true;
         return;
@@ -520,14 +612,27 @@ export default class UserDrawing extends MappableMixin(
    * User has finished or cancelled; restore initial state.
    */
   cleanUp(): void {
+    this.stopInteraction();
     this.terria.overlays.remove(this);
     this.pointEntities = new CustomDataSource("Points");
     this.otherEntities = new CustomDataSource("Lines and polygons");
 
-    this.terria.allowFeatureInfoRequests = true;
+    if (this.inDrawMode)
+      this.terria.allowFeatureInfoRequests =
+        this.previousAllowFeatureInfoRequests;
 
     runInAction(() => {
       this.inDrawMode = false;
+
+      // Remove the MapInteractionMode entry from the stack if still present.
+      if (this.activeMapInteractionMode !== undefined) {
+        const stack = this.terria.mapInteractionModeStack;
+        const index = stack.indexOf(this.activeMapInteractionMode);
+        if (index !== -1) {
+          stack.splice(index, 1);
+        }
+        this.activeMapInteractionMode = undefined;
+      }
     });
     this.closeLoop = false;
 
@@ -575,13 +680,19 @@ export default class UserDrawing extends MappableMixin(
 
     if (this.drawRectangle && this.pointEntities.entities.values.length >= 2) {
       message +=
-        "<i>" + i18next.t("models.userDrawing.clickToRedrawRectangle") + "</i>";
+        "<i>" +
+        i18next.t(($) => $.models.userDrawing.clickToRedrawRectangle) +
+        "</i>";
     } else if (this.pointEntities.entities.values.length > 0) {
       message +=
-        "<i>" + i18next.t("models.userDrawing.clickToAddAnotherPoint") + "</i>";
+        "<i>" +
+        i18next.t(($) => $.models.userDrawing.clickToAddAnotherPoint) +
+        "</i>";
     } else {
       message +=
-        "<i>" + i18next.t("models.userDrawing.clickToAddFirstPoint") + "</i>";
+        "<i>" +
+        i18next.t(($) => $.models.userDrawing.clickToAddFirstPoint) +
+        "</i>";
     }
     // htmlToReactParser will fail if html doesn't have only one root element.
     return "<div>" + message + "</div>";
@@ -590,12 +701,12 @@ export default class UserDrawing extends MappableMixin(
   /**
    * Figure out the text for the dialog button.
    */
-  getButtonText(): any {
-    return defaultValue(
-      this.buttonText,
-      this.pointEntities.entities.values.length >= 2
-        ? i18next.t("models.userDrawing.btnDone")
-        : i18next.t("models.userDrawing.btnCancel")
+  getButtonText(): string {
+    return (
+      this.buttonText ??
+      (this.pointEntities.entities.values.length >= 2
+        ? i18next.t(($) => $.models.userDrawing.btnDone)
+        : i18next.t(($) => $.models.userDrawing.btnCancel))
     );
   }
 

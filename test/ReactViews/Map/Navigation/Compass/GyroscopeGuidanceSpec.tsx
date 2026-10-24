@@ -1,41 +1,82 @@
-import { create } from "react-test-renderer";
-import { act } from "react-dom/test-utils";
+import { screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import Terria from "../../../../../lib/Models/Terria";
 import ViewState from "../../../../../lib/ReactViewModels/ViewState";
 import { GyroscopeGuidance } from "../../../../../lib/ReactViews/Map/MapNavigation/Items/Compass/GyroscopeGuidance";
-import MapIconButton from "../../../../../lib/ReactViews/MapIconButton/MapIconButton";
+import { renderWithContexts } from "../../../withContext";
 
 describe("GyroscopeGuidance", function () {
   let terria: Terria;
   let viewState: ViewState;
-
-  let testRenderer: any;
 
   beforeEach(function () {
     terria = new Terria({
       baseUrl: "./"
     });
     viewState = new ViewState({
-      terria: terria,
-      catalogSearchProvider: undefined
+      terria: terria
     });
   });
 
   describe("with basic props", function () {
-    it("renders with 1 button", function () {
-      act(() => {
-        testRenderer = create(
-          <GyroscopeGuidance
-            handleHelp={() => {}}
-            onClose={() => {}}
-            viewState={viewState}
-          />
-        );
-      });
+    it("renders the guidance button", async function () {
+      renderWithContexts(
+        <GyroscopeGuidance onClose={() => {}} viewState={viewState} />,
+        viewState
+      );
 
-      const buttons = testRenderer.root.findAllByType(MapIconButton);
-      expect(buttons.length).toBeTruthy();
-      expect(buttons.length).toEqual(1);
+      const button = screen.getByRole("button");
+      expect(button).toBeVisible();
+    });
+
+    it("opens the guidance when the button is clicked", async function () {
+      renderWithContexts(
+        <GyroscopeGuidance onClose={() => {}} viewState={viewState} />,
+        viewState
+      );
+
+      const button = screen.getByRole("button");
+      await userEvent.click(button);
+
+      expect(screen.getByText("compass.guidance.title")).toBeVisible();
+      expect(screen.getByText("compass.guidance.outerRingTitle")).toBeVisible();
+      expect(
+        screen.getByText("compass.guidance.outerRingDescription")
+      ).toBeVisible();
+      expect(
+        screen.getByText("compass.guidance.innerCircleTitle")
+      ).toBeVisible();
+      expect(
+        screen.getByText("compass.guidance.innerCircleDescription1")
+      ).toBeVisible();
+      expect(
+        screen.getByText("compass.guidance.innerCircleDescription2")
+      ).toBeVisible();
+      expect(
+        screen.getByText("compass.guidance.ctrlDragDescription")
+      ).toBeVisible();
+      expect(
+        screen.getByRole("button", { name: "compass.guidance.dismissText" })
+      ).toBeVisible();
+    });
+
+    it("closes the guidance when the dismiss button is clicked", async function () {
+      renderWithContexts(
+        <GyroscopeGuidance onClose={() => {}} viewState={viewState} />,
+        viewState
+      );
+
+      const openButton = screen.getByRole("button");
+      await userEvent.click(openButton);
+
+      const dismissButton = screen.getByRole("button", {
+        name: "compass.guidance.dismissText"
+      });
+      await userEvent.click(dismissButton);
+
+      expect(
+        screen.queryByText("compass.guidance.title")
+      ).not.toBeInTheDocument();
     });
   });
 });

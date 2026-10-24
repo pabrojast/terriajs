@@ -1,30 +1,58 @@
 import range from "lodash-es/range";
-import { action, computed, observable, runInAction, when } from "mobx";
+import {
+  action,
+  computed,
+  IObservableValue,
+  observable,
+  runInAction,
+  when
+} from "mobx";
+import { http, HttpResponse } from "msw";
+import Cartesian2 from "terriajs-cesium/Source/Core/Cartesian2";
 import Cartesian3 from "terriajs-cesium/Source/Core/Cartesian3";
 import CesiumTerrainProvider from "terriajs-cesium/Source/Core/CesiumTerrainProvider";
+import Color from "terriajs-cesium/Source/Core/Color";
 import EllipsoidTerrainProvider from "terriajs-cesium/Source/Core/EllipsoidTerrainProvider";
+import JulianDate from "terriajs-cesium/Source/Core/JulianDate";
+import CesiumMath from "terriajs-cesium/Source/Core/Math";
 import Rectangle from "terriajs-cesium/Source/Core/Rectangle";
-import GeoJsonDataSource from "terriajs-cesium/Source/DataSources/GeoJsonDataSource";
+import CzmlDataSource from "terriajs-cesium/Source/DataSources/CzmlDataSource";
 import Cesium3DTileset from "terriajs-cesium/Source/Scene/Cesium3DTileset";
+import PrimitiveCollection from "terriajs-cesium/Source/Scene/PrimitiveCollection";
 import Scene from "terriajs-cesium/Source/Scene/Scene";
-import WebMapServiceImageryProvider from "terriajs-cesium/Source/Scene/WebMapServiceImageryProvider";
 import filterOutUndefined from "../../lib/Core/filterOutUndefined";
 import runLater from "../../lib/Core/runLater";
+import supportsWebGL from "../../lib/Core/supportsWebGL";
+import CatalogMemberMixin from "../../lib/ModelMixins/CatalogMemberMixin";
 import MappableMixin, { MapItem } from "../../lib/ModelMixins/MappableMixin";
+import CameraView from "../../lib/Models/CameraView";
+import Cesium3DTilesCatalogItem from "../../lib/Models/Catalog/CatalogItems/Cesium3DTilesCatalogItem";
 import CesiumTerrainCatalogItem from "../../lib/Models/Catalog/CatalogItems/CesiumTerrainCatalogItem";
+import GeoJsonCatalogItem from "../../lib/Models/Catalog/CatalogItems/GeoJsonCatalogItem";
 import CatalogMemberFactory from "../../lib/Models/Catalog/CatalogMemberFactory";
 import WebMapServiceCatalogItem from "../../lib/Models/Catalog/Ows/WebMapServiceCatalogItem";
 import Cesium from "../../lib/Models/Cesium";
 import CommonStrata from "../../lib/Models/Definition/CommonStrata";
 import CreateModel from "../../lib/Models/Definition/CreateModel";
 import createStratumInstance from "../../lib/Models/Definition/createStratumInstance";
+import updateModelFromJson from "../../lib/Models/Definition/updateModelFromJson";
 import upsertModelFromJson from "../../lib/Models/Definition/upsertModelFromJson";
+import MapInteractionMode, {
+  PickEventProps
+} from "../../lib/Models/MapInteractionMode";
 import Terria from "../../lib/Models/Terria";
+import CatalogMemberTraits from "../../lib/Traits/TraitsClasses/CatalogMemberTraits";
 import MappableTraits, {
   RectangleTraits
 } from "../../lib/Traits/TraitsClasses/MappableTraits";
+import OpacityTraits from "../../lib/Traits/TraitsClasses/OpacityTraits";
+import mixTraits from "../../lib/Traits/mixTraits";
 import TerriaViewer from "../../lib/ViewModels/TerriaViewer";
-import supportsWebGL from "../../lib/Core/supportsWebGL";
+import { worker } from "../mocks/browser";
+
+import Entity from "terriajs-cesium/Source/DataSources/Entity";
+import TerriaFeature from "../../lib/Models/Feature/Feature";
+import wmsCapabilities from "../../wwwroot/test/WMS/wms_1_1_1.xml";
 
 const describeIfSupported = supportsWebGL() ? describe : xdescribe;
 
@@ -34,14 +62,19 @@ describeIfSupported("Cesium Model", function () {
   let container: HTMLElement;
   let cesium: Cesium;
   let terriaProgressEvt: jasmine.Spy;
+  let viewerItems: IObservableValue<MappableMixin.Instance[]>;
 
   beforeEach(function () {
     terria = new Terria({
-      baseUrl: "./"
+      baseUrl: "../"
     });
+
+    // Use an observable box so that we can dynamically change the viewer items
+    // from specs
+    viewerItems = observable.box([]);
     terriaViewer = new TerriaViewer(
       terria,
-      computed(() => [])
+      computed(() => viewerItems.get())
     );
     container = document.createElement("div");
     container.id = "container";
@@ -50,6 +83,10 @@ describeIfSupported("Cesium Model", function () {
     terriaProgressEvt = spyOn(terria.tileLoadProgressEvent, "raiseEvent");
 
     cesium = new Cesium(terriaViewer, container);
+
+    // TODO: some specs results in calls to ION api for fetching terrain which
+    // we should avoid. Ideally we do this after splitting terrain handling
+    // into a separate TerrainManager class
   });
 
   afterEach(function () {
@@ -70,6 +107,31 @@ describeIfSupported("Cesium Model", function () {
     cesium.scene.globe.tileLoadProgressEvent.raiseEvent(2);
 
     expect(terriaProgressEvt).toHaveBeenCalledWith(2, 7);
+  });
+
+  it("does not let an added data source take over the timeline clock", async function () {
+    const clock = terria.timelineClock;
+    clock.startTime = JulianDate.fromIso8601("1840-01-01T00:00:00Z");
+    clock.stopTime = JulianDate.fromIso8601("2025-01-01T00:00:00Z");
+
+    const dataSource = await CzmlDataSource.load([
+      {
+        id: "document",
+        version: "1.0",
+        clock: {
+          interval: "2026-02-28T00:00:00Z/2026-03-25T00:00:00Z",
+          currentTime: "2026-03-11T00:00:00Z"
+        }
+      }
+    ]);
+    await cesium.dataSources.add(dataSource);
+
+    expect(JulianDate.toIso8601(clock.startTime, 0)).toBe(
+      "1840-01-01T00:00:00Z"
+    );
+    expect(JulianDate.toIso8601(clock.stopTime, 0)).toBe(
+      "2025-01-01T00:00:00Z"
+    );
   });
 
   it("should reset maximum length when the number of tiles to be loaded reaches 0", function () {
@@ -120,76 +182,238 @@ describeIfSupported("Cesium Model", function () {
     });
   });
 
-  it("correctly removes all the primitives from the scene when they are removed from the viewer", async function () {
-    const tilesets = [
-      await Cesium3DTileset.fromUrl("test/Cesium3DTiles/tileset.json?id=1"),
-      await Cesium3DTileset.fromUrl("test/Cesium3DTiles/tileset.json?id=2"),
-      await Cesium3DTileset.fromUrl("test/Cesium3DTiles/tileset.json?id=3")
-    ];
-    const items = observable([
-      new MappablePrimitiveItem("1", terria, tilesets[0]),
-      new MappablePrimitiveItem("2", terria, tilesets[1]),
-      new MappablePrimitiveItem("3", terria, tilesets[2])
-    ]);
+  describe("adding and removing viewer items", function () {
+    function create3dTilesCatalogItem(id: number) {
+      const item = new Cesium3DTilesCatalogItem(`tileset-${id}`, terria);
+      updateModelFromJson(item, CommonStrata.definition, {
+        id: `tileset-${id}`,
+        url: `test/Cesium3DTiles/tileset.json?id=${id}`,
+        drapeImagery: true
+      });
+      return item;
+    }
 
-    const container2 = document.createElement("div");
-    container2.id = "cesium-test-container";
-    document.body.appendChild(container2);
+    function createImageryItem(id: number) {
+      const item = new WebMapServiceCatalogItem(`wms-${id}`, terria);
+      updateModelFromJson(item, CommonStrata.definition, {
+        id: `wms-${id}`,
+        url: `wms-${id}`
+      });
+      return item;
+    }
 
-    const terriaViewer2 = new TerriaViewer(
-      terria,
-      computed(() => items)
-    );
+    function createDataSourceItem(id: number) {
+      const item = new GeoJsonCatalogItem(`geojson-${id}`, terria);
+      updateModelFromJson(item, CommonStrata.definition, {
+        geoJsonData: {
+          type: "Feature",
+          properties: {
+            nameProp: `ds-${id}`
+          },
+          geometry: {
+            type: "Polygon",
+            coordinates: [
+              [
+                [145.0130295753479, -37.77042639061412],
+                [145.0200891494751, -37.77042639061412],
+                [145.0200891494751, -37.76543949054887],
+                [145.0130295753479, -37.76543949054887],
+                [145.0130295753479, -37.77042639061412]
+              ]
+            ]
+          }
+        },
+        forceCesiumPrimitives: true
+      });
+      return item;
+    }
 
-    const cesium2 = new Cesium(terriaViewer2, container2);
+    function loadItems(items: MappableMixin.Instance[]) {
+      return Promise.all(items.map((it) => it.loadMapItems().then(() => it)));
+    }
 
-    try {
+    it("correctly removes all the primitives, imageries and datasources from the scene when they are removed from the viewer", async function () {
+      worker.use(http.get("wms-*", () => HttpResponse.xml(wmsCapabilities)));
+
+      let items = await loadItems([
+        create3dTilesCatalogItem(0),
+        createImageryItem(0),
+        createDataSourceItem(0),
+
+        create3dTilesCatalogItem(1),
+        createImageryItem(1),
+        createDataSourceItem(1),
+
+        create3dTilesCatalogItem(2),
+        createImageryItem(2),
+        createDataSourceItem(2)
+      ]);
+
+      runInAction(() => {
+        viewerItems.set(items);
+      });
+
       // Return urls of all tilesets in the scene
-      const tilesetUrls = () =>
-        filterOutUndefined(
-          range(cesium2.scene.primitives.length).map((i) => {
-            const prim = cesium2.scene.primitives.get(i);
+      const tilesetUrls = () => {
+        const terriaPrimitives: PrimitiveCollection =
+          cesium.scene.primitives.get(0);
+        return filterOutUndefined(
+          range(terriaPrimitives.length).map((i) => {
+            const prim = terriaPrimitives.get(i);
             return prim.allTilesLoaded && prim._url;
           })
         );
+      };
 
       // Return names of all datasources in the scene
       const dataSourceNames = () =>
-        range(cesium2.dataSources.length).map(
-          (i) => cesium2.dataSources.get(i).name
-        );
+        range(cesium.dataSources.length).map((i) => {
+          const ds = cesium.dataSources.get(i);
+          const name = ds.entities.values[0].properties?.getValue().nameProp;
+          return name;
+        });
 
       // Return urls of all imagery providers in the scene
       const imageryProviderUrls = () =>
-        range(cesium2.scene.imageryLayers.length)
+        range(cesium.scene.imageryLayers.length)
           .map(
             (i) =>
-              (cesium2.scene.imageryLayers.get(i).imageryProvider as any).url
+              (cesium.scene.imageryLayers.get(i).imageryProvider as any).url
           )
           .reverse();
 
+      // Need await here for the datasources reaction to sync
       await runLater(() => {});
 
       // Test that we have added the correct items
-      expect(dataSourceNames()).toEqual(["ds1", "ds2", "ds3"]);
+      expect(dataSourceNames()).toEqual(["ds-0", "ds-1", "ds-2"]);
       expect(tilesetUrls()).toEqual([
+        "test/Cesium3DTiles/tileset.json?id=0",
         "test/Cesium3DTiles/tileset.json?id=1",
-        "test/Cesium3DTiles/tileset.json?id=2",
-        "test/Cesium3DTiles/tileset.json?id=3"
+        "test/Cesium3DTiles/tileset.json?id=2"
       ]);
-      expect(imageryProviderUrls()).toEqual(["img1", "img2", "img3"]);
+      expect(imageryProviderUrls()).toEqual(["wms-0", "wms-1", "wms-2"]);
 
-      runInAction(() => items.splice(0, 2));
+      runInAction(() => {
+        // Remove all except middle 3 items
+        items = items.slice(3, 6);
+        viewerItems.set(items);
+      });
+
+      // Need await here for the datasources reaction to sync
       await runLater(() => {});
 
       // Test that we have removed the correct items
-      expect(dataSourceNames()).toEqual(["ds3"]);
-      expect(tilesetUrls()).toEqual(["test/Cesium3DTiles/tileset.json?id=3"]);
-      expect(imageryProviderUrls()).toEqual(["img3"]);
-    } finally {
-      cesium2.destroy();
-      document.body.removeChild(container2);
-    }
+      expect(dataSourceNames()).toEqual(["ds-1"]);
+      expect(tilesetUrls()).toEqual(["test/Cesium3DTiles/tileset.json?id=1"]);
+      expect(imageryProviderUrls()).toEqual(["wms-1"]);
+    });
+
+    describe("tilesets with imagery draping enabled", function () {
+      let items: MappableMixin.Instance[];
+
+      beforeEach(async function () {
+        worker.use(http.get("wms-3", () => HttpResponse.xml(wmsCapabilities)));
+
+        items = await loadItems([
+          create3dTilesCatalogItem(0),
+          createImageryItem(1),
+          create3dTilesCatalogItem(2),
+          createImageryItem(3),
+          create3dTilesCatalogItem(4)
+        ]);
+        runInAction(() => viewerItems.set(items));
+      });
+
+      it("must add the imageries that are placed above a tileset to the tileset's own imagery collection", function () {
+        const tileset0 = items[0].mapItems[0] as Cesium3DTileset;
+        const tileset1 = items[2].mapItems[0] as Cesium3DTileset;
+        const tileset2 = items[4].mapItems[0] as Cesium3DTileset;
+
+        expect(tileset0.imageryLayers.length).toBe(0);
+        expect(tileset1.imageryLayers.length).toBe(1);
+        expect(tileset2.imageryLayers.length).toBe(2);
+
+        // Make sure tileset1 and tileset2 have 1 and 2 layers respectively added
+        // to their imageryLayer collection
+        expect((tileset1.imageryLayers.get(0).imageryProvider as any).url).toBe(
+          `wms-1`
+        );
+
+        // Note that this reflects the ordering of Cesium imagery collection, the
+        // layer with lowest index will appear at the bottom.
+        expect((tileset2.imageryLayers.get(0).imageryProvider as any).url).toBe(
+          `wms-3`
+        );
+
+        expect((tileset2.imageryLayers.get(1).imageryProvider as any).url).toBe(
+          `wms-1`
+        );
+      });
+
+      it("must remove items from a tilesets imagery collection when they are removed from the viewer", function () {
+        // Remove the last WMS imagery item
+        items.splice(3, 1);
+        runInAction(() => viewerItems.set(items));
+
+        const tileset0 = items[0].mapItems[0] as Cesium3DTileset;
+        const tileset1 = items[2].mapItems[0] as Cesium3DTileset;
+        const tileset2 = items[3].mapItems[0] as Cesium3DTileset;
+
+        expect(tileset0.imageryLayers.length).toBe(0);
+        expect(tileset1.imageryLayers.length).toBe(1);
+        expect(tileset2.imageryLayers.length).toBe(1);
+
+        // Make sure tileset1 and tileset2 have 1 and 2 layers respectively added
+        // to their imageryLayer collection
+        expect((tileset1.imageryLayers.get(0).imageryProvider as any).url).toBe(
+          `wms-1`
+        );
+
+        expect((tileset2.imageryLayers.get(0).imageryProvider as any).url).toBe(
+          `wms-1`
+        );
+      });
+
+      describe("with the imageryLayerGuard experimental feature enabled", function () {
+        beforeEach(function () {
+          terria.configParameters.nextExperimentalFeatures = {
+            imageryLayerGuard: true
+          };
+        });
+
+        it("must not destroy draped imagery layers when the tileset is removed from the viewer", async function () {
+          const tileset2 = items[4].mapItems[0] as Cesium3DTileset;
+          const drapedLayers = [
+            tileset2.imageryLayers.get(0),
+            tileset2.imageryLayers.get(1)
+          ];
+
+          items.splice(4, 1);
+          runInAction(() => viewerItems.set(items));
+          await runLater(() => {});
+
+          expect(tileset2.isDestroyed()).toBe(true);
+          drapedLayers.forEach((layer) => {
+            expect(layer.isDestroyed()).toBe(false);
+            expect(cesium.scene.imageryLayers.contains(layer)).toBe(true);
+          });
+        });
+
+        it("must replace a memoised imagery layer that has been destroyed", function () {
+          const layer = cesium.scene.imageryLayers.get(0);
+          const provider = layer.imageryProvider;
+          cesium.scene.imageryLayers.remove(layer, true);
+
+          runInAction(() => viewerItems.set(items.slice()));
+
+          const newLayer = cesium.scene.imageryLayers.get(0);
+          expect(newLayer.isDestroyed()).toBe(false);
+          expect(newLayer).not.toBe(layer);
+          expect(newLayer.imageryProvider).toBe(provider);
+        });
+      });
+    });
   });
 
   describe("Terrain provider selection", function () {
@@ -222,10 +446,9 @@ describeIfSupported("Cesium Model", function () {
           },
           { addModelToTerria: true }
         ).throwIfUndefined() as CesiumTerrainCatalogItem;
-        spyOn(
-          workbenchTerrainItem as any,
-          "loadTerrainProvider"
-        ).and.returnValue(new CesiumTerrainProvider());
+        spyOn(workbenchTerrainItem as any, "loadTerrainProvider").and.resolveTo(
+          new CesiumTerrainProvider()
+        );
         (await terria.workbench.add(workbenchTerrainItem)).throwIfError();
       })
     );
@@ -256,7 +479,7 @@ describeIfSupported("Cesium Model", function () {
       const createSpy = spyOn(
         cesium as any,
         "createTerrainProviderFromIonAssetId"
-      ).and.returnValue(Promise.resolve(fakeIonTerrainProvider));
+      ).and.callFake(() => Promise.resolve(fakeIonTerrainProvider));
 
       runInAction(() => {
         cesium.terriaViewer.viewerOptions.useTerrain = true;
@@ -274,7 +497,7 @@ describeIfSupported("Cesium Model", function () {
       const createSpy = spyOn(
         cesium as any,
         "createTerrainProviderFromUrl"
-      ).and.returnValue(Promise.resolve(fakeUrlTerrainProvider));
+      ).and.callFake(() => Promise.resolve(fakeUrlTerrainProvider));
 
       runInAction(() => {
         cesium.terriaViewer.viewerOptions.useTerrain = true;
@@ -289,10 +512,9 @@ describeIfSupported("Cesium Model", function () {
 
     it("should otherwise use cesium-world-terrain when `configParameters.useCesiumIonTerrain` is true", async function () {
       const fakeCesiumWorldTerrainProvider = new CesiumTerrainProvider();
-      const createSpy = spyOn(
-        cesium as any,
-        "createWorldTerrain"
-      ).and.returnValue(Promise.resolve(fakeCesiumWorldTerrainProvider));
+      const createSpy = spyOn(cesium as any, "createWorldTerrain").and.callFake(
+        () => Promise.resolve(fakeCesiumWorldTerrainProvider)
+      );
 
       runInAction(() => {
         cesium.terriaViewer.viewerOptions.useTerrain = true;
@@ -332,7 +554,7 @@ describeIfSupported("Cesium Model", function () {
 
     beforeEach(function () {
       terria2 = new Terria({
-        baseUrl: "./"
+        baseUrl: "/"
       });
       terriaViewer2 = new TerriaViewer(
         terria2,
@@ -356,10 +578,7 @@ describeIfSupported("Cesium Model", function () {
       // Instantiate Cesium object with the invalid token
       cesium2 = new Cesium(terriaViewer2, container2);
 
-      // Wait a few ticks to allow for delay in adding event listener to terrainProvider in Cesium.ts
-      await when(
-        () => terria2.notificationState.currentNotification !== undefined
-      );
+      await terrainLoadPromise(cesium2);
 
       // We should then get an error about the terrain server
       const currentNotificationTitle =
@@ -414,6 +633,13 @@ describeIfSupported("Cesium Model", function () {
     });
 
     it("should thow a warning when 'cesiumTerrainUrl' is invalid", async function () {
+      worker.use(
+        http.get(
+          "https://storage.googleapis.com/vic-datasets-public/xxxxxxx-xxxx-xxxx-xxxx-xxxxxxx/v1/layer.json",
+          () => HttpResponse.error()
+        )
+      );
+
       runInAction(() => {
         terria2.configParameters.cesiumTerrainUrl =
           "https://storage.googleapis.com/vic-datasets-public/xxxxxxx-xxxx-xxxx-xxxx-xxxxxxx/v1"; // An invalid url
@@ -434,33 +660,460 @@ describeIfSupported("Cesium Model", function () {
       );
     });
   });
+
+  describe("shadow-disabled-for-performance notification", function () {
+    let tilesetItem: Cesium3DTilesCatalogItem;
+
+    beforeEach(
+      action(async function () {
+        // We need a cesium instance bound to terria.mainViewer for workbench
+        // changes to be reflected in these specs
+        cesium.destroy();
+        cesium = new Cesium(terria.mainViewer, container);
+
+        tilesetItem = new Cesium3DTilesCatalogItem("shadow-tileset", terria);
+        updateModelFromJson(tilesetItem, CommonStrata.definition, {
+          id: "shadow-tileset",
+          url: "test/Cesium3DTiles/tileset.json",
+          shadows: "BOTH"
+        });
+        (await terria.workbench.add(tilesetItem)).throwIfError();
+      })
+    );
+
+    function currentNotificationTitle(): string | undefined {
+      const notification = terria.notificationState.currentNotification;
+      if (notification === undefined) return undefined;
+      return typeof notification.title === "string"
+        ? notification.title
+        : notification.title();
+    }
+
+    it("does not notify on its own just from the quality slider changing", function () {
+      // Reacting passively would either spam on unrelated recomputes or (if
+      // de-duplicated) miss a genuine new interaction - so nothing should
+      // fire until a caller explicitly asks via notifyIfShadowsSuppressed().
+      runInAction(() => {
+        terria.setBaseMaximumScreenSpaceError(3);
+      });
+      expect(currentNotificationTitle()).toBeUndefined();
+    });
+
+    it("notifies when asked, if the quality slider is forcing shadows off for a dataset that wants them", function () {
+      runInAction(() => {
+        terria.setBaseMaximumScreenSpaceError(3);
+      });
+      cesium.notifyIfShadowsSuppressed();
+      expect(currentNotificationTitle()).toBe(
+        "models.shadowsDisabledForPerformance.title"
+      );
+      expect(terria.notificationState.currentNotification?.showAsToast).toBe(
+        true
+      );
+      expect(
+        terria.notificationState.currentNotification?.toastVisibleDuration
+      ).toBeUndefined();
+    });
+
+    it("notifies again on a second, separate interaction rather than just once per session", function () {
+      runInAction(() => {
+        terria.setBaseMaximumScreenSpaceError(3);
+      });
+      cesium.notifyIfShadowsSuppressed();
+      terria.notificationState.dismissCurrentNotification();
+      expect(currentNotificationTitle()).toBeUndefined();
+
+      cesium.notifyIfShadowsSuppressed();
+      expect(currentNotificationTitle()).toBe(
+        "models.shadowsDisabledForPerformance.title"
+      );
+    });
+
+    it("queues only one toast when asked repeatedly before it is dismissed", function () {
+      runInAction(() => {
+        terria.setBaseMaximumScreenSpaceError(3);
+      });
+      cesium.notifyIfShadowsSuppressed();
+      cesium.notifyIfShadowsSuppressed();
+      expect(terria.notificationState.getAllNotifications().length).toBe(1);
+    });
+
+    it("does not notify while quality stays high enough to keep shadows on", function () {
+      runInAction(() => {
+        terria.setBaseMaximumScreenSpaceError(1);
+      });
+      cesium.notifyIfShadowsSuppressed();
+      expect(currentNotificationTitle()).toBeUndefined();
+    });
+
+    it("does not notify once shadows are force-enabled via the override hook", function () {
+      runInAction(() => {
+        cesium.enableShadowsOverride();
+        terria.setBaseMaximumScreenSpaceError(3);
+      });
+      cesium.notifyIfShadowsSuppressed();
+      expect(currentNotificationTitle()).toBeUndefined();
+    });
+
+    it("notifies again once the override is cleared, if quality is still low and shadows are still wanted", function () {
+      runInAction(() => {
+        cesium.enableShadowsOverride();
+        terria.setBaseMaximumScreenSpaceError(3);
+      });
+      cesium.notifyIfShadowsSuppressed();
+      expect(currentNotificationTitle()).toBeUndefined();
+
+      runInAction(() => {
+        cesium.clearShadowsOverride();
+      });
+      cesium.notifyIfShadowsSuppressed();
+      expect(currentNotificationTitle()).toBe(
+        "models.shadowsDisabledForPerformance.title"
+      );
+    });
+
+    it("does not notify when no workbench item asks for shadows", function () {
+      runInAction(() => {
+        tilesetItem.setTrait(CommonStrata.definition, "shadows", "NONE");
+        terria.setBaseMaximumScreenSpaceError(3);
+      });
+      cesium.notifyIfShadowsSuppressed();
+      expect(currentNotificationTitle()).toBeUndefined();
+    });
+
+    function currentNotificationIgnored(): boolean {
+      const ignore = terria.notificationState.currentNotification?.ignore;
+      return typeof ignore === "function" ? ignore() : (ignore ?? false);
+    }
+
+    it("marks the toast to auto-dismiss once quality is raised back out of the low-spec tier", function () {
+      runInAction(() => {
+        terria.setBaseMaximumScreenSpaceError(3);
+      });
+      cesium.notifyIfShadowsSuppressed();
+      expect(currentNotificationIgnored()).toBe(false);
+
+      runInAction(() => {
+        terria.setBaseMaximumScreenSpaceError(1);
+      });
+      expect(currentNotificationIgnored()).toBe(true);
+    });
+
+    it("marks the toast to auto-dismiss once shadows are force-enabled via the override hook", function () {
+      runInAction(() => {
+        terria.setBaseMaximumScreenSpaceError(3);
+      });
+      cesium.notifyIfShadowsSuppressed();
+      expect(currentNotificationIgnored()).toBe(false);
+
+      runInAction(() => {
+        cesium.enableShadowsOverride();
+      });
+      expect(currentNotificationIgnored()).toBe(true);
+    });
+
+    it("marks the toast to auto-dismiss if the requesting workbench item is removed", function () {
+      runInAction(() => {
+        terria.setBaseMaximumScreenSpaceError(3);
+      });
+      cesium.notifyIfShadowsSuppressed();
+      expect(currentNotificationIgnored()).toBe(false);
+
+      runInAction(() => {
+        tilesetItem.setTrait(CommonStrata.definition, "shadows", "NONE");
+      });
+      expect(currentNotificationIgnored()).toBe(true);
+    });
+  });
+
+  describe("pickFromScreenPosition", function () {
+    const screenPosition = new Cartesian2(100, 100);
+    const globePosition = new Cartesian3(1, 2, 3);
+    let mapInteractionMode: MapInteractionMode;
+    let pickListener: jasmine.Spy<(props: PickEventProps) => void>;
+
+    beforeEach(function () {
+      mapInteractionMode = new MapInteractionMode({ message: "Click the map" });
+      pickListener = jasmine.createSpy("pickEventListener");
+      mapInteractionMode.pickEvent.addEventListener(pickListener);
+      // The globe has no tiles rendered in the spec runner, so stub out the
+      // globe pick to get a deterministic position.
+      spyOn(cesium.scene.globe, "pick").and.returnValue(globePosition);
+    });
+
+    it("sets terria.pickedFeatures when there is no active interaction mode", async function () {
+      await cesium.pickFromScreenPosition(screenPosition, false);
+      expect(terria.pickedFeatures?.pickPosition).toBe(globePosition);
+      expect(pickListener).not.toHaveBeenCalled();
+    });
+
+    describe("with an active interaction mode", function () {
+      beforeEach(function () {
+        runInAction(() => {
+          terria.mapInteractionModeStack.push(mapInteractionMode);
+        });
+      });
+
+      it("sets pickedFeatures on the interaction mode rather than on terria", async function () {
+        await cesium.pickFromScreenPosition(screenPosition, false);
+        expect(mapInteractionMode.pickedFeatures?.pickPosition).toBe(
+          globePosition
+        );
+        expect(terria.pickedFeatures).toBeUndefined();
+      });
+
+      it("raises pickEvent with the globe position", async function () {
+        await cesium.pickFromScreenPosition(screenPosition, false);
+        expect(pickListener).toHaveBeenCalledTimes(1);
+        expect(pickListener.calls.mostRecent().args[0].globePosition).toBe(
+          globePosition
+        );
+      });
+
+      it("does not pick the scene unless enableScenePicking is set", async function () {
+        const pickPosition = spyOn(cesium.scene, "pickPosition");
+
+        await cesium.pickFromScreenPosition(screenPosition, false);
+
+        expect(pickPosition).not.toHaveBeenCalled();
+        expect(
+          mapInteractionMode.pickedFeatures?.scenePosition
+        ).toBeUndefined();
+        expect(
+          pickListener.calls.mostRecent().args[0].scenePosition
+        ).toBeUndefined();
+      });
+
+      describe("when enableScenePicking is set", function () {
+        const scenePosition = new Cartesian3(4, 5, 6);
+
+        beforeEach(function () {
+          mapInteractionMode.enableScenePicking = true;
+        });
+
+        it("sets scenePosition on the picked features and the pick event", async function () {
+          spyOn(cesium.scene, "pickPosition").and.returnValue(scenePosition);
+
+          await cesium.pickFromScreenPosition(screenPosition, false);
+
+          expect(mapInteractionMode.pickedFeatures?.scenePosition).toBe(
+            scenePosition
+          );
+          expect(pickListener.calls.mostRecent().args[0].scenePosition).toBe(
+            scenePosition
+          );
+        });
+
+        it("picks the scene position before drill picking", async function () {
+          // Cesium returns a position on the ground instead of on the scene
+          // features if `drillPick` runs first in the same render frame.
+          const calls: string[] = [];
+          spyOn(cesium.scene, "pickPosition").and.callFake(() => {
+            calls.push("pickPosition");
+            return scenePosition;
+          });
+          spyOn(cesium.scene, "drillPick").and.callFake(() => {
+            calls.push("drillPick");
+            return [];
+          });
+
+          await cesium.pickFromScreenPosition(screenPosition, false);
+
+          expect(calls).toEqual(["pickPosition", "drillPick"]);
+        });
+      });
+    });
+  });
+
+  describe("getCurrentCameraView", function () {
+    const rectangleDegrees = ({ west, south, east, north }: Rectangle) => ({
+      west: CesiumMath.toDegrees(west),
+      south: CesiumMath.toDegrees(south),
+      east: CesiumMath.toDegrees(east),
+      north: CesiumMath.toDegrees(north)
+    });
+
+    it("returns the current camera view", function () {
+      const cameraView = cesium.getCurrentCameraView();
+      const { west, south, east, north } = rectangleDegrees(
+        cameraView.rectangle
+      );
+      expect(west).toBeCloseTo(-180);
+      expect(south).toBeCloseTo(-90);
+      expect(east).toBeCloseTo(180);
+      expect(north).toBeCloseTo(90);
+    });
+
+    describe("when initial camera view is set", function () {
+      const viewRectangle = {
+        west: 119.04785,
+        south: -33.6512,
+        east: 156.31347,
+        north: -22.83694
+      };
+
+      beforeEach(function () {
+        const initialView = CameraView.fromJson(viewRectangle);
+        cesium.setInitialView(initialView);
+      });
+
+      it("returns the initial view", function () {
+        const r = rectangleDegrees(cesium.getCurrentCameraView().rectangle);
+        expect(r.west).toBe(viewRectangle.west);
+        expect(r.south).toBe(viewRectangle.south);
+        expect(r.east).toBe(viewRectangle.east);
+        expect(r.north).toBe(viewRectangle.north);
+      });
+
+      it("returns a new view if the camera view changes", async function () {
+        cesium.scene.camera.changed.raiseEvent(1.0);
+        const view = cesium.getCurrentCameraView();
+        const rectangle = rectangleDegrees(view.rectangle);
+        expect(rectangle.west).not.toBe(119.04785);
+        expect(rectangle.south).not.toBe(-33.6512);
+        expect(rectangle.east).not.toBe(156.31347);
+        expect(rectangle.north).not.toBe(-22.83694);
+      });
+    });
+  });
+
+  describe("base map opacity", function () {
+    let baseMap: TestOpacityBaseMapItem;
+
+    beforeEach(function () {
+      baseMap = new TestOpacityBaseMapItem("test-opacity-basemap", terria);
+    });
+
+    it("leaves the globe opaque when there is no base map", function () {
+      const globe = cesium.scene.globe;
+      expect(globe.translucency.enabled).toBe(false);
+      expect(globe.showGroundAtmosphere).toBe(true);
+      expect(globe.baseColor).toEqual(Color.BLUE);
+    });
+
+    it("leaves the globe opaque for a base map that supports opacity but never sets it", async function () {
+      // `OpacityTraits.opacity` defaults to 0.8 (a default meant for
+      // workbench overlay layers), so this guards against that default
+      // leaking into the base map's translucency handling.
+      await terriaViewer.setBaseMap(baseMap);
+
+      const globe = cesium.scene.globe;
+      expect(globe.translucency.enabled).toBe(false);
+      expect(globe.showGroundAtmosphere).toBe(true);
+      expect(globe.baseColor).toEqual(Color.BLUE);
+    });
+
+    it("makes the globe translucent when the base map's opacity is less than 1", async function () {
+      baseMap.setTrait(CommonStrata.user, "opacity", 0.5);
+      await terriaViewer.setBaseMap(baseMap);
+
+      const globe = cesium.scene.globe;
+      expect(globe.translucency.enabled).toBe(true);
+      expect(globe.showGroundAtmosphere).toBe(false);
+      expect(globe.baseColor).toEqual(Color.TRANSPARENT);
+      expect(globe.undergroundColor).toEqual(Color.BLACK.withAlpha(0));
+    });
+
+    it("restores the opaque globe settings when opacity is set back to 1", async function () {
+      baseMap.setTrait(CommonStrata.user, "opacity", 0.5);
+      await terriaViewer.setBaseMap(baseMap);
+
+      baseMap.setTrait(CommonStrata.user, "opacity", 1);
+
+      const globe = cesium.scene.globe;
+      expect(globe.translucency.enabled).toBe(false);
+      expect(globe.showGroundAtmosphere).toBe(true);
+      expect(globe.baseColor).toEqual(Color.BLUE);
+    });
+
+    it("clamps out-of-range opacity values", async function () {
+      baseMap.setTrait(CommonStrata.user, "opacity", 5);
+      await terriaViewer.setBaseMap(baseMap);
+      expect(cesium.scene.globe.translucency.enabled).toBe(false);
+
+      baseMap.setTrait(CommonStrata.user, "opacity", -1);
+      expect(cesium.scene.globe.translucency.enabled).toBe(true);
+    });
+  });
+
+  describe("picking a vector feature", function () {
+    /**
+     * A catalog item whose features are built by
+     * `FeatureInfoUrlTemplateMixin.getFeaturesFromPickResult` - the branch every
+     * GeoJSON, Cesium 3D Tiles and I3S item takes.
+     */
+    async function loadPointItem() {
+      const item = new GeoJsonCatalogItem("geojson-pick", terria);
+      updateModelFromJson(item, CommonStrata.definition, {
+        geoJsonData: {
+          type: "Feature",
+          properties: { nameProp: "a point" },
+          geometry: { type: "Point", coordinates: [145.0166, -37.7679] }
+        }
+      });
+      await item.loadMapItems();
+      return item;
+    }
+
+    /** Stands in for the clamped Billboard that Cesium's picking returns. */
+    function stubPick(item: GeoJsonCatalogItem, primitive: unknown) {
+      const entity = new Entity({ id: "picked-entity" });
+      (entity as any)._catalogItem = item;
+      spyOn(cesium.scene, "drillPick").and.returnValue([
+        { id: entity, primitive }
+      ]);
+      return entity;
+    }
+
+    async function pickedFeatures() {
+      await cesium.pickFromScreenPosition(new Cartesian2(0, 0), false);
+      const picked = terria.pickedFeatures;
+      await picked?.allFeaturesAvailablePromise;
+      return picked?.features ?? [];
+    }
+
+    it("keeps the picked primitive on the feature", async function () {
+      // The primitive carries the terrain-clamped position; without it the
+      // selection indicator falls back to the feature's own position, which for
+      // 2D source coordinates sits on the ellipsoid rather than on the terrain.
+      const clampedPrimitive = { _clampedPosition: new Cartesian3(1, 2, 3) };
+      stubPick(await loadPointItem(), clampedPrimitive);
+
+      const features = await pickedFeatures();
+
+      expect(features.length).toBe(1);
+      expect(features[0].cesiumPrimitive).toBe(clampedPrimitive);
+    });
+
+    it("does not overwrite a primitive the catalog item already resolved", async function () {
+      const item = await loadPointItem();
+      const ownPrimitive = { _clampedPosition: new Cartesian3(4, 5, 6) };
+      spyOn(item, "getFeaturesFromPickResult").and.callFake(async () => {
+        const feature = new TerriaFeature({ id: "built-by-item" });
+        feature.cesiumPrimitive = ownPrimitive;
+        return feature;
+      });
+      stubPick(item, { _clampedPosition: new Cartesian3(7, 8, 9) });
+
+      const features = await pickedFeatures();
+
+      expect(features[0].cesiumPrimitive).toBe(ownPrimitive);
+    });
+  });
 });
 
 /**
- * A mappable test class that generates tileset, datasource & imagery layer map
- * items.
+ * Catalog item with an opacity trait, for base map opacity tests.
  */
-class MappablePrimitiveItem extends MappableMixin(CreateModel(MappableTraits)) {
-  constructor(id: string, terria: Terria, readonly tileset: Cesium3DTileset) {
-    super(id, terria);
-  }
+class TestOpacityBaseMapItem extends MappableMixin(
+  CatalogMemberMixin(
+    CreateModel(mixTraits(CatalogMemberTraits, MappableTraits, OpacityTraits))
+  )
+) {
+  protected async forceLoadMapItems(): Promise<void> {}
 
-  async forceLoadMapItems() {}
-
-  get mapItems() {
-    const result: MapItem[] = [];
-    result.push(this.tileset);
-    result.push(new GeoJsonDataSource(`ds${this.uniqueId}`));
-    result.push({
-      alpha: 1,
-      imageryProvider: new WebMapServiceImageryProvider({
-        url: `img${this.uniqueId}`,
-        layers: this.uniqueId!
-      }),
-      show: true,
-      clippingRectangle: undefined
-    });
-    return result;
+  get mapItems(): MapItem[] {
+    return [];
   }
 }
 

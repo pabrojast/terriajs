@@ -1,28 +1,34 @@
-import { MouseEvent, useState, useEffect } from "react";
+import classNames from "classnames";
 import { observer } from "mobx-react";
-import URI from "urijs";
 import { string } from "prop-types";
+import { MouseEvent, useEffect, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
-import AddDataStyles from "./add-data.scss";
-import Styles from "./cesium-ion-connector.scss";
-import upsertModelFromJson from "../../../../Models/Definition/upsertModelFromJson";
+import styled from "styled-components";
+import URI from "urijs";
+import isDefined from "../../../../Core/isDefined";
+import TerriaError from "../../../../Core/TerriaError";
+import Cesium3dTilesMixin from "../../../../ModelMixins/Cesium3dTilesMixin";
+import CesiumIonMixin from "../../../../ModelMixins/CesiumIonMixin";
+import TimeVarying from "../../../../ModelMixins/TimeVarying";
+import addUserCatalogMember from "../../../../Models/Catalog/addUserCatalogMember";
+import CesiumTerrainCatalogItem from "../../../../Models/Catalog/CatalogItems/CesiumTerrainCatalogItem";
+import IonImageryCatalogItem from "../../../../Models/Catalog/CatalogItems/IonImageryCatalogItem";
 import CatalogMemberFactory from "../../../../Models/Catalog/CatalogMemberFactory";
 import CommonStrata from "../../../../Models/Definition/CommonStrata";
-import addUserCatalogMember from "../../../../Models/Catalog/addUserCatalogMember";
-import Dropdown from "../../../Generic/Dropdown";
-import Icon from "../../../../Styled/Icon";
-import classNames from "classnames";
-import { RawButton } from "../../../../Styled/Button";
-import styled from "styled-components";
-import { useViewState } from "../../../Context";
-import TimeVarying from "../../../../ModelMixins/TimeVarying";
-import isDefined from "../../../../Core/isDefined";
+import upsertModelFromJson from "../../../../Models/Definition/upsertModelFromJson";
 import Terria from "../../../../Models/Terria";
+import { RawButton } from "../../../../Styled/Button";
+import Icon from "../../../../Styled/Icon";
+import { useViewState } from "../../../Context";
+import Dropdown from "../../../Generic/Dropdown";
+import WarningBox from "../../../Preview/WarningBox";
+import AddDataStyles from "./add-data.scss";
+import Styles from "./cesium-ion-connector.scss";
 
 interface CesiumIonToken {
   id?: string;
   name?: string;
-  uniqueName?: string; // we populate this one ourselves
+  uniqueName: string; // we populate this one ourselves
   token?: string;
   dateAdded?: string;
   dateModified?: string;
@@ -36,7 +42,7 @@ interface CesiumIonToken {
 interface CesiumIonAsset {
   id?: number;
   name?: string;
-  uniqueName?: string; // we populate this one ourselves
+  uniqueName: string; // we populate this one ourselves
   description?: string;
   type?: string;
   bytes?: number;
@@ -165,6 +171,8 @@ function CesiumIonConnector() {
     loginTokenPersistence.get() ?? ""
   );
 
+  const [error, setError] = useState<TerriaError | undefined>(undefined);
+
   const [userProfile, setUserProfile] = useState(defaultUserProfile);
   const [isLoadingUserProfile, setIsLoadingUserProfile] =
     useState<boolean>(false);
@@ -192,6 +200,7 @@ function CesiumIonConnector() {
   useEffect(() => {
     if (loginToken.length === 0) return;
 
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsLoadingUserProfile(true);
 
     fetch("https://api.cesium.com/v1/me", {
@@ -215,6 +224,7 @@ function CesiumIonConnector() {
   useEffect(() => {
     if (loginToken.length === 0) return;
 
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsLoadingAssets(true);
 
     fetch("https://api.cesium.com/v1/assets", {
@@ -243,6 +253,7 @@ function CesiumIonConnector() {
       return;
     }
 
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsLoadingTokens(true);
 
     fetch("https://api.cesium.com/v2/tokens", {
@@ -256,13 +267,18 @@ function CesiumIonConnector() {
           tokens.items.forEach((item) => {
             item.uniqueName = `${item.name} (${item.id})`;
           });
+
+          if (viewState.terria.configParameters.cesiumIonDisableDefaultToken) {
+            tokens.items = tokens.items.filter((item) => !item.isDefault);
+          }
           setTokens(tokens.items);
         }
         setIsLoadingTokens(false);
       });
   }, [
     loginToken,
-    viewState.terria.configParameters.cesiumIonAllowSharingAddedAssets
+    viewState.terria.configParameters.cesiumIonAllowSharingAddedAssets,
+    viewState.terria.configParameters.cesiumIonDisableDefaultToken
   ]);
 
   let selectedToken = viewState.currentCesiumIonToken
@@ -296,10 +312,9 @@ function CesiumIonConnector() {
   return (
     <>
       <label className={AddDataStyles.label}>
-        <Trans i18nKey="addData.cesiumIon">
-          <strong>Step 2:</strong>
-        </Trans>
+        <strong>{t(($) => $.addData.cesiumIonStep2)}</strong>
       </label>
+      {error && <WarningBox error={error} viewState={viewState} />}
       {loginToken.length > 0
         ? renderConnectedOrConnecting()
         : renderDisconnected()}
@@ -344,24 +359,29 @@ function CesiumIonConnector() {
       return selectedToken.assetIds.indexOf(asset.id) >= 0;
     };
 
+    const accessibleAssets = assets.filter(isAssetAccessibleBySelectedToken);
+
     return (
       <>
         {renderTokenSelector()}
         {isLoadingAssets ? (
           <label className={AddDataStyles.label}>Loading asset list...</label>
         ) : (
-          <table className={Styles.assetsList}>
-            <tbody>
-              <tr>
-                <th />
-                <th>Name</th>
-                <th>Type</th>
-              </tr>
-              {assets
-                .filter(isAssetAccessibleBySelectedToken)
-                .map(renderAssetRow)}
-            </tbody>
-          </table>
+          <>
+            {accessibleAssets.length === 0 && renderNoAssetsAvailableWarning()}
+            {accessibleAssets.length > 0 && (
+              <table className={Styles.assetsList}>
+                <tbody>
+                  <tr>
+                    <th />
+                    <th>Name</th>
+                    <th>Type</th>
+                  </tr>
+                  {accessibleAssets.map(renderAssetRow)}
+                </tbody>
+              </table>
+            )}
+          </>
         )}
       </>
     );
@@ -374,19 +394,26 @@ function CesiumIonConnector() {
     return (
       <>
         <label className={AddDataStyles.label}>
-          <Trans i18nKey="addData.cesiumIonToken">Cesium ion Token:</Trans>
+          <Trans i18nKey={($) => $.addData.cesiumIonToken}>
+            Cesium ion token:
+          </Trans>
         </label>
         {isLoadingTokens ? (
           <label className={AddDataStyles.label}>Loading token list...</label>
         ) : (
-          <Dropdown
-            options={tokens}
-            textProperty="uniqueName"
-            selected={selectedToken}
-            selectOption={setSelectedToken}
-            matchWidth
-            theme={dropdownTheme}
-          />
+          <>
+            {renderNoTokensAvailableWarning()}
+            {tokens.length > 0 && (
+              <Dropdown
+                options={tokens}
+                textProperty="uniqueName"
+                selected={selectedToken}
+                selectOption={setSelectedToken}
+                matchWidth
+                theme={dropdownTheme}
+              />
+            )}
+          </>
         )}
         <div
           className={classNames(Styles.tokenWarning, {
@@ -397,6 +424,11 @@ function CesiumIonConnector() {
         </div>
       </>
     );
+  }
+
+  function renderNoAssetsAvailableWarning() {
+    if (!selectedToken) return undefined;
+    return <strong>No assets available.</strong>;
   }
 
   function renderDisconnected() {
@@ -417,6 +449,31 @@ function CesiumIonConnector() {
           </button>
         </div>
       </div>
+    );
+  }
+
+  function renderNoTokensAvailableWarning() {
+    if (tokens.length > 0) return undefined;
+    return (
+      <>
+        <p>
+          <strong>No restricted tokens found.</strong> To protect your data,
+          Cesium default tokens are not allowed. Add a new token with a
+          restricted scope to access your datasets.
+        </p>
+        <button
+          className={Styles.connectButton}
+          onClick={() =>
+            window.open(
+              "https://ion.cesium.com/tokens",
+              "_blank",
+              "noopener,noreferrer"
+            )
+          }
+        >
+          Add a new token
+        </button>
+      </>
     );
   }
 
@@ -491,15 +548,36 @@ function CesiumIonConnector() {
   }
 
   function renderAssetRow(asset: CesiumIonAsset) {
+    const existingItem =
+      viewState.terria.catalog.userAddedDataGroup.memberModels.find(
+        (item) =>
+          (CesiumIonMixin.isMixedInto(item) ||
+            Cesium3dTilesMixin.isMixedInto(item) ||
+            item instanceof CesiumTerrainCatalogItem ||
+            item instanceof IonImageryCatalogItem) &&
+          item.ionAssetId === asset.id
+      );
+
     return (
       <tr key={asset.id}>
         <td>
           <ActionButton
             type="button"
-            onClick={addToMap.bind(undefined, viewState.terria, asset)}
-            title={t("catalogItem.add")}
+            onClick={
+              existingItem
+                ? () => viewState.terria.removeModelReferences(existingItem)
+                : addToMap.bind(undefined, viewState.terria, asset)
+            }
+            title={t(($) => $.catalogItem.add)}
           >
-            <Icon glyph={Icon.GLYPHS.add} className={Styles.addAssetButton} />
+            {existingItem ? (
+              <Icon
+                glyph={Icon.GLYPHS.minus}
+                className={Styles.addAssetButton}
+              />
+            ) : (
+              <Icon glyph={Icon.GLYPHS.add} className={Styles.addAssetButton} />
+            )}
           </ActionButton>
         </td>
         <td>{asset.name}</td>
@@ -511,11 +589,24 @@ function CesiumIonConnector() {
   function connect() {
     const clientID =
       viewState.terria.configParameters.cesiumIonOAuth2ApplicationID;
-    const redirectUri = URI("build/TerriaJS/cesium-ion-oauth2.html")
+
+    const redirectUri = URI(`${viewState.terria.baseUrl}cesium-ion-oauth2.html`)
       .absoluteTo(window.location.href)
       .fragment("")
-      .query("")
-      .toString();
+      .query("");
+
+    // Don't allow the use of a different origin for the redirect URI
+    if (window.location.origin !== redirectUri.origin()) {
+      setError(
+        new TerriaError({
+          title: "Security Error",
+          message:
+            "The redirect URI is not valid. Please contact your administrator."
+        })
+      );
+
+      return;
+    }
 
     const codeChallengeValue = codeChallenge.value;
     const codeChallengeHash = codeChallenge.hash;
@@ -528,7 +619,7 @@ function CesiumIonConnector() {
       response_type: "code",
       client_id: clientID,
       scope: "assets:read assets:list tokens:read profile:read",
-      redirect_uri: redirectUri,
+      redirect_uri: redirectUri.toString(),
       state: state,
       code_challenge: codeChallengeHash,
       code_challenge_method: "S256"
@@ -545,7 +636,7 @@ function CesiumIonConnector() {
           grant_type: "authorization_code",
           client_id: clientID,
           code: code,
-          redirect_uri: redirectUri,
+          redirect_uri: redirectUri.toString(),
           code_verifier: codeChallengeValue
         })
       })
@@ -578,7 +669,11 @@ function CesiumIonConnector() {
       viewState.terria.configParameters.cesiumIonAllowSharingAddedAssets;
     const assetToken = allowSharing
       ? selectedToken
-      : { token: loginToken, name: `${userProfile.username}'s login token` };
+      : {
+          token: loginToken,
+          name: `${userProfile.username}'s login token`,
+          uniqueName: `${userProfile.username}'s login token`
+        };
     if (!assetToken) return;
 
     const definition = createCatalogItemDefinitionFromAsset(
@@ -671,7 +766,7 @@ function CesiumIonConnector() {
           content: userProfile.username
         },
         {
-          name: "Cesium ion Token",
+          name: "Cesium ion token",
           content: token.name ?? token.id
         }
       ],

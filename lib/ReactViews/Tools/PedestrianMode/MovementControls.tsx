@@ -1,4 +1,4 @@
-import { FC, useEffect, useState } from "react";
+import { FC, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import styled from "styled-components";
 import heightControlsImage from "../../../../wwwroot/images/height-controls.svg";
@@ -25,10 +25,15 @@ const MovementControls: FC<MovementControlsProps> = (props) => {
 
   const toggleMaximized = () => setIsMaximized(!isMaximized);
 
+  // onMove could change on each render but we want to pass a stable callbac to
+  // MovementsController
+  const onMoveRef = useRef<() => void>();
+  onMoveRef.current = () => props.onMove();
+
   useEffect(() => {
     const movementsController = new MovementsController(
       props.cesium,
-      props.onMove,
+      () => onMoveRef.current?.(),
       props.pedestrianHeight,
       props.maxVerticalLookAngle
     );
@@ -40,7 +45,7 @@ const MovementControls: FC<MovementControlsProps> = (props) => {
   return (
     <Container>
       <Title>
-        <Text medium>{t("pedestrianMode.controls.title")}</Text>
+        <Text medium>{t(($) => $.pedestrianMode.controls.title)}</Text>
         <MinimizeMaximizeButton
           onClick={toggleMaximized}
           maximized={isMaximized}
@@ -66,9 +71,7 @@ const Container = styled.div`
   border-radius: 3px;
 `;
 
-const Title = styled(Box).attrs({
-  medium: true
-})`
+const Title = styled(Box)`
   justify-content: space-between;
   align-items: center;
   padding: 0 0.5em;

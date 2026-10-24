@@ -1,0 +1,36 @@
+{
+  "id": "test-catalog",
+  "type": "Catalog",
+  "stac_version": "1.1.0",
+  "title": "Test STAC Catalog",
+  "description": "A test STAC catalog for unit testing TerriaJS STAC support.",
+  "links": [
+    {
+      "rel": "self",
+      "href": "/test/stac/catalog.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "root",
+      "href": "/test/stac/catalog.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "data",
+      "href": "/test/stac/collections.json",
+      "type": "application/json",
+      "title": "Collections"
+    },
+    {
+      "rel": "child",
+      "href": "/test/stac/collection.json",
+      "type": "application/json",
+      "title": "Test Collection"
+    }
+  ],
+  "conformsTo": [
+    "https://api.stacspec.org/v1.0.0/core",
+    "https://api.stacspec.org/v1.0.0/collections",
+    "https://api.stacspec.org/v1.0.0/item-search"
+  ]
+}

@@ -3,7 +3,7 @@ import { observer } from "mobx-react";
 import { MouseEvent } from "react";
 import defined from "terriajs-cesium/Source/Core/defined";
 import addedByUser from "../../Core/addedByUser";
-import { DataSourceAction } from "../../Core/AnalyticEvents/analyticEvents";
+import { DataSourceAction } from "../../Core/Analytics/analyticEvents";
 import getPath from "../../Core/getPath";
 import CatalogMemberMixin from "../../ModelMixins/CatalogMemberMixin";
 import ReferenceMixin from "../../ModelMixins/ReferenceMixin";
@@ -16,6 +16,7 @@ import CatalogItem, { ButtonState } from "./CatalogItem";
 import toggleItemOnMapFromCatalog, {
   Op as ToggleOnMapOp
 } from "./toggleItemOnMapFromCatalog";
+import raiseErrorNotShownInPreview from "../Preview/raiseErrorNotShownInPreview";
 
 interface Props {
   reference: ReferenceMixin.Instance &
@@ -23,6 +24,7 @@ interface Props {
     Model<CatalogMemberReferenceTraits>;
   viewState: ViewState;
   terria: Terria;
+  hideActionButton?: boolean;
   onActionButtonClicked?: (item: Props["reference"]) => void;
   isTopLevel: boolean;
 }
@@ -31,12 +33,15 @@ export default observer(function DataCatalogReference({
   reference,
   viewState,
   onActionButtonClicked,
-  isTopLevel
+  isTopLevel,
+  hideActionButton
 }: Props) {
   const setPreviewedItem = () =>
     viewState
       .viewCatalogMember(reference)
-      .then((result) => result.raiseError(viewState.terria));
+      .then((result) =>
+        raiseErrorNotShownInPreview(viewState, reference, result)
+      );
 
   const add = async (event: MouseEvent<HTMLButtonElement>) => {
     const keepCatalogOpen = event.shiftKey || event.ctrlKey;
@@ -75,6 +80,8 @@ export default observer(function DataCatalogReference({
     btnState = ButtonState.Preview;
   } else if (reference.isFunction) {
     btnState = ButtonState.Stats;
+  } else if (reference.terria.workbench.contains(reference)) {
+    btnState = ButtonState.Remove;
   } else {
     btnState = ButtonState.Add;
   }
@@ -98,6 +105,7 @@ export default observer(function DataCatalogReference({
       title={path}
       btnState={btnState}
       onBtnClick={reference.isFunction ? setPreviewedItem : add}
+      hideBtn={hideActionButton}
     />
   );
 });

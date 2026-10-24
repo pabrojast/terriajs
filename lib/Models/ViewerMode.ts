@@ -1,5 +1,6 @@
 import { runInAction } from "mobx";
 import TerriaViewer from "../ViewModels/TerriaViewer";
+import { keyFromSelector } from "i18next";
 
 enum ViewerMode {
   Cesium = "cesium",
@@ -10,19 +11,23 @@ export const MapViewers = Object.seal({
   "3d": {
     viewerMode: ViewerMode.Cesium,
     terrain: true,
-    label: "settingPanel.viewerModeLabels.CesiumTerrain",
+    label: keyFromSelector(
+      ($) => $.settingPanel.viewerModeLabels.CesiumTerrain
+    ),
     available: true
   },
   "3dsmooth": {
     viewerMode: ViewerMode.Cesium,
     terrain: false,
-    label: "settingPanel.viewerModeLabels.CesiumEllipsoid",
+    label: keyFromSelector(
+      ($) => $.settingPanel.viewerModeLabels.CesiumEllipsoid
+    ),
     available: true
   },
   "2d": {
     viewerMode: ViewerMode.Leaflet,
     terrain: false,
-    label: "settingPanel.viewerModeLabels.Leaflet",
+    label: keyFromSelector(($) => $.settingPanel.viewerModeLabels.Leaflet),
     available: true
   }
 });
@@ -46,6 +51,22 @@ export function setViewerMode(
       );
     }
   });
+}
+
+/**
+ * Returns the viewer type for the given viewer mode
+ *
+ * @param viewerMode 3d, 3dsmooth or 2d
+ */
+export function getViewerType(viewerMode: string): ViewerMode | undefined {
+  // Note:
+  // There is small naming ambiguity here
+  // ViewerMode can either mean Leaflet|Cesium|NoViewer or 3d|3dsmooth|2d
+  // The 3d|2d sense of viewermode is used in APIs, for eg to set preference in localStorage
+  // So I think we should rename Leaflet|Cesium... as viewerType instead!
+  if (isViewerMode(viewerMode)) {
+    return MapViewers[viewerMode].viewerMode;
+  }
 }
 
 export default ViewerMode;

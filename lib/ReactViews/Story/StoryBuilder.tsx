@@ -1,4 +1,11 @@
-import { action, makeObservable, toJS } from "mobx";
+import {
+  action,
+  computed,
+  makeObservable,
+  observable,
+  runInAction,
+  toJS
+} from "mobx";
 import { observer } from "mobx-react";
 import {
   RefObject,
@@ -20,10 +27,7 @@ import styled, { DefaultTheme, withTheme } from "styled-components";
 import combine from "terriajs-cesium/Source/Core/combine";
 import createGuid from "terriajs-cesium/Source/Core/createGuid";
 import dataStoriesImg from "../../../wwwroot/images/data-stories-getting-started.jpg";
-import {
-  Category,
-  StoryAction
-} from "../../Core/AnalyticEvents/analyticEvents";
+import { Category, StoryAction } from "../../Core/Analytics/analyticEvents";
 import triggerResize from "../../Core/triggerResize";
 import ViewState from "../../ReactViewModels/ViewState";
 import Box from "../../Styled/Box";
@@ -73,6 +77,25 @@ class StoryBuilder extends Component<
   refToMeasure: any;
 
   clearRecaptureSuccessTimeout?: () => void;
+
+  // Save list scroll position so returning to the list doesn't jump to the top
+  private onStoriesScroll = () => {
+    const el = this.storiesWrapperRef.current as HTMLElement | null;
+    if (!el) return;
+    this.props.viewState.setStoryListScrollTop(el.scrollTop || 0);
+  };
+
+  private restoreScrollPosition = () => {
+    const el = this.storiesWrapperRef.current as HTMLElement | null;
+    if (!el) return;
+    const y = this.props.viewState.storyListScrollTop || 0;
+    if (y > 0) {
+      // Use rAF to ensure layout is ready before restoring scroll
+      requestAnimationFrame(() => {
+        el.scrollTop = y;
+      });
+    }
+  };
 
   constructor(
     props: IProps & MeasureElementProps & WithTranslation & WithViewState
@@ -138,11 +161,13 @@ class StoryBuilder extends Component<
   onSave(_story: StoryData) {
     const story = {
       title: _story.title,
+      presentation: _story.presentation,
+      composition: _story.composition,
       text: _story.text,
       id: _story.id ? _story.id : createGuid()
     };
 
-    this.props.viewState.terria.analytics?.logEvent(
+    this.props.viewState.terria.analytics.logEvent(
       Category.story,
       StoryAction.saveStory,
       JSON.stringify(story)
@@ -154,20 +179,28 @@ class StoryBuilder extends Component<
 
     if (storyIndex >= 0) {
       const oldStory = this.props.viewState.terria.stories[storyIndex];
-      // replace the old story, we need to replace the stories array so that
-      // it is observable
+      // replace the old story, preserving position and dimensions
+      const updatedStory = combine(story, oldStory);
+      // Preserve position and dimensions from the original story
+      if (oldStory.position) {
+        updatedStory.position = oldStory.position;
+      }
+      if (oldStory.dimensions) {
+        updatedStory.dimensions = oldStory.dimensions;
+      }
+
       this.props.viewState.terria.stories = [
         ...this.props.viewState.terria.stories.slice(0, storyIndex),
-        combine(story, oldStory),
+        updatedStory,
         ...this.props.viewState.terria.stories.slice(storyIndex + 1)
       ];
     } else {
       this.captureStory(story);
     }
 
-    this.setState({
-      editingMode: false
-    });
+    this.setState({ editingMode: false });
+    // Edits are now saved
+    this.props.viewState.setStoryHasUnsavedChanges(false);
   }
 
   @action
@@ -191,16 +224,29 @@ class StoryBuilder extends Component<
       (st) => st.id === story.id
     );
     if (storyIndex >= 0) {
-      story.shareData = JSON.parse(
-        JSON.stringify(
-          getShareData(this.props.viewState.terria, this.props.viewState, {
-            includeStories: false
-          })
+      const oldStory = this.props.viewState.terria.stories[storyIndex];
+      const updatedStory = {
+        ...story,
+        shareData: JSON.parse(
+          JSON.stringify(
+            getShareData(this.props.viewState.terria, this.props.viewState, {
+              includeStories: false
+            })
+          )
         )
-      );
+      };
+
+      // Preserve position and dimensions from the original story
+      if (oldStory.position) {
+        updatedStory.position = oldStory.position;
+      }
+      if (oldStory.dimensions) {
+        updatedStory.dimensions = oldStory.dimensions;
+      }
+
       this.props.viewState.terria.stories = [
         ...this.props.viewState.terria.stories.slice(0, storyIndex),
-        story,
+        updatedStory,
         ...this.props.viewState.terria.stories.slice(storyIndex + 1)
       ];
       this.setState({
@@ -210,7 +256,7 @@ class StoryBuilder extends Component<
       const timeout = setTimeout(this.resetReCaptureStatus, 2000);
       this.clearRecaptureSuccessTimeout = () => clearTimeout(timeout);
     } else {
-      throw new Error(t("story.doesNotExist"));
+      throw new Error(t(($) => $.story.doesNotExist));
     }
   }
 
@@ -240,6 +286,8 @@ class StoryBuilder extends Component<
       editingMode: true,
       currentStory: story
     });
+    // Start editing; unsaved until saved or canceled
+    this.props.viewState.setStoryHasUnsavedChanges(false);
   }
 
   @action
@@ -255,11 +303,93 @@ class StoryBuilder extends Component<
     _currentDraggingSortData: any,
     _currentDraggingIndex: any
   ) {
+    const current = this.props.viewState.terria.stories;
+    // Avoid unnecessary observable writes if order didn't change
+    if (
+      current.length === sortedArray.length &&
+      current.every((s, i) => s.id === sortedArray[i]?.id)
+    )
+      return;
     this.props.viewState.terria.stories = sortedArray;
+  }
+
+  @observable
+  viewState: ViewState | undefined;
+
+  @computed
+  get shareDataStringSize() {
+    if (!this.viewState) return undefined;
+    const terria = this.viewState.terria;
+    const stories = terria.stories;
+
+    const validStories = stories.filter(
+      (story) => story.shareData.initSources.length > 0
+    ).length;
+
+    return JSON.stringify(
+      getShareData(terria, this.viewState, {
+        includeStories: validStories > 0
+      })
+    ).length;
   }
 
   componentWillUnmount() {
     this.clearRecaptureSuccessTimeout?.();
+    // Persist final scroll position
+    this.onStoriesScroll();
+    // Detach any listeners
+    const el = this.storiesWrapperRef.current as HTMLElement | null;
+    if (el) el.removeEventListener("scroll", this.onStoriesScroll);
+  }
+
+  componentDidMount(): void {
+    runInAction(() => {
+      this.viewState = this.props.viewState;
+    });
+    // Attach scroll listener and restore scroll position when the list exists
+    const el = this.storiesWrapperRef.current as HTMLElement | null;
+    if (el) {
+      el.addEventListener("scroll", this.onStoriesScroll, {
+        passive: true
+      } as any);
+      this.restoreScrollPosition();
+    }
+  }
+
+  componentDidUpdate(
+    prevProps: Readonly<
+      IProps & MeasureElementProps & WithTranslation & WithViewState
+    >,
+    prevState: Readonly<IState>
+  ): void {
+    if (prevProps.viewState !== this.props.viewState) {
+      runInAction(() => {
+        this.viewState = this.props.viewState;
+      });
+    }
+    // If the list becomes available (e.g., exiting StoryEditor or first stories added), ensure listener and restore scroll
+    const hadList = Boolean(
+      prevState.editingMode === false &&
+      (prevProps.viewState.terria.stories?.length || 0) > 0
+    );
+    const hasList = Boolean(
+      this.state.editingMode === false &&
+      (this.props.viewState.terria.stories?.length || 0) > 0
+    );
+
+    const el = this.storiesWrapperRef.current as HTMLElement | null;
+    if (hasList && el) {
+      // Attach listener once
+      el.removeEventListener("scroll", this.onStoriesScroll);
+      el.addEventListener("scroll", this.onStoriesScroll, {
+        passive: true
+      } as any);
+
+      // Restore scroll when returning to list or after first render with list
+      if (!hadList || prevState.editingMode !== this.state.editingMode) {
+        this.restoreScrollPosition();
+      }
+    }
   }
 
   renderIntro() {
@@ -276,8 +406,8 @@ class StoryBuilder extends Component<
           videoName={STORY_VIDEO}
         />
         <StoryButton
-          title={t("story.gettingStartedTitle")}
-          btnText={t("story.gettingStarted")}
+          title={t(($) => $.story.gettingStartedTitle)}
+          btnText={t(($) => $.story.gettingStarted)}
           onClick={() => {
             this.props.viewState.setVideoGuideVisible(STORY_VIDEO);
           }}
@@ -307,8 +437,8 @@ class StoryBuilder extends Component<
         <StoryButton
           fullWidth
           disabled={this.state.editingMode}
-          title={t("story.preview")}
-          btnText={t("story.play")}
+          title={t(($) => $.story.preview)}
+          btnText={t(($) => $.story.play)}
           onClick={this.runStories}
         >
           <StyledIcon
@@ -339,10 +469,10 @@ class StoryBuilder extends Component<
   renderStories() {
     const { t, i18n } = this.props;
     const stories = this.props.viewState.terria.stories || [];
-    const storyName = this.state.storyToRemove
+    const storyName: string = this.state.storyToRemove
       ? this.state.storyToRemove.title.length
         ? this.state.storyToRemove.title
-        : t("story.untitledScene")
+        : t(($) => $.story.untitledScene)
       : "";
     return (
       <>
@@ -356,7 +486,7 @@ class StoryBuilder extends Component<
           `}
         >
           <TextSpan textLight uppercase overflowHide overflowEllipsis>
-            {t("story.badgeBarLabel")}{" "}
+            {t(($) => $.story.badgeBarLabel)}{" "}
             {`(${this.props.viewState.terria.stories.length})`}
           </TextSpan>
           <RawButton
@@ -365,9 +495,33 @@ class StoryBuilder extends Component<
             textLight
             className={Styles.removeButton}
           >
-            <Icon glyph={Icon.GLYPHS.remove} /> {t("story.removeAllStories")}
+            <Icon glyph={Icon.GLYPHS.cancel} />
+            <TextSpan isLink>{t(($) => $.story.removeAllStories)}</TextSpan>
           </RawButton>
         </Box>
+        {this.props.viewState.terria.configParameters
+          .showStorySaveInstructions && (
+          <Box
+            verticalCenter
+            paddedRatio={2}
+            css={`
+              border-bottom: 1px solid ${this.props.theme.darkLighter};
+            `}
+          >
+            <StyledIcon
+              glyph={Icon.GLYPHS.info}
+              styledWidth={"16px"}
+              fillColor={this.props.theme.infoColor}
+              css={`
+                flex-shrink: 0;
+              `}
+            />
+            <Spacing right={1} />
+            <TextSpan medium color={this.props.theme.infoColor}>
+              <Trans i18nKey={($) => $.story.saveInstructions} />
+            </TextSpan>
+          </Box>
+        )}
         <Spacing bottom={2} />
         <Box column paddedHorizontally={2} flex={1} styledMinHeight="0">
           {this.state.isRemoving && (
@@ -376,7 +530,10 @@ class StoryBuilder extends Component<
               text={
                 this.state.storyToRemove ? (
                   <Text textLight large>
-                    <Trans i18nKey="story.removeStoryDialog" i18n={i18n}>
+                    <Trans
+                      i18nKey={($) => $.story.removeStoryDialog}
+                      i18n={i18n}
+                    >
                       Are you sure you wish to delete
                       <TextSpan textLight large bold>
                         {{ storyName }}
@@ -386,7 +543,9 @@ class StoryBuilder extends Component<
                   </Text>
                 ) : (
                   <Text textLight large>
-                    {t("story.removeAllStoriesDialog", {
+                    {t(($) => $.story.removeAllStoriesDialog, {
+                      defaultValue:
+                        "Are you sure you wish to delete {{ count }} scene?",
                       count: this.props.viewState.terria.stories.length
                     })}
                   </Text>
@@ -461,21 +620,33 @@ class StoryBuilder extends Component<
       editingMode: true,
       currentStory: undefined
     });
+    // New story draft, currently no unsaved changes until user types
+    this.props.viewState.setStoryHasUnsavedChanges(false);
   };
 
   hideStoryBuilder = () => {
     this.props.viewState.toggleStoryBuilder();
     this.props.viewState.terria.currentViewer.notifyRepaintRequired();
-    // Allow any animations to finish, then trigger a resize.
-    setTimeout(function () {
-      triggerResize();
-    }, this.props.animationDuration || 1);
+    // Allow any animations to finish, then trigger a resize in the next frame.
+    requestAnimationFrame(() => {
+      setTimeout(() => triggerResize(), this.props.animationDuration || 1);
+    });
     this.props.viewState.toggleFeaturePrompt("story", false, true);
   };
 
   render() {
     const { t } = this.props;
     const hasStories = this.props.viewState.terria.stories.length > 0;
+    const shareDataSize = this.shareDataStringSize;
+    const shareMaxRequestSize =
+      this.props.viewState.terria.shareDataService?.shareMaxRequestSize;
+    const shareMaxRequestSizeBytes =
+      this.props.viewState.terria.shareDataService?.shareMaxRequestSizeBytes;
+    // Disable the warning if map owners use custom server that does not return shareMaxRequestSize:
+    const shareDataTooLong =
+      shareDataSize && shareMaxRequestSizeBytes
+        ? shareDataSize > shareMaxRequestSizeBytes
+        : false;
     return (
       <Panel
         ref={(component: HTMLElement) => (this.refToMeasure = component)}
@@ -503,22 +674,39 @@ class StoryBuilder extends Component<
         </Box>
         <Box centered paddedHorizontally={2} displayInlineBlock>
           <Text bold extraExtraLarge textLight>
-            {t("story.panelTitle")}
+            {t(($) => $.story.panelTitle)}
           </Text>
           <Spacing bottom={2} />
           <Text medium color={this.props.theme.textLightDimmed} highlightLinks>
-            {t("story.panelBody")}
+            {`${t(($) => $.story.panelBody)}${
+              shareMaxRequestSize
+                ? ` ${t(($) => $.story.panelBodyCapped, {
+                    shareMaxRequestSize
+                  })}`
+                : ""
+            }`}
           </Text>
           <Spacing bottom={3} />
           {!hasStories && this.renderIntro()}
           {hasStories && this.renderPlayShare()}
         </Box>
         <Spacing bottom={2} />
+        {shareDataTooLong && (
+          <Box paddedHorizontally={2}>
+            <Text small color={this.props.theme.textWarning} highlightLinks>
+              {t(($) => $.story.storiesTooLong)}
+            </Text>
+          </Box>
+        )}
         {hasStories && this.renderStories()}
         {this.state.editingMode && (
           <StoryEditor
             removeStory={this.removeStory}
-            exitEditingMode={() => this.setState({ editingMode: false })}
+            exitEditingMode={() => {
+              this.setState({ editingMode: false });
+              // Cancel editing — no unsaved changes tracked
+              this.props.viewState.setStoryHasUnsavedChanges(false);
+            }}
             story={this.state.currentStory}
             saveStory={this.onSave}
             terria={this.props.viewState.terria}
@@ -540,6 +728,8 @@ const Panel = styled(Box)<PanelProps>`
   width: 320px;
   min-width: 320px;
   height: 100vh;
+  z-index: 99999;
+  position: relative;
   ${(props) =>
     props.isVisible &&
     `
@@ -563,8 +753,8 @@ const CaptureScene: FC<CaptureSceneProps> = (props) => {
   const { t } = useTranslation();
   return (
     <StoryButton
-      title={t("story.captureSceneTitle")}
-      btnText={t("story.captureScene")}
+      title={t(($) => $.story.captureSceneTitle)}
+      btnText={t(($) => $.story.captureScene)}
       onClick={props.onClickCapture}
       disabled={props.disabled}
       fullWidth
@@ -628,7 +818,7 @@ const RemoveDialog: FC<RemoveDialogProps> = (props) => {
           }}
           onClick={props.closeDialog}
         >
-          {t("general.cancel")}
+          {t(($) => $.general.cancel)}
         </Button>
         <Spacing right={2} />
         <Button
@@ -643,7 +833,7 @@ const RemoveDialog: FC<RemoveDialogProps> = (props) => {
             props.closeDialog();
           }}
         >
-          {t("general.confirm")}
+          {t(($) => $.general.confirm)}
         </Button>
       </Box>
     </Box>

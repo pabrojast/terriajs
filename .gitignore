@@ -1,5 +1,7 @@
 # Update .prettierignore whenever this file changes
-docs/
+docs/*
+!docs/obsidian-vault/
+!docs/obsidian-vault/**
 node_modules/
 .idea/
 build/
@@ -10,6 +12,7 @@ npm-debug.log
 terria.lib.js
 terriajs-server.log
 terriajs.pid
+terriajs-server.pid
 /wwwroot/doc/
 /wwwroot/schema/
 /wwwroot/user-guide/
@@ -22,3 +25,6 @@ ts-out/
 
 # Catalog index generation files
 catalog-index*.json
+
+# inlang plugin cache
+project.inlang/cache/

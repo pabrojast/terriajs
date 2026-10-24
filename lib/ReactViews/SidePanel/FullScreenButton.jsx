@@ -4,7 +4,7 @@ import PropTypes from "prop-types";
 import classNames from "classnames";
 import { observer } from "mobx-react";
 import { withTranslation } from "react-i18next";
-import { Category, ViewAction } from "../../Core/AnalyticEvents/analyticEvents";
+import { Category, ViewAction } from "../../Core/Analytics/analyticEvents";
 import Icon, { StyledIcon } from "../../Styled/Icon";
 import withControlledVisibility from "../HOCs/withControlledVisibility";
 import { withViewState } from "../Context";
@@ -36,7 +36,7 @@ class FullScreenButton extends Component {
     );
 
     // log a GA event
-    this.props.viewState.terria.analytics?.logEvent(
+    this.props.viewState.terria.analytics.logEvent(
       Category.view,
       this.props.viewState.isMapFullScreen
         ? ViewAction.exitFullScreen
@@ -86,17 +86,17 @@ class FullScreenButton extends Component {
           onClick={() => this.toggleFullScreen()}
           aria-label={
             this.props.viewState.isMapFullScreen
-              ? t("sui.showWorkbench", {
+              ? t(($) => $.sui.showWorkbench, {
                   count: this.props.viewState.terria.workbench.items.length
                 })
-              : t("sui.hideWorkbench")
+              : t(($) => $.sui.hideWorkbench)
           }
           title={
             this.props.viewState.isMapFullScreen
-              ? t("sui.showWorkbench", {
+              ? t(($) => $.sui.showWorkbench, {
                   count: this.props.viewState.terria.workbench.items.length
                 })
-              : t("sui.hideWorkbench")
+              : t(($) => $.sui.hideWorkbench)
           }
           renderIcon={() =>
             this.props.viewState.isMapFullScreen ? (

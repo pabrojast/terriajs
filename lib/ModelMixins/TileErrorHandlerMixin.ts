@@ -19,6 +19,9 @@ import MappableTraits from "../Traits/TraitsClasses/MappableTraits";
 import DiscretelyTimeVaryingMixin from "./DiscretelyTimeVaryingMixin";
 import MappableMixin from "./MappableMixin";
 
+const LEAFLET_EMPTY_IMAGE_URL =
+  "data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=";
+
 type ModelType = Model<
   MappableTraits & ImageryProviderTraits & CatalogMemberTraits
 > &
@@ -113,12 +116,11 @@ function TileErrorHandlerMixin<T extends AbstractConstructor<ModelType>>(
         tileProviderError.retry = false;
         return;
       }
-
       /** Helper methods **/
 
       // Give up loading this (definitively, unexpectedly bad) tile and
       // possibly give up on this layer entirely.
-      const failTile = action((e: Error) => {
+      const failTile = action((e: Error, disableItem = true) => {
         this.tileFailures += 1;
         const opts = this.tileErrorHandlingOptions;
         const thresholdBeforeDisablingItem =
@@ -132,12 +134,14 @@ function TileErrorHandlerMixin<T extends AbstractConstructor<ModelType>>(
               new TerriaError({
                 sender: this,
                 title: i18next.t(
-                  "models.imageryLayer.accessingBaseMapErrorTitle"
+                  ($) => $.models.imageryLayer.accessingBaseMapErrorTitle
                 ),
                 message:
                   i18next.t(
-                    "models.imageryLayer.accessingBaseMapErrorMessage",
-                    { name: this.name }
+                    ($) => $.models.imageryLayer.accessingBaseMapErrorMessage,
+                    {
+                      name: this.name as string
+                    }
                   ) +
                   "<pre>" +
                   formatError(e) +
@@ -145,28 +149,55 @@ function TileErrorHandlerMixin<T extends AbstractConstructor<ModelType>>(
               })
             );
           } else {
-            this.terria.raiseErrorToUser(
-              new TerriaError({
-                sender: this,
-                title: i18next.t(
-                  "models.imageryLayer.accessingCatalogItemErrorTitle"
-                ),
-                message:
-                  i18next.t(
-                    "models.imageryLayer.accessingCatalogItemErrorMessage",
-                    { name: this.name }
-                  ) +
-                  "<pre>" +
-                  formatError(e) +
-                  "</pre>"
-              })
-            );
+            const error = new TerriaError({
+              sender: this,
+              title: i18next.t(
+                ($) => $.models.imageryLayer.accessingCatalogItemErrorTitle
+              ),
+              message:
+                i18next.t(
+                  ($) => $.models.imageryLayer.accessingCatalogItemErrorMessage,
+                  {
+                    name: this.name as string
+                  }
+                ) +
+                "<pre>" +
+                formatError(e) +
+                "</pre>"
+            });
+            if (this.terria.workbench.contains(this) && !disableItem) {
+              if (this.terria.workbench.getItemErrors(this).length === 0) {
+                this.terria.workbench.setItemErrors(this, [error]);
+                this.terria.errorService.error(error);
+                error.log();
+              }
+              operation.stop();
+              result.reject();
+              return;
+            } else if (this.terria.workbench.contains(this)) {
+              this.terria.workbench.setItemErrors(this, [error], {
+                clearWhenShown: true
+              });
+              this.terria.errorService.error(error);
+              error.log();
+            } else {
+              this.terria.raiseErrorToUser(error);
+            }
           }
           this.setTrait(CommonStrata.user, "show", false);
         }
         operation.stop();
         result.reject();
       });
+
+      // Prior to this new behaviour, we used to fail but keep the workbench
+      // item enabled.
+      const failMissingTile = (e: Error) =>
+        failTile(
+          e,
+          this.terria.configParameters.nextExperimentalFeatures
+            ?.keepLayersOnMissingTiles === false
+        );
 
       const tellMapToSilentlyGiveUp = () => {
         operation.stop();
@@ -197,8 +228,8 @@ function TileErrorHandlerMixin<T extends AbstractConstructor<ModelType>>(
         return this === (baseMap as any)
           ? true
           : baseMap instanceof CompositeCatalogItem
-          ? baseMap.memberModels.includes(this)
-          : false;
+            ? baseMap.memberModels.includes(this)
+            : false;
       };
       /** End helper methods **/
 
@@ -251,15 +282,18 @@ function TileErrorHandlerMixin<T extends AbstractConstructor<ModelType>>(
               // stuck repeating the request forever in that scenario. Instead,
               // we should give up after a few attempts.
               failTile({
-                name: i18next.t("models.imageryLayer.tileErrorTitle"),
-                message: i18next.t("models.imageryLayer.tileErrorMessage", {
-                  url: getUrlForImageryTile(
-                    imageryProvider,
-                    tileProviderError.x,
-                    tileProviderError.y,
-                    tileProviderError.level
-                  )
-                })
+                name: i18next.t(($) => $.models.imageryLayer.tileErrorTitle),
+                message: i18next.t(
+                  ($) => $.models.imageryLayer.tileErrorMessage,
+                  {
+                    url: getUrlForImageryTile(
+                      imageryProvider,
+                      tileProviderError.x,
+                      tileProviderError.y,
+                      tileProviderError.level
+                    ) as string
+                  }
+                )
               });
             } else {
               // Either:
@@ -271,37 +305,53 @@ function TileErrorHandlerMixin<T extends AbstractConstructor<ModelType>>(
           } catch (error: any) {
             // This attempt failed. We'll either retry (for 500s) or give up
             // depending on the status code.
-            const e: Error & { statusCode?: number } = error || {};
+            const e: Error & {
+              statusCode?: number;
+              target?: HTMLImageElement;
+            } = error || {};
+
             if (e.statusCode === undefined) {
               if (runInAction(() => ignoreUnknownTileErrors)) {
                 tellMapToSilentlyGiveUp();
-              } else if ((e as any).target !== undefined) {
+              } else if (e.target !== undefined) {
                 // This is a failed image element, which means we got a 200 response but
                 // could not load it as an image.
+
+                // If image element is Leaflet's empty pixel ignore this error (See: https://github.com/Leaflet/Leaflet/issues/9311)
+                if (e.target.src === LEAFLET_EMPTY_IMAGE_URL) {
+                  tellMapToSilentlyGiveUp();
+                  return;
+                }
+
                 failTile({
-                  name: i18next.t("models.imageryLayer.tileErrorTitle"),
-                  message: i18next.t("models.imageryLayer.tileErrorMessageII", {
-                    url: getUrlForImageryTile(
-                      imageryProvider,
-                      tile.x,
-                      tile.y,
-                      tile.level
-                    )
-                  })
-                });
-              } else {
-                // Unknown error
-                failTile({
-                  name: i18next.t("models.imageryLayer.unknownTileErrorTitle"),
+                  name: i18next.t(($) => $.models.imageryLayer.tileErrorTitle),
                   message: i18next.t(
-                    "models.imageryLayer.unknownTileErrorMessage",
+                    ($) => $.models.imageryLayer.tileErrorMessageII,
                     {
                       url: getUrlForImageryTile(
                         imageryProvider,
                         tile.x,
                         tile.y,
                         tile.level
-                      )
+                      ) as string
+                    }
+                  )
+                });
+              } else {
+                // Unknown error
+                failTile({
+                  name: i18next.t(
+                    ($) => $.models.imageryLayer.unknownTileErrorTitle
+                  ),
+                  message: i18next.t(
+                    ($) => $.models.imageryLayer.unknownTileErrorMessage,
+                    {
+                      url: getUrlForImageryTile(
+                        imageryProvider,
+                        tile.x,
+                        tile.y,
+                        tile.level
+                      ) as string
                     }
                   )
                 });
@@ -312,7 +362,7 @@ function TileErrorHandlerMixin<T extends AbstractConstructor<ModelType>>(
               } else if (e.statusCode === 404 && treat404AsError === false) {
                 tellMapToSilentlyGiveUp();
               } else {
-                failTile(e);
+                failMissingTile(e);
               }
             } else if (e.statusCode >= 500 && e.statusCode < 600) {
               retryWithBackoff(e);
@@ -370,8 +420,9 @@ function TileErrorHandlerMixin<T extends AbstractConstructor<ModelType>>(
 }
 
 namespace TileErrorHandlerMixin {
-  export interface Instance
-    extends InstanceType<ReturnType<typeof TileErrorHandlerMixin>> {}
+  export interface Instance extends InstanceType<
+    ReturnType<typeof TileErrorHandlerMixin>
+  > {}
 
   export function isMixedInto(model: any): model is Instance {
     return model?.hasTileErrorHandlerMixin;

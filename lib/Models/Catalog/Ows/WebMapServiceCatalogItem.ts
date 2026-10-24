@@ -12,6 +12,7 @@ import JulianDate from "terriajs-cesium/Source/Core/JulianDate";
 import WebMercatorTilingScheme from "terriajs-cesium/Source/Core/WebMercatorTilingScheme";
 import combine from "terriajs-cesium/Source/Core/combine";
 import GetFeatureInfoFormat from "terriajs-cesium/Source/Scene/GetFeatureInfoFormat";
+import geoJsonToFeatureInfoWithProject from "./geoJsonToFeatureInfoWithProject";
 import WebMapServiceImageryProvider from "terriajs-cesium/Source/Scene/WebMapServiceImageryProvider";
 import URI from "urijs";
 import { JsonObject } from "../../../Core/Json";
@@ -129,7 +130,7 @@ class WebMapServiceCatalogItem
 
   // hide elements in the info section which might show information about the datasource
   _sourceInfoItemNames = [
-    i18next.t("models.webMapServiceCatalogItem.getCapabilitiesUrl")
+    i18next.t(($) => $.models.webMapServiceCatalogItem.getCapabilitiesUrl)
   ];
 
   _webMapServiceCatalogGroup: undefined | WebMapServiceCatalogGroup = undefined;
@@ -188,7 +189,7 @@ class WebMapServiceCatalogItem
       this.tilingScheme instanceof GeographicTilingScheme &&
       this.terria.currentViewer.type === "Leaflet"
     ) {
-      return i18next.t("map.cesium.notWebMercatorTilingScheme", this);
+      return i18next.t(($) => $.map.cesium.notWebMercatorTilingScheme);
     }
     return super.shortReport;
   }
@@ -217,10 +218,15 @@ class WebMapServiceCatalogItem
     if (this.invalidLayers.length > 0)
       throw new TerriaError({
         sender: this,
-        title: i18next.t("models.webMapServiceCatalogItem.noLayerFoundTitle"),
+        title: i18next.t(
+          ($) => $.models.webMapServiceCatalogItem.noLayerFoundTitle
+        ),
         message: i18next.t(
-          "models.webMapServiceCatalogItem.noLayerFoundMessage",
-          { name: getName(this), layers: this.invalidLayers.join(", ") }
+          ($) => $.models.webMapServiceCatalogItem.noLayerFoundMessage,
+          {
+            name: getName(this),
+            layers: this.invalidLayers.join(", ")
+          }
         )
       });
   }
@@ -616,15 +622,7 @@ class WebMapServiceCatalogItem
         credit: this.attribution
         // Note: we set enablePickFeatures in _currentImageryParts and _nextImageryParts
       };
-
-      if (isDefined(this.getFeatureInfoFormat?.type)) {
-        imageryOptions.getFeatureInfoFormats = [
-          new GetFeatureInfoFormat(
-            this.getFeatureInfoFormat.type,
-            this.getFeatureInfoFormat.format
-          )
-        ];
-      }
+      imageryOptions.getFeatureInfoFormats = this.getFeatureInfoFormats;
 
       if (
         imageryOptions.maximumLevel !== undefined &&
@@ -699,7 +697,7 @@ class WebMapServiceCatalogItem
         // Therefore - we only add the "Default style" / undefined option if supportsGetLegendGraphic is true
         allowUndefined: this.supportsGetLegendGraphic && options.length > 1,
         undefinedLabel: i18next.t(
-          "models.webMapServiceCatalogItem.defaultStyleLabel"
+          ($) => $.models.webMapServiceCatalogItem.defaultStyleLabel
         ),
         disable: this.isShowingDiff
       };
@@ -789,6 +787,31 @@ class WebMapServiceCatalogItem
   ) => TimeSeriesFeatureInfoContext {
     if (this.getFeatureInfoFormat.format !== "text/csv") return () => ({});
     return csvFeatureInfoContext(this);
+  }
+
+  @computed
+  get getFeatureInfoFormats() {
+    const customFormat = this.getFeatureInfoFormat;
+    if (customFormat) {
+      if (customFormat.type === "json") {
+        return [
+          new GetFeatureInfoFormat("json", "application/json", (json) =>
+            geoJsonToFeatureInfoWithProject(json, this.tilingScheme.projection)
+          )
+        ];
+      } else {
+        return [
+          new GetFeatureInfoFormat(customFormat.type, customFormat.format)
+        ];
+      }
+    }
+    return [
+      new GetFeatureInfoFormat("json", "application/json", (json) =>
+        geoJsonToFeatureInfoWithProject(json, this.tilingScheme.projection)
+      ),
+      new GetFeatureInfoFormat("xml", "text/xml"),
+      new GetFeatureInfoFormat("csv", "text/csv")
+    ];
   }
 }
 

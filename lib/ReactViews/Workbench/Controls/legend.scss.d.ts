@@ -4,6 +4,7 @@ declare namespace LegendScssNamespace {
     imageAnchor: string;
     legend: string;
     "legend--svg": string;
+    legendGradientCaption: string;
     legendInner: string;
     legendLegendBoxImg: string;
     legendOpenExternally: string;

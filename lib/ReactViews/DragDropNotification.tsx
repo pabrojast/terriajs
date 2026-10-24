@@ -39,6 +39,10 @@ const DragDropNotification: FC<DragDropNotificationProps> = observer(
       };
     }, [uploadedFiles]);
 
+    if (viewState.terria.configParameters.disableUserAddedData) {
+      return null;
+    }
+
     const handleHover = () => {
       // reset timer on hover
       if (notificationTimeoutRef.current) {
@@ -56,7 +60,7 @@ const DragDropNotification: FC<DragDropNotificationProps> = observer(
       viewState.openUserData();
     };
 
-    const fileNames = uploadedFiles.join(",");
+    const fileNames = uploadedFiles.join(", ");
 
     return (
       <RawButton
@@ -97,7 +101,10 @@ const DragDropNotification: FC<DragDropNotificationProps> = observer(
           `}
         >
           <Text extraLarge breakWord>
-            <Trans i18nKey="dragDrop.notification" count={uploadedFiles.length}>
+            <Trans
+              i18nKey={($) => $.dragDrop.notification}
+              count={uploadedFiles.length}
+            >
               <TextSpan bold noFontSize>
                 &quot;{{ fileNames }}&quot;
               </TextSpan>

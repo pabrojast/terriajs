@@ -1,11 +1,12 @@
 import i18next from "i18next";
 import { JsonObject } from "../../Core/Json";
+import { WorkbenchControls } from "../../ReactViews/Workbench/Controls/WorkbenchControls";
 import anyTrait from "../Decorators/anyTrait";
 import objectArrayTrait from "../Decorators/objectArrayTrait";
 import primitiveArrayTrait from "../Decorators/primitiveArrayTrait";
 import primitiveTrait from "../Decorators/primitiveTrait";
-import mixTraits from "../mixTraits";
 import ModelTraits from "../ModelTraits";
+import mixTraits from "../mixTraits";
 import EnumDimensionTraits from "./DimensionTraits";
 
 export class MetadataUrlTraits extends ModelTraits {
@@ -153,19 +154,19 @@ class CatalogMemberTraits extends ModelTraits {
     description: `An array of section titles defining the display order of info sections. If this property is not defined, {@link DataPreviewSections}'s DEFAULT_SECTION_ORDER is used`
   })
   infoSectionOrder?: string[] = [
-    i18next.t("preview.disclaimer"),
-    i18next.t("description.name"),
-    i18next.t("preview.dataDescription"),
-    i18next.t("preview.datasetDescription"),
-    i18next.t("preview.serviceDescription"),
-    i18next.t("preview.resourceDescription"),
-    i18next.t("preview.licence"),
-    i18next.t("preview.accessConstraints"),
-    i18next.t("preview.author"),
-    i18next.t("preview.contact"),
-    i18next.t("preview.created"),
-    i18next.t("preview.modified"),
-    i18next.t("preview.updateFrequency")
+    i18next.t(($) => $.preview.disclaimer),
+    i18next.t(($) => $.description.name),
+    i18next.t(($) => $.preview.dataDescription),
+    i18next.t(($) => $.preview.datasetDescription),
+    i18next.t(($) => $.preview.serviceDescription),
+    i18next.t(($) => $.preview.resourceDescription),
+    i18next.t(($) => $.preview.licence),
+    i18next.t(($) => $.preview.accessConstraints),
+    i18next.t(($) => $.preview.author),
+    i18next.t(($) => $.preview.contact),
+    i18next.t(($) => $.preview.created),
+    i18next.t(($) => $.preview.modified),
+    i18next.t(($) => $.preview.updateFrequency)
   ];
 
   @primitiveTrait({
@@ -257,6 +258,12 @@ class CatalogMemberTraits extends ModelTraits {
       "True (default) if this catalog member may be included in share links. False to exclude it from share links."
   })
   shareable: boolean = true;
+
+  @anyTrait({
+    name: "Workbench controls",
+    description: "Flags for enabling or disabling workbench controls."
+  })
+  workbenchControlFlags?: Partial<WorkbenchControls> | JsonObject;
 }
 
 /* eslint-disable-next-line @typescript-eslint/no-unsafe-declaration-merging */

@@ -17,19 +17,19 @@ import { TextSpan } from "../../../../../Styled/Text";
 import {
   Category,
   ShareAction
-} from "../../../../../Core/AnalyticEvents/analyticEvents";
+} from "../../../../../Core/Analytics/analyticEvents";
 import Clipboard from "../../../../Clipboard";
 import { buildShareLink, buildShortShareLink } from "../BuildShareLink";
 import { ShareUrlWarning } from "./ShareUrlWarning";
+import TerriaError, {
+  TerriaErrorSeverity
+} from "../../../../../Core/TerriaError";
 
 interface IShareUrlProps {
   terria: Terria;
   viewState: ViewState;
   includeStories: boolean;
   shouldShorten: boolean;
-  theme: "light" | "dark";
-  inputTheme?: "light" | "dark";
-  rounded?: boolean;
   callback?: () => void;
 }
 
@@ -42,17 +42,7 @@ export const ShareUrl = forwardRef<
   IShareUrlRef,
   PropsWithChildren<IShareUrlProps>
 >(function ShareUrl(
-  {
-    terria,
-    viewState,
-    includeStories,
-    shouldShorten,
-    children,
-    theme,
-    inputTheme,
-    rounded,
-    callback
-  },
+  { terria, viewState, includeStories, shouldShorten, children, callback },
   forwardRef
 ) {
   const { t } = useTranslation();
@@ -60,6 +50,7 @@ export const ShareUrl = forwardRef<
   const [shareUrl, setShareUrl] = useState("");
   const [shorteningInProgress, setShorteningInProgress] = useState(false);
   const [placeholder, setPlaceholder] = useState<string>();
+  const [failed, setFailed] = useState(false);
 
   useImperativeHandle(
     forwardRef,
@@ -72,21 +63,39 @@ export const ShareUrl = forwardRef<
   );
 
   useEffect(() => {
+    let cancelled = false;
+    setFailed(false);
     if (shouldShorten) {
-      setPlaceholder(t("share.shortLinkShortening"));
+      setPlaceholder(t(($) => $.share.shortLinkShortening));
       setShorteningInProgress(true);
-      buildShortShareLink(terria, viewState, {
-        includeStories
-      })
-        .then((shareUrl) => setShareUrl(shareUrl))
-        .catch(() => {
-          setShareUrl(
-            buildShareLink(terria, viewState, {
-              includeStories
-            })
-          );
+      buildShortShareLink(terria, viewState, { includeStories })
+        .then((shareUrl) => {
+          if (!cancelled) setShareUrl(shareUrl);
         })
-        .finally(() => setShorteningInProgress(false));
+        .catch((error) => {
+          // `getShareToken` has already chosen the message for this failure
+          // (status code / too large / generic) from the HTTP status.
+          const userMessage =
+            error instanceof TerriaError
+              ? error.highestImportanceError.message
+              : t(($) => $.models.shareData.generateErrorMessage);
+          if (!cancelled) {
+            // Also raise the error as a modal so a failed share is hard to
+            // miss. Skip it when cancelled, so a stale request (e.g. after the
+            // share options changed) doesn't pop a modal for a share the user
+            // has moved past.
+            if (error instanceof TerriaError) {
+              terria.raiseErrorToUser(error, {
+                severity: TerriaErrorSeverity.Error
+              });
+            }
+            setShareUrl(userMessage);
+            setFailed(true);
+          }
+        })
+        .finally(() => {
+          if (!cancelled) setShorteningInProgress(false);
+        });
     } else {
       setShareUrl(
         buildShareLink(terria, viewState, {
@@ -94,31 +103,36 @@ export const ShareUrl = forwardRef<
         })
       );
     }
+    return () => {
+      cancelled = true;
+    };
     /* eslint-disable-next-line react-hooks/exhaustive-deps */
   }, [terria, viewState, shouldShorten, includeStories]);
 
+  const hasStory = includeStories && terria.stories && terria.stories.length;
+
   return (
     <>
-      <Explanation textDark={theme === "light"}>
-        {t("clipboard.shareExplanation")}
+      <Explanation>
+        {hasStory
+          ? t(($) => $.clipboard.storyExplanation)
+          : t(($) => $.clipboard.shareExplanation)}
       </Explanation>
       <Spacing bottom={1} />
       <Clipboard
-        theme={theme}
         text={shareUrl}
+        failed={failed}
         inputPlaceholder={placeholder}
-        inputTheme={inputTheme}
-        rounded={rounded}
+        createdMessage={
+          hasStory
+            ? t(($) => $.share.storyLinkCreated)
+            : t(($) => $.share.shareLinkCreated)
+        }
         onCopy={(text) =>
-          terria.analytics?.logEvent(
-            Category.share,
-            ShareAction.storyCopy,
-            text
-          )
+          terria.analytics.logEvent(Category.share, ShareAction.storyCopy, text)
         }
       />
       {children}
-      <Spacing bottom={2} />
       <ShareUrlWarning
         terria={terria}
         viewState={viewState}

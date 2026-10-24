@@ -1,10 +1,15 @@
+import type {
+  StoryComposition,
+  StoryPresentation
+} from "../../Models/StoryComposition";
 import classNames from "classnames";
 import {
   RefObject,
   MouseEventHandler,
   useEffect,
-  useLayoutEffect,
-  useRef
+  useMemo,
+  useRef,
+  useCallback
 } from "react";
 import { sortable } from "react-anything-sortable";
 import { useTranslation } from "react-i18next";
@@ -18,6 +23,8 @@ import Text, { TextSpan } from "../../Styled/Text";
 import parseCustomHtmlToReact from "../Custom/parseCustomHtmlToReact";
 
 export interface Story {
+  presentation?: StoryPresentation;
+  composition?: StoryComposition;
   title: string;
   text: string;
   id: string;
@@ -152,22 +159,23 @@ const recaptureStory =
 const StoryMenu = (props: MenuProps) => {
   const { t } = useTranslation();
   const menuRef = useRef<HTMLDivElement | null>(null);
-  useLayoutEffect(() => {
+  useEffect(() => {
     // Adjust the position of the menu so it stays inside the scroll container.
+    const el = menuRef.current;
+    const parentEl = props.parentRef?.current;
+    if (!el || !parentEl || !props.menuOpen) return;
 
-    if (!menuRef.current) return;
-    if (!props.parentRef.current) return;
-
-    // Grow downwards, by default:
-    Object.assign(menuRef.current.style, { top: "0px", bottom: "unset" });
-
-    const selfRect = menuRef.current.getBoundingClientRect();
-    const parentRect = props.parentRef.current.getBoundingClientRect();
+    // Measure first (read), then write styles to avoid layout thrash
+    const selfRect = el.getBoundingClientRect();
+    const parentRect = parentEl.getBoundingClientRect();
     if (selfRect.bottom > parentRect.bottom) {
       // Looks like there's no room to the bottom; grow upwards.
-      Object.assign(menuRef.current.style, { top: "unset", bottom: "0px" });
+      Object.assign(el.style, { top: "unset", bottom: "0px" });
+    } else {
+      // Default: grow downwards
+      Object.assign(el.style, { top: "0px", bottom: "unset" });
     }
-  }, [props.parentRef]);
+  }, [props.parentRef, props.menuOpen]);
   return (
     <Box
       ref={menuRef}
@@ -187,44 +195,44 @@ const StoryMenu = (props: MenuProps) => {
         <li>
           <StoryMenuButton
             onClick={viewStory(props)}
-            title={t("story.viewStory")}
+            title={t(($) => $.story.viewStory)}
           >
             <StoryControl>
               <StyledIcon glyph={Icon.GLYPHS.viewStory} />
-              <span>{t("story.view")}</span>
+              <span>{t(($) => $.story.view)}</span>
             </StoryControl>
           </StoryMenuButton>
         </li>
         <li>
           <StoryMenuButton
             onClick={editStory(props)}
-            title={t("story.editStory")}
+            title={t(($) => $.story.editStory)}
           >
             <StoryControl>
               <StyledIcon glyph={Icon.GLYPHS.editStory} />
-              <span>{t("story.edit")}</span>
+              <span>{t(($) => $.story.edit)}</span>
             </StoryControl>
           </StoryMenuButton>
         </li>
         <li>
           <StoryMenuButton
             onClick={recaptureStory(props)}
-            title={t("story.recaptureStory")}
+            title={t(($) => $.story.recaptureStory)}
           >
             <StoryControl>
               <StyledIcon glyph={Icon.GLYPHS.story} />
-              <span>{t("story.recapture")}</span>
+              <span>{t(($) => $.story.recapture)}</span>
             </StoryControl>
           </StoryMenuButton>
         </li>
         <li>
           <StoryMenuButton
             onClick={deleteStory(props)}
-            title={t("story.deleteStory")}
+            title={t(($) => $.story.deleteStory)}
           >
             <StoryControl>
               <StyledIcon glyph={Icon.GLYPHS.cancel} />
-              <span>{t("story.delete")}</span>
+              <span>{t(($) => $.story.delete)}</span>
             </StoryControl>
           </StoryMenuButton>
         </li>
@@ -235,18 +243,22 @@ const StoryMenu = (props: MenuProps) => {
 
 const Story = (props: Props) => {
   const story = props.story;
-  const bodyText = getTruncatedContent(story.text);
+  const bodyText = useMemo(() => getTruncatedContent(story.text), [story.text]);
   const theme = useTheme();
   const { t } = useTranslation();
   const storyRef = useRef<HTMLDivElement>(null);
-  const closeHandler = () => {
-    hideList(props);
-  };
+  const { menuOpen, closeMenu } = props;
+  const closeHandler = useCallback(() => {
+    // Only close if this item's menu is open
+    if (menuOpen) closeMenu();
+  }, [menuOpen, closeMenu]);
 
+  // Only register the global click listener while the menu is open
   useEffect(() => {
+    if (!menuOpen) return;
     window.addEventListener("click", closeHandler);
     return () => window.removeEventListener("click", closeHandler);
-  });
+  }, [menuOpen, closeHandler]);
 
   return (
     <>
@@ -259,6 +271,19 @@ const Story = (props: Props) => {
           cursor: move;
           float: none !important;
           border: 1px solid #baebf8;
+          ${menuOpen ? "z-index: 2; overflow: visible;" : ""}
+          // Improve drag rendering performance
+          will-change: transform;
+          // Avoid text selection causing jitter during drag
+          user-select: none;
+          // Disable transitions when react-anything-sortable marks as moving
+          &.react-anything-sortable-moving {
+            transition: none !important;
+          }
+          // Ensure base item also has no transform transition that can cause bounce
+          &.react-anything-sortable-item {
+            transition: none !important;
+          }
         `}
         style={props.style}
         className={classNames(props.className)}
@@ -307,7 +332,7 @@ const Story = (props: Props) => {
             >
               {story.title && story.title.length > 0
                 ? story.title
-                : t("story.untitledScene")}
+                : t(($) => $.story.untitledScene)}
             </TextSpan>
           </div>
           <Box>
@@ -323,7 +348,14 @@ const Story = (props: Props) => {
                 />
               </RawButton>
             )}
-            <MenuButton theme={theme} onClick={toggleMenu(props)}>
+            <MenuButton
+              theme={theme}
+              onClick={toggleMenu(props)}
+              data-story-menu={story.id}
+              aria-label={t("story.editor.design.chapterActions", {
+                title: story.title
+              })}
+            >
               <StyledIcon
                 styledWidth="20px"
                 light

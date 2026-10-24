@@ -1,0 +1,413 @@
+# Flujos Importantes
+
+Ver tambien: [[Arquitectura]], [[Modulos]], [[Testing]], [[Deployment]]
+
+## 1. Arranque de Terria
+
+Archivo clave: `lib/Models/Terria.ts`
+
+Secuencia observada:
+
+1. `Terria.start(...)` lee `configUrl`.
+2. Carga JSON/JSON5 y aplica `parameters` con `updateParameters(...)`.
+3. Resuelve `initializationUrls` y posibles `v7initializationUrls`.
+4. Inicializa i18n.
+5. Inicializa `ServerConfig`, proxy CORS y `ShareDataService`.
+6. Si `configParameters.ckanSession` esta definido, crea `terria.ckanSession` (`CkanSession`) y lanza el whoami (`refresh()`) en paralelo con el resto del arranque. Sin esa clave no se crea nada ni se hace ninguna peticion (ver seccion 10).
+7. Inicializa basemaps y search providers.
+8. Restaura estado desde URL/hash/share y luego carga init sources.
+9. En el `finally` de `restoreAppState` llama a `ckanSession.setReady()`: el grupo privado solo puede entrar al catalogo despues de los miembros del init y del procesado de `models`/`#start=` (que puede pre-crear su id o inyectar `__ckan_private_catalog__/...`).
+
+## 2. Carga y aplicacion de init sources
+
+Archivos clave:
+
+- `lib/Models/InitSource.ts`
+- `lib/Models/Terria.ts`
+- `doc/contributing/init-sources.md`
+
+Fuentes observadas:
+
+- `initializationUrls` del config
+- fragments/hash
+- `#start=...`
+- `#share=...`
+- rutas `/catalog/:id`
+- rutas `/story/:id`
+- conversion de v7 a v8 via `catalog-converter`
+
+Estado observable relevante dentro de `initSources`:
+
+- `pickedFeatures` puede restaurar la seleccion consultada en el mapa.
+- `featureInfoPanel` puede restaurar posicion y dimensiones de la ventana flotante de feature info cuando el share/story incluye un pick activo.
+- `accumulatedChartSeries` conserva las series del workbench aunque no exista una seleccion activa o el pick este vacio. Cerrar una seleccion o activar una escena no debe impedir compartir las lineas que siguen visibles; se restauran con sus puntos, colores y metadatos.
+
+## 3. Registro de tipos de catalogo y busqueda
+
+Archivos clave:
+
+- `lib/Models/Catalog/registerCatalogMembers.ts`
+- `lib/Models/SearchProviders/registerSearchProviders.ts`
+
+El sistema registra tipos de catalog items, groups, references y functions para que puedan crearse desde JSON/config.
+
+## 4. Carga de archivos del usuario
+
+Archivos clave:
+
+- `lib/Models/Catalog/addUserFiles.ts`
+- `lib/Models/Catalog/createCatalogItemFromFileOrUrl.ts`
+
+Flujo observado:
+
+1. Se detecta tipo o se usa el seleccionado.
+2. Se crea un item temporal `ResultPendingCatalogItem`.
+3. Si el archivo JSON contiene `catalog` o `stories`, se trata como init file.
+4. Si no, se crea un catalog member desde archivo/URL.
+5. El item se agrega al catalogo y workbench; si es temporal, tambien al timeline cuando aplica.
+
+## 5. Indexacion de catalogo para search
+
+Archivos clave:
+
+- `buildprocess/generateCatalogIndex.ts`
+- `lib/Models/SearchProviders/CatalogIndex.ts`
+
+El indice se genera offline y se carga on-demand cuando hay `catalogIndexUrl`. Usa `flexsearch`.
+
+## 6. Cambio entre 2D y 3D
+
+Archivo clave: `lib/ViewModels/TerriaViewer.ts`
+
+- Carga asincronamente `Leaflet` o `Cesium`.
+- Usa `NoViewer` mientras el chunk real no esta listo.
+- Maneja basemap, attach de contenedor y eventos de cambio de viewer.
+
+## 7. Build de documentacion
+
+Archivos clave:
+
+- `gulpfile.js`
+- `buildprocess/webpack-tools.config.js`
+- `buildprocess/generateDocs.ts`
+- `doc/mkdocs.yml`
+
+El flujo `yarn gulp docs`:
+
+1. genera atribuciones
+2. build de herramientas de docs
+3. copia `doc/` a `build/doc`
+4. genera paginas de catalog members
+5. ejecuta `mkdocs build`
+6. publica salida en `wwwroot/doc`
+
+## 8. CI, publish y demo deploy
+
+Archivos clave:
+
+- `.github/workflows/ci.yml`
+- `.github/workflows/npm-publish.yml`
+- `.github/workflows/deploy.yml`
+- `buildprocess/ci-deploy.sh`
+
+## 9. Styling y leyenda de COG
+
+Archivos clave:
+
+- `lib/Models/Catalog/CatalogItems/CogRenderStyle.ts`
+- `lib/Models/Catalog/CatalogItems/CogRasterPostProcessor.ts`
+- `lib/Models/Catalog/CatalogItems/CogLegendStratum.ts`
+- `lib/Models/Catalog/CatalogItems/CogCatalogItem.ts`
+- `lib/Models/Catalog/CatalogItems/CogTimeSeriesCatalogItem.ts`
+- `lib/Models/Catalog/CatalogItems/CogProviderFactory.ts`
+- `lib/Core/CogSharedPools.ts`, `lib/Core/CogSourceCache.ts`, `lib/Core/CogPointReader.ts`
+- `lib/Models/Workflows/CogStylingWorkflow.ts`
+
+Flujo observado para `cog` y `cog-time-series`:
+
+1. El proveedor carga los metadatos y detecta si el render es de una sola banda.
+2. `CogRenderStyle` resuelve una representacion efectiva unica para mapa, workflow y leyenda: dominio, paleta con posiciones exactas, inversion, clamps y rango visible.
+3. Un `domain` configurado y valido (`min < max`) permanece fijo entre fechas. Se aplica despues de cargar, con `setDomain`, y se vacia la cache de teselas pintadas. Si no existe, se obtiene de las estadisticas de banda; para un mosaico temporal se agrega un dominio comun entre todos los COG de la fecha activa. Cambiar min/max restylea en sitio sin recargar el COG.
+   - `cog` (item simple): el `domain` no se pasa al crear el proveedor, porque el proveedor pisaria sus estadisticas nativas con el.
+   - `cog-time-series`: si se pasa un dominio al construir (`buildCogRenderOptions(..., { constructionDomain })`). Asi la libreria se salta la lectura del overview mas chico que hacia en cada build. Como el proveedor entonces reporta ese valor como estadistica de banda, el rango nativo real se guarda aparte en el proveedor (`CogProviderFactory`) y es lo unico que `finalizeCogProviders` acepta como `nativeDomain`. Con `domain` configurado el rango nativo es perezoso: se calcula solo al pedirlo (auto-fit) con `getCogBandStats`, cacheado por URL y banda. Sin `domain`, se calcula una vez por COG y sirve de dominio de construccion.
+4. `displayRange` filtra valores de manera inclusiva (`min <= valor <= max`) y no alimenta la leyenda. Si `applyDisplayRange` esta activo y no hay rango explicito, usa el dominio efectivo. Un rango invalido no se aplica.
+5. Los clamps inferior y superior son independientes y, cuando no se configuran, ambos quedan activos. `noDataColor` se aplica despues del render solo a pixeles realmente marcados como no-data. Un color totalmente transparente no instala nada: el proveedor ya pinta el no-data transparente, y el post-proceso cuesta un `getImageData` + recorrido por tesela en el hilo principal. El color vive en el proveedor, asi que cambia en vivo.
+6. La leyenda automatica se deriva del mismo estilo efectivo despues de cargar el COG. Continua: barra de rampa mas ticks HTML con min/max del `domain`. Discreta: bins con `value`. Se genera solo para render de una banda; RGB y multibanda quedan sin leyenda automatica. Una leyenda configurada explicitamente mantiene precedencia.
+7. En series, "Auto-fit color scale to current timestep" escribe las estadisticas nativas de la fecha activa en `domain` y deja la leyenda fija; el boton siempre esta visible para una banda y, si el rango nativo aun no se conoce, lo calcula con `fitDomainToCurrentStep`. "Use automatic COG range" borra `domain` y vuelve a seguir cada fecha.
+8. Opciones que el proveedor solo lee al construirse (`band`, `nodata`, `expression`, `convertToRGB`, `resampleMethod`) no se pueden restylear en sitio: `getCogRebuildReactionSnapshot` las separa de las de estilo y un cambio reconstruye los proveedores.
+9. Unidades fisicas: `valueScale`, `valueOffset` y `unit` (solo `cog-time-series`). `domain`, `displayRange`, leyenda, valor clickeado y series van en unidades fisicas; solo el plot recibe el rango en valores almacenados (`toRawRange`). No se usa `expression` de plotty para escalar: compara el resultado contra el no-data y dejaria de enmascararlo.
+
+### Pasos de tiempo, precarga y workers (`cog-time-series`)
+
+- Un paso se identifica por las URLs de sus COG (`cogs.join("|")`), nunca por el `tag`: los tags son etiquetas, pueden repetirse y cambian entre resoluciones. `_sortedEntries` replica el orden de `discreteTimesAsSortedJulianDates` para resolver actual, siguiente y anterior por indice.
+- `_scheduleStepUpdate`: un paso ya construido se publica de inmediato; uno nuevo espera 150 ms (debounce) para que arrastrar el timeline no construya cada fecha intermedia. La imagen anterior sigue en pantalla mientras tanto y `isLoading` refleja `isSteppingTime`.
+- `_stepToken`: solo la ultima solicitud publica. Un build superado igual queda en cache. `_inflightSteps` evita construir dos veces el mismo paso.
+- Precarga: tras publicar, los vecinos (`preloadAdjacentSteps`, por defecto 1, primero en la direccion de avance) se construyen de a uno y se publican en `mapItems` con `alpha: 0`. `Cesium._createImageryLayer` es un `computedFn` por `(provider, clippingRectangle)`; como el rectangulo de clip se guarda por proveedor (`WeakMap`), al pasar de "precargado" a "actual" se reutiliza la misma capa con sus teselas ya cargadas.
+- Cache LRU de pasos (`providerCacheSize`, por defecto 6): nunca expulsa pasos publicados (actual o precargados). Un restyle re-finaliza todos los pasos en cache en vez de destruirlos; una identidad nueva del rectangulo de clip hace que Cesium descarte las teselas viejas.
+- Workers: `terriajs-tiff-imagery-provider` crea dos pools de `hardwareConcurrency` workers por proveedor y su `destroy()` no termina el pool de geotiff. `createCogImageryProvider` construye con `workerPoolSize: 0` y apunta ambos campos a los pools compartidos de `CogSharedPools` (2 a 4 workers para toda la sesion); `destroyCogImageryProvider` los desconecta antes de destruir. El item `cog` usa la misma fabrica. `tileCacheSize` (por defecto 64) limita las teselas pintadas por proveedor.
+- La fabrica tambien fija `provider.url` (necesario para que TerriaJS guarde `providerCoords` y restaure el pick desde un share) y registra el GeoTIFF abierto en `CogSourceCache`.
+- Series continuas usan `resampleMethod: "bilinear"` por defecto (load stratum). Catalogos categoricos deben fijar `nearest`. Los traits de nivel superior `cache` y `resampleMethod` estan obsoletos y se ignoran.
+
+### Resoluciones temporales (`cog-time-series`)
+
+- `resolutions[]` agrupa en un solo item varias resoluciones de la misma variable (p. ej. anual, mensual, diaria). Cada una trae `id`, `name`, `url` o `timeEntries`, y opcionalmente `dateFormat`, `fromContinuous`, `renderOptions`, `valueScale`, `valueOffset`, `unit`, `noDataValues`, `partialCoverage` y `hint`. `activeResolutionId` elige la activa; si falta o no existe, se usa la primera. Un item sin `resolutions` se comporta como antes (`url` / `timeEntries` del item).
+- `CogTimeSeriesStratum` (load stratum) expone los valores de la resolucion activa. Por orden de estratos, lo configurado en el item (definition) o editado por el usuario sigue ganando: lo comun a todas las resoluciones (paleta, banda, clamps) va en el item; lo propio de cada una (tipicamente `single.domain`) va dentro de `resolutions[]`. `resampleMethod` tiene default de trait, asi que solo cuenta si algun estrato lo fija (`getExplicitTraitValue`).
+- Las fechas de cada JSON se cargan una vez y se guardan por URL; volver a una resolucion no repite la peticion.
+- `setActiveResolution` cambia el trait y borra el `domain` del estrato indicado (un rango elegido por el usuario pertenece a la resolucion donde lo eligio). No toca `currentTime`: el mixin de tiempos discretos lo reajusta. Los agregados cuyo `time` es el inicio del periodo deben usar `fromContinuous: "previous"`; con `nearest`, julio de 2024 caeria en 2025 al pasar a anual. La cache de pasos sobrevive porque su clave son las URLs de los COG, y las series de los puntos clickeados se releen para la nueva resolucion.
+- `dateFormat` debe llevar el prefijo `UTC:` (`UTC:yyyy`, `UTC:mmm yyyy`). Sin el, `dateformat` usa la zona horaria del navegador y un `2023-01-01T00:00:00Z` se muestra como "Dec 2022" en zonas al oeste de UTC.
+- Controles en la tarjeta del workbench (`selectableDimensions` del item): resolucion como control segmentado arriba de la tarjeta (`display: "pills"`, `placement: "top"`), paleta (`createCogColorScaleDimension`, compartida con el workflow "Edit style") y un grupo "Rango de color" con minimo, maximo, "Ajustar a esta fecha" y "Restablecer rango". `display: "pills"` y el placement `top` son genericos de `SelectableDimensionEnum` y sirven a cualquier item.
+- Ejemplo de configuracion: `wwwroot/test/init/cog-time-series-example.json` (un spec lo valida).
+
+### Estadisticas (bandas), lugares y series largas (`cog-time-series`)
+
+Nacen del caso Madagascar (calidad de agua Sentinel-2): COG en UTM 38S, mensuales/anuales multibanda con no-data NaN, ~150 cuerpos de agua chicos y ~1400 fechas diarias.
+
+- **Bandas como estadisticas**: `bands[] {id, name, band, unit, renderOptions}` en cada resolucion (o en el item si no hay resoluciones) y `activeBandId`. La banda activa se busca por `id`, no por numero: "median" es la banda 1 del mensual y la 2 del anual, y la eleccion sobrevive al cambio de resolucion; si la resolucion no la tiene, se usa su primera banda. `setActiveBand` siempre guarda la eleccion (aunque sea la que ya se veia por defecto) y borra un `domain` puesto a mano solo si la banda cambia. El stratum fusiona `band.renderOptions.single` sobre el de la resolucion y fija `single.band`; como `band` es opcion de construccion, los proveedores se reconstruyen solos y las series de los puntos se releen. La rampa de la variable va en la resolucion o en la banda (load stratum), no en el item, para que una banda de conteo pueda usar otra paleta y rango.
+- **Unidad**: `displayUnit` = unidad de la banda activa, y si no la del item. Existe porque una unidad configurada en el item (definition) le ganaria por orden de estratos a la de una banda de conteo; leyenda, pick, series y el grupo de rango usan `displayUnit`.
+- **Lugares**: `places[] {id, name, detail, latitude, longitude, bbox}`. La dimension "Ir a un lugar…" es una accion, no un ajuste: `goToPlace` hace `zoomTo` (al `bbox` o a ~3 km) y llama `addPointSeries(lat, lon, name)`. La serie lleva el nombre del lugar, no consume numero P, y `AccumulatedSeries.meta.label` lo conserva en los shares. `detail` solo se muestra en el selector.
+- **Ventana** (`pointSeriesMaxSteps`, en item o resolucion): la serie lee las N fechas mas cercanas a la visible; el estado guarda el rango leido (`window`) y un nuevo click en el mismo punto relee si la fecha visible salio de ese rango. El feature info lo avisa.
+- **Puntos sin dato**: un click sin valor en las fechas mas cercanas (12, o el 10 % de las fechas a leer) o que termina sin ningun valor se descarta junto con su numero P: en un producto de agua el 96 % del area es tierra y cada fecha cuesta peticiones. Un lugar elegido a proposito no se descarta.
+- **Precarga de cabeceras** (`prefetchHeaders`, opcional): tras publicar el primer paso abre en segundo plano el GeoTIFF de cada fecha (2 conexiones, hasta 200 fechas, desde la fecha visible hacia afuera). Azure Blob solo habla HTTP/1.1 (6 conexiones por host), asi que la serie esta limitada por latencia: con las cabeceras en `CogSourceCache` cuesta 1 peticion por fecha en vez de 2.
+- **Leyenda con paradas reales**: con paleta `custom` + `useRealValue` (tipicamente paradas logaritmicas, porque las concentraciones son log-normales), `finalizeCogProviders` devuelve `stopValues` y la leyenda lista cada parada con su color en vez de una rampa lineal, que apretaria casi todas en su primera decima parte.
+- **Remuestreo con NaN**: con `bilinear` un vecino NaN contamina el pixel; medido sobre los COG de Madagascar se pierde ~1/3 de los pixeles de agua en los niveles de overview (rios angostos, orillas). Esos catalogos fijan `renderOptions.resampleMethod: "nearest"`. El shader ya pinta NaN transparente y la reproyeccion UTM por tesela cuesta ~110–140 ms.
+
+### Valor en un punto y serie temporal (`cog-time-series`)
+
+- El item reemplaza `pickFeatures` del proveedor (`_installPick` / `_pickAt`). La version de la libreria lee un overview que depende del zoom, interpola lon/lat de forma lineal (incorrecto en COG proyectados), ignora el no-data, responde una vez por COG del mosaico y no pone `position`.
+- `_pickAt` lee el pixel a resolucion completa del paso visible (`readCogStepPointValue`), responde una sola vez por click aunque el mosaico tenga varios COG, ignora pasos precargados, devuelve `position` y `data` (`value` fisico o `null`, `unit`, `date` ISO, `dateLabel`, coordenadas) y nunca rechaza: TerriaJS espera los picks de todas las capas juntos y un rechazo perderia los de las demas. Fuera de la imagen devuelve `[]` para que respondan las capas de abajo.
+- No-data: solo el declarado por el GeoTIFF, `noDataValues` del catalogo, o no finito. Ya no se adivinan centinelas (255, 65535, -9999): en rasters donde son valores reales abrian huecos.
+- Un pixel cuesta una tesela interna en cualquier nivel de la piramide; leer un overview no ahorra bytes y daria un valor promediado. El ahorro viene de `CogSourceCache` (cabeceras e IFDs abiertos una vez por URL, compartidos con el proveedor de imagenes), del pool de decodificacion compartido y de la cancelacion real con `AbortController`.
+- `CogSourceCache.openCogSource` no usa `allowFullFile`. Si el servidor ignora `Range`, solo acepta el archivo completo cuando pesa 8 MB o menos; un COG grande falla rapido en vez de bajarse entero por cada fecha.
+- Serie en un punto: `addPointSeries` (la dispara el pick, salvo que haya un modo de interaccion activo, p. ej. dibujando un poligono) lee todas las fechas en el navegador con `loadCogPointSeries`: consciente de mosaicos, empieza por la fecha visible y avanza hacia afuera, 6 lecturas simultaneas, un reintento, y cuenta por separado errores, no-data y fuera de cobertura. El estado se publica como maximo cada 250 ms con clave estable; el `<chart>` del panel de feature info solo se emite al terminar, con fechas ISO en X.
+- El item implementa el contrato duck-typed del dock Chart.js y de los shares (`accumulatedChartSeries`, `addAccumulatedSeries`, `removeAccumulatedSeries`, `clearAccumulatedSeries`, `accumulatedChartItems`). `AccumulatedSeries.meta` (`kind`, `lat`, `lon`) viaja en el share, asi que un link restaura los puntos sin releerlos.
+- Medido contra el demo Dnipro CHL (COG Float32 de ~138 MB en Azure, mismo punto): anual 4 fechas en ~1,6 s; mensual 39 fechas en ~3,5 s en frio (primer valor a ~0,4 s, 2 peticiones por fecha) y ~0,5 s sin peticiones al repetir el punto. `CogSharedPools` usa un pool de tamano 0 (decodifica en el hilo actual) cuando no hay `Worker`, p. ej. en Node.
+
+### Dock de graficos como dashboard
+
+- `lib/Models/ChartSeriesAccumulator.ts` define la interfaz estructural que alimenta el dock Chart.js (`isChartSeriesAccumulator`). `ChartJsSeriesDock` ya no depende de `CsvCatalogItem`: toma el primer item del workbench con `isChartSeriesAccumulationActive` que tenga series o este leyendo una. `CsvCatalogItem` lo activa con `useChartJsTimeSeries`; `CogTimeSeriesCatalogItem` siempre.
+- `chartDock` (opcional) enlaza grafico y mapa: `activeX` / `activeXLabel` (fecha visible, dibujada como linea vertical por un plugin inline, porque no hay `chartjs-plugin-annotation`), `onSelectX` (click en el grafico: punto mas cercano en X; en COG fija `currentTime`) y `status` (progreso de las series en lectura, con `cancel`). El renderer los lee por `ref`, asi que cambiar de fecha redibuja sin reconstruir el grafico.
+- Tiles de KPI (`ChartJsKpiTiles`, sin chart.js para que el dock los pinte de inmediato) sobre la serie mas reciente: valor en la fecha visible, media, maximo con su fecha y tendencia. Las estadisticas son funciones puras en `chartJsStats.ts`: la tendencia es la pendiente por minimos cuadrados en unidades por ano y no se informa con menos de 3 puntos o menos de medio ano de datos; el valor en una fecha no se interpola. La tendencia muestra solo direccion: si subir es bueno depende de la variable. El color de la serie va en una marca, no en el texto.
+- La variante `dock` del grafico ofrece descarga CSV.
+- Herramienta zonal: las URLs pasan por `proxyCatalogItemUrl` igual que las imagenes (antes un COG cross-origin que se veia bien fallaba el calculo por CORS), los mensajes estan en i18n y el boton del mapa solo aparece con una capa `cog` o `cog-time-series` en el workbench.
+
+La paleta activa se identifica con `colorScaleMode` (`default`, `named` o `custom`). Esto evita que colores heredados o residuales desplacen silenciosamente la seleccion actual. Las escalas continuas conservan las posiciones reales de cada stop; las discretas muestrean esa misma rampa segun `numberOfBins` leido en vivo desde el trait.
+
+## 10. Sesion CKAN y catalogo privado
+
+Archivos clave:
+
+- `lib/Models/CkanSession.ts`
+- `lib/Models/Catalog/CatalogReferences/CkanPrivateCatalogReference.ts`
+- `lib/Models/Catalog/CatalogReferences/TerriaReference.ts` (hook `loadInitJson()`)
+- `lib/ReactViews/Map/Panels/CkanSessionPanel/CkanSessionPanel.tsx`
+- `lib/ReactViews/Map/MenuBar/MenuBar.jsx` y `lib/ReactViews/Mobile/MobileMenu.jsx`
+- `wwwroot/languages/en/translation.json` y `es/translation.json` (bloque `ckanSession`; el resto de idiomas cae al fallback `en`)
+
+Contexto: cuando Terria y un portal CKAN comparten origen, un XHR same-origin lleva la cookie de sesion de CKAN. `CkanSession` usa eso para mostrar el estado de sesion en la barra de menu y montar en el catalogo los datasets no publicos del usuario. Todo el flujo es inerte si `configParameters.ckanSession` es `undefined` (claves y defaults en [[Variables de Entorno]]). El contrato del servidor (`/api/terria/user/session`, `/api/terria/user/private-catalog`) vive en el plugin `ckanext-terria_view`, fuera de este repo.
+
+### Whoami sin proxy
+
+1. `refresh()` hace `GET` a `sessionUrl` (default `/api/terria/user/session`) con un parametro `_=<timestamp>` anti-cache, via `loadJson` con la URL literal.
+2. Las URLs son rutas relativas con `/` inicial: `CorsProxy.shouldUseProxy` devuelve `false` cuando el host esta vacio, asi que la peticion nunca pasa por el `/proxy/` de terriajs-server (que descarta `Cookie` y reescribe `Cache-Control`).
+3. `refresh()` nunca rechaza ni llama a `raiseErrorToUser`. Las llamadas concurrentes comparten la peticion en vuelo y cada refresh lleva un numero de secuencia: una respuesta obsoleta (por ejemplo un whoami lento que resuelve tras un logout) se ignora.
+4. Respuesta esperada: `authenticated`, `user { name, display_name, sysadmin }`, `private_catalog_url`, `login_url`, `logout_url`, `profile_url`. Las URLs del servidor solo se aceptan si pasan `isSafeRelativePath` (empiezan por `/` y no por `//`; sin `\`, espacios ni caracteres de control).
+5. `status` pasa de `unknown` a `anonymous`, `authenticated` o `error`. Un 401 del whoami equivale a anonimo. Cualquier otro fallo (403, 500, red, una pagina HTML de login o un `200` cuyo JSON no es un objeto) deja `status = "error"` y `lastError`, pero conserva `user` y el grupo privado: un fallo transitorio no desmonta nada.
+
+### Boton de sesion (`CkanSessionPanel`)
+
+Se renderiza solo si `terria.ckanSession` existe: en escritorio entre Story y Share (`MenuBar.jsx`), en movil como entrada del menu hamburguesa (`MobileMenu.jsx`, con `MobileMenuItem`). Ningun estado renderiza un boton `disabled`.
+
+- `unknown`, o refrescando sin usuario conocido: boton "Checking session…" clicable que llama a `refresh()`.
+- `anonymous`: enlace real `<a target="_blank" rel="noopener noreferrer">` a `buildLoginHref()` = `loginUrl` + `came_from=<location.pathname>`. Se usa el pathname sin hash porque el hash de un share puede llevar URLs con token. El click marca `pendingLogin`. En movil `MobileMenuItem` recibe `href` y renderiza el mismo tipo de enlace.
+- `anonymous` con `pendingLogin`: boton "Finish logging in…" mas un `Prompt` con "Check now"; ambos llaman a `refresh()`.
+- `authenticated` (hay `user`, aunque `status` sea `error` por un fallo transitorio): `MenuPanel` con "Signed in as", "Open my private datasets", "Refresh session", "Portal profile" (enlace, solo si hay `profileUrl`) y "Log out" (enlace a `logoutUrl` + `came_from`, marca `pendingLogout`). Mientras `pendingLogout` el boton vuelve a mostrar "Checking session…".
+- `error` sin usuario: boton "Session unavailable" con el mensaje del error en `title`; el click reintenta.
+
+Login y logout se abren en pestana nueva: el mapa no se recarga y las capas publicas y la camara se conservan. Re-check por foco: con `checkOnFocus` (default `true`) se escuchan `focus` de `window` y `visibilitychange` de `document` (solo si `visibilityState === "visible"`), con throttle `focusThrottleMs` (default 5 s) que baja a 1 s mientras hay `pendingLogin` o `pendingLogout`.
+
+"Open my private datasets" abre el explorador (`openAddData()`), fija `activeTabIdInCategory` al grupo privado cuando hay `tabbedCatalog` (`viewCatalogMember` no cambia de pestana para miembros raiz) y llama a `viewCatalogMember` sobre la referencia interna o sobre el miembro inyectado por la vista embebida.
+
+### Grupo privado en el catalogo
+
+Una reaction observa `{ ready, status, user.name, privateCatalogUrl }` y no hace nada hasta `setReady()`.
+
+- `authenticated`: upsert de un grupo raiz `catalogGroupId` (default `ckan-private-catalog`, tipo `group`, `isOpen: true`, `shareable: false`, nombre `ckanSession.privateCatalogName` o la plantilla `catalogGroupName`, descripcion `ckanSession.groupDescription`) con un unico hijo `<catalogGroupId>/catalog` de tipo `ckan-private-catalog-reference` (`isGroup: true`, `url` = catalogo privado). Se agrega con `addMembersFromJson` en `CommonStrata.definition`, al final de los miembros raiz; con `tabbedCatalog` aparece como ultima pestana.
+- Carga ansiosa: tras el alta se llama a `loadReference()` (un GET con cookie) y el target recibe `isOpen: true` y `shareable: false`, de modo que la pestana muestra Grupo -> Organizaciones -> datasets sin clicks extra. Los grupos por organizacion y las referencias por dataset (`terria-reference` estandar) los emite CKAN.
+- Nonce estable por usuario: `privateCatalogUrl` (con `catalog_id`) solo se fija cuando cambia `user.name`. Un refresh del mismo usuario no re-agrega el grupo ni reescribe la `url` aunque el whoami acune otro `catalog_id` (cambiar la `url` re-ejecutaria la carga de la referencia y crearia ids nuevos). Si el whoami no trae un `private_catalog_url` valido, se usa `privateCatalogUrl` de config mas `catalog_id=<nonce local>` (16 caracteres base64url).
+- Cambio de usuario A -> B: se eliminan los modelos de A (incluidos huerfanos) y se vuelve a agregar el grupo con la URL de B.
+- Dedupe: si un share link pre-creo un miembro con el mismo id, se elimina antes de agregar el nuevo (`GroupMixin.add` no deduplica).
+- Vista embebida en un recurso CKAN: el `#start=` del plugin ya inyecta (en el stratum `user`) un miembro raiz cuyo id empieza por `__ckan_private_catalog__/`. Si existe (`injectedPrivateCatalogId`), `CkanSession` no agrega su propio grupo y "Open my private datasets" abre ese miembro.
+- `anonymous`: `removePrivateCatalog` recorre el envoltorio y sus descendientes (`memberModels` y `getDereferencedIfExists`), suma los ids `<catalogGroupId>/*` y todo `terria.modelIds` con prefijo `__ckan_private_catalog__/`, cuenta cuantos estan en el workbench, llama a `terria.removeModelReferences(m)` y `m.dispose()` y quita cada modelo de todos los strata del grupo raiz (`root.strata`), porque el `#start=` vive en `user` y no en `definition`.
+- `catalogGeneration` se incrementa en cada alta o baja. El panel lo observa para limpiar `activeTabIdInCategory` y `previewedItem` cuando apuntan a modelos que ya no existen.
+
+### Notificaciones
+
+- Logout con capas privadas en el workbench: notificacion "Logged out" (`ckanSession.notifications.loggedOut*`, con el numero de capas retiradas). La `key` es por evento (`ckanSession/loggedOut/<catalogGeneration>`): `NotificationState` ignora para siempre una key ya vista y una key fija solo se mostraria en el primer logout.
+- Share link con capas privadas abierto sin sesion: una sola vez por carga de pagina, si el usuario es anonimo (sin haber estado autenticado antes) y el catalogo contiene ids `__ckan_private_catalog__/...`, notificacion "This map contains private datasets" con "Log in" (`openLogin()`) y "Continue without logging in". Como el barrido ya elimino esas capas, `CkanSession` recuerda el caso (`_restoreShareOnLogin`) y, al pasar a `authenticated`, vuelve a aplicar una sola vez el share de la pestana con `terria.updateApplicationUrl(window.location.href)`, el mismo camino que un `hashchange`.
+
+### 401/403 del catalogo privado
+
+- `TerriaReference` expone el hook `protected loadInitJson()`; lee `url` y `cacheDuration` de forma sincrona, asi que el `AsyncLoader` sigue re-ejecutando al cambiar la `url`.
+- `CkanPrivateCatalogReference` lo envuelve: un `RequestErrorEvent` 401 o 403 llama a `ckanSession.handleUnauthorized(status)` (refresh inmediato, sin throttle, que supersede al whoami en vuelo) y lanza un `TerriaError` con `ckanSession.errors.sessionExpired` (401) o `ckanSession.errors.forbidden` (403) y severidad por defecto `Error`; una `Warning` solo iria a consola. El resto de errores se relanzan sin cambios.
+- El tipo `ckan-private-catalog-reference` se registra en `registerCatalogMembers.ts` junto a `terria-reference` y reutiliza `TerriaReferenceTraits` (sin traits nuevos).
+
+### Alcance real de `shareable: false`
+
+- Quedan fuera del share link el envoltorio, la referencia interna (cuya URL lleva el nonce) y los grupos por organizacion.
+- `BuildShareLink.addModelStratum` quita el parametro `token` de la `url` de todo modelo con id `__ckan_private_catalog__/...`: el proxy de recursos de CKAN tambien autoriza por cookie, asi que el destinatario no necesita (ni debe recibir) el token de quien comparte.
+- Las referencias por dataset y los items privados del workbench si se serializan en el share: el endpoint exige cookie, asi que para un anonimo solo producen la notificacion de login, y el barrido al pasar a anonimo limpia los huerfanos.
+
+### Invariantes de seguridad
+
+- Solo rutas relativas seguras, tanto en config como en las URLs que devuelve el whoami; un valor no seguro se ignora con `console.warn` y se usa el default.
+- `came_from` es `location.pathname`; toda pestana nueva lleva `rel="noopener noreferrer"`.
+- El grupo privado solo se agrega con `status === "authenticated"`.
+- `Terria.dispose()` llama a `ckanSession.dispose()`: quita listeners y la reaction, no toca el catalogo.
+
+Limites conocidos:
+
+- El nombre del grupo se escribe en el stratum `definition`, asi que un cambio de idioma en caliente no lo re-traduce.
+- Si la sesion expira con el mapa abierto, el grupo sigue visible hasta el siguiente foco o click; el primer intento de carga muestra el mensaje traducido y dispara el re-check.
+- Tras recargar la pagina el nonce cambia: Terria conserva el primero de cada usuario solo durante la vida de la pagina.
+
+## Nota
+
+- **Inferencia:** el deploy continuo de aplicacion no empaqueta TerriaJS solo; clona TerriaMap, injerta la version/branch actual de TerriaJS y despliega esa app resultante.
+
+## Escenas de Data Stories y búsqueda explícita
+
+El bridge applyScene confirma received al recibir la solicitud y complete al terminar. createSceneQueue ejecuta una aplicación a la vez, mantiene solo la última pendiente y confirma las descartadas con superseded. Las búsquedas de lugares se envían con Enter/botón; SearchBox admite searchOnChange=false sin alterar el autocompletado del catálogo. Mientras el texto no se ha enviado, `SearchState.isWaitingToStartLocationSearch` queda en `true`; `SearchBoxAndResults` pasa `waitingHint` a `LocationSearchResults`/`SearchHeader` para mostrar la indicación "Pulse Enter o haga clic en Buscar" en lugar del spinner (sin ella el panel parecía cargar indefinidamente). La búsqueda móvil conserva el comportamiento anterior. El proveedor Nominatim muestra atribución OpenStreetMap y puede apuntar al proxy CKAN.
+
+## Imágenes narrativas y tamaño de Feature Info
+
+`storyImageUploadUrl` habilita en TinyMCE seleccion, pegado y arrastre hacia `/story-images/upload` del mismo origen. Primero obtiene sesion/CSRF y limite del portal; luego envia el archivo original con progreso. CKAN verifica y optimiza el archivo (1600 px para imagenes estaticas), conservando transparencia y animaciones. Centralizar la conversion permite deduplicar el mismo archivo entre CKAN y Terria.
+
+`storyImageLibraryUrl: /story-images/library` agrega "My images" a la barra de TinyMCE. Abre el selector CKAN en un dialogo y acepta solo mensajes del iframe esperado y del mismo origen. Inserta una URL permanente, texto alternativo y descripcion/creditos como texto escapado. El guardado espera las subidas y mantiene el borrador si fallan, sin guardar URLs `blob:` o `data:` pendientes. Las imagenes antiguas se convierten al guardar una edicion; su lectura y los enlaces externos se conservan. El portal almacena los archivos; la story conserva HTML con URLs.
+
+Feature Info usa `featureInfoPanelState.sizeMode = auto|manual`. En automático el contenido tardío (COG, tablas, gráficos, imágenes) puede aumentar el alto hasta el límite del viewport. ResizeObserver ya no convierte la altura inicial del loader en tamaño persistente. El gesto de resize activa manual; el botón de ajuste automático restaura auto. Dimensiones antiguas sin modo se interpretan como manual para conservar las preferencias guardadas. El share conserva modo y posición; la cabecera sigue accesible y el cuerpo tiene scroll.
+
+El contenedor auxiliar de TinyMCE (diálogos de imagen/media/enlaces) usa z-index 100000, por encima del panel StoryBuilder (99999). Antes aparecía detrás del editor y no recibía clics. El popup de edición limita su altura al viewport y permite scroll para mantener Guardar accesible en pantallas pequeñas.
+
+## Composiciones de Stories (2026-10-02)
+
+El editor nativo permite texto + mapa, dashboard, mapa/dashboard, imagen/multimedia y narrativa completa. Guarda `StoryData.composition` opcional, version 1: layout, lado/ancho narrativo, duracion (10 s por defecto, 1–600 s), dashboards, multimedia y referencias con IDs estables. `InitSourceData.storyOptions` conserva Slides/Scroll en shares. Cada capitulo guarda `presentation: classic|composed`. Las escenas nuevas empiezan como ventana clasica; el selector Presentacion permite activar Composicion. Sin campo explicito, los shares con `composition.version = 1` siguen usando Composicion y los demas conservan la ventana clasica. Cambiar de formato no elimina la composicion ni las dimensiones/posicion anteriores.
+
+El selector `/story-dashboards/picker` pertenece a Pages y devuelve `ckan-story-dashboard-selected`, version 1. Solo se acepta su ventana y el origen actual. Los embeds `/dashboard/<UUID>/embed` conservan el protocolo dashboard v1 y filtros temporales; no se guardan tokens ni HTML de dashboard. Se mantienen hasta tres iframes.
+
+La guia del editor usa la marca IHP-WINS y explica que un dashboard es un panel
+interactivo. En el formato clasico indica como pasar a Composicion; en sus
+ajustes guia la busqueda, la seleccion opcional de filtros y un grafico para
+destacar, la insercion y el guardado del capitulo. Los filtros pertenecen al
+capitulo y no modifican el dashboard original. Para mostrarlo se recomienda
+elegir Texto + dashboard o Mapa y dashboard; no se cambia automaticamente la
+plantilla ni el formato inicial.
+
+El selector recibe `?lang=en` o `?lang=es`, normalizado desde el idioma actual
+de Terria; otros idiomas usan ingles. El dialogo y el iframe comparten titulo
+traducido. Las claves EN/ES no habilitan por si mismas esos idiomas en la
+configuracion del consumidor TerriaMap. El esquema y el mensaje v1 no cambian.
+
+El lector compuesto reserva un espacio para el lienzo Terria existente; no monta un segundo mapa. Aplica snapshots secuencialmente, conserva la ultima solicitud pendiente y no reemplaza el documento narrativo. Una referencia seleccionada en TinyMCE puede aplicar una escena y/o filtros y resaltar un widget; `on_enter` activa la misma referencia al alcanzar el texto. IDs eliminados producen un aviso recuperable.
+
+Reproducir es siempre una accion del lector. Espera confirmacion de los estados visuales, admite pausa y duracion por escena, se pausa al navegar o esconder la pestaña y se detiene al final. El desplazamiento conserva navegacion manual. Las URLs de imagen usan la biblioteca CKAN; video admite YouTube/Vimeo y archivos de video/audio.
+
+### Lectura de composiciones en movil (2026-10-02)
+
+El lector compuesto usa controles de al menos 44 px, selector de capitulo en una fila propia en movil y texto con ancho legible. En Slides, las plantillas de imagen/multimedia comparten el desplazamiento vertical de texto y medios en movil para evitar un panel vacio. Scroll conserva su panel de lectura y seguimiento de capitulos. Los videos usan controles nativos, `playsInline` y precarga de metadatos; cambiar de capitulo o modo pausa los medios nativos. Los embeds externos conservan sus propios controles.
+
+Las referencias `on_enter` se activan cuando su enlace entra en la zona visible del capitulo activo, incluso si el titulo ocupa varias lineas. Solo se consideran los enlaces con activacion automatica; las referencias manuales siguen requiriendo un click.
+
+Durante una composicion, el menu del mapa usa el ancho real de su columna, permite varias filas y reserva espacio para los controles de navegacion. El texto conserva los espacios entre etiquetas inline y referencias; el parser preserva tambien los espacios en ventanas clasicas y sigue omitiendo whitespace estructural en tablas.
+
+### Ventanas clasicas y recorridos mixtos (2026-10-02)
+
+`StoryPanel` elige el lector por el capitulo activo. La ventana clasica conserva texto enriquecido, mapa capturado, arrastre por la cabecera y resize desde la esquina inferior. Guarda geometria solo al completar un gesto; resize del viewport, montaje, colapso y clicks ajenos no sobrescriben preferencias. CSS limita el tamaño visible en movil y vuelve al tamaño elegido en escritorio. Editar, recapturar y compartir mantienen esos campos por capitulo.
+
+Los paneles laterales y referencias interactivas requieren Composicion. En la ventana clasica los enlaces `#story-ref-*` se presentan como texto con su formato, conservando el HTML almacenado para recuperar las interacciones al volver a Composicion. El editor explica la diferencia y desactiva Link visualization en formato clasico.
+
+Si algun capitulo es clasico, el recorrido usa Slides con avance manual y oculta Play. Conserva la preferencia Scroll guardada para recuperarla si todos los capitulos vuelven a Composicion. Ambos lectores usan `storyScene.ts`: una cola compartida por Terria aplica los snapshots en orden y descarta solicitudes pendientes superadas; excluye `stories` y `storyOptions` de las escenas capturadas. Al cambiar de lector se restauran las dimensiones del mapa, se retiran listeners y se pausan los medios del lector anterior.
+
+### Editor editorial de capitulos (2026-10-02)
+
+La autoria de escritorio usa un modal claro con cabecera y acciones persistentes. A partir de 1100 px, contenido y ajustes se desplazan en columnas independientes; debajo se apilan en un solo cuerpo desplazable. Classic window sigue siendo el formato inicial. Las tarjetas de plantilla muestran lado y proporcion del texto; dashboards, multimedia, enlaces narrativos y reproduccion tienen grupos propios. Cambiar de formato mantiene TinyMCE montado y conserva la composicion y geometria almacenadas.
+
+Guardar espera a que TinyMCE este listo y a las subidas, rechaza titulos vacios incluso con Ctrl/Cmd+Enter y evita envios duplicados. Durante el guardado, texto y controles quedan bloqueados; un fallo restaura la edicion y conserva el borrador. Cerrar o cancelar con cambios abre una confirmacion de descarte. Escape respeta primero los dialogos de TinyMCE y CKAN. El modal mantiene el foco y lo devuelve al disparador al cerrar; los selectores CKAN comparten una envoltura visual, conservando sus contratos de origen/ventana emisora.
+
+Los textos nuevos estan en ingles y español mediante i18next. No cambia el esquema de shares ni la autoria movil: StoryBuilder sigue siendo un flujo de escritorio.
+
+## Pilotos nativos de calidad de agua (2026-10-11)
+
+Los items `cog-time-series` pueden declarar `waterQuality: {pilotId, product, dataUrl}`.
+`dataUrl` apunta a una publicación versionada con `meta.json`, `bodies.json`,
+`lakes.json`, `series/<producto>.json` y `lake/<id>.json`. Los productos de un
+piloto se incluyen en el workbench y solo uno tiene `show: true`. No se incrustan
+aplicaciones externas ni se usa xcube.
+
+`WaterQualityPanel` carga metadatos y la matriz del producto, después las fichas
+seleccionadas; las geometrías se muestran mediante un overlay GeoJSON nativo.
+El buscador y los clics sobre contornos seleccionan los mismos cuerpos. Hasta
+tres cuerpos se comparan en un gráfico, tabla y CSV con procedencia. La fecha
+del gráfico y el selector controlan `currentTime`, y las resoluciones/bandas
+siguen siendo las del COG. Los IDs elegidos se guardan en el trait
+`waterQualityBodyIds` y sobreviven en shares.
+
+La unidad del análisis es explícita: núcleo del cuerpo, píxel individual o
+polígono dibujado. `waterQualityPixelMode` activa series por píxel al hacer clic;
+el modo por defecto selecciona cuerpos sin lanzar además lecturas por píxel.
+El acceso al cálculo por polígono está en la ficha, evitando tarjetas repetidas
+para los tres productos. Los COG de despliegue uint8/log8 nunca alimentan las
+estadísticas. Los COG analíticos conservan unidades físicas y nodata.
+
+Las estadísticas de cuerpo usan el JSON precalculado: cobertura mínima de
+`meta.minCoverage`, mensual mediana de medianas diarias, anual media de medianas
+mensuales. Se muestran último dato suficiente y última adquisición por separado.
+La tendencia usa Theil–Sen y Mann–Kendall, al menos cinco años suficientemente
+observados; se suprime la pendiente lineal genérica del dock para estos pilotos.
+`meta.bodyCutoffs` permite excluir observaciones posteriores y marcar agregados
+que cruzan el corte como parciales (Kakhovka: `{"1":"2023-06-05"}`). La ficha
+explica por qué un agregado parcialmente válido puede no tener ráster visible.
+Los calendarios diarios incluyen huecos, sin interpolarlos; el gráfico diario
+muestra el año activo y el CSV conserva todo el histórico del cuerpo.
+
+La ficha usa controles EN/ES y conserva nombres ucranianos y alternativos en
+la búsqueda. En móvil se convierte en panel inferior plegable, con controles
+accesibles y tabla diferida hasta que se abre. Los fallos JSON/HTTP muestran
+reintento; un fallo nunca queda guardado en caché.
+
+### Embed narrativo compacto
+
+`narrative=1` en el hash elimina branding, workbench, menú principal, bienvenida
+y apertura automática de Stories. Mantiene mapa, navegación, atribución,
+leyenda desplegable y timeline; la ficha de agua empieza plegada. Es opt-in:
+los enlaces al visor completo no añaden ese flag. CKAN Pages usa esta opción
+para que el texto exterior narre el mapa sin duplicar el panel editorial.
+
+### Unidades de zonales
+
+El motor zonal usa la caché COG compartida y HTTP Range. Rechaza nodata antes de
+aplicar `valueScale`/`valueOffset`; si el catálogo no los fija usa metadatos GDAL
+por banda. Se excluyen los anillos interiores de los polígonos. La configuración
+permite elegir resolución nativa o overview automático (aproximado), y el CSV
+anota geometría, unidad, banda y política de resolución. Una estadística de un
+polígono sobre un compuesto no se presenta como estadística del núcleo de un
+cuerpo de agua.
+
+Los límites derivados de cada piloto usan el estrato `definition`, fuera del
+workbench. El share conserva `waterQualityBodyIds` en los COGs y reconstruye el
+overlay desde `analytics/lakes.json`; no incluye coordenadas en el enlace.
+
+Al cambiar CHL/TUR/SPM desde la ficha, el producto visible pasa al primer lugar
+de la línea temporal de Terria. Conserva la fecha y la resolución seleccionadas;
+los controles del reloj y los enlaces compartidos siguen ese mismo producto.
+Al abrir un share, el panel también corrige el orden restaurado entre productos
+del mismo piloto. Este observador conserva los filtros y no desplaza una capa
+ajena al piloto que esté controlando la línea temporal.
+
+### Analisis de area COG (2026-10-23)
+
+- La entrada compacta del BottomDock selecciona la capa desde la que se abre. El control del mapa tambien admite Cesium/Leaflet y pantallas pequenas.
+- El flujo es Area -> Configuracion -> Resultados, con superficies claras locales (`AnalysisTheme`), iconos SVG y textos EN/ES. No cambia el tema global del mapa.
+- `UserDrawing` incorpora opciones optativas de estilo, validacion, cierre directo y retencion del overlay. Clicar el primer vertice o Cerrar area ejecuta la misma finalizacion; el view model normaliza y valida el anillo, rechaza cruces y areas degeneradas, y mantiene el poligono visible. Deshacer y Reiniciar actuan antes del cierre; Redibujar reemplaza el area. Cancelar un calculo conserva area y opciones.
+- Finalizar libera la interaccion de dibujo, no el overlay retenido. Cerrar la herramienta elimina sus elementos temporales de forma idempotente sin retirar modos ajenos; las respuestas de picking tardias no agregan vertices tras cerrar.
+- En movil el panel inferior se mantiene compacto al dibujar y se amplia para configurar/resultados, con un limite de 70dvh. El grafico de puntos queda oculto mientras la herramienta movil esta abierta, conservando sus series. En escritorio se pliega temporalmente mientras la herramienta esta abierta para no cubrir la geometria.
+- El grafico acumulado y su vista ampliada usan superficies claras; el canvas ocupa la altura disponible y los controles/leyenda tienen desplazamiento cuando falta espacio. El resultado zonal se amplia en Chart.js sin alterar las series de puntos existentes. El estado de geometria sigue siendo temporal: esta entrega no agrega persistencia del poligono al formato share.

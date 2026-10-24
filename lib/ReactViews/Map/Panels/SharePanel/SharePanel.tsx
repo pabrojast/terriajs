@@ -1,11 +1,8 @@
 import classNames from "classnames";
 import { observer } from "mobx-react";
 import { Component } from "react";
-import {
-  WithTranslation,
-  withTranslation,
-  type TFunction
-} from "react-i18next";
+import { type TFunction } from "i18next";
+import { WithTranslation, withTranslation } from "react-i18next";
 import Terria from "../../../../Models/Terria";
 import ViewState from "../../../../ReactViewModels/ViewState";
 import Box from "../../../../Styled/Box";
@@ -17,16 +14,17 @@ import { SharePanelContent } from "./SharePanelContent";
 import { ShareUrl } from "./ShareUrl";
 import MenuPanel from "../../../StandardUserInterface/customizable/MenuPanel";
 import StorySharePanel from "./StorySharePanel";
+import withControlledVisibility from "../../../HOCs/withControlledVisibility";
 
 interface PropTypes extends WithTranslation {
   terria: Terria;
-  storyShare: boolean;
+  storyShare?: boolean;
   catalogShare?: boolean;
   catalogShareWithoutText?: boolean;
-  modalWidth: number;
+  modalWidth?: number;
   viewState: ViewState;
-  onUserClick: () => void;
-  btnDisabled: boolean;
+  onUserClick?: () => void;
+  btnDisabled?: boolean;
   t: TFunction;
 }
 
@@ -72,33 +70,26 @@ class SharePanel extends Component<PropTypes, SharePanelState> {
     if (this.props.catalogShare) {
       return (
         <Box fullWidth column paddedRatio={3}>
-          <Text medium textDark>
-            {t("clipboard.shareURL")}
-          </Text>
+          <Text medium>{t(($) => $.clipboard.shareURL)}</Text>
           <Spacing bottom={1} />
           <ShareUrl
             terria={terria}
             viewState={viewState}
             includeStories
             shouldShorten={shouldShorten(terria)}
-            theme="light"
-            inputTheme="light"
           />
         </Box>
       );
     } else if (this.props.storyShare) {
       return (
         <Box fullWidth column paddedRatio={3}>
-          <Text medium>{t("clipboard.shareURL")}</Text>
+          <Text medium>{t(($) => $.share.shareStoryLink)}</Text>
           <Spacing bottom={1} />
           <ShareUrl
             terria={terria}
             viewState={viewState}
             includeStories
             shouldShorten={shouldShorten(terria)}
-            theme="dark"
-            inputTheme="light"
-            rounded
           />
         </Box>
       );
@@ -127,22 +118,25 @@ class SharePanel extends Component<PropTypes, SharePanelState> {
         [Styles.storyShare]: storyShare
       }),
       inner: classNames(Styles.dropdownInner, {
-        [Styles.catalogShareInner]: catalogShare,
         [Styles.storyShareInner]: storyShare
       }),
       icon: "share"
     };
 
     const btnText = catalogShare
-      ? t("share.btnCatalogShareText")
+      ? t(($) => $.share.btnCatalogShareText)
       : storyShare
-      ? t("share.btnStoryShareText")
-      : t("share.btnMapShareText");
+        ? t(($) => $.share.btnStoryShareText)
+        : t(($) => $.share.btnMapShareText);
     const btnTitle = catalogShare
-      ? t("share.btnCatalogShareTitle")
+      ? t(($) => $.share.btnCatalogShareTitle)
       : storyShare
-      ? t("share.btnStoryShareTitle")
-      : t("share.btnMapShareTitle");
+        ? t(($) => $.share.btnStoryShareTitle)
+        : t(($) => $.share.btnMapShareTitle);
+
+    if (this.props.terria.configParameters.disableSharePanel) {
+      return null;
+    }
 
     return !storyShare ? (
       //@ts-expect-error - not yet ready to tackle tsfying MenuPanel
@@ -187,7 +181,7 @@ class SharePanel extends Component<PropTypes, SharePanelState> {
   }
 }
 
-export default withTranslation()(SharePanel);
+export default withControlledVisibility(withTranslation()(SharePanel));
 
 export function shouldShorten(terria: Terria) {
   return (

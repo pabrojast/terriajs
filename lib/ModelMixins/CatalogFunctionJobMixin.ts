@@ -154,10 +154,6 @@ function CatalogFunctionJobMixin<
       }
     }
 
-    get refreshInterval() {
-      return 2;
-    }
-
     private pollingForResults = false;
 
     /**
@@ -313,8 +309,9 @@ function CatalogFunctionJobMixin<
 
 namespace CatalogFunctionJobMixin {
   StratumOrder.addLoadStratum(FunctionJobStratum.name);
-  export interface Instance
-    extends InstanceType<ReturnType<typeof CatalogFunctionJobMixin>> {}
+  export interface Instance extends InstanceType<
+    ReturnType<typeof CatalogFunctionJobMixin>
+  > {}
   export function isMixedInto(model: any): model is Instance {
     return model && model.hasCatalogFunctionJobMixin;
   }

@@ -6,6 +6,7 @@ import Workbench from "../../lib/Models/Workbench";
 import Result from "../../lib/Core/Result";
 import TerriaError, { TerriaErrorSeverity } from "../../lib/Core/TerriaError";
 import TerriaReference from "../../lib/Models/Catalog/CatalogReferences/TerriaReference";
+import updateModelFromJson from "../../lib/Models/Definition/updateModelFromJson";
 
 describe("Workbench", function () {
   let terria: Terria;
@@ -105,15 +106,15 @@ describe("Workbench", function () {
       expect(workbench.itemIds).toEqual(["C", "B", "A"]);
     });
 
-    it("will add another keepOnTop item4 ", () => {
+    it("will add another keepOnTop item4 ", async () => {
       item4.setTrait("definition", "keepOnTop", true);
-      workbench.add(item4);
+      await workbench.add(item4);
       expect(workbench.items).toEqual([item4, item3, item1, item2]);
       expect(workbench.itemIds).toEqual(["D", "C", "A", "B"]);
     });
 
-    it("will add another item4", () => {
-      workbench.add(item4);
+    it("will add another item4", async () => {
+      await workbench.add(item4);
       expect(workbench.items).toEqual([item3, item4, item1, item2]);
       expect(workbench.itemIds).toEqual(["C", "D", "A", "B"]);
     });
@@ -143,16 +144,16 @@ describe("Workbench", function () {
       expect(workbench.itemIds).toEqual(["C", "A", "B"]);
     });
 
-    it("will add another keepOnTop item4 ", () => {
+    it("will add another keepOnTop item4 ", async () => {
       item4.setTrait("definition", "keepOnTop", true);
-      workbench.add(item4);
+      await workbench.add(item4);
       expect(workbench.items).toEqual([item3, item4, item1, item2]);
       expect(workbench.itemIds).toEqual(["C", "D", "A", "B"]);
     });
 
-    it("will add another non layer-reordering item4 ", () => {
+    it("will add another non layer-reordering item4 ", async () => {
       item4.setTrait("definition", "supportsReordering", false);
-      workbench.add(item4);
+      await workbench.add(item4);
       expect(workbench.items).toEqual([item4, item3, item1, item2]);
       expect(workbench.itemIds).toEqual(["D", "C", "A", "B"]);
     });
@@ -209,6 +210,38 @@ describe("Workbench", function () {
     expect(workbench.itemIds).toEqual(["D", "A", "B"]);
   });
 
+  it("keeps an item that fails to load and attaches its error when `showErrorsOnItem` is set", async function () {
+    workbench.items = [item1, item2];
+    const error = new TerriaError({
+      message: "Failed to Load",
+      severity: TerriaErrorSeverity.Error
+    });
+    (item3 as any).loadMapItems = () => Result.error(error);
+
+    const addResult = await workbench.add(item3, { showErrorsOnItem: true });
+
+    expect(addResult.error).toBeDefined();
+    expect(workbench.itemIds).toEqual(["C", "A", "B"]);
+    expect(workbench.getItemErrors(item3)).toEqual([error]);
+  });
+
+  it("shows item errors for an item while it is being added with `showErrorsOnItem`", async function () {
+    let finishLoading: (result: Result<void>) => void = () => {};
+    (item3 as any).loadMapItems = () =>
+      new Promise((resolve) => (finishLoading = resolve));
+
+    const adding = workbench.add(item3, { showErrorsOnItem: true });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(workbench.contains(item3)).toBe(true);
+    expect(workbench.showsItemErrors(item3)).toBe(true);
+
+    finishLoading(Result.none());
+    await adding;
+
+    expect(workbench.showsItemErrors(item3)).toBe(false);
+  });
+
   it("doesn't add duplicate model", async function () {
     workbench.items = [item1, item2, item3];
 
@@ -227,6 +260,77 @@ describe("Workbench", function () {
     workbench.remove(item2);
     expect(workbench.items).toEqual([item1, item3]);
     expect(workbench.itemIds).toEqual(["A", "C"]);
+  });
+
+  describe("item errors", function () {
+    const error = TerriaError.from("Failed to load");
+
+    it("can be set and cleared", function () {
+      workbench.items = [item1, item2];
+      workbench.setItemErrors(item1, [error]);
+
+      expect(workbench.getItemErrors(item1)).toEqual([error]);
+      expect(workbench.getItemErrors(item2)).toEqual([]);
+
+      workbench.setItemErrors(item1, []);
+      expect(workbench.getItemErrors(item1)).toEqual([]);
+    });
+
+    it("are cleared when the item is removed", function () {
+      workbench.items = [item1, item2];
+      workbench.setItemErrors(item1, [error]);
+      workbench.setItemErrors(item2, [error]);
+
+      workbench.remove(item1);
+      expect(workbench.getItemErrors(item1)).toEqual([]);
+      expect(workbench.getItemErrors(item2)).toEqual([error]);
+
+      workbench.removeAll();
+      expect(workbench.getItemErrors(item2)).toEqual([]);
+    });
+
+    it("stop being cleared when shown once the item is removed", function () {
+      workbench.items = [item1, item2];
+      item1.setTrait(CommonStrata.user, "show", false);
+      item2.setTrait(CommonStrata.user, "show", false);
+      workbench.setItemErrors(item1, [error], { clearWhenShown: true });
+      workbench.setItemErrors(item2, [error], { clearWhenShown: true });
+      expect((workbench as any)._clearErrorsWhenShown.size).toBe(2);
+
+      workbench.remove(item1);
+      expect((workbench as any)._clearErrorsWhenShown.size).toBe(1);
+      workbench.items = [];
+
+      expect((workbench as any)._clearErrorsWhenShown.size).toBe(0);
+    });
+
+    it("keep clearing when shown after the item is moved", function () {
+      workbench.items = [item1, item2];
+      item1.setTrait(CommonStrata.user, "show", false);
+      workbench.setItemErrors(item1, [error], { clearWhenShown: true });
+
+      workbench.moveItemToIndex(item1, 1);
+      item1.setTrait(CommonStrata.user, "show", true);
+
+      expect(workbench.getItemErrors(item1)).toEqual([]);
+    });
+
+    it("are kept when the item is moved", function () {
+      workbench.items = [item1, item2];
+      workbench.setItemErrors(item1, [error]);
+
+      workbench.moveItemToIndex(item1, 1);
+      expect(workbench.items).toEqual([item2, item1]);
+      expect(workbench.getItemErrors(item1)).toEqual([error]);
+    });
+
+    it("are cleared when the item is no longer in the workbench items", function () {
+      workbench.items = [item1, item2];
+      workbench.setItemErrors(item1, [error]);
+
+      workbench.items = [item2];
+      expect(workbench.getItemErrors(item1)).toEqual([]);
+    });
   });
 
   it("add reference item", async function () {
@@ -267,5 +371,54 @@ describe("Workbench", function () {
     // Try to add model.target.sourceReference, tests should be unchanged
     await workbench.add(model.target!.sourceReference!);
     workbenchWithSingleModel();
+  });
+
+  describe("when adding items with initialMessage", function () {
+    let testItem: WebMapServiceCatalogItem;
+
+    beforeEach(function () {
+      testItem = new WebMapServiceCatalogItem("test-item", terria);
+      testItem.setTrait(
+        "definition",
+        "url",
+        "test/WMS/single_metadata_url.xml"
+      );
+      terria.addModel(testItem);
+    });
+
+    it("triggers an initial message notification when an item is added to the workbench", async function () {
+      updateModelFromJson(testItem, CommonStrata.user, {
+        initialMessage: {
+          title: "Hello, world",
+          content: "This is a test message",
+          showAsToast: true
+        }
+      });
+
+      const notifications = terria.notificationState.getAllNotifications();
+      expect(notifications.length).toBe(0);
+      await workbench.add(testItem);
+      expect(notifications.length).toBe(1);
+      expect(notifications[0].title).toBe("Hello, world");
+      expect(notifications[0].message).toBe("This is a test message");
+      expect(notifications[0].showAsToast).toBe(true);
+    });
+
+    it("triggers the initial message only once", async function () {
+      updateModelFromJson(testItem, CommonStrata.user, {
+        initialMessage: {
+          title: "Hello, world",
+          content: "This is a test message",
+          showAsToast: true
+        }
+      });
+
+      const notifications = terria.notificationState.getAllNotifications();
+      expect(notifications.length).toBe(0);
+      await workbench.add(testItem);
+      workbench.remove(testItem);
+      await workbench.add(testItem);
+      expect(notifications.length).toBe(1);
+    });
   });
 });

@@ -1,18 +1,26 @@
 {
   "compilerOptions": {
-    "target": "es2019",
+    "target": "esNext",
+    "module": "esNext",
     "incremental": true,
     "experimentalDecorators": true,
-    "module": "esNext",
-    "moduleResolution": "node",
+    "moduleResolution": "bundler",
     "sourceMap": true,
     "strict": true,
+    // Skip type-checking of declaration (.d.ts) files. Required because
+    // react-i18next (v17+) augments React's `HTMLAttributes.children` with
+    // `ReactI18NextChildren` (which includes `Record<string, unknown>` when
+    // `allowObjectInHTMLChildren` is enabled) but not the base
+    // `DOMAttributes.children`, so `@types/react` reports `HTMLAttributes`
+    // as "incorrectly extending" `DOMAttributes`. See lib/ThirdParty/i18n/i18next.d.ts.
+    // @TODO: Revisit this when updating react-i18next, react or ts dependencies
+    "skipLibCheck": true,
     "allowJs": true,
     "jsx": "react-jsx",
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
     "noUncheckedSideEffectImports": true,
-    "useDefineForClassFields": true, // required for mobx6 - https://mobx.js.org/installation.html#use-spec-compliant-transpilation-for-class-properties
+    "isolatedModules": true,
     "outDir": "ts-out",
     "resolveJsonModule": true,
     "typeRoots": [
@@ -20,18 +28,9 @@
       "./node_modules/",
       "./node_modules/@types/",
       "../node_modules/",
-      "../node_modules/@types/",
-      "../../node_modules/",
-      "../../node_modules/@types/",
-      "../../../node_modules/",
-      "../../../node_modules/@types/"
+      "../node_modules/@types/"
     ],
     "types": ["terriajs-cesium", "@testing-library/jasmine-dom"]
   },
-  "include": [
-    "./lib/**/*",
-    "./test/**/*",
-    "./buildprocess/generateDocs.ts",
-    "./buildprocess/**/*"
-  ]
+  "include": ["./lib/**/*", "./test/**/*", "./buildprocess/**/*"]
 }

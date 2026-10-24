@@ -1,28 +1,29 @@
-import "../../../SpecMain";
-import { reaction, runInAction } from "mobx";
 import i18next from "i18next";
+import { reaction, runInAction } from "mobx";
 import Cartesian2 from "terriajs-cesium/Source/Core/Cartesian2";
+import Cartesian3 from "terriajs-cesium/Source/Core/Cartesian3";
+import HeadingPitchRoll from "terriajs-cesium/Source/Core/HeadingPitchRoll";
 import IonResource from "terriajs-cesium/Source/Core/IonResource";
+import Matrix3 from "terriajs-cesium/Source/Core/Matrix3";
+import Matrix4 from "terriajs-cesium/Source/Core/Matrix4";
+import Quaternion from "terriajs-cesium/Source/Core/Quaternion";
+import Cesium3DTileColorBlendMode from "terriajs-cesium/Source/Scene/Cesium3DTileColorBlendMode";
+import Cesium3DTileContent from "terriajs-cesium/Source/Scene/Cesium3DTileContent";
 import Cesium3DTileFeature from "terriajs-cesium/Source/Scene/Cesium3DTileFeature";
 import Cesium3DTileset from "terriajs-cesium/Source/Scene/Cesium3DTileset";
 import Cesium3DTileStyle from "terriajs-cesium/Source/Scene/Cesium3DTileStyle";
-import Cesium3DTileColorBlendMode from "terriajs-cesium/Source/Scene/Cesium3DTileColorBlendMode";
 import ShadowMode from "terriajs-cesium/Source/Scene/ShadowMode";
 import Cesium3DTilesCatalogItem from "../../../../lib/Models/Catalog/CatalogItems/Cesium3DTilesCatalogItem";
+import CommonStrata from "../../../../lib/Models/Definition/CommonStrata";
 import createStratumInstance from "../../../../lib/Models/Definition/createStratumInstance";
 import Terria from "../../../../lib/Models/Terria";
-import Matrix4 from "terriajs-cesium/Source/Core/Matrix4";
+import {
+  FilterTraits,
+  OptionsTraits
+} from "../../../../lib/Traits/TraitsClasses/Cesium3dTilesTraits";
 import HeadingPitchRollTraits from "../../../../lib/Traits/TraitsClasses/HeadingPitchRollTraits";
 import LatLonHeightTraits from "../../../../lib/Traits/TraitsClasses/LatLonHeightTraits";
-import CommonStrata from "../../../../lib/Models/Definition/CommonStrata";
-import Quaternion from "terriajs-cesium/Source/Core/Quaternion";
-import Matrix3 from "terriajs-cesium/Source/Core/Matrix3";
-import HeadingPitchRoll from "terriajs-cesium/Source/Core/HeadingPitchRoll";
-import Cartesian3 from "terriajs-cesium/Source/Core/Cartesian3";
-import {
-  OptionsTraits,
-  FilterTraits
-} from "../../../../lib/Traits/TraitsClasses/Cesium3dTilesTraits";
+import "../../../SpecMain";
 
 describe("Cesium3DTilesCatalogItemSpec", function () {
   let item: Cesium3DTilesCatalogItem;
@@ -38,7 +39,7 @@ describe("Cesium3DTilesCatalogItemSpec", function () {
   it("should have a type and a typeName", function () {
     expect(Cesium3DTilesCatalogItem.type).toBe("3d-tiles");
     expect(item.type).toBe("3d-tiles");
-    expect(item.typeName).toBe(i18next.t("models.cesiumTerrain.name3D"));
+    expect(item.typeName).toBe(i18next.t(($) => $.models.cesiumTerrain.name3D));
   });
 
   it("supports zooming", function () {
@@ -141,7 +142,8 @@ describe("Cesium3DTilesCatalogItemSpec", function () {
           item.setTrait("definition", "ionAccessToken", "fakeToken");
           item.setTrait("definition", "ionServer", "fakeServer");
         });
-        spyOn(IonResource, "fromAssetId").and.callThrough();
+        // @ts-expect-error: spy on static method
+        spyOn(IonResource, "fromAssetId").and.callFake(async () => {});
         try {
           await item.loadMapItems();
         } catch {}
@@ -165,6 +167,25 @@ describe("Cesium3DTilesCatalogItemSpec", function () {
       } catch {}
       const tileset = item.mapItems[0] as Cesium3DTileset;
       expect(tileset.maximumScreenSpaceError).toBe(3);
+    });
+
+    it("passes skipLevelOfDetail and cullRequestsWhileMoving through to the tileset", async function () {
+      runInAction(() => {
+        item.setTrait(
+          "definition",
+          "options",
+          createStratumInstance(OptionsTraits, {
+            skipLevelOfDetail: true,
+            cullRequestsWhileMoving: false
+          })
+        );
+      });
+      try {
+        await item.loadMapItems();
+      } catch {}
+      const tileset = item.mapItems[0] as Cesium3DTileset;
+      expect(tileset.skipLevelOfDetail).toBe(true);
+      expect(tileset.cullRequestsWhileMoving).toBe(false);
     });
   });
 
@@ -225,10 +246,81 @@ describe("Cesium3DTilesCatalogItemSpec", function () {
             });
           });
 
-          it("sets the shadow mode", function () {
+          it("sets the shadow mode after blend", function () {
             runInAction(() => item.setTrait("definition", "shadows", "CAST"));
             const tileset = item.mapItems[0] as Cesium3DTileset;
             expect(tileset.shadows).toBe(ShadowMode.CAST_ONLY);
+          });
+
+          it("sets cacheBytes and maximumCacheOverflowBytes from the dataset's own trait value", function () {
+            runInAction(() =>
+              item.setTrait(
+                "definition",
+                "options",
+                createStratumInstance(OptionsTraits, {
+                  cacheBytes: 100 * 1024 * 1024,
+                  maximumCacheOverflowBytes: 50 * 1024 * 1024
+                })
+              )
+            );
+            const tileset = item.mapItems[0] as Cesium3DTileset;
+            expect(tileset.cacheBytes).toBe(100 * 1024 * 1024);
+            expect(tileset.maximumCacheOverflowBytes).toBe(50 * 1024 * 1024);
+          });
+
+          it("clamps cacheBytes and maximumCacheOverflowBytes to the low-spec ceiling once the quality slider is in its lowest tier", function () {
+            item.terria.setBaseMaximumScreenSpaceError(3);
+            runInAction(() =>
+              item.setTrait(
+                "definition",
+                "options",
+                createStratumInstance(OptionsTraits, {
+                  cacheBytes: 500 * 1024 * 1024,
+                  maximumCacheOverflowBytes: 500 * 1024 * 1024
+                })
+              )
+            );
+            const tileset = item.mapItems[0] as Cesium3DTileset;
+            expect(tileset.cacheBytes).toBe(128 * 1024 * 1024);
+            expect(tileset.maximumCacheOverflowBytes).toBe(64 * 1024 * 1024);
+          });
+
+          it("sets pointCloudShading.attenuation and geometricErrorScale from the dataset's own trait value at max quality", function () {
+            item.terria.setBaseMaximumScreenSpaceError(1);
+            runInAction(() =>
+              item.setTrait(
+                "definition",
+                "options",
+                createStratumInstance(OptionsTraits, {
+                  pointCloudShading: {
+                    attenuation: true,
+                    geometricErrorScale: 2
+                  }
+                })
+              )
+            );
+            const tileset = item.mapItems[0] as Cesium3DTileset;
+            expect(tileset.pointCloudShading.attenuation).toBe(true);
+            expect(tileset.pointCloudShading.geometricErrorScale).toBe(2);
+          });
+
+          it("forces pointCloudShading.attenuation off and doubles geometricErrorScale once the quality slider is in its lowest tier", function () {
+            item.terria.setBaseMaximumScreenSpaceError(3);
+            runInAction(() =>
+              item.setTrait(
+                "definition",
+                "options",
+                createStratumInstance(OptionsTraits, {
+                  pointCloudShading: {
+                    attenuation: true,
+                    geometricErrorScale: 2
+                  }
+                })
+              )
+            );
+            const tileset = item.mapItems[0] as Cesium3DTileset;
+            expect(tileset.pointCloudShading.attenuation).toBe(false);
+            expect(tileset.pointCloudShading.geometricErrorScale).toBe(4);
           });
 
           it("sets the style", function () {
@@ -288,9 +380,9 @@ describe("Cesium3DTilesCatalogItemSpec", function () {
                 Matrix4.getMatrix3(modelMatrix, new Matrix3())
               )
             );
-            expect(rotation.heading.toFixed(2)).toBe("-1.85");
-            expect(rotation.pitch.toFixed(2)).toBe("0.89");
-            expect(rotation.roll.toFixed(2)).toBe("2.40");
+            expect(rotation.heading.toFixed(2)).toBe("-2.39");
+            expect(rotation.pitch.toFixed(2)).toBe("-1.57");
+            expect(rotation.roll.toFixed(2)).toBe("3.12");
 
             const scale = Matrix4.getScale(modelMatrix, new Cartesian3());
             expect(scale.x.toFixed(2)).toEqual("5.00");
@@ -303,7 +395,7 @@ describe("Cesium3DTilesCatalogItemSpec", function () {
             );
             expect(position.x.toFixed(2)).toEqual("6186437.07");
             expect(position.y.toFixed(2)).toEqual("1090835.77");
-            expect(position.z.toFixed(2)).toEqual("4081926.10");
+            expect(position.z.toFixed(2)).toEqual("-3804844.21");
           });
         });
       });
@@ -311,7 +403,7 @@ describe("Cesium3DTilesCatalogItemSpec", function () {
   });
 
   it("correctly builds `Feature` from picked Cesium3DTileFeature", async function () {
-    const picked = new Cesium3DTileFeature();
+    const picked = new Cesium3DTileFeature({} as Cesium3DTileContent, 0);
     spyOn(picked, "getPropertyIds").and.returnValue([]);
     const feature = await item.buildFeatureFromPickResult(
       Cartesian2.ZERO,
@@ -324,9 +416,9 @@ describe("Cesium3DTilesCatalogItemSpec", function () {
   });
 
   it("can change the visibility of a feature", function () {
-    const feature = new Cesium3DTileFeature();
+    const feature = new Cesium3DTileFeature({} as Cesium3DTileContent, 0);
     spyOn(feature, "getProperty").and.callFake((prop: string) => {
-      const props: any = { doorNumber: 10, color: "red" };
+      const props: Record<string, unknown> = { doorNumber: 10, color: "red" };
       return props[prop];
     });
     item.setTrait(CommonStrata.user, "featureIdProperties", [

@@ -1,0 +1,195 @@
+# Deployment
+
+Ver tambien: [[Variables de Entorno]], [[Comandos Utiles]], [[Arquitectura]]
+
+## Resumen
+
+Este repo tiene tres salidas de despliegue observables:
+
+- publicacion del paquete `terriajs` en npm
+- generacion y deploy de documentacion estatica
+- deploy CI de una app TerriaMap construida contra esta version de TerriaJS
+
+## 1. Publicacion npm
+
+Workflow: `.github/workflows/npm-publish.yml`
+
+Se activa con un push a `main`, pero el job completo requiere
+`github.repository_owner == 'TerriaJS'`. En el fork `pabrojast`, integrar
+codigo en `main` no crea tags, no publica en npm y no envia las notificaciones
+Slack de ese workflow. El CI de compilacion y pruebas sigue activo.
+
+Flujo observado:
+
+1. detectar cambio de version en `package.json`
+2. instalar dependencias
+3. correr `npx gulp lint release`
+4. `npm publish --tag ${NPM_TAG}`
+5. enviar notificaciones a Slack
+
+Referencia adicional: `RELEASE_GUIDE.md`
+
+## 2. Documentacion
+
+- `netlify.toml` ejecuta `yarn gulp docs`
+- publica `wwwroot/doc`
+- fija `NODE_VERSION=20` y `PYTHON_VERSION=3.13`
+
+## 3. Deploy CI de aplicacion
+
+Workflow: `.github/workflows/deploy.yml`
+
+Este job tambien requiere el propietario `TerriaJS`; un push al fork no
+despliega la aplicacion de CI. Los despliegues IHP-WINS se realizan mediante
+los workflows explicitos del repositorio `ckan-unesco-docker`.
+
+Script: `buildprocess/ci-deploy.sh`
+
+Flujo observado:
+
+1. clona `TerriaMap`
+2. reescribe su dependencia `terriajs` para apuntar al branch/repositorio actual
+3. sincroniza dependencias
+4. build de TerriaMap
+5. build y push de imagen Docker a GCR
+6. `helm upgrade --install` con `buildprocess/ci-values.yml`
+
+## 4. Configuracion de deploy CI
+
+`buildprocess/ci-values.yml` define, entre otros:
+
+- `serverConfig.port: 3001`
+- `allowProxyFor`
+- share storage S3
+- feedback config
+- `singlePageRouting`
+- `clientConfig.parameters`
+
+## 5. Frontera TerriaJS vs TerriaMap
+
+- Este repo no contiene un shell de aplicacion final equivalente a TerriaMap.
+- La documentacion de `doc/deploying/*.md` describe sobre todo despliegues de TerriaMap y `terriajs-server`.
+- **Inferencia:** para consumidores, el patron recomendado sigue siendo desplegar una app TerriaMap o equivalente que use este paquete.
+
+## Entrega IHP de biblioteca de imagenes (2026-10-01)
+
+El codigo funcional `2ac905a5c` esta publicado en `dev/cog-series` y `production`.
+Git no permite crear `dev` mientras existen ramas `dev/*`; se conserva la rama
+de desarrollo de la que parte esta entrega. TerriaMap fija ese commit en
+`634903f`, publicado en sus ramas `dev` y `production`. La compilacion Docker
+verificada en DEV se promueve con el mismo digest, despues del backend CKAN.
+Los pins y la evidencia del despliegue viven en
+`ckan-unesco-docker/deploy/docker/story-images-production.md`.
+
+La CI de publicacion detecto una directiva ESLint obsoleta en `chartJsExport.ts`;
+se elimina solo ese comentario, sin cambios en el comportamiento compilado.
+
+## Editor editorial de Stories en DEV (2026-10-02)
+
+TerriaJS `338ed1c72497e970644b12884d6378056704e32c` esta publicado en
+`dev/cog-series`. TerriaMap `64c116162be77259e787b9a3680e66d5b7a38cca`, publicado
+en `dev`, fija esa revision. El workflow oficial de `ckan-unesco-docker`
+[`deploy-terria-dev.yml`, run 37082491233](https://github.com/pabrojast/ckan-unesco-docker/actions/runs/37082491233)
+compilo y desplego la imagen `pabrojast/terriamap:20261002213229-64c1161`, digest
+`sha256:7c88d555d6b23de77e92d79f399b66bbb30d22dc3031872775c561b44205a0d4`.
+
+Contexto `default`, namespace `ckan`, deployment `terria-terriamap`: pod
+`terria-terriamap-6c548f4cb4-ts5zj` 1/1 Ready, sin reinicios. La especificacion
+del pod antes/despues es identica salvo la imagen. El alcance es Terria DEV;
+no se desplegaron CKAN ni produccion. El run anterior `37081898404` se cancelo
+antes de Helm para incluir la normalizacion del borrador y retorno de foco.
+
+La prueba de navegador contra [DEV](https://data.dev-wins.com/terria/) confirma
+la version `64c1161`, creacion/guardado/reapertura, formato clasico inicial,
+conversion sin perder texto, descarte y retorno de foco. Ambos formatos se
+revisaron a 1440×900, 1366×768 y 1024×600 con acciones visibles y sin
+desbordamiento horizontal. Ver [[Testing]] y la
+[guia de demo](https://github.com/pabrojast/ckan-unesco-docker/blob/miserver-2.10/docs/story-showcase-dev.md)
+para alcance y limitaciones de las verificaciones.
+
+## Integracion del trabajo DEV en main (2026-10-12)
+
+La integracion parte de `main` (`fc75241a5`) y conserva la biblioteca DEV
+`10980da7122df35c73370ae703d34cde8adbb913`, incluidos los pilotos de calidad
+de agua y la guia IHP-WINS de Story Studio. La insercion y renderizacion de
+leyendas del commit exclusivo de `main` ya estan presentes en DEV; se
+conservan al resolver los conflictos del editor, lector y traducciones.
+
+Respecto a esa revision DEV, solo cambian la proteccion del job npm y esta
+documentacion. Integrar o publicar Git no constituye un despliegue DEV ni de
+produccion, y no modifica los pins existentes de los consumidores.
+
+La integracion paso TypeScript (`--noEmit --skipLibCheck`), ESLint de los
+archivos resueltos, formato de workflow/documentacion y 32 specs de Stories
+en Chromium. La comparacion del arbol confirma que `lib`, `test`, `wwwroot`,
+`package.json` y `yarn.lock` son identicos a la revision DEV citada. Estos
+controles focalizados no equivalen a un CI global ni a un despliegue.
+
+## Enlaces cortos y series en DEV (2026-10-23)
+
+TerriaJS `adf270acb3ee745a9faa8116d0c571a8cd0c5fc0` y TerriaMap
+`a0869a0b1cdb12229c97fbdedee2e23a1a11c5d7` estan publicados en
+`fix/shortlink-series-dev-20261023` en sus respectivos repositorios. Parten de
+las revisiones desplegadas y corrigen la serializacion de series sin un punto
+seleccionado. El [workflow DEV 39985209581](https://github.com/pabrojast/ckan-unesco-docker/actions/runs/39985209581)
+desplego `pabrojast/terriamap:20261023131517-a0869a0`, digest
+`sha256:0656d2b768fbc5daecf7fbae312c32e310c3043a6292d1486e153054830671c8`.
+
+Se verifico en `default/ckan` el pod Ready, sin reinicios, y el pin TerriaJS
+dentro de la imagen. La especificacion del deployment conserva todos los
+campos salvo la imagen; los demas deployments, ingress y PVC conservan sus
+especificaciones e identificadores. La correccion del 403 se despliega aparte
+en la politica WAF de DEV (`ckan-unesco-docker`, commit `81cc3be`).
+
+La evidencia, el enlace original recuperado, las pruebas de navegador y las
+limitaciones de CI estan en el [informe de validacion](https://github.com/pabrojast/ckan-unesco-docker/blob/miserver-2.10/deploy/envoy-dev/validation-terria-shortlink-2026-10-23.md).
+Esta entrega corresponde exclusivamente a DEV.
+
+## Analisis de area y graficos en DEV (2026-10-23)
+
+TerriaJS `ebdef658641c50372d7719cf17ce98496316b411` y TerriaMap
+`81b682f6311c3fe0bda0400f169df258823444e8` estan publicados en
+`feat/area-analysis-ui-dev-20261023`. El
+[workflow 40034246343](https://github.com/pabrojast/ckan-unesco-docker/actions/runs/40034246343)
+desplego `pabrojast/terriamap:20261023193225-81b682f`, digest
+`sha256:250f36436d0982c6a3832b411294fd8ffcbb9ed8b4d1f62287615b84d16564da`.
+El deployment `default/ckan/terria-terriamap` esta Ready, sin reinicios, y el
+pin de biblioteca se comprobo dentro del contenedor. Los otros deployments,
+ingress y PVC conservan sus especificaciones e identificadores; el deployment
+de Terria cambia solo su imagen. Produccion no forma parte de esta entrega.
+
+La CI de TerriaMap pasa en Node 20/22/23. La CI general de TerriaJS conserva
+los 14 avisos previos de lint; las comprobaciones focalizadas pasan. El navegador
+real de DEV verifica dibujo/cierre, area retenida, calculo/CSV, modal de grafico
+y panel tactil sin errores de consola. Ver [[Testing]] y el
+[informe de validacion](https://github.com/pabrojast/ckan-unesco-docker/blob/miserver-2.10/deploy/envoy-dev/validation-terria-area-2026-10-23.md)
+para evidencia y limitaciones.
+
+## Vacios detectados
+
+- `server-side-config.md` en `doc/customizing/` dice "Coming soon!".
+- No hay un documento unico en este repo que explique despliegue de un consumidor que use solo `terriajs` como libreria embebida.
+
+## Requisitos de TerriaMap tras la sincronizacion con upstream (2026-10-23)
+
+La rama `integrate/upstream-8.13-flat-20261023` (ver [[Sincronizacion con Upstream]]) cambia requisitos que TerriaMap (`pabrojast/TerriaMap`) debe acompanar antes de fijar el nuevo sha de `terriajs`:
+
+- `engines.node` `>= 22` y `node:22` en el `Dockerfile` (antes `node:20`).
+- `terriajs-cesium` igual al de esta biblioteca: `26.3.0` (y `terriajs-cesium-widgets` `16.2.0`); `styled-components` 6 e `i18next` 26 si TerriaMap los importa directamente.
+- `registerCustomComponentTypes(terria)` debe seguir llamandose en `index.js` (la biblioteca ya no lo hace al cargar `parseCustomMarkdownToReact`).
+- La busqueda con Nominatim autocompleta al escribir (el fork fuerza `autocompleteEnabled: true`; upstream lo desactiva para Nominatim). Para volver al comportamiento de upstream, configurar `autocompleteEnabled: false` en el proveedor. En dev el proveedor configurado por Helm apunta al endpoint `/data-stories/api/location-search` de CKAN: con autocompletado recibira una peticion por tecla (debounce de Terria), no una por Enter.
+- Las dependencias de build compartidas (`webpack`, `eslint` y plugins, `mini-css-extract-plugin`, `terriajs-typings-for-css-modules-loader`) deben tener en TerriaMap el mismo rango que declara `terriajs`; con rangos distintos yarn instala un segundo `webpack` anidado en `node_modules/terriajs/node_modules` y `gulp build` falla (`Cannot find module 'mini-css-extract-plugin'` o plugins compilados contra otra instancia de webpack). `yarn gulp check-terriajs-dependencies` avisa de los desajustes.
+- `resolutions.tinymce` (`^7.9.3`) tambien tiene que estar en el `package.json` de TerriaMap: las `resolutions` de `terriajs` no se aplican cuando es dependencia, y `@tinymce/tinymce-react` arrastra otra copia de `tinymce` que rompe los tipos de `Editor.tsx`.
+- El type-check del build (`fork-ts-checker` con el `tsconfig.json` de `terriajs`, que incluye `test/`) necesita en TerriaMap las dependencias de los specs del fork: `jasmine-ajax`, `@types/jasmine-ajax`, `react-test-renderer`, `@types/react-test-renderer` (upstream ya exige `msw` y `fetch-mock` por el mismo motivo).
+
+### Rama de TerriaMap (2026-10-24)
+
+En el checkout `TerriaMap-1` se creo `integrate/terriajs-8.13-20261024` desde `node` (lo que despliega el white-label) y se fusiono `upstream/main` del TerriaMap independiente (`https://github.com/TerriaJS/TerriaMap`, 0.4.8, sincronizado con terriajs 8.13.0; 62 commits, 13 conflictos):
+
+- Se adopta de upstream: `index.js`, `buildprocess/webpack.config.js` (`{ devMode, baseHref }`, `html-webpack-plugin` renderiza `index.ejs`), `lib/Views/render.jsx` + `terriaStore.ts` + `Loader.tsx`, `eslint.config.mjs`, Prettier 3, yarn 1.22.22, `tini` en la imagen.
+- Se conserva del fork: titulo `Map viewer`, `404.html`/`about.html`/`privacy.html`/`wwwroot/public`, lista `allowProxyFor` de `serverconfig.json`, valores Helm (`trustProxy`, `proxyAllDomains`, `singlePageRouting`), catalogo `simple.json`, `favicon.ico`, `ExperimentalMenu` en `UserInterface.jsx`, sin `AboutButton`, dependencias git de `terriajs` y `terriajs-server`, `yarn gulp clean` + `--baseHref="/terria/"` en el `Dockerfile`.
+- `package.json`: `terriajs` fijado a `831c5a2a9` (rama de integracion, version 8.13.0), `terriajs-cesium` 26.3.0, rangos de build/lint copiados de `terriajs`, `lib/Core/loadPlugins.ts` pasa `{}` a `createPluginContext` (`terriajs-plugin-api` 0.0.1-alpha.17).
+
+Verificacion hecha el 2026-10-24 en ese checkout: `yarn gulp lint` y `yarn gulp build` en verde; con `terriajs-server` local y Chromium headless (Playwright, SwiftShader) cargan en modo Cesium `#cog-madagascar` (cog-time-series, 129 fechas), `#cog-xcube` (39 fechas) y un item `cog` simple via `#start=`: proveedores de imagenes listos, leyenda presente, peticiones de rango a los `.tif` sin fallos. El unico 404 es `/api/terria/user/session` (no hay CKAN en local). En terriajs, `yarn gulp test --filter=Cog` da 159 specs en verde.
+
+Integrar o publicar Git no constituye un despliegue; `main`/`node` de TerriaMap y la imagen de dev siguen con el pin anterior hasta que se fusione esta rama y se construya la imagen.

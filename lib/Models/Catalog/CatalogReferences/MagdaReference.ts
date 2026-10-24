@@ -40,6 +40,9 @@ export interface MagdaReferenceHeaders {
   [key: string]: string;
 }
 
+/**
+ * @deprecated - MagdaReference model is deprecated and will be removed in a future release. If you need this model please reach out to the Terria team to discuss your use case and alternatives.
+ */
 export default class MagdaReference extends AccessControlMixin(
   UrlMixin(ReferenceMixin(CreateModel(MagdaReferenceTraits)))
 ) {
@@ -395,8 +398,10 @@ export default class MagdaReference extends AccessControlMixin(
     if (ModelClass === undefined) {
       throw new TerriaError({
         sender: this,
-        title: i18next.t("models.catalog.unsupportedTypeTitle"),
-        message: i18next.t("models.catalog.unsupportedTypeMessage", { type })
+        title: i18next.t(($) => $.models.catalog.unsupportedTypeTitle),
+        message: i18next.t(($) => $.models.catalog.unsupportedTypeMessage, {
+          type
+        })
       });
     }
 
@@ -664,8 +669,8 @@ export default class MagdaReference extends AccessControlMixin(
       if (newMember === undefined) {
         throw new TerriaError({
           sender: this,
-          title: i18next.t("models.catalog.unsupportedTypeTitle"),
-          message: i18next.t("models.catalog.unsupportedTypeMessage", {
+          title: i18next.t(($) => $.models.catalog.unsupportedTypeTitle),
+          message: i18next.t(($) => $.models.catalog.unsupportedTypeMessage, {
             type: format.definition.type
           })
         });
@@ -839,8 +844,8 @@ export default class MagdaReference extends AccessControlMixin(
       return Promise.reject(
         new TerriaError({
           sender: this,
-          title: i18next.t("models.magda.idsNotSpecifiedTitle"),
-          message: i18next.t("models.magda.idsNotSpecifiedMessage")
+          title: i18next.t(($) => $.models.magda.idsNotSpecifiedTitle),
+          message: i18next.t(($) => $.models.magda.idsNotSpecifiedMessage)
         })
       );
     }

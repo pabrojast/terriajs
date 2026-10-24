@@ -1,10 +1,11 @@
 import i18next from "i18next";
-import defaultValue from "terriajs-cesium/Source/Core/defaultValue";
 import { isJsonObject, JsonObject } from "../Core/Json";
 import loadJson from "../Core/loadJson";
 import loadWithXhr from "../Core/loadWithXhr";
 import TerriaError from "../Core/TerriaError";
 import Terria from "./Terria";
+
+export const DEFAULT_MAX_SHARE_SIZE = 200 * 1024; // 200 KB
 
 interface ShareDataServiceOptions {
   terria: Terria;
@@ -29,11 +30,7 @@ export default class ShareDataService {
   }
 
   init(serverConfig: any): void {
-    this.url = defaultValue(
-      this.url,
-      defaultValue(this.terria.configParameters.shareUrl, "share")
-    );
-
+    this.url = this.url ?? this.terria.configParameters.shareUrl ?? "share";
     this._serverConfig = serverConfig;
   }
 
@@ -46,30 +43,63 @@ export default class ShareDataService {
     );
   }
 
+  // get the raw string from serverConfig.shareMaxRequestSize
+  get shareMaxRequestSize(): string | undefined {
+    return this._serverConfig.shareMaxRequestSize;
+  }
+
+  // get the parsed value in bytes from the server
+  get shareMaxRequestSizeBytes(): number | undefined {
+    return this._serverConfig.shareMaxRequestSizeBytes;
+  }
+
   /**
    * Allocates a share token using Terria Server, storing the provided data there.
    * @param shareData JSON to store.
    * @return A promise for the token (which can later be resolved at /share/TOKEN).
    */
   async getShareToken(shareData: any): Promise<string> {
-    if (!this.isUsable) {
+    if (!this.isUsable || !this.url) {
       throw TerriaError.from("`ShareDataService` is not usable");
     }
 
     try {
       const result = await loadWithXhr({
-        url: this.url!,
+        url: this.url,
         method: "POST",
         data: JSON.stringify(shareData),
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(await this.terria.configParameters.shareRequestHeaders?.())
+        },
         responseType: "json"
       });
       const json = typeof result === "string" ? JSON.parse(result) : result;
       return json.id;
-    } catch (error) {
+    } catch (e: any) {
+      const error: Error & { statusCode?: number } = e || {};
+      // The share service reports failures by HTTP status, and the raw error
+      // still carries it here (once wrapped in a `TerriaError` the number is
+      // lost - only the stringified message survives). Choose a matching
+      // message; an unknown or absent status falls back to the generic one.
+      let message = i18next.t(($) => $.models.shareData.generateErrorMessage);
+      if (error.statusCode === 413) {
+        message = i18next.t(
+          ($) => $.models.shareData.generateErrorDataExceedsLimitMessage
+        );
+      } else if (error.statusCode === 401) {
+        message = i18next.t(
+          ($) => $.models.shareData.generateErrorMessageUnauthorized
+        );
+      } else if (error.statusCode) {
+        message = i18next.t(
+          ($) => $.models.shareData.generateErrorMessageWithStatus,
+          { statusCode: String(error.statusCode) }
+        );
+      }
       throw TerriaError.from(error, {
-        title: i18next.t("models.shareData.generateErrorTitle"),
-        message: i18next.t("models.shareData.generateErrorMessage"),
+        title: i18next.t(($) => $.models.shareData.generateErrorTitle),
+        message,
         importance: 1
       });
     }
@@ -92,10 +122,19 @@ export default class ShareDataService {
       }
 
       return shareJson;
-    } catch (error) {
+    } catch (e: any) {
+      const error: Error & { statusCode?: number } = e || {};
+      if (error.statusCode === 404) {
+        throw TerriaError.from(error, {
+          title: i18next.t(($) => $.models.shareData.shareNotFoundTitle),
+          message: i18next.t(($) => $.models.shareData.shareNotFoundMessage),
+          importance: 1
+        });
+      }
+
       throw TerriaError.from(error, {
-        title: i18next.t("models.shareData.expandErrorTitle"),
-        message: i18next.t("models.shareData.expandErrorMessage", {
+        title: i18next.t(($) => $.models.shareData.expandErrorTitle),
+        message: i18next.t(($) => $.models.shareData.expandErrorMessage, {
           appName: this.terria.appName
         }),
         importance: 1

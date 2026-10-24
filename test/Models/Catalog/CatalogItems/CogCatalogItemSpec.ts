@@ -1,10 +1,12 @@
 import { reaction, when } from "mobx";
+import { http, passthrough } from "msw";
 import { TIFFImageryProvider } from "terriajs-tiff-imagery-provider";
 import { ImageryParts } from "../../../../lib/ModelMixins/MappableMixin";
 import CogCatalogItem from "../../../../lib/Models/Catalog/CatalogItems/CogCatalogItem";
 import CommonStrata from "../../../../lib/Models/Definition/CommonStrata";
 import updateModelFromJson from "../../../../lib/Models/Definition/updateModelFromJson";
 import Terria from "../../../../lib/Models/Terria";
+import { worker } from "../../../mocks/browser";
 
 const TEST_URLS = {
   "4326": "/test/cogs/4326.tif", // a 1x1 tif in native EPSG:4326 projection
@@ -16,6 +18,11 @@ describe("CogCatalogItem", function () {
 
   beforeEach(function () {
     item = new CogCatalogItem("test", new Terria());
+
+    worker.use(
+      http.get(TEST_URLS["4326"], () => passthrough()),
+      http.get(TEST_URLS["32756"], () => passthrough())
+    );
   });
 
   it("should have a type 'cog'", function () {
@@ -101,6 +108,97 @@ describe("CogCatalogItem", function () {
         const renderOptions = getImageryProvider(item)?.renderOptions;
         expect(renderOptions).toBeDefined();
         expect(renderOptions.resampleMethod).toBe("nearest");
+      });
+
+      it("correctly sets display range options", async function () {
+        const testUrl = TEST_URLS["4326"];
+        item.setTrait(CommonStrata.user, "url", testUrl);
+        updateModelFromJson(item.renderOptions, CommonStrata.user, {
+          single: {
+            displayRange: [10, 50],
+            applyDisplayRange: true,
+            domain: [0, 100]
+          }
+        });
+        await item.loadMapItems();
+        const renderOptions = getImageryProvider(item)?.renderOptions;
+        const imageryProvider = getImageryProvider(item);
+        expect(renderOptions?.single).toBeDefined();
+        if (renderOptions?.single) {
+          // The shared adapter applies this only after the provider has read
+          // its statistics, avoiding plotty's [min,max) behavior.
+          expect(renderOptions.single.displayRange).toBeUndefined();
+          expect(renderOptions.single.applyDisplayRange).toBe(false);
+          // Domain is applied after metadata load so band statistics stay native.
+          expect(renderOptions.single.domain).toBeUndefined();
+        }
+        expect(item.effectiveCogStyle?.domain).toEqual([0, 100]);
+        expect(imageryProvider.plot?.domain).toEqual([0, 100]);
+        expect(item.effectiveCogStyle?.displayRange).toEqual([10, 50]);
+        expect(imageryProvider.plot?.applyDisplayRange).toBe(true);
+        expect(imageryProvider.plot?.displayRange[0]).toBe(10);
+        expect(imageryProvider.plot?.displayRange[1]).toBeGreaterThan(50);
+      });
+
+      it("correctly sets noDataColor", async function () {
+        const testUrl = TEST_URLS["4326"];
+        item.setTrait(CommonStrata.user, "url", testUrl);
+        updateModelFromJson(item.renderOptions, CommonStrata.user, {
+          single: {
+            noDataColor: "#FF0000"
+          }
+        });
+        await item.loadMapItems();
+        const renderOptions = getImageryProvider(item)?.renderOptions;
+        expect((renderOptions?.single as any)?.noDataColor).toBeUndefined();
+      });
+
+      it("applies reverseColorScale to the raster palette", async function () {
+        item.setTrait(CommonStrata.user, "url", TEST_URLS["4326"]);
+        updateModelFromJson(item.renderOptions, CommonStrata.user, {
+          single: { colorScale: "jet", reverseColorScale: true }
+        });
+
+        await item.loadMapItems();
+
+        expect(item.effectiveCogStyle?.stops[0].color).toBe("#800000");
+        expect(item.effectiveCogStyle?.stops.slice(-1)[0].color).toBe(
+          "#000083"
+        );
+      });
+
+      it("generates a legend automatically for a loaded single-band COG", async function () {
+        item.setTrait(CommonStrata.user, "url", TEST_URLS["32756"]);
+        await item.loadMapItems();
+
+        expect(item.effectiveCogStyle?.isSingleBand).toBe(true);
+        expect(item.legends?.length).toBe(1);
+        expect(item.legends?.[0].urlMimeType).toBe("image/svg+xml");
+        expect(item.legends?.[0].items?.length).toBe(2);
+        expect(item.legends?.[0].items?.[0].value).toBeDefined();
+        expect(item.legends?.[0].items?.[1].value).toBeDefined();
+      });
+
+      it("does not generate a numeric legend for an RGB COG", async function () {
+        item.setTrait(CommonStrata.user, "url", TEST_URLS["4326"]);
+        await item.loadMapItems();
+
+        expect(item.effectiveCogStyle).toBeUndefined();
+        expect(item.legends?.length).toBe(0);
+      });
+
+      it("keeps an explicitly configured legend ahead of the automatic legend", async function () {
+        updateModelFromJson(item, CommonStrata.user, {
+          url: TEST_URLS["32756"],
+          legends: [{ title: "Configured legend", items: [] }]
+        });
+
+        await item.loadMapItems();
+
+        expect(item.effectiveCogStyle?.isSingleBand).toBe(true);
+        expect(item.legends?.length).toBe(1);
+        expect(item.legends?.[0].title).toBe("Configured legend");
+        expect(item.legends?.[0].url).toBeUndefined();
       });
     });
   });

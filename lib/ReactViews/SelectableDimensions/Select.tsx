@@ -11,9 +11,19 @@ import {
   SelectableDimensionEnum as SelectableDimensionEnumModel,
   SelectableDimensionMultiEnum as SelectableDimensionEnumMultiModel
 } from "../../Models/SelectableDimensions/SelectableDimensions";
+import { SelectableDimensionPills } from "./Pills";
 
 export const SelectableDimensionEnum: FC<{
   id: string;
+  dim: SelectableDimensionEnumModel;
+}> = observer(({ id, dim }) => {
+  if (dim.display === "pills") {
+    return <SelectableDimensionPills id={id} dim={dim} />;
+  }
+  return <SelectableDimensionDropdown dim={dim} />;
+});
+
+const SelectableDimensionDropdown: FC<{
   dim: SelectableDimensionEnumModel;
 }> = observer(({ dim }) => {
   const theme = useTheme();
@@ -21,7 +31,8 @@ export const SelectableDimensionEnum: FC<{
   const undefinedOption = {
     value: undefined,
     label:
-      dim.undefinedLabel ?? i18next.t("selectableDimensions.undefinedLabel")
+      dim.undefinedLabel ??
+      i18next.t(($) => $.selectableDimensions.undefinedLabel)
   };
 
   let options = dim.options?.map((option) => ({
@@ -41,9 +52,6 @@ export const SelectableDimensionEnum: FC<{
 
   return dim.allowCustomInput ? (
     <ReactSelectCreatable
-      css={`
-        color: white;
-      `}
       styles={{
         control: (baseStyles) => ({
           ...baseStyles,
@@ -80,9 +88,6 @@ export const SelectableDimensionEnum: FC<{
     />
   ) : (
     <ReactSelect
-      css={`
-        color: white;
-      `}
       styles={{
         control: (baseStyles) => ({
           ...baseStyles,
@@ -140,10 +145,6 @@ export const SelectableDimensionEnumMulti: FC<{
 
   return (
     <ReactSelect
-      css={`
-        color: ${theme.dark};
-        border: none;
-      `}
       options={options}
       value={selectedOptions}
       onChange={(evt) => {
@@ -166,6 +167,13 @@ export const SelectableDimensionEnumMulti: FC<{
           primary: theme.colorPrimary
         }
       })}
+      styles={{
+        container: (baseStyles) => ({
+          ...baseStyles,
+          color: theme.dark,
+          border: "none"
+        })
+      }}
       isMulti
     />
   );

@@ -1,8 +1,13 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 export const useDraggable = (options?: { handleSelector?: string }) => {
-  const [node, setNode] = useState<HTMLElement>();
+  const [node, setNode] = useState<HTMLElement | null>();
+  // Mirror of `node` for imperative DOM writes (style.transform) so that we
+  // never mutate the value held in React state.
+  const nodeRef = useRef<HTMLElement | null>(null);
   // Use refs to track current values without triggering rerenders
+  const cleanupGesture = useRef<(() => void) | undefined>();
+  useEffect(() => () => cleanupGesture.current?.(), []);
   const dxRef = useRef(0);
   const dyRef = useRef(0);
   const handleSelectorRef = useRef(options?.handleSelector);
@@ -12,22 +17,22 @@ export const useDraggable = (options?: { handleSelector?: string }) => {
     handleSelectorRef.current = options?.handleSelector;
   }, [options?.handleSelector]);
 
-  const ref = useCallback((nodeEle) => {
+  const ref = useCallback((nodeEle: HTMLElement | null) => {
+    nodeRef.current = nodeEle;
     setNode(nodeEle);
   }, []);
 
-  // Function to calculate bounds
+  // Function to calculate bounds using client rects (more robust for absolutely positioned parents)
   const calculateBounds = useCallback(() => {
     if (!node) return null;
 
-    const parent = node?.parentElement;
-    if (!parent) return null;
-
+    // Use viewport bounds so the panel can be dragged anywhere on screen, regardless of parent sizing
+    const margin = 8; // small margin to avoid clipping
     return {
-      minX: parent.offsetLeft,
-      maxX: parent.offsetLeft + parent.offsetWidth,
-      minY: parent.offsetTop,
-      maxY: parent.offsetTop + parent.offsetHeight
+      minX: margin,
+      maxX: window.innerWidth - margin,
+      minY: margin,
+      maxY: window.innerHeight - margin
     };
   }, [node]);
 
@@ -45,18 +50,29 @@ export const useDraggable = (options?: { handleSelector?: string }) => {
     const currentDy = dyRef.current;
 
     // Calculate constrained position
-    const constrainedDx = Math.min(
-      Math.max(currentDx, minX - elementRect.left + currentDx),
-      maxX - elementRect.width - elementRect.left + currentDx
-    );
+    // elementRect.left/top already include current transform (dx/dy)
+    // base position without transform
+    const baseLeft = elementRect.left - currentDx;
+    const baseTop = elementRect.top - currentDy;
 
+    const minAllowedDx = minX - baseLeft;
+    const maxAllowedDx = maxX - elementRect.width - baseLeft;
+    const minAllowedDy = minY - baseTop;
+    const maxAllowedDy = maxY - elementRect.height - baseTop;
+
+    const constrainedDx = Math.min(
+      Math.max(currentDx, minAllowedDx),
+      maxAllowedDx
+    );
     const constrainedDy = Math.min(
-      Math.max(currentDy, minY - elementRect.top + currentDy),
-      maxY - elementRect.height - elementRect.top + currentDy
+      Math.max(currentDy, minAllowedDy),
+      maxAllowedDy
     );
 
     // Directly update the DOM for immediate visual effect
-    node.style.transform = `translate3d(${constrainedDx}px, ${constrainedDy}px, 0)`;
+    const element = nodeRef.current;
+    if (!element) return;
+    element.style.transform = `translate3d(${constrainedDx}px, ${constrainedDy}px, 0)`;
 
     // Update refs to track current position
     dxRef.current = constrainedDx;
@@ -66,6 +82,8 @@ export const useDraggable = (options?: { handleSelector?: string }) => {
   // Function to check if the event target is the handle or within the handle
   const isValidDragHandle = useCallback(
     (target: EventTarget | null): boolean => {
+      if ((target as Element)?.closest("button,a,input,select,textarea"))
+        return false;
       if (!handleSelectorRef.current || !node || !target) return true;
 
       // If we have a handle selector, check if the target matches or is within a matching element
@@ -80,8 +98,9 @@ export const useDraggable = (options?: { handleSelector?: string }) => {
   // Shared function to update element position
   const updateElementPosition = useCallback(
     (dx: number, dy: number) => {
-      if (!node) return;
-      node.style.transform = `translate3d(${dx}px, ${dy}px, 0)`;
+      const element = nodeRef.current;
+      if (!node || !element) return;
+      element.style.transform = `translate3d(${dx}px, ${dy}px, 0)`;
       dxRef.current = dx;
       dyRef.current = dy;
     },
@@ -127,6 +146,7 @@ export const useDraggable = (options?: { handleSelector?: string }) => {
     (e: MouseEvent) => {
       // Check if the event target is a valid drag handle
       if (!isValidDragHandle(e.target)) return;
+      cleanupGesture.current?.();
 
       const dragResult = startDrag(e.clientX, e.clientY);
 
@@ -143,6 +163,10 @@ export const useDraggable = (options?: { handleSelector?: string }) => {
         document.removeEventListener("mouseup", handleMouseUp);
       };
 
+      cleanupGesture.current = () => {
+        document.removeEventListener("mousemove", handleMouseMove);
+        document.removeEventListener("mouseup", handleMouseUp);
+      };
       document.addEventListener("mousemove", handleMouseMove);
       document.addEventListener("mouseup", handleMouseUp);
     },
@@ -153,6 +177,7 @@ export const useDraggable = (options?: { handleSelector?: string }) => {
     (e: TouchEvent) => {
       // Check if the event target is a valid drag handle
       if (!isValidDragHandle(e.target)) return;
+      cleanupGesture.current?.();
 
       const touch = e.touches[0];
       const dragResult = startDrag(touch.clientX, touch.clientY);
@@ -169,8 +194,15 @@ export const useDraggable = (options?: { handleSelector?: string }) => {
         endHandler();
         document.removeEventListener("touchmove", handleTouchMove);
         document.removeEventListener("touchend", handleTouchEnd);
+        document.removeEventListener("touchcancel", handleTouchEnd);
       };
 
+      cleanupGesture.current = () => {
+        document.removeEventListener("touchmove", handleTouchMove);
+        document.removeEventListener("touchend", handleTouchEnd);
+        document.removeEventListener("touchcancel", handleTouchEnd);
+      };
+      document.addEventListener("touchcancel", handleTouchEnd);
       document.addEventListener("touchmove", handleTouchMove);
       document.addEventListener("touchend", handleTouchEnd);
     },
@@ -206,5 +238,18 @@ export const useDraggable = (options?: { handleSelector?: string }) => {
     };
   }, [node, handleMouseDown, handleTouchStart]);
 
-  return [ref];
+  // Public controls for external consumers
+  const setPosition = useCallback(
+    (dx: number, dy: number, clampToBounds: boolean = false) => {
+      updateElementPosition(dx, dy);
+      if (clampToBounds) constrainToBounds();
+    },
+    [updateElementPosition, constrainToBounds]
+  );
+
+  const controls = useMemo(
+    () => ({ setPosition, constrainToBounds }),
+    [setPosition, constrainToBounds]
+  );
+  return [ref, controls] as const;
 };

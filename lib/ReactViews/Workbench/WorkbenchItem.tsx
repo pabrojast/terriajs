@@ -1,9 +1,9 @@
-import { action, computed, makeObservable } from "mobx";
+import { action } from "mobx";
+import { MouseEvent, useEffect, useRef, useState } from "react";
 import { observer } from "mobx-react";
-import { Component } from "react";
 import { sortable } from "react-anything-sortable";
-import { WithTranslation, withTranslation, TFunction } from "react-i18next";
-import styled, { DefaultTheme, withTheme } from "styled-components";
+import { useTranslation } from "react-i18next";
+import styled, { useTheme } from "styled-components";
 import getPath from "../../Core/getPath";
 import CatalogMemberMixin, {
   getName
@@ -18,143 +18,185 @@ import { RawButton } from "../../Styled/Button";
 import Checkbox from "../../Styled/Checkbox/Checkbox";
 import Icon, { StyledIcon } from "../../Styled/Icon";
 import { Li } from "../../Styled/List";
-import { TextSpan } from "../../Styled/Text";
+import { Text, TextSpan } from "../../Styled/Text";
 import Loader from "../Loader";
+import { terriaErrorNotification } from "../Notification/terriaErrorNotification";
 import PrivateIndicator from "../PrivateIndicator/PrivateIndicator";
 import WorkbenchItemControls from "./Controls/WorkbenchItemControls";
 
-interface IProps extends WithTranslation {
-  theme: DefaultTheme;
+const DRAG_THRESHOLD_PX = 5;
+
+interface IProps {
   item: BaseModel;
-  onMouseDown(): void;
+  onMouseDown(e: MouseEvent): void;
   onTouchStart(): void;
   viewState: ViewState;
   className: any;
   style: any;
-  t: TFunction;
   setWrapperState(): void;
 }
 
-@observer
-class WorkbenchItemRaw extends Component<IProps> {
-  static displayName = "WorkbenchItem";
-  constructor(props: IProps) {
-    super(props);
-    makeObservable(this);
-  }
+const WorkbenchItemRaw: React.FC<IProps> = observer((props) => {
+  const { item, style, className, viewState, onMouseDown, onTouchStart } =
+    props;
 
-  @action.bound
-  toggleDisplay() {
-    if (!CatalogMemberMixin.isMixedInto(this.props.item)) return;
-    this.props.item.setTrait(
+  const { t } = useTranslation();
+  const theme = useTheme();
+  const [showErrors, setShowErrors] = useState(false);
+  const errors = viewState.terria.workbench.getItemErrors(item);
+
+  const removeDragListeners = useRef<() => void>();
+  useEffect(() => () => removeDragListeners.current?.(), []);
+
+  const onDraggableMouseDown = (e: MouseEvent) => {
+    removeDragListeners.current?.();
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const onMove = (moveEvent: globalThis.MouseEvent) => {
+      if ((moveEvent.buttons & 1) === 0) {
+        removeListeners();
+        return;
+      }
+      if (
+        Math.abs(moveEvent.clientX - startX) +
+          Math.abs(moveEvent.clientY - startY) <
+        DRAG_THRESHOLD_PX
+      ) {
+        return;
+      }
+      removeListeners();
+      onMouseDown(e);
+    };
+    const removeListeners = () => {
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", removeListeners, true);
+      removeDragListeners.current = undefined;
+    };
+    removeDragListeners.current = removeListeners;
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", removeListeners, true);
+  };
+
+  const toggleDisplay = action(() => {
+    if (!CatalogMemberMixin.isMixedInto(item)) return;
+    item.setTrait(
       CommonStrata.user,
       "isOpenInWorkbench",
-      !this.props.item.isOpenInWorkbench
+      !item.isOpenInWorkbench
     );
-  }
+  });
 
-  @action.bound
-  toggleVisibility() {
-    if (MappableMixin.isMixedInto(this.props.item))
-      this.props.item.setTrait(
-        CommonStrata.user,
-        "show",
-        !this.props.item.show
-      );
-  }
+  const toggleVisibility = action(() => {
+    if (MappableMixin.isMixedInto(item)) {
+      item.setTrait(CommonStrata.user, "show", !item.show);
+    }
+  });
 
   /** If workbench item is CatalogMember use CatalogMemberTraits.isOpenInWorkbench
    * Otherwise, defaults to true
    */
-  @computed
-  get isOpen(): boolean {
-    if (!CatalogMemberMixin.isMixedInto(this.props.item)) return true;
-    return this.props.item.isOpenInWorkbench;
-  }
+  const isOpen =
+    !CatalogMemberMixin.isMixedInto(item) || item.isOpenInWorkbench;
 
-  render() {
-    const { item, t } = this.props;
+  const isLoading =
+    (CatalogMemberMixin.isMixedInto(item) && item.isLoading) ||
+    (ReferenceMixin.isMixedInto(item) && item.isLoadingReference);
 
-    const isLoading =
-      (CatalogMemberMixin.isMixedInto(item) && item.isLoading) ||
-      (ReferenceMixin.isMixedInto(item) && item.isLoadingReference);
-
-    return (
-      <StyledLi style={this.props.style} className={this.props.className}>
-        <Box
-          fullWidth
-          justifySpaceBetween
-          paddedRatio={3}
-          styledMinHeight="38px"
-        >
-          <Box fullWidth>
-            <Box left fullWidth centered>
-              <DraggableBox
-                onMouseDown={this.props.onMouseDown}
-                onTouchStart={this.props.onTouchStart}
-                title={getPath(item, " → ")}
-                fullWidth
-              >
-                {!(item as any).isMappable && !isLoading && (
-                  <BoxSpan paddedHorizontally displayInlineBlock>
-                    <Box padded>
-                      <StyledIcon
-                        styledHeight={"18px"}
-                        light
-                        glyph={Icon.GLYPHS.lineChart}
-                      />
-                    </Box>
-                  </BoxSpan>
-                )}
-                {MappableMixin.isMixedInto(item) ? (
-                  <Box left verticalCenter>
-                    <Checkbox
-                      id="workbenchtoggleVisibility"
-                      isChecked={item.show}
-                      isSwitch
-                      title={t("workbench.toggleVisibility")}
-                      onChange={() => this.toggleVisibility()}
-                      css={`
-                        overflow-wrap: anywhere;
-                        margin-right: 5px;
-                      `}
-                      textProps={{ medium: true, fullWidth: true }}
-                    >
-                      <TextSpan
-                        medium
-                        maxLines={!this.isOpen ? 2 : false}
-                        title={getName(item)}
-                      >
-                        {getName(item)}
-                      </TextSpan>
-                    </Checkbox>
+  return (
+    <StyledLi style={style} className={className}>
+      <Box fullWidth justifySpaceBetween paddedRatio={3} styledMinHeight="38px">
+        <Box fullWidth>
+          <Box left fullWidth centered>
+            <DraggableBox
+              onMouseDown={onDraggableMouseDown}
+              onTouchStart={onTouchStart}
+              title={getPath(item, " → ")}
+              fullWidth
+            >
+              {!(item as any).isMappable && !isLoading && (
+                <BoxSpan paddedHorizontally displayInlineBlock>
+                  <Box padded>
+                    <StyledIcon
+                      styledHeight={"18px"}
+                      light
+                      glyph={Icon.GLYPHS.lineChart}
+                    />
                   </Box>
-                ) : (
-                  <TextSpan
-                    medium
-                    textLight
-                    maxLines={!this.isOpen ? 2 : false}
-                    title={getName(item)}
-                    css={`
-                      overflow-wrap: anywhere;
-                    `}
-                  >
-                    {getName(item)}
-                  </TextSpan>
-                )}
-              </DraggableBox>
-            </Box>
-          </Box>
-          {CatalogMemberMixin.isMixedInto(item) ? (
-            <Box centered paddedHorizontally>
-              {item.isPrivate && (
-                <BoxSpan paddedHorizontally>
-                  <PrivateIndicator inWorkbench />
                 </BoxSpan>
               )}
-              <RawButton onClick={() => this.toggleDisplay()}>
+              {MappableMixin.isMixedInto(item) ? (
+                <Box left verticalCenter>
+                  <Checkbox
+                    id="workbenchtoggleVisibility"
+                    isChecked={item.show}
+                    isSwitch
+                    title={t(($) => $.workbench.toggleVisibility)}
+                    onChange={toggleVisibility}
+                    css={`
+                      overflow-wrap: anywhere;
+                      margin-right: 5px;
+                    `}
+                    textProps={{ medium: true, fullWidth: true }}
+                  >
+                    <TextSpan
+                      medium
+                      maxLines={!isOpen ? 2 : false}
+                      title={getName(item)}
+                    >
+                      {getName(item)}
+                    </TextSpan>
+                  </Checkbox>
+                </Box>
+              ) : (
+                <TextSpan
+                  medium
+                  textLight
+                  maxLines={!isOpen ? 2 : false}
+                  title={getName(item)}
+                  css={`
+                    overflow-wrap: anywhere;
+                  `}
+                >
+                  {getName(item)}
+                </TextSpan>
+              )}
+            </DraggableBox>
+          </Box>
+        </Box>
+        {CatalogMemberMixin.isMixedInto(item) || errors.length > 0 ? (
+          <Box centered paddedHorizontally>
+            {CatalogMemberMixin.isMixedInto(item) && item.isPrivate && (
+              <BoxSpan paddedHorizontally>
+                <PrivateIndicator inWorkbench />
+              </BoxSpan>
+            )}
+            {errors.length > 0 && (
+              <RawButton
+                onClick={() => setShowErrors(!showErrors)}
+                title={t(($) => $.workbench.showErrors)}
+                aria-expanded={showErrors}
+              >
+                <BoxSpan padded centered>
+                  <StyledIcon
+                    styledHeight={"18px"}
+                    fillColor={theme.colorSecondary}
+                    glyph={Icon.GLYPHS.warning}
+                  />
+                  {errors.length > 1 && (
+                    <TextSpan
+                      small
+                      css={{ color: theme.colorSecondary, marginLeft: "2px" }}
+                    >
+                      {errors.length}
+                    </TextSpan>
+                  )}
+                </BoxSpan>
+              </RawButton>
+            )}
+            {CatalogMemberMixin.isMixedInto(item) && (
+              <RawButton onClick={toggleDisplay}>
                 <BoxSpan padded>
-                  {this.isOpen ? (
+                  {isOpen ? (
                     <StyledIcon
                       styledHeight={"8px"}
                       light
@@ -169,34 +211,60 @@ class WorkbenchItemRaw extends Component<IProps> {
                   )}
                 </BoxSpan>
               </RawButton>
+            )}
+          </Box>
+        ) : null}
+      </Box>
+      {showErrors && errors.length > 0 && (
+        <Box
+          column
+          gap={3}
+          paddedRatio={3}
+          css={{ borderTop: `1px solid ${theme.grey}` }}
+        >
+          {errors.map((error, index) => (
+            <Box column key={index}>
+              <Text medium bold css={{ color: theme.colorSecondary }}>
+                {error.highestImportanceError.title}
+              </Text>
+              <Box
+                column
+                css={{
+                  fontSize: "14px",
+                  color: theme.greyLighter,
+                  "& div, & p, & span": { color: theme.greyLighter },
+                  "& a": { color: theme.colorPrimary }
+                }}
+              >
+                {terriaErrorNotification(error)(viewState)}
+              </Box>
+            </Box>
+          ))}
+        </Box>
+      )}
+      {isOpen && (
+        <Box
+          column
+          gap={3}
+          paddedRatio={3}
+          css={{
+            borderTop: `1px solid ${theme.grey}`,
+            color: theme.greyLighter
+          }}
+        >
+          <WorkbenchItemControls item={item} viewState={viewState} />
+          {isLoading ? (
+            <Box paddedVertically>
+              <Loader light />
             </Box>
           ) : null}
         </Box>
-        {this.isOpen && (
-          <Box
-            column
-            gap={3}
-            paddedRatio={3}
-            css={{
-              borderTop: `1px solid ${this.props.theme.grey}`,
-              color: this.props.theme.greyLighter
-            }}
-          >
-            <WorkbenchItemControls
-              item={this.props.item}
-              viewState={this.props.viewState}
-            />
-            {isLoading ? (
-              <Box paddedVertically>
-                <Loader light />
-              </Box>
-            ) : null}
-          </Box>
-        )}
-      </StyledLi>
-    );
-  }
-}
+      )}
+    </StyledLi>
+  );
+});
+
+WorkbenchItemRaw.displayName = "WorkbenchItem";
 
 const DraggableBox = styled(Box)`
   cursor: move;
@@ -215,4 +283,4 @@ const StyledLi = styled(Li)`
   }
 `;
 
-export default sortable(withTranslation()(withTheme(WorkbenchItemRaw)));
+export default sortable(WorkbenchItemRaw);

@@ -4,7 +4,7 @@ import PropTypes from "prop-types";
 import { Component } from "react";
 import { withTranslation } from "react-i18next";
 import defined from "terriajs-cesium/Source/Core/defined";
-import { DataSourceAction } from "../../Core/AnalyticEvents/analyticEvents";
+import { DataSourceAction } from "../../Core/Analytics/analyticEvents";
 import MappableMixin from "../../ModelMixins/MappableMixin";
 import toggleItemOnMapFromCatalog, {
   Op as ToggleOnMapOp
@@ -14,6 +14,7 @@ import SharePanel from "../Map/Panels/SharePanel/SharePanel";
 import DataPreviewMap from "./DataPreviewMap";
 import Description from "./Description";
 import Styles from "./mappable-preview.scss";
+import Box from "../../Styled/Box";
 import WarningBox from "./WarningBox";
 
 /**
@@ -36,10 +37,17 @@ class MappablePreview extends Component {
     terria: PropTypes.object.isRequired,
     viewState: PropTypes.object.isRequired,
     widthFromMeasureElementHOC: PropTypes.number,
-    t: PropTypes.func.isRequired
+    t: PropTypes.func.isRequired,
+    onToggleItemOnMap: PropTypes.func,
+    hideToggleItemOnMap: PropTypes.bool
   };
 
   async toggleOnMap(event) {
+    if (this.props.onToggleItemOnMap) {
+      this.props.onToggleItemOnMap(this.props.previewed);
+      return;
+    }
+
     if (defined(this.props.viewState.storyShown)) {
       runInAction(() => (this.props.viewState.storyShown = false));
     }
@@ -74,21 +82,20 @@ class MappablePreview extends Component {
             <DataPreviewMap
               terria={this.props.terria}
               previewed={catalogItem}
-              showMap={
-                !this.props.viewState.explorerPanelAnimating ||
-                this.props.viewState.useSmallScreenInterface
-              }
+              showMap
             />
           )}
-        <button
-          type="button"
-          onClick={this.toggleOnMap.bind(this)}
-          className={Styles.btnAdd}
-        >
-          {this.props.terria.workbench.contains(catalogItem)
-            ? t("preview.removeFromMap")
-            : t("preview.addToMap")}
-        </button>
+        {!this.props.hideToggleItemOnMap && !catalogItem.disablePreview && (
+          <button
+            type="button"
+            onClick={this.toggleOnMap.bind(this)}
+            className={Styles.btnAdd}
+          >
+            {this.props.terria.workbench.contains(catalogItem)
+              ? t(($) => $.preview.removeFromMap)
+              : t(($) => $.preview.addToMap)}
+          </button>
+        )}
         <div className={Styles.previewedInfo}>
           <div
             className={Styles.titleAndShareWrapper}
@@ -108,17 +115,22 @@ class MappablePreview extends Component {
                 </div>
               )}
           </div>
-          {catalogItem.loadMetadataResult?.error && (
-            <WarningBox
-              error={catalogItem.loadMetadataResult?.error}
-              viewState={this.props.viewState}
-            />
-          )}
-          {catalogItem.loadMapItemsResult?.error && (
-            <WarningBox
-              error={catalogItem.loadMapItemsResult?.error}
-              viewState={this.props.viewState}
-            />
+          {(catalogItem.loadMetadataResult?.error ||
+            catalogItem.loadMapItemsResult?.error) && (
+            <Box column gap={2} css={{ marginBottom: "10px" }}>
+              {catalogItem.loadMetadataResult?.error && (
+                <WarningBox
+                  error={catalogItem.loadMetadataResult?.error}
+                  viewState={this.props.viewState}
+                />
+              )}
+              {catalogItem.loadMapItemsResult?.error && (
+                <WarningBox
+                  error={catalogItem.loadMapItemsResult?.error}
+                  viewState={this.props.viewState}
+                />
+              )}
+            </Box>
           )}
           <Description item={catalogItem} />
         </div>
