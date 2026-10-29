@@ -2,6 +2,14 @@
 
 Ver tambien: [[Variables de Entorno]], [[Comandos Utiles]], [[Arquitectura]]
 
+## Dashboards sencillos en IHP DEV (2026-10-29)
+
+[[Dashboards Sencillos]] se entrega como opción adicional, manteniendo los dashboards CKAN, WaterQualityPanel, CkanSession y el asistente DeepSeek existentes. TerriaMap `d83d970928cc42313fdf75b4b1aa695dda6da2a6` fija TerriaJS `209dc5c4c9939886bd8a8fbbb1ae3bb1bda23959`. El [workflow 40921021565](https://github.com/pabrojast/ckan-unesco-docker/actions/runs/40921021565) desplegó `pabrojast/terriamap:20261029142439-d83d970`, digest `sha256:d71a49a02a77255741098fde6f2f10d13d396320f47562cbe0278a96a7f3e2d7`.
+
+El backend se desplegó antes de activar `parameters.simpleDashboards.enabled`. El [workflow 40917150453](https://github.com/pabrojast/ckan-unesco-docker/actions/runs/40917150453) instaló la migración aditiva, el worker `simple-dashboard` y la imagen CKAN con digest `sha256:c0f36e962674d836db3186231e433006749b28211a792f0e5907ddbbf300ad70`. DEV permite seleccionar inglés y español, con fallback inglés. Ambos deployments se verificaron Ready en `default/ckan`; no se desplegó producción.
+
+Los ejemplos adicionales, pins de extensiones, verificaciones y límites de CI están en el [informe de validación](https://github.com/pabrojast/ckan-unesco-docker/blob/miserver-2.10/deploy/envoy-dev/validation-simple-dashboards-2026-10-29.md). Los enlaces originales y Featured Viewers existentes se conservan.
+
 ## Resumen
 
 Este repo tiene tres salidas de despliegue observables:
