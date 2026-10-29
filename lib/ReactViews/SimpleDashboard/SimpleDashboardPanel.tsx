@@ -937,11 +937,11 @@ const Panel = observer(function Panel() {
 });
 export const Shell = styled.aside<{ $collapsed?: boolean; $drawing?: boolean }>`
   position: absolute;
-  top: 24px;
+  top: 78px;
   right: 62px;
   width: 380px;
   max-width: calc(100% - 30px);
-  max-height: calc(100% - 70px);
+  max-height: calc(100% - 104px);
   z-index: 96;
   background: #fff;
   color: #183c50;

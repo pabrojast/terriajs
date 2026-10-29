@@ -30,6 +30,7 @@ const words = {
   name: ["Dashboard name", "Nombre del dashboard"],
   preview: ["Preview", "Vista previa"],
   source: ["Source", "Fuente"],
+  blockType: ["Block type", "Tipo de bloque"],
   titleField: ["Block title", "Título del bloque"],
   measure: ["Value", "Valor"],
   group: ["Group / date", "Grupo / fecha"],
