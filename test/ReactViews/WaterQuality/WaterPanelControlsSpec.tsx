@@ -14,16 +14,14 @@ import cogStatisticHelp from "../../../lib/ReactViews/Workbench/Controls/cogStat
 import waterDashboardDraft from "../../../lib/ReactViews/WaterQuality/waterDashboardDraft";
 import openCogCalculationTool from "../../../lib/ReactViews/Tools/CogCalculation/openCogCalculationTool";
 import { renderWithContexts } from "../withContext";
+import english from "../../../wwwroot/languages/en/translation.json";
 import spanish from "../../../wwwroot/languages/es/translation.json";
 
 describe("Water panel controls", () => {
   let terria: Terria;
   let viewState: ViewState;
   let item: CogTimeSeriesCatalogItem;
-  let language: string;
   beforeEach(() => {
-    language = i18next.language;
-    i18next.addResourceBundle("es", "translation", spanish, true, true);
     terria = new Terria({ baseUrl: "./" });
     viewState = new ViewState({ terria, catalogSearchProvider: undefined });
     item = new CogTimeSeriesCatalogItem("water", terria);
@@ -52,12 +50,11 @@ describe("Water panel controls", () => {
       terria.configParameters.simpleDashboards = { enabled: true };
     });
   });
-  afterEach(async () => {
+  afterEach(() => {
     cleanup();
     item.dispose();
     viewState.dispose();
     terria.mainViewer.destroy();
-    await i18next.changeLanguage(language);
   });
   it("toggles the dashboard from both desktop and mobile without dropping its reference", () => {
     const reference = {
@@ -82,14 +79,24 @@ describe("Water panel controls", () => {
     }
   });
   it("translates cached map choices and explains their separate water-body meaning", async () => {
+    // Use real resources without depending on other suites' global i18n setup.
+    const translations = i18next.createInstance();
+    await translations.init({
+      lng: "en",
+      resources: {
+        en: { translation: english },
+        es: { translation: spanish }
+      }
+    });
+    spyOn(i18next, "t").and.callFake(translations.t.bind(translations));
     const dimension = item.selectableDimensions.find(
       (dim) => dim.id === "cog-series-band"
     ) as SelectableDimensionEnum;
-    await i18next.changeLanguage("es");
+    await translations.changeLanguage("es");
     const es = cogStatisticHelp(dimension, item) as any;
     expect(es.options[1].name).toBe("Promedio (media)");
     expect(es.description).toContain("este selector no cambia ese resumen");
-    await i18next.changeLanguage("en");
+    await translations.changeLanguage("en");
     expect((cogStatisticHelp(dimension, item) as any).options[1].name).toBe(
       "Mean (average)"
     );
