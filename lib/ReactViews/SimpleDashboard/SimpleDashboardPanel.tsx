@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { localPreview } from "../../Models/SimpleDashboard/LocalPreview";
 import DashboardEmbed from "./DashboardEmbed";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -54,6 +55,7 @@ export default observer(function SimpleDashboardPanel() {
   );
 });
 const Panel = observer(function Panel() {
+  useTranslation();
   const { terria } = useViewState();
   const api = useMemo(() => new SimpleDashboardApi(), []);
   const [step, setStep] = useState<

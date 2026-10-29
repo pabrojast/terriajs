@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import styled from "styled-components";
 import { useEffect, useMemo, useState } from "react";
 import { observer } from "mobx-react";
@@ -103,6 +104,7 @@ export const DashboardView = observer(function DashboardView({
   onLoaded?: (item: SavedDashboard) => void;
   onStatus?: (pending: boolean, error?: string) => void;
 }) {
+  useTranslation();
   const api = useMemo(() => new SimpleDashboardApi(), []);
   const [item, setItem] = useState<SavedDashboard>();
   const [result, setResult] = useState<DashboardResult>();

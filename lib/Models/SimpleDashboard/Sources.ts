@@ -1,3 +1,4 @@
+import hashFromString from "../../Core/hashFromString";
 import getDereferencedIfExists from "../../Core/getDereferencedIfExists";
 import CatalogMemberMixin from "../../ModelMixins/CatalogMemberMixin";
 import TableMixin from "../../ModelMixins/TableMixin";
@@ -12,7 +13,7 @@ export function dashboardSources(terria: Terria): DashboardSource[] {
     .flatMap((item, i) => {
       if (!CatalogMemberMixin.isMixedInto(item)) return [];
       const common = {
-        id: `source-${i}`,
+        id: `source-${item.ckanResourceId || hashFromString(item.uniqueId || item.name || String(i))}`,
         name: item.name || item.uniqueId || "Data",
         local_id: "layer:" + item.uniqueId,
         resource_id: item.ckanResourceId
