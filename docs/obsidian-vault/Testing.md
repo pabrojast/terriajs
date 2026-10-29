@@ -1,5 +1,15 @@
 # Testing
 
+## Dashboards sencillos (2026-10-29)
+
+Ver [[Dashboards Sencillos]] y [[Deployment]]. Pasan TypeScript, ESLint focalizado, formato y build; 3 specs de referencias/compartir y 4 de regresión de calidad de agua. El bundle Node comprueba su transporte y reproduce 33.15 mg/m³ en Andraikiba, septiembre de 2026. El backend tiene 160 pruebas, con CI Python 3.10/3.12; Pages pasa CKAN 2.9/2.10/2.11 y sus pruebas de navegador. TerriaMap pasa Node 22/24/26.
+
+La prueba integrada usa cuentas IHP no administradoras y fuentes públicas/privadas: autoría con permiso de lectura sin edición de la fuente, CSRF, propietarios, publicación explícita, borradores, revisiones anteriores, duplicado privado, revocación y eliminación. La caché reutiliza resultados; al cambiar una observación privada, el promedio pasa de 3 a 5.666666666666667 después de revalidar. Retirar el permiso bloquea también el resultado previamente calculado. El filtro enero–febrero da promedio 2 y dos registros; la exportación contiene siete columnas uniformes.
+
+En el navegador real se comprueban creación, tres tipos de bloque, límite de seis, reordenamiento, guardar/publicar, vista móvil 390×844, minimizar/expandir y tabla de valores. El embed nativo confirma `ready` y `stateApplied`. Una historia muestra el dashboard nativo y el CKAN anterior; el enlace Chile conserva sus 3334 registros. La historia original mantiene Andraikiba en 33.15 mg/m³. Los ejemplos satelitales conservan `3dsmooth`, por la restricción previa del render COG en Leaflet.
+
+La suite global Firefox **sigue roja**: run 40919652956, 2156 specs, 12 fallos y 19 pendientes. Todos los casos fallidos con nombre aparecen también en el control base 40889124168 (14 fallos). No se desactivan tests ni se presenta esta suite como aprobada. Capturas y recibos locales: `output/playwright/simple-dashboards-20261029/`; el informe enlazado desde [[Deployment]] contiene la evidencia final.
+
 Ver tambien: [[Comandos Utiles]], [[Setup Local]], [[Troubleshooting]]
 
 ## Stack de testing

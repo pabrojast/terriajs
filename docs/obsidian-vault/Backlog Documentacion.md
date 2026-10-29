@@ -1,5 +1,10 @@
 # Backlog de documentacion
 
+## Operación de dashboards sencillos (2026-10-29)
+
+- Hecho observado: resultados y revisiones usan tablas propias de PostgreSQL; snapshots/DuckDB usan `simple-sources` y `simple-tables`. El pruning antiguo de ResourceViews no administra estas rutas. Pendiente definir la retención operativa sin eliminar revisiones compartidas.
+- Hecho observado: el transporte Node de COG valida URL/DNS y no reenvía cookies ni credenciales CKAN. Se verificaron COG públicos y series analíticas autorizadas. Pendiente verificar o implementar COG subidos cuyo endpoint de descarga exige sesión CKAN; la autorización del recurso por sí sola no garantiza que el transporte descargue ese archivo protegido. CSV/DataStore privados sí se verificaron con un lector no administrador.
+
 Ver tambien: [[Guia de Mantenimiento]], [[Troubleshooting]]
 
 ## Huecos y validaciones pendientes
