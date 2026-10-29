@@ -1,4 +1,9 @@
-import { SimpleDashboardRef, validDashboardRef } from "./SimpleDashboard/Types";
+import {
+  DashboardPosition,
+  SimpleDashboardRef,
+  validDashboardPosition,
+  validDashboardRef
+} from "./SimpleDashboard/Types";
 import { StoryOptions } from "./StoryComposition";
 import i18next, { keyFromSelector } from "i18next";
 import {
@@ -830,6 +835,8 @@ export default class Terria {
   @observable stories: StoryData[] = [];
   @observable simpleDashboard: SimpleDashboardRef | undefined = undefined;
   @observable simpleDashboardOpen = false;
+  @observable simpleDashboardPosition: DashboardPosition | undefined =
+    undefined;
 
   @observable storyOptions: StoryOptions = {
     version: 1,
@@ -2217,6 +2224,14 @@ export default class Terria {
           revision: initData.simpleDashboard.revision
         };
         this.simpleDashboardOpen = true;
+        this.simpleDashboardPosition = validDashboardPosition(
+          initData.simpleDashboardPosition
+        )
+          ? {
+              x: initData.simpleDashboardPosition.x,
+              y: initData.simpleDashboardPosition.y
+            }
+          : undefined;
       }
     });
 

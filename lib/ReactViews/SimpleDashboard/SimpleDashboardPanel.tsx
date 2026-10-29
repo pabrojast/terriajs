@@ -20,11 +20,12 @@ import {
   SavedDashboard
 } from "../../Models/SimpleDashboard/Types";
 import { DashboardView, DashboardResults } from "./DashboardView";
-import { tr } from "./text";
+import { tr, dashboardLocale, dashboardMessage } from "./text";
+import useDashboardPosition from "./useDashboardPosition";
 
 const empty = (): DashboardConfig => ({
   version: 1,
-  title: "Dashboard",
+  title: tr("title"),
   sources: [],
   blocks: [],
   state: {}
@@ -58,6 +59,7 @@ const Panel = observer(function Panel() {
   useTranslation();
   const { terria } = useViewState();
   const api = useMemo(() => new SimpleDashboardApi(), []);
+  const position = useDashboardPosition(terria);
   const [step, setStep] = useState<
     "library" | "data" | "blocks" | "review" | "view"
   >(terria.simpleDashboard ? "view" : "library");
@@ -270,15 +272,32 @@ const Panel = observer(function Panel() {
     </div>
   );
   return (
-    <Shell $collapsed={collapsed} $drawing={drawing} aria-label={tr("title")}>
-      <header>
+    <Shell
+      ref={position.panel}
+      style={position.style}
+      lang={dashboardLocale()}
+      $collapsed={collapsed}
+      $drawing={drawing}
+      aria-label={tr("title")}
+    >
+      <header
+        tabIndex={0}
+        aria-label={tr("movePanel")}
+        title={tr("movePanel")}
+        onPointerDown={position.onPointerDown}
+        onPointerMove={position.onPointerMove}
+        onPointerUp={position.onPointerUp}
+        onPointerCancel={position.onPointerUp}
+        onLostPointerCapture={position.onPointerUp}
+        onKeyDown={position.onKeyDown}
+      >
         <div>
           <small>IHP-WINS</small>
           <h2>{tr("title")}</h2>
         </div>
         <button
           type="button"
-          aria-label={collapsed ? tr("preview") : "−"}
+          aria-label={collapsed ? tr("expand") : tr("collapse")}
           onClick={() => setCollapsed(!collapsed)}
         >
           {collapsed ? "+" : "−"}
@@ -289,7 +308,7 @@ const Panel = observer(function Panel() {
       </header>
       {!collapsed && (
         <div className="simple-scroll" ref={scroll}>
-          {error && <p role="alert">{error}</p>}
+          {error && <p role="alert">{dashboardMessage(error)}</p>}
           {step === "library" && (
             <>
               <h3>{tr("library")}</h3>
@@ -810,7 +829,7 @@ const Panel = observer(function Panel() {
                         )}
                         {source.kind === "cog" && (
                           <label>
-                            Band
+                            {tr("band")}
                             <input
                               type="number"
                               min={1}
@@ -950,6 +969,7 @@ const Panel = observer(function Panel() {
 });
 export const Shell = styled.aside<{ $collapsed?: boolean; $drawing?: boolean }>`
   position: absolute;
+  box-sizing: border-box;
   top: 136px;
   right: 62px;
   width: 380px;
@@ -968,6 +988,9 @@ export const Shell = styled.aside<{ $collapsed?: boolean; $drawing?: boolean }>`
     box-sizing: border-box;
   }
   header {
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
     display: flex;
     align-items: center;
     gap: 6px;
@@ -1149,7 +1172,7 @@ export const Shell = styled.aside<{ $collapsed?: boolean; $drawing?: boolean }>`
     bottom: 10px;
     right: 10px;
     left: 10px;
-    width: auto;
+    width: calc(100% - 20px);
     max-width: none;
     max-height: ${(p) => (p.$drawing ? "28dvh" : "70dvh")};
   }

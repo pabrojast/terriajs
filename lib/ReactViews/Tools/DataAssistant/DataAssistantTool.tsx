@@ -72,7 +72,21 @@ function Result({
   evidence: Evidence;
   chart?: string;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const locale = (i18n.resolvedLanguage || i18n.language || "en").replace(
+    /_/g,
+    "-"
+  );
+  const label = (key: string) =>
+    t(`dataAssistant.fields.${key}`, { defaultValue: key });
+  const cell = (value: unknown) =>
+    value === null || value === undefined
+      ? "—"
+      : typeof value === "boolean"
+        ? t(value ? "dataAssistant.yes" : "dataAssistant.no")
+        : typeof value === "number"
+          ? value.toLocaleString(locale, { maximumFractionDigits: 6 })
+          : String(value);
   const rows = resultRows(e);
   const columns = [...new Set(rows.flatMap(Object.keys))];
   const points = e.rows?.filter((r) => "x" in r && "y" in r) ?? [];
@@ -125,6 +139,7 @@ function Result({
                 ]
               }}
               options={{
+                locale,
                 responsive: true,
                 maintainAspectRatio: false,
                 animation: false
@@ -134,6 +149,7 @@ function Result({
             <Bar
               data={chartData}
               options={{
+                locale,
                 responsive: true,
                 maintainAspectRatio: false,
                 animation: false
@@ -143,6 +159,7 @@ function Result({
             <Line
               data={chartData}
               options={{
+                locale,
                 responsive: true,
                 maintainAspectRatio: false,
                 animation: false
@@ -157,10 +174,17 @@ function Result({
         <pre>
           {JSON.stringify(
             {
-              parameters: e.parameters,
-              statistics: e.statistics,
-              coverage: e.coverage,
-              resolution: e.resolution
+              [label("parameters")]: e.parameters,
+              [label("statistics")]:
+                e.statistics &&
+                Object.fromEntries(
+                  Object.entries(e.statistics).map(([key, value]) => [
+                    label(key),
+                    value
+                  ])
+                ),
+              [label("coverage")]: e.coverage,
+              [label("resolution")]: e.resolution
             },
             null,
             2
@@ -172,7 +196,7 @@ function Result({
               <thead>
                 <tr>
                   {columns.map((c) => (
-                    <th key={c}>{c}</th>
+                    <th key={c}>{e.rows ? c : label(c)}</th>
                   ))}
                 </tr>
               </thead>
@@ -181,9 +205,9 @@ function Result({
                   <tr key={i}>
                     {columns.map((c) => (
                       <td key={c}>
-                        {r[c] === null || r[c] === undefined
-                          ? "—"
-                          : String(r[c])}
+                        {!e.rows && c === "metric"
+                          ? label(String(r[c]))
+                          : cell(r[c])}
                       </td>
                     ))}
                   </tr>

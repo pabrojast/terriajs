@@ -3,6 +3,25 @@ export interface SimpleDashboardRef {
   id: string;
   revision: number;
 }
+export interface DashboardPosition {
+  x: number;
+  y: number;
+}
+export function validDashboardPosition(
+  value: unknown
+): value is DashboardPosition {
+  const position = value as DashboardPosition | undefined;
+  return (
+    !!position &&
+    [position.x, position.y].every(
+      (coordinate) =>
+        typeof coordinate === "number" &&
+        Number.isFinite(coordinate) &&
+        coordinate >= 0 &&
+        coordinate <= 1
+    )
+  );
+}
 export interface DashboardState {
   start?: string | null;
   end?: string | null;

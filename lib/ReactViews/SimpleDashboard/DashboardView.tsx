@@ -14,7 +14,7 @@ import {
   SimpleDashboardRef
 } from "../../Models/SimpleDashboard/Types";
 import DashboardChart from "./DashboardChart";
-import { tr } from "./text";
+import { tr, dashboardLocale, dashboardMessage } from "./text";
 
 export function DashboardResults({
   config,
@@ -25,6 +25,7 @@ export function DashboardResults({
   result?: DashboardResult;
   terria: Terria;
 }) {
+  useTranslation();
   const onDate = (date: string) => {
     try {
       const value = JulianDate.fromIso8601(date);
@@ -41,7 +42,7 @@ export function DashboardResults({
         <p role="status">{tr("calculating")}</p>
       )}
       {result?.status === "stale" && <p role="status">{tr("stale")}</p>}
-      {result?.error && <p role="alert">{result.error}</p>}
+      {result?.error && <p role="alert">{dashboardMessage(result.error)}</p>}
       {config.blocks.map((block) => (
         <section className="simple-card" key={block.id}>
           <h3>{block.title}</h3>
@@ -49,18 +50,24 @@ export function DashboardResults({
             block={block}
             result={result?.results?.[block.id]}
             onDate={onDate}
+            generatedColumns={config.sources.some(
+              (s) =>
+                s.id === block.source_id && ["water", "cog"].includes(s.kind)
+            )}
           />
         </section>
       ))}
       {result?.warnings?.map((w) => (
-        <p key={w}>{w}</p>
+        <p key={w}>{dashboardMessage(w)}</p>
       ))}
       <details>
         <summary>{tr("details")}</summary>
         {result?.checked_at && (
           <p>
             {tr("checked")}:{" "}
-            {new Date(result.checked_at * 1000).toLocaleString()}
+            {new Date(result.checked_at * 1000).toLocaleString(
+              dashboardLocale()
+            )}
           </p>
         )}
         {config.sources.map((source) => (
@@ -79,10 +86,25 @@ export function DashboardResults({
         ))}
         {config.blocks.map((block) => {
           const value = result?.results?.[block.id];
+          const methods: Record<string, string> = {
+            "Water-body core: daily median, monthly median, annual mean of monthly medians.":
+              tr("waterMethod"),
+            "Pixel value": tr("pixelMethod"),
+            "Polygon mean": tr("polygonMethod")
+          };
+          const resolution = value?.resolution;
           return (
             <p key={block.id}>
-              {block.title}: {value?.method || block.aggregate} ·{" "}
-              {value?.unit || block.unit} {value?.resolution}{" "}
+              {block.title}:{" "}
+              {value?.method
+                ? methods[value.method] || value.method
+                : tr(block.aggregate)}{" "}
+              · {value?.unit || block.unit}{" "}
+              {resolution === "daily" ||
+              resolution === "monthly" ||
+              resolution === "annual"
+                ? tr(resolution)
+                : resolution}{" "}
               {value?.source_version && <small>{value.source_version}</small>}
             </p>
           );
@@ -168,8 +190,8 @@ export const DashboardView = observer(function DashboardView({
     onStatus
   ]);
   return (
-    <Surface className="simple-dashboard-content">
-      {error && <p role="alert">{error}</p>}
+    <Surface className="simple-dashboard-content" lang={dashboardLocale()}>
+      {error && <p role="alert">{dashboardMessage(error)}</p>}
       {!item && !error && <p role="status">{tr("loading")}</p>}
       {item && (
         <>
@@ -226,7 +248,7 @@ export const DashboardView = observer(function DashboardView({
                 .catch((e) => setError(String(e)))
             }
           >
-            CSV ↓
+            {tr("csv")} ↓
           </button>
         </>
       )}
