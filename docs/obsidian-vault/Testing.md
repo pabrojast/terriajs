@@ -2,7 +2,9 @@
 
 ## Dashboards sencillos (2026-10-29)
 
-Ver [[Dashboards Sencillos]] y [[Deployment]]. Pasan TypeScript, ESLint focalizado, formato y build; 3 specs de referencias/compartir y 4 de regresión de calidad de agua. El bundle Node comprueba su transporte y reproduce 33.15 mg/m³ en Andraikiba, septiembre de 2026. El backend tiene 160 pruebas, con CI Python 3.10/3.12; Pages pasa CKAN 2.9/2.10/2.11 y sus pruebas de navegador. TerriaMap pasa Node 22/24/26.
+Ver [[Dashboards Sencillos]] y [[Deployment]]. Pasan TypeScript, ESLint focalizado, formato y build; 3 specs de referencias/compartir y 4 de regresión de calidad de agua. El bundle Node comprueba su transporte y reproduce 33.15 mg/m³ en Andraikiba, septiembre de 2026. El backend tiene 164 pruebas, con CI Python 3.10/3.12; Pages pasa CKAN 2.9/2.10/2.11 y sus pruebas de navegador. TerriaMap pasa Node 22/24/26.
+
+La limpieza de cuentas encontró una cookie que aún poblaba `g.user` después de desactivar la cuenta, aunque CkanSession ya la rechazaba. El backend `549dac45582703d1f16564c75ab3b5fbc49f67f9` consulta el estado activo en cada solicitud y trabajo. Las nuevas regresiones comprueban endpoints con cookie anterior, trabajos en cola y cambios de estado con una identidad ORM previamente cargada, incluidos administradores inactivos. La imagen efectiva y la repetición de la prueba con la cookie real quedan registradas en el informe de despliegue.
 
 La prueba integrada usa cuentas IHP no administradoras y fuentes públicas/privadas: autoría con permiso de lectura sin edición de la fuente, CSRF, propietarios, publicación explícita, borradores, revisiones anteriores, duplicado privado, revocación y eliminación. La caché reutiliza resultados; al cambiar una observación privada, el promedio pasa de 3 a 5.666666666666667 después de revalidar. Retirar el permiso bloquea también el resultado previamente calculado. El filtro enero–febrero da promedio 2 y dos registros; la exportación contiene siete columnas uniformes.
 

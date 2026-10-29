@@ -10,6 +10,8 @@ El backend se desplegó antes de activar `parameters.simpleDashboards.enabled`. 
 
 Los ejemplos adicionales, pins de extensiones, verificaciones y límites de CI están en el [informe de validación](https://github.com/pabrojast/ckan-unesco-docker/blob/miserver-2.10/deploy/envoy-dev/validation-simple-dashboards-2026-10-29.md). Los enlaces originales y Featured Viewers existentes se conservan.
 
+La corrección posterior de cuentas desactivadas fija el backend `549dac45582703d1f16564c75ab3b5fbc49f67f9` (PR #4 de `ckanext-dashboard_view`). Se publica mediante el [workflow 40924813374](https://github.com/pabrojast/ckan-unesco-docker/actions/runs/40924813374); consultar el informe anterior para el digest final y la verificación independiente de esa actualización. No cambia la imagen Terria ni la configuración de producción.
+
 ## Resumen
 
 Este repo tiene tres salidas de despliegue observables:
