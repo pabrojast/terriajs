@@ -10,6 +10,7 @@ import {
 import ChartJsModal from "../../Custom/Chart/ChartJs/ChartJsModal";
 import Text from "../../../Styled/Text";
 import { ZonalStatistics } from "../../../Core/CogZonalEngine";
+import CogCalculationSource from "./CogCalculationSource";
 import {
   Action,
   Actions,
@@ -30,10 +31,40 @@ const formatValue = (value: number) =>
 
 const CogCalculationResultsPanel = observer(
   ({ vm }: { vm: CogCalculationViewModel }) => {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const [expanded, setExpanded] = useState(false);
     const expandButton = useRef<HTMLButtonElement>(null);
     const item = vm.selectedTimeSeriesItem;
+    const tr = (key: string, options?: Record<string, unknown>) =>
+      t(`models.cogCalculation.${key}`, options);
+    const resultTitle = tr("areaResult", {
+      statistic: tr(`statistics.${vm.selectedStatistic}`)
+    });
+    const dates = (vm.timeSeriesResults ?? [])
+      .map((r) => Date.parse(r.time))
+      .filter(Number.isFinite)
+      .sort((a, b) => a - b);
+    const periodFormat = new Intl.DateTimeFormat(
+      i18n.language === "cimode" ? "en" : i18n.language,
+      {
+        timeZone: "UTC",
+        year: "numeric",
+        ...(item?.activeResolution?.id === "annual"
+          ? {}
+          : { month: "long" as const }),
+        ...(["annual", "monthly"].includes(item?.activeResolution?.id ?? "")
+          ? {}
+          : { day: "numeric" as const })
+      }
+    );
+    const period = dates.length
+      ? [
+          ...new Set([
+            periodFormat.format(dates[0]),
+            periodFormat.format(dates[dates.length - 1])
+          ])
+        ].join(" – ")
+      : "";
     const points =
       vm.timeSeriesResults
         ?.map((r) => ({
@@ -46,7 +77,7 @@ const CogCalculationResultsPanel = observer(
           {
             id: "drawn-area",
             key: "drawn-area",
-            name: t(`models.cogCalculation.statistics.${vm.selectedStatistic}`),
+            name: resultTitle,
             item,
             type: "line",
             units:
@@ -61,12 +92,12 @@ const CogCalculationResultsPanel = observer(
           }
         ]
       : [];
-    const tr = (key: string, options?: Record<string, unknown>) =>
-      t(`models.cogCalculation.${key}`, options);
     return (
       <Stack>
         <div>
-          <Heading>{tr("resultsTitle")}</Heading>
+          <Heading>
+            {vm.timeSeriesResults?.length ? resultTitle : tr("resultsTitle")}
+          </Heading>
           <Hint>{vm.selectedItem?.name}</Hint>
         </div>
         {vm.singleResult ? (
@@ -93,7 +124,7 @@ const CogCalculationResultsPanel = observer(
         ) : vm.timeSeriesResults?.length ? (
           <>
             <Card>
-              <Heading>{tr(`statistics.${vm.selectedStatistic}`)}</Heading>
+              <Heading>{period}</Heading>
               <Hint>
                 {tr("processed", { count: vm.timeSeriesResults.length })}
                 {vm.selectedTimeSeriesItem?.displayUnit
@@ -142,10 +173,15 @@ const CogCalculationResultsPanel = observer(
         ) : (
           <Hint>{tr("noResults")}</Hint>
         )}
+        <CogCalculationSource vm={vm} />
         <ChartJsModal
           isOpen={expanded}
           onClose={() => setExpanded(false)}
-          title={tr("resultsTitle")}
+          title={
+            vm.timeSeriesResults?.length
+              ? `${resultTitle}${period ? ` · ${period}` : ""}`
+              : tr("resultsTitle")
+          }
           triggerRef={expandButton}
         >
           <Suspense fallback={<Hint>{t("chart.loading")}</Hint>}>

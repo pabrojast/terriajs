@@ -933,9 +933,7 @@ const PilotPanel = observer(
                   </>
                 )}
                 <details>
-                  <summary>
-                    {text("Sources and method", "Fuentes y método")}
-                  </summary>
+                  <summary>{t("waterQuality.calculationMethod")}</summary>
                   <Fine>
                     {meta.source} · {meta.sourceVersion} ·{" "}
                     {text("Published", "Publicado")}:{" "}
@@ -958,13 +956,13 @@ const PilotPanel = observer(
                       "Las clases de clorofila son indicativas; turbidez y sólidos usan cortes operativos, no normativos. La observación satelital no determina potabilidad."
                     )}
                   </Fine>
+                  <Fine>
+                    {text(
+                      "For a pixel series or a drawn polygon, use the map and Terria analysis tools. These are separate analyses.",
+                      "Para series por píxel o un polígono dibujado, usa el mapa y las herramientas de análisis de Terria. Son análisis distintos."
+                    )}
+                  </Fine>
                 </details>
-                <Fine>
-                  {text(
-                    "For a pixel series or a drawn polygon, use the map and Terria analysis tools. These are separate analyses.",
-                    "Para series por píxel o un polígono dibujado, usa el mapa y las herramientas de análisis de Terria. Son análisis distintos."
-                  )}
-                </Fine>
                 <Field>
                   <input
                     type="checkbox"

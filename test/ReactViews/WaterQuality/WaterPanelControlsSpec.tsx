@@ -1,5 +1,6 @@
 import { cleanup, fireEvent } from "@testing-library/react";
 import i18next from "i18next";
+import { I18nextProvider } from "react-i18next";
 import { runInAction } from "mobx";
 import Terria from "../../../lib/Models/Terria";
 import ViewState from "../../../lib/ReactViewModels/ViewState";
@@ -13,6 +14,9 @@ import { getShareData } from "../../../lib/ReactViews/Map/Panels/SharePanel/Buil
 import cogStatisticHelp from "../../../lib/ReactViews/Workbench/Controls/cogStatisticHelp";
 import waterDashboardDraft from "../../../lib/ReactViews/WaterQuality/waterDashboardDraft";
 import openCogCalculationTool from "../../../lib/ReactViews/Tools/CogCalculation/openCogCalculationTool";
+import SelectableDimensionSection from "../../../lib/ReactViews/Workbench/Controls/SelectableDimensionSection";
+import CogCalculationSource from "../../../lib/ReactViews/Tools/CogCalculation/CogCalculationSource";
+import CogCalculationResultsPanel from "../../../lib/ReactViews/Tools/CogCalculation/CogCalculationResultsPanel";
 import { renderWithContexts } from "../withContext";
 import english from "../../../wwwroot/languages/en/translation.json";
 import spanish from "../../../wwwroot/languages/es/translation.json";
@@ -164,6 +168,131 @@ describe("Water panel controls", () => {
     expect(terria.simpleDashboardOpen).toBe(false);
     const vm = new CogCalculationViewModel(viewState, item.uniqueId);
     expect(vm.selectedBand).toBe(2);
+    vm.dispose();
+  });
+  it("keeps a restored raster choice behind closed advanced options without resetting it", async () => {
+    const translations = i18next.createInstance();
+    await translations.init({
+      lng: "es",
+      resources: { es: { translation: spanish } }
+    });
+    spyOn(i18next, "t").and.callFake(translations.t.bind(translations));
+    item.setActiveBand(CommonStrata.user, "mean");
+    const rendered = renderWithContexts(
+      <I18nextProvider i18n={translations}>
+        <SelectableDimensionSection item={item} placement="default" />
+      </I18nextProvider>,
+      viewState
+    );
+    const details = rendered.getByText("Opciones avanzadas del mapa")
+      .parentElement as HTMLDetailsElement;
+    const input = rendered.getByLabelText("Resumen de cada píxel:");
+    expect(details.open).toBe(false);
+    expect(input).not.toBeVisible();
+    fireEvent.click(details.querySelector("summary")!);
+    expect(input).toBeVisible();
+    expect(item.activeBandId).toBe("mean");
+    fireEvent.click(details.querySelector("summary")!);
+    expect(input).not.toBeVisible();
+    expect(item.activeBandId).toBe("mean");
+    const vm = new CogCalculationViewModel(viewState, item.uniqueId);
+    expect(vm.selectedBand).toBe(2);
+    vm.dispose();
+  });
+  it("identifies a custom analysis band instead of claiming it matches the map", async () => {
+    const translations = i18next.createInstance();
+    await translations.init({
+      lng: "es",
+      resources: { es: { translation: spanish } }
+    });
+    const vm = new CogCalculationViewModel(viewState, item.uniqueId);
+    const rendered = renderWithContexts(
+      <I18nextProvider i18n={translations}>
+        <CogCalculationSource vm={vm} />
+      </I18nextProvider>,
+      viewState
+    );
+    expect(
+      rendered.getByText("Se utilizan los valores mostrados en el mapa.")
+    ).toBeVisible();
+    fireEvent.click(rendered.getByText("Ver datos utilizados"));
+    expect(rendered.getByText(/banda 2/)).toBeVisible();
+    vm.setBand(1);
+    rendered.rerender(
+      <I18nextProvider i18n={translations}>
+        <CogCalculationSource vm={vm} />
+      </I18nextProvider>
+    );
+    expect(
+      rendered.queryByText("Se utilizan los valores mostrados en el mapa.")
+    ).toBeNull();
+    expect(rendered.getByText(/Se utiliza otra variante/)).toBeVisible();
+    expect(item.activeBandId).toBe("mean");
+    // Daily series may have a rendering band without named statistical bands.
+    updateModelFromJson(item, CommonStrata.user, {
+      resolutions: [{ id: "daily", renderOptions: { single: { band: 1 } } }]
+    });
+    item.setActiveResolution(CommonStrata.user, "daily");
+    rendered.rerender(
+      <I18nextProvider i18n={translations}>
+        <CogCalculationSource vm={vm} />
+      </I18nextProvider>
+    );
+    expect(
+      rendered.getByText("Se utilizan los valores mostrados en el mapa.")
+    ).toBeVisible();
+    vm.dispose();
+  });
+  it("labels area results with their processed month in Spanish and English", async () => {
+    const translations = i18next.createInstance();
+    await translations.init({
+      lng: "es",
+      resources: { es: { translation: spanish }, en: { translation: english } }
+    });
+    const vm = new CogCalculationViewModel(viewState, item.uniqueId);
+    runInAction(() => {
+      vm.timeSeriesResults = [
+        {
+          time: "2026-09-01T00:00:00Z",
+          statistics: {
+            mean: 2,
+            min: 1,
+            max: 3,
+            median: 2,
+            sum: 6,
+            count: 3,
+            noDataCount: 0,
+            stddev: 1
+          }
+        }
+      ];
+    });
+    const rendered = renderWithContexts(
+      <I18nextProvider i18n={translations}>
+        <CogCalculationResultsPanel vm={vm} />
+      </I18nextProvider>,
+      viewState
+    );
+    expect(
+      rendered.getByRole("heading", {
+        name: "Promedio dentro del área dibujada"
+      })
+    ).toBeVisible();
+    expect(
+      rendered.getByRole("heading", { name: "septiembre de 2026" })
+    ).toBeVisible();
+    await translations.changeLanguage("en");
+    rendered.rerender(
+      <I18nextProvider i18n={translations}>
+        <CogCalculationResultsPanel vm={vm} />
+      </I18nextProvider>
+    );
+    expect(
+      rendered.getByRole("heading", { name: "Mean within the drawn area" })
+    ).toBeVisible();
+    expect(
+      rendered.getByRole("heading", { name: "September 2026" })
+    ).toBeVisible();
     vm.dispose();
   });
 });

@@ -231,7 +231,9 @@ deja de observar al desmontarse el panel.
 `WaterPanelControlsSpec.tsx` cubre alternar el botón de dashboard en escritorio
 y móvil, traducir dimensiones ya calculadas, compartir cierre/posición del
 observatorio sin mezclarla con el dashboard, preparar una copia editable con
-fin de mes inclusivo y abrir el cálculo con la capa/banda visible. En navegador,
+fin de mes inclusivo y abrir el cálculo con la capa/banda visible. También comprueba
+el selector avanzado cerrado sin restablecer la banda, la indicación de una banda
+de análisis distinta y el título/período de resultados EN/ES. En navegador,
 verificar cerrar/reabrir/mover, botones de área sin desplazarse hasta el pie,
 cálculo real y CSV, EN/ES, copia sin guardar, share y viewport de 390 px.
 

@@ -608,7 +608,7 @@
       "clampHigh": "Ajustar Valores Altos"
     },
     "cogCalculation": {
-      "toolName": "Calcular por área",
+      "toolName": "Analizar un área",
       "toolTitle": "Dibuja un polígono y calcula sus valores en el tiempo",
       "needThreePoints": "Un polígono necesita al menos 3 puntos.",
       "selectLayerAndPolygon": "Primero selecciona una capa y dibuja un polígono.",
@@ -645,7 +645,7 @@
       "areaReady": "Área seleccionada",
       "redraw": "Redibujar",
       "layer": "Capa",
-      "statistic": "Estadística",
+      "statistic": "Qué calcular",
       "startDate": "Desde",
       "endDate": "Hasta",
       "resolution": "Precisión del cálculo",
@@ -660,7 +660,7 @@
       "estimateHelp": "Deja las fechas vacías para usar toda la serie. Acota el período para un cálculo más rápido.",
       "calculate": "Calcular",
       "calculateArea": "Calcular por área",
-      "resultsTitle": "Resultados del área",
+      "resultsTitle": "Resultados del área dibujada",
       "processed": "{{count}} fechas procesadas",
       "date": "Fecha",
       "pixels": "Píxeles válidos",
@@ -677,7 +677,7 @@
       "showChart": "Mostrar en el panel de gráficos",
       "hideChart": "Quitar del panel de gráficos",
       "statistics": {
-        "mean": "Promedio (media)",
+        "mean": "Promedio",
         "min": "Mínimo",
         "max": "Máximo",
         "sum": "Suma",
@@ -686,9 +686,17 @@
         "median": "Mediana",
         "stddev": "Desviación estándar"
       },
-      "drawAndCalculate": "Dibujar y calcular área",
-      "areaStatisticHelp": "Resume los píxeles válidos dentro de tu polígono para cada fecha. Promedio es su media; mediana es su valor central.",
-      "bandHelp": "Valores de entrada: {{name}} (banda {{band}}). La estadística anterior combina estos píxeles dentro de tu área."
+      "drawAndCalculate": "Analizar un área",
+      "areaStatisticHelp": "Combina los valores de los píxeles que quedan dentro de tu polígono.",
+      "bandHelp": "Resumen de cada píxel: {{name}} (banda {{band}}).",
+      "areaResult": "{{statistic}} dentro del área dibujada",
+      "usingMapValues": "Se utilizan los valores mostrados en el mapa.",
+      "usingCustomValues": "Se utiliza otra variante del raster, seleccionada en las opciones avanzadas.",
+      "inputDetails": "Ver datos utilizados",
+      "approximateSummary": "Precisión aproximada · puedes cambiarla en Opciones avanzadas.",
+      "nativeSummary": "Precisión completa · se utilizan píxeles nativos.",
+      "estimate_one": "{{count}} fecha para analizar",
+      "estimate_other": "{{count}} fechas para analizar"
     },
     "cogTimeSeries": {
       "loadTimeEntriesErrorTitle": "Error al cargar la serie temporal COG",
@@ -709,7 +717,7 @@
       "pointSeriesLoading": "Leyendo serie temporal… {{loaded}}/{{total}} fechas",
       "pointSeriesErrors": "No se pudo leer {{count}} fecha.",
       "pointSeriesErrors_plural": "No se pudieron leer {{count}} fechas.",
-      "mapStatistic": "Valor mostrado en el mapa",
+      "mapStatistic": "Resumen de cada píxel",
       "statisticHelp": "Elige el valor de cada píxel del mapa, su leyenda y su serie temporal.",
       "bodyStatisticHelp": "El observatorio usa un resumen del cuerpo de agua por separado; este selector no cambia ese resumen.",
       "statisticLabels": {
@@ -731,7 +739,8 @@
         "nObs": "Cantidad de observaciones satelitales válidas; no es una concentración.",
         "meanMonthly": "Promedio de los valores de mediana de cada mes del año.",
         "medianMonthly": "Valor central de las medianas mensuales del año."
-      }
+      },
+      "advancedMapOptions": "Opciones avanzadas del mapa"
     }
   },
   "analytics": {
@@ -2011,6 +2020,7 @@
     "movePanel": "Mover observatorio del agua",
     "editCopy": "Crear dashboard editable",
     "signInToCopy": "Iniciar sesión para crear un dashboard editable",
-    "analysisHelp": "Dibuja un área para calcular los valores dentro de tu polígono. Crea un dashboard propio para elegir sus gráficos y contenido."
+    "analysisHelp": "Dibuja un área para calcular los valores dentro de tu polígono. Crea un dashboard propio para elegir sus gráficos y contenido.",
+    "calculationMethod": "Cómo se calculó"
   }
 }
