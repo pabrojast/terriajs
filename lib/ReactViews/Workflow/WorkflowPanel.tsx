@@ -57,7 +57,7 @@ const WorkflowPanel: FC<PropsType> = observer((props) => {
           viewState.topElement = "WorkflowPanel";
         })}
       >
-        <TitleBar>
+        <TitleBar $analysis={props.appearance === "analysis"}>
           <TitleIcon glyph={props.icon} />
           <Title>{props.title}</Title>
           {!props.hideCloseButton && (
@@ -135,7 +135,8 @@ const Container = styled.div<{ $analysis?: boolean }>`
   padding: 0 0 5px;
 `;
 
-const TitleBar = styled.div`
+const TitleBar = styled.div<{ $analysis?: boolean }>`
+  background: ${(p) => (p.$analysis ? "#0b5c73" : "transparent")};
   display: flex;
   flex-direction: row;
   justify-content: space-between;
