@@ -71,6 +71,10 @@ const Panel = observer(function Panel() {
   const [busy, setBusy] = useState(false);
   const [drawing, setDrawing] = useState(false);
   const drawingTool = useRef<UserDrawing>();
+  const scroll = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    scroll.current?.scrollTo({ top: 0 });
+  }, [step]);
   const available = dashboardSources(terria);
   const authenticated = !!terria.ckanSession?.isAuthenticated;
   const configKey = JSON.stringify(config);
@@ -276,7 +280,7 @@ const Panel = observer(function Panel() {
         </button>
       </header>
       {!collapsed && (
-        <div className="simple-scroll">
+        <div className="simple-scroll" ref={scroll}>
           {error && <p role="alert">{error}</p>}
           {step === "library" && (
             <>
