@@ -1,3 +1,4 @@
+import { validDashboardRef } from "../../Models/SimpleDashboard/Types";
 import i18next from "i18next";
 import createStoryDialog from "./createStoryDialog";
 import {
@@ -39,11 +40,23 @@ export default function chooseStoryDashboard(): Promise<
       )
         return;
       const d = event.data.dashboard;
-      if (!d || !validViewId(d.view_id)) return;
+      if (
+        !d ||
+        (d.kind === "simple"
+          ? !validDashboardRef(d.simple)
+          : !validViewId(d.view_id))
+      )
+        return;
       try {
         finish({
           id: validStoryId(d.id) ? d.id : createGuid(),
-          view_id: d.view_id,
+          view_id: d.view_id || d.simple?.id,
+          ...(d.kind === "simple"
+            ? {
+                kind: "simple" as const,
+                simple: { id: d.simple.id, revision: d.simple.revision }
+              }
+            : {}),
           title: String(d.title || "Dashboard"),
           state: dashboardState(d.state)
         });

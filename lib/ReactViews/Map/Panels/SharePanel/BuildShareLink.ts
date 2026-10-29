@@ -512,6 +512,8 @@ function addAccumulatedChartSeries(terria: Terria, initSource: InitSourceData) {
 }
 
 function addStories(terria: Terria, initSource: InitSourceData) {
+  if (terria.simpleDashboard && terria.simpleDashboardOpen)
+    initSource.simpleDashboard = { ...terria.simpleDashboard };
   if (isDefined(terria.stories)) {
     initSource.stories = terria.stories.slice();
     initSource.storyOptions = { ...terria.storyOptions };

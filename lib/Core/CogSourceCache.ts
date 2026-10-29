@@ -29,6 +29,13 @@ const sources = new Map<string, SourceEntry>();
 const bandStats = new Map<string, Promise<CogBandRange | undefined>>();
 let accessCounter = 0;
 
+/** Server bundles inject a DNS-pinned, bounded transport before opening files. */
+let sourceOpener: ((url: string) => Promise<GeoTIFF>) | undefined;
+export function setCogSourceOpener(opener: (url: string) => Promise<GeoTIFF>) {
+  clearCogSourceCache();
+  sourceOpener = opener;
+}
+
 function touch(entry: SourceEntry): void {
   entry.lastAccess = ++accessCounter;
 }
@@ -60,7 +67,7 @@ export function openCogSource(url: string): Promise<GeoTIFF> {
     return existing.promise;
   }
 
-  const promise = openWithRangeRequests(url);
+  const promise = sourceOpener ? sourceOpener(url) : openWithRangeRequests(url);
   const entry: SourceEntry = { promise, lastAccess: ++accessCounter };
   sources.set(url, entry);
   promise.catch(() => {

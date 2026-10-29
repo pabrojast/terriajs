@@ -10,6 +10,7 @@ Vault operativa del repositorio `terriajs`.
 - [[Comandos Utiles]]
 - [[Flujos Importantes]]
 - [[Modulos]]
+- [[Dashboards Sencillos]]
 - [[Testing]]
 - [[Deployment]]
 - [[Sincronizacion con Upstream]]

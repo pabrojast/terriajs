@@ -1,3 +1,4 @@
+import SimpleDashboardButton from "../Map/Panels/SimpleDashboardButton";
 import { Component } from "react";
 import defined from "terriajs-cesium/Source/Core/defined";
 import { observer } from "mobx-react";
@@ -145,6 +146,7 @@ class MobileMenu extends Component {
           {this.props.terria.ckanSession && (
             <div onClick={() => this.hideMenu()}>
               <CkanSessionPanel smallScreen />
+              <SimpleDashboardButton smallScreen />
               <DataAssistantButton smallScreen />
             </div>
           )}

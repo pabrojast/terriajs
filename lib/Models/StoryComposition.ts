@@ -1,3 +1,4 @@
+import { SimpleDashboardRef, validDashboardRef } from "./SimpleDashboard/Types";
 /** Declarative story content. Dashboard URLs are always derived from CKAN IDs. */
 export interface StoryDashboardState {
   filters: {
@@ -10,6 +11,8 @@ export interface StoryDashboardState {
 export interface StoryDashboard {
   id: string;
   view_id: string;
+  kind?: "simple";
+  simple?: SimpleDashboardRef;
   title: string;
   state: StoryDashboardState;
 }
@@ -133,7 +136,12 @@ export function storyComposition(value?: StoryComposition): StoryComposition {
         : 10,
     dashboards: Array.isArray(value?.dashboards)
       ? value!.dashboards.filter(
-          (d) => d && validViewId(d.view_id) && validStoryId(d.id)
+          (d) =>
+            d &&
+            (d.kind === "simple"
+              ? validDashboardRef(d.simple)
+              : validViewId(d.view_id)) &&
+            validStoryId(d.id)
         )
       : [],
     media: Array.isArray(value?.media)
