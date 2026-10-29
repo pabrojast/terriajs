@@ -102,7 +102,7 @@ describe("DataAssistant session and tool flow", function () {
     expect(vm.busy).toBe(false);
   });
   it("handles an expired session when CKAN returns an HTML error page", async function () {
-    const unauthorized = spyOn(session, "handleUnauthorized").and.callThrough();
+    const unauthorized = spyOn(session, "handleUnauthorized");
     worker.use(
       http.get(
         base + "/bootstrap",
