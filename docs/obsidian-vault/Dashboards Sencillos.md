@@ -14,6 +14,8 @@ Las fuentes registradas usan sus identificadores CKAN. Los pilotos públicos usa
 
 Los diseños se guardan como revisiones inmutables, privadas inicialmente. Publicar es una acción explícita. Un borrador posterior no altera la revisión publicada. Las revisiones publicadas anteriores siguen disponibles; volver privado revoca todas. Las historias y enlaces llevan `simpleDashboard: {id, revision}`, nunca resultados calculados ni credenciales. Las historias usan `kind: "simple"` y `simple: {id, revision}`, manteniendo los campos anteriores para compatibilidad. CKAN Stories genera un embed Terria con `dashboardOnly=1`, sujeto al mismo control de acceso.
 
+La API y los trabajos en cola consultan el estado actual de la cuenta en la base de datos. Una cookie o trabajo anterior a su desactivación no conserva acceso de autor, propietario o administrador ni puede reutilizar resultados privados.
+
 ## Cálculos
 
 El servidor prepara CSV/DataStore/GeoJSON con el motor DuckDB existente. Los resultados se guardan en PostgreSQL y se revalidan cada 300 segundos mientras el panel está activo. Las claves incluyen versión de motor, contenido, selección temporal, geometría y parámetros de bloque. Se reutilizan los bloques y fechas que no cambiaron. Los errores transitorios pueden mostrar el último resultado con aviso; una revocación de acceso nunca permite devolverlo.
