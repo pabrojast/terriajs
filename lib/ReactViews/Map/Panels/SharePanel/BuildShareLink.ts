@@ -152,6 +152,7 @@ export function getShareData(
     addViewSettings(terria, viewState, initSource, !autoStartStory);
     addFeaturePicking(terria, initSource);
     addAccumulatedChartSeries(terria, initSource);
+    addSimpleDashboard(terria, initSource);
     if (includeStories) {
       // info that are not needed in scene share data
       addStories(terria, initSource);
@@ -511,9 +512,17 @@ function addAccumulatedChartSeries(terria: Terria, initSource: InitSourceData) {
   }
 }
 
-function addStories(terria: Terria, initSource: InitSourceData) {
-  if (terria.simpleDashboard && terria.simpleDashboardOpen)
+function addSimpleDashboard(terria: Terria, initSource: InitSourceData) {
+  if (terria.simpleDashboard && terria.simpleDashboardOpen) {
     initSource.simpleDashboard = { ...terria.simpleDashboard };
+    if (terria.simpleDashboardPosition)
+      initSource.simpleDashboardPosition = {
+        ...terria.simpleDashboardPosition
+      };
+  }
+}
+
+function addStories(terria: Terria, initSource: InitSourceData) {
   if (isDefined(terria.stories)) {
     initSource.stories = terria.stories.slice();
     initSource.storyOptions = { ...terria.storyOptions };

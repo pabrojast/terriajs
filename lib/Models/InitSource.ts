@@ -1,4 +1,7 @@
-import type { SimpleDashboardRef } from "./SimpleDashboard/Types";
+import type {
+  DashboardPosition,
+  SimpleDashboardRef
+} from "./SimpleDashboard/Types";
 import {
   StoryComposition,
   StoryOptions,
@@ -86,6 +89,7 @@ export interface InitSourceData {
   stories?: StoryData[];
   storyOptions?: StoryOptions;
   simpleDashboard?: SimpleDashboardRef;
+  simpleDashboardPosition?: DashboardPosition;
   viewerMode?: ViewModeJson;
   baseMaps?: BaseMapsJson;
   homeCamera?: JsonObject;

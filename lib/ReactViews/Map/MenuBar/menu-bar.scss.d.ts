@@ -1,5 +1,6 @@
 declare namespace MenuBarScssNamespace {
   export interface IMenuBarScss {
+    dataBtn: string;
     flex: string;
     langBtn: string;
     menu: string;

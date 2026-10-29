@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { useViewState } from "../../Context";
 import MobileMenuItem from "../../Mobile/MobileMenuItem";
 import { tr } from "../../SimpleDashboard/text";
+import Styles from "../MenuBar/menu-bar.scss";
 export default observer(function SimpleDashboardButton({
   smallScreen = false
 }: {
@@ -27,16 +28,10 @@ export default observer(function SimpleDashboardButton({
     <button
       type="button"
       onClick={open}
-      style={{
-        font: "inherit",
-        padding: 8,
-        color: "white",
-        background: "#183c50",
-        border: "1px solid #ffffff55",
-        borderRadius: 5
-      }}
+      className={Styles.dataBtn}
+      aria-expanded={viewState.terria.simpleDashboardOpen}
     >
-      {tr("title")}
+      <span>{tr("title")}</span>
     </button>
   );
 });

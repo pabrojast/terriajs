@@ -91,3 +91,8 @@
   composes: btn--map from "../../../Sass/common/_buttons.scss";
   text-transform: uppercase;
 }
+
+.dataBtn {
+  composes: btn from "../../../Sass/common/_buttons.scss";
+  composes: btn--map from "../../../Sass/common/_buttons.scss";
+}

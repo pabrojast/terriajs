@@ -8,6 +8,10 @@ Opción nativa complementaria al Dashboard Builder de CKAN. El botón abre una b
 
 Durante el recálculo de una vista previa se conservan las opciones de columnas y cuerpos de agua de las fuentes seleccionadas. Los valores del cálculo se actualizan por separado, sin vaciar los selectores del editor.
 
+La ventana se mueve arrastrando el encabezado con ratón o tacto. Con el encabezado enfocado, las flechas desplazan la ventana e Inicio restablece su posición. El espacio de movimiento deja accesible el menú superior. `simpleDashboardPosition: {x, y}` guarda proporciones entre 0 y 1 del espacio disponible en el enlace compartido; al cambiar de pantalla o minimizar/expandir, la ventana sigue dentro del mapa. Los enlaces anteriores conservan la ubicación predeterminada. Los embeds de historias mantienen su diseño integrado.
+
+La interfaz usa `simpleDashboard` en los recursos i18next de Terria, en inglés y español. Cambiar el idioma actualiza controles, encabezados generados de cálculos satelitales, valores booleanos, formatos numéricos y mensajes conocidos de validación. Los nombres y columnas originales de las fuentes, títulos escritos por el autor y el CSV conservan su contenido. Los dos accesos de dashboard y asistente usan los estilos comunes del menú de Terria.
+
 ## Persistencia y acceso
 
 Las fuentes registradas usan sus identificadores CKAN. Los pilotos públicos usan espacios de URL autorizados por el administrador. Las tablas locales solo tienen vista previa: para guardar se necesita una fuente persistente. Crear requiere sesión IHP y lectura/descarga de todas las fuentes; editar requiere ser propietario o administrador. Cada lectura vuelve a comprobar permisos. Publicar una revisión requiere que todas las fuentes sean públicas.

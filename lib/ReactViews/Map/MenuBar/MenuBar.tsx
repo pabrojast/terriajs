@@ -67,6 +67,7 @@ const MenuBar = observer((props: PropsType) => {
 
   return (
     <StyledMenuBar
+      data-terria-menu-bar
       className={classNames(
         viewState.topElement === "MenuBar" ? "top-element" : "",
         Styles.menuBar,
@@ -138,6 +139,8 @@ const MenuBar = observer((props: PropsType) => {
           <ul className={classNames(Styles.menu)}>
             <li className={Styles.menuItem}>
               <SimpleDashboardButton />
+            </li>
+            <li className={Styles.menuItem}>
               <DataAssistantButton
                 smallScreen={viewState.useSmallScreenInterface}
               />

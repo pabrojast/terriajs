@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -14,7 +15,13 @@ import {
   BlockResult,
   DashboardBlock
 } from "../../Models/SimpleDashboard/Types";
-import { tr } from "./text";
+import {
+  tr,
+  dashboardLocale,
+  dashboardMessage,
+  formatDashboardValue,
+  formatDashboardDate
+} from "./text";
 ChartJS.register(
   CategoryScale,
   LinearScale,
@@ -27,28 +34,29 @@ ChartJS.register(
 export default function DashboardChart({
   block,
   result,
-  onDate
+  onDate,
+  generatedColumns = false
 }: {
   block: DashboardBlock;
   result?: BlockResult;
   onDate?: (date: string) => void;
+  generatedColumns?: boolean;
 }) {
+  useTranslation();
   const [table, setTable] = useState(false);
   if (!result) return <p role="status">{tr("calculating")}</p>;
-  if (result.error) return <p role="alert">{result.error}</p>;
+  if (result.error) return <p role="alert">{dashboardMessage(result.error)}</p>;
   if (block.type === "kpi")
     return (
       <p className="simple-kpi">
         {result.value === null || result.value === undefined
           ? tr("noData")
-          : result.value.toLocaleString(undefined, {
-              maximumFractionDigits: 3
-            })}{" "}
+          : formatDashboardValue(result.value)}{" "}
         <small>{result.unit || block.unit}</small>
       </p>
     );
   const data = {
-    labels: result.labels || [],
+    labels: (result.labels || []).map(formatDashboardDate),
     datasets: (result.datasets || []).map((d, i) => ({
       ...d,
       borderColor: ["#087bac", "#c56516", "#29834c"][i % 3],
@@ -58,18 +66,29 @@ export default function DashboardChart({
     }))
   };
   const options = {
+    locale: dashboardLocale(),
     responsive: true,
     maintainAspectRatio: false,
     animation: false as const,
     plugins: { legend: { display: data.datasets.length > 1 } },
     onClick: (_event: unknown, elements: { index: number }[]) => {
-      const label = data.labels[elements[0]?.index];
+      const label = result.labels?.[elements[0]?.index];
       if (label && /^\d{4}-\d{2}/.test(label)) onDate?.(label);
     }
   };
-  const columns = result.columns?.map((c) =>
-    typeof c === "string" ? { key: c, label: c } : c
-  ) || [
+  const generatedLabels: Record<string, string> = {
+    date: tr("date"),
+    value: tr("value"),
+    coverage: tr("coverage"),
+    count: tr("observations"),
+    partial: tr("partial")
+  };
+  const columns = result.columns?.map((c) => {
+    const column = typeof c === "string" ? { key: c, label: c } : c;
+    return generatedColumns
+      ? { ...column, label: generatedLabels[column.key] || column.label }
+      : column;
+  }) || [
     { key: "date", label: tr("period") },
     ...data.datasets.map((d, i) => ({ key: String(i), label: d.label }))
   ];
@@ -92,7 +111,7 @@ export default function DashboardChart({
       )}
       {block.type !== "table" && (
         <button type="button" onClick={() => setTable(!table)}>
-          {tr("showTable")}
+          {tr(table ? "showChart" : "showTable")}
         </button>
       )}
       {(block.type === "table" || table) && (
@@ -110,8 +129,8 @@ export default function DashboardChart({
                 <tr key={i}>
                   {columns.map((c, j) => (
                     <td key={c.key}>
-                      {String(
-                        (Array.isArray(row) ? row[j] : row[c.key]) ?? "—"
+                      {formatDashboardValue(
+                        Array.isArray(row) ? row[j] : row[c.key]
                       )}
                     </td>
                   ))}
