@@ -21,6 +21,7 @@ import {
 } from "../../../ReactViewModels/DataAssistantViewModel";
 import { Evidence, Row } from "../../../Models/DataAssistant/Types";
 import { number } from "../../../Models/DataAssistant/TableTools";
+import formatAnswer from "../../../Models/DataAssistant/formatAnswer";
 import WorkflowPanel from "../../Workflow/WorkflowPanel";
 import Icon from "../../../Styled/Icon";
 
@@ -304,7 +305,13 @@ const DataAssistantTool = observer(
               {vm.entries.map((entry, index) => (
                 <article key={index}>
                   <Question>{entry.question}</Question>
-                  {entry.turn?.answer && <Answer>{entry.turn.answer}</Answer>}
+                  {entry.turn?.answer && (
+                    <Answer
+                      dangerouslySetInnerHTML={{
+                        __html: formatAnswer(entry.turn.answer)
+                      }}
+                    />
+                  )}
                   {entry.turn?.error && (
                     <Notice role="alert">{entry.turn.error}</Notice>
                   )}
@@ -555,9 +562,25 @@ const Question = styled.div`
   overflow-wrap: anywhere;
 `;
 const Answer = styled.div`
-  white-space: pre-wrap;
   overflow-wrap: anywhere;
   line-height: 1.6;
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-size: 1.05em;
+    margin: 14px 0 6px;
+  }
+  p {
+    margin: 8px 0;
+  }
+  ul,
+  ol {
+    padding-left: 22px;
+  }
+  pre {
+    white-space: pre-wrap;
+  }
 `;
 const Notice = styled.div`
   background: #fff8e6;
