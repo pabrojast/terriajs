@@ -112,6 +112,14 @@ export class CkanDatasetStratum extends LoadableStratum(
     return this.ckanItemReference._ckanResource;
   }
 
+  @computed get ckanResourceId(): string | undefined {
+    return this.ckanResource?.id;
+  }
+
+  @computed get ckanDatasetId(): string | undefined {
+    return this.ckanDataset?.id;
+  }
+
   @computed get url() {
     return getCkanItemResourceUrl(this.ckanItemReference);
   }

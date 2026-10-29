@@ -105,6 +105,21 @@ export class ShortReportTraits extends ModelTraits {
 class CatalogMemberTraits extends ModelTraits {
   @primitiveTrait({
     type: "string",
+    name: "CKAN Resource ID",
+    description:
+      "Resource identity for authenticated data analysis. The server always rechecks access."
+  })
+  ckanResourceId?: string;
+
+  @primitiveTrait({
+    type: "string",
+    name: "CKAN Dataset ID",
+    description: "Dataset identity for data analysis provenance."
+  })
+  ckanDatasetId?: string;
+
+  @primitiveTrait({
+    type: "string",
     name: "Name",
     description: "The name of the catalog item."
   })
