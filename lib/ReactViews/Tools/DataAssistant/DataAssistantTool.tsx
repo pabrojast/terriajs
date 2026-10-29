@@ -235,7 +235,10 @@ const DataAssistantTool = observer(
         <Intro>{t("dataAssistant.intro")}</Intro>
         <details>
           <summary>
-            {t("dataAssistant.context", { count: vm.selectedIds.length })}
+            {t("dataAssistant.context", {
+              count: vm.sources.filter((s) => vm.selectedIds.includes(s.id))
+                .length
+            })}
           </summary>
           <Sources>
             {vm.sources.map((s) => (
