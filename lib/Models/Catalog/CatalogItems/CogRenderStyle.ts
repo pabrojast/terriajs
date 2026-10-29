@@ -170,7 +170,7 @@ export function finalizeCogProviders(
   const applyDisplayRange =
     single?.applyDisplayRange === true && !invalidDisplayRange && !!domain;
   const displayRange = applyDisplayRange
-    ? configuredDisplayRange ?? domain
+    ? (configuredDisplayRange ?? domain)
     : undefined;
   const clampLow = single?.clampLow ?? true;
   const clampHigh = single?.clampHigh ?? clampLow;
@@ -226,8 +226,8 @@ export function finalizeCogProviders(
       mode === "named"
         ? single?.colorScale
         : mode === "default"
-        ? "blackwhite"
-        : undefined,
+          ? "blackwhite"
+          : undefined,
     stops,
     stopValues
   };

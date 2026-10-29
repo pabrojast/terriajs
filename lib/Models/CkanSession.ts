@@ -232,7 +232,10 @@ export default class CkanSession {
   private _restoreShareOnLogin = false;
   private readonly _disposers: (() => void)[] = [];
 
-  constructor(readonly terria: Terria, config: CkanSessionConfig = {}) {
+  constructor(
+    readonly terria: Terria,
+    config: CkanSessionConfig = {}
+  ) {
     makeObservable(this);
     this.config = resolveConfig(config);
     this.groupId = this.config.catalogGroupId;

@@ -111,35 +111,35 @@ export async function loadStacItems(
     const request = nextUrl
       ? { method: "GET" as const, url: nextUrl, body: undefined }
       : queryMode === "search"
-      ? {
-          method: "POST" as const,
-          url: searchUrl!,
-          body: buildStacSearchBody({
-            collectionId: options.collection.id,
-            limit,
-            dateTimeFilter: options.dateTimeFilter,
-            bboxFilter: options.bboxFilter,
-            sortBy: options.sortBy,
-            filterExpression: options.filterExpression,
-            filterLanguage: options.filterLanguage,
-            intersectsGeometry: options.intersectsGeometry,
-            additionalQueryParameters: options.additionalQueryParameters
-          })
-        }
-      : {
-          method: "GET" as const,
-          url: buildStacItemsGetUrl({
-            itemsUrl: itemsUrl!,
-            limit,
-            dateTimeFilter: options.dateTimeFilter,
-            bboxFilter: options.bboxFilter,
-            sortBy: options.sortBy,
-            filterExpression: options.filterExpression,
-            filterLanguage: options.filterLanguage,
-            additionalQueryParameters: options.additionalQueryParameters
-          }),
-          body: undefined
-        };
+        ? {
+            method: "POST" as const,
+            url: searchUrl!,
+            body: buildStacSearchBody({
+              collectionId: options.collection.id,
+              limit,
+              dateTimeFilter: options.dateTimeFilter,
+              bboxFilter: options.bboxFilter,
+              sortBy: options.sortBy,
+              filterExpression: options.filterExpression,
+              filterLanguage: options.filterLanguage,
+              intersectsGeometry: options.intersectsGeometry,
+              additionalQueryParameters: options.additionalQueryParameters
+            })
+          }
+        : {
+            method: "GET" as const,
+            url: buildStacItemsGetUrl({
+              itemsUrl: itemsUrl!,
+              limit,
+              dateTimeFilter: options.dateTimeFilter,
+              bboxFilter: options.bboxFilter,
+              sortBy: options.sortBy,
+              filterExpression: options.filterExpression,
+              filterLanguage: options.filterLanguage,
+              additionalQueryParameters: options.additionalQueryParameters
+            }),
+            body: undefined
+          };
 
     const response = (await requestWithRetryAndTimeout(
       () =>

@@ -31,9 +31,7 @@ export interface TerrascopeAuthWorkflowCallbacks {
  * Generic workflow for collecting Terrascope credentials without coupling the
  * UI layer to a specific catalog item or auth manager implementation.
  */
-export default class TerrascopeAuthWorkflow
-  implements SelectableDimensionWorkflow
-{
+export default class TerrascopeAuthWorkflow implements SelectableDimensionWorkflow {
   static readonly type = "terrascope-auth";
 
   @observable

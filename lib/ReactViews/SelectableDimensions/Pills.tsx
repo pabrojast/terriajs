@@ -65,8 +65,8 @@ export const SelectableDimensionPills: FC<{
       event.key === "ArrowRight" || event.key === "ArrowDown"
         ? 1
         : event.key === "ArrowLeft" || event.key === "ArrowUp"
-        ? -1
-        : 0;
+          ? -1
+          : 0;
     if (step === 0) return;
     event.preventDefault();
     const current = options.findIndex((option) => option.id === dim.selectedId);

@@ -422,7 +422,19 @@ const ComposedStoryPanel = observer(function ComposedStoryPanel() {
       else go(index + 1, true);
     }, composition.duration * 1000);
     return () => clearTimeout(timer);
-  }, [playing, manualOnly, mode, mapBusy, hasDashboard, dashboardBusy, error, index, stories.length, composition.duration, go]);
+  }, [
+    playing,
+    manualOnly,
+    mode,
+    mapBusy,
+    hasDashboard,
+    dashboardBusy,
+    error,
+    index,
+    stories.length,
+    composition.duration,
+    go
+  ]);
   useEffect(() => {
     const visibility = () => {
       if (document.hidden) setPlaying(false);
@@ -488,7 +500,14 @@ const ComposedStoryPanel = observer(function ComposedStoryPanel() {
       else map.setAttribute("style", previous);
       terria.currentViewer.notifyRepaintRequired();
     };
-  }, [showMap, composition.text_side, composition.text_width, composition.layout, choice, terria]);
+  }, [
+    showMap,
+    composition.text_side,
+    composition.text_width,
+    composition.layout,
+    choice,
+    terria
+  ]);
   useEffect(() => {
     const container = narrative.current;
     if (!container) return;
