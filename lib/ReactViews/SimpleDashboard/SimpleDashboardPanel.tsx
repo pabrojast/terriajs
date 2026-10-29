@@ -711,7 +711,7 @@ const Panel = observer(function Panel() {
                             </select>
                           </label>
                           <label>
-                            {tr("blocks")}
+                            {tr("blockType")}
                             <select
                               value={block.type}
                               onChange={(e) =>
