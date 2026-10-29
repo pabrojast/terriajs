@@ -9,6 +9,8 @@ import SelectableDimensions, {
 } from "../../../Models/SelectableDimensions/SelectableDimensions";
 import Box from "../../../Styled/Box";
 import SelectableDimension from "../../SelectableDimensions/SelectableDimension";
+import CogTimeSeriesCatalogItem from "../../../Models/Catalog/CatalogItems/CogTimeSeriesCatalogItem";
+import cogStatisticHelp from "./cogStatisticHelp";
 
 interface PropsType extends WithTranslation {
   item: BaseModel;
@@ -38,7 +40,11 @@ class SelectableDimensionSection extends Component<PropsType> {
           <SelectableDimension
             key={`${item.uniqueId}-${dim.id}-fragment`}
             id={`${item.uniqueId}-${dim.id}`}
-            dim={dim}
+            dim={
+              item instanceof CogTimeSeriesCatalogItem
+                ? cogStatisticHelp(dim, item)
+                : dim
+            }
           />
         ))}
       </Box>

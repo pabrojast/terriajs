@@ -228,6 +228,13 @@ línea temporal desde el orden del workbench. El observador del piloto recupera
 el producto visible sin tocar fecha, banda ni selección; respeta otras capas y
 deja de observar al desmontarse el panel.
 
+`WaterPanelControlsSpec.tsx` cubre alternar el botón de dashboard en escritorio
+y móvil, traducir dimensiones ya calculadas, compartir cierre/posición del
+observatorio sin mezclarla con el dashboard, preparar una copia editable con
+fin de mes inclusivo y abrir el cálculo con la capa/banda visible. En navegador,
+verificar cerrar/reabrir/mover, botones de área sin desplazarse hasta el pie,
+cálculo real y CSV, EN/ES, copia sin guardar, share y viewport de 390 px.
+
 ### Guia de dashboards de IHP-WINS (2026-10-12)
 
 `StoryDashboardGuidanceSpec.tsx` monta el editor de composicion con traducciones

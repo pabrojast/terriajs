@@ -56,6 +56,16 @@ const SelectableDimension: FC<{
       {isText(dim) && <SelectableDimensionText id={id} dim={dim} />}
       {isButton(dim) && <SelectableDimensionButton id={id} dim={dim} />}
       {isColor(dim) && <SelectableDimensionColor id={id} dim={dim} />}
+      {dim.description && (
+        <Text
+          id={`${id}-help`}
+          small
+          textGreyLighter
+          css={{ marginTop: "6px" }}
+        >
+          {dim.description}
+        </Text>
+      )}
     </Box>
   );
 };

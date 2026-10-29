@@ -2344,8 +2344,8 @@
       "clampHigh": "Clamp above color scale"
     },
     "cogCalculation": {
-      "toolName": "COG zonal statistics",
-      "toolTitle": "Calculate statistics of a COG layer inside a polygon",
+      "toolName": "Calculate by area",
+      "toolTitle": "Draw a polygon and calculate its values over time",
       "needThreePoints": "A polygon needs at least 3 points.",
       "selectLayerAndPolygon": "Select a layer and draw a polygon first.",
       "calculationError": "The calculation failed.",
@@ -2421,7 +2421,10 @@
         "noDataCount": "NoData pixels",
         "median": "Median",
         "stddev": "Standard deviation"
-      }
+      },
+      "drawAndCalculate": "Draw and calculate an area",
+      "areaStatisticHelp": "Summarizes the valid pixels inside your polygon for each date. Mean is their average; median is their middle value.",
+      "bandHelp": "Input values: {{name}} (band {{band}}). The statistic above combines these pixels within your area."
     },
     "cogTimeSeries": {
       "loadTimeEntriesErrorTitle": "Error loading COG Time Series",
@@ -2441,7 +2444,30 @@
       "partialCoverageHint": "Each date only covers part of the area. If the map is empty here, try another date.",
       "pointSeriesLoading": "Reading time series… {{loaded}}/{{total}} dates",
       "pointSeriesErrors": "{{count}} date could not be read.",
-      "pointSeriesErrors_plural": "{{count}} dates could not be read."
+      "pointSeriesErrors_plural": "{{count}} dates could not be read.",
+      "mapStatistic": "Value shown on the map",
+      "statisticHelp": "Chooses the value shown in each map pixel, its legend and pixel series.",
+      "bodyStatisticHelp": "The observatory uses a separate water-body summary; this selector does not change that summary.",
+      "statisticLabels": {
+        "mean": "Mean (average)",
+        "median": "Median",
+        "p90": "90th percentile (high values)",
+        "maxMonth": "Highest month",
+        "nMonths": "Months with data",
+        "nObs": "Satellite observations",
+        "meanMonthly": "Average of monthly medians",
+        "medianMonthly": "Median of monthly medians"
+      },
+      "statisticHelpText": {
+        "mean": "Mean: adds the valid observations and divides by their number.",
+        "median": "Median: the middle value when observations are ordered; it is less affected by extreme values.",
+        "p90": "90th percentile: 90% of valid observations are at or below this value.",
+        "maxMonth": "Highest monthly value within the year.",
+        "nMonths": "Number of months with valid data, not a concentration.",
+        "nObs": "Number of valid satellite observations, not a concentration.",
+        "meanMonthly": "Average of the monthly median values within the year.",
+        "medianMonthly": "Middle value of the monthly medians within the year."
+      }
     }
   },
   "searchProvider": {
@@ -2817,5 +2843,13 @@
       "Choose a supported satellite product and resolution.": "Choose a supported satellite product and resolution.",
       "This dashboard changed. Reopen it before saving a new revision.": "This dashboard changed. Reopen it before saving a new revision."
     }
+  },
+  "waterQuality": {
+    "openPanel": "Open water observatory",
+    "closePanel": "Close water observatory",
+    "movePanel": "Move water observatory",
+    "editCopy": "Create editable dashboard",
+    "signInToCopy": "Sign in to create an editable dashboard",
+    "analysisHelp": "Draw an area to calculate values inside your polygon. Create a personal dashboard to choose its charts and content."
   }
 }

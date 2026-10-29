@@ -374,6 +374,25 @@ la búsqueda. En móvil se convierte en panel inferior plegable, con controles
 accesibles y tabla diferida hasta que se abre. Los fallos JSON/HTTP muestran
 reintento; un fallo nunca queda guardado en caché.
 
+La cabecera permite mover el observatorio con ratón, tacto o flechas y cerrarlo
+sin quitar la capa. Se reabre desde la capa o el botón del mapa, también en
+modo narrativo. El share conserva `waterQualityPanel.closed` y su posición
+normalizada, independiente de `simpleDashboardPosition`. Mientras se dibuja
+un área se oculta el observatorio para dejar libre el mapa.
+
+`Dibujar y calcular área` aparece al inicio del observatorio y en los controles
+de la capa. Abre el análisis sobre esa capa y comienza con la banda visible.
+`Valor mostrado en el mapa` traduce las etiquetas conocidas, explica promedio,
+mediana, percentil y conteos y aclara que no altera el resumen del cuerpo de
+agua. Los nombres personalizados de bandas se conservan. Las ayudas cambian
+con EN/ES incluso cuando el modelo mantiene las dimensiones en caché.
+
+Con sesión IHP, `Crear dashboard editable` prepara un borrador personal con
+la fuente, resolución, cuerpos seleccionados y período del año visible; incluye
+serie y tabla por cuerpo (hasta seis bloques). No modifica el observatorio ni
+una revisión compartida; se guarda mediante el editor existente. Sin sesión,
+el acceso abre el login. `Dashboard sencillo` alterna abrir/ocultar.
+
 ### Embed narrativo compacto
 
 `narrative=1` en el hash elimina branding, workbench, menú principal, bienvenida

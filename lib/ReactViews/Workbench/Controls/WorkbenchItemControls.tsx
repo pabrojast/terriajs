@@ -27,6 +27,7 @@ import ShortReport from "./ShortReport";
 import StacCollectionSection from "./StacCollectionSection";
 import TimerSection from "./TimerSection";
 import ViewingControls from "./ViewingControls";
+import CogAnalysisControls from "./CogAnalysisControls";
 import {
   WorkbenchControls,
   disableAllControls,
@@ -80,6 +81,9 @@ const WorkbenchItemControls: FC<WorkbenchItemControlsProps> = observer(
             viewState={viewState}
             controls={controls}
           />
+        )}
+        {controls.selectableDimensions && (
+          <CogAnalysisControls item={item} viewState={viewState} />
         )}
         {controls.opacity ? <OpacitySection item={item} /> : null}
         {controls.scaleWorkbench ? <ScaleWorkbenchInfo item={item} /> : null}

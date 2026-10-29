@@ -2,6 +2,7 @@ import { reaction, runInAction } from "mobx";
 import { observer } from "mobx-react";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import i18next from "i18next";
 import styled from "styled-components";
 import Rectangle from "terriajs-cesium/Source/Core/Rectangle";
 import JulianDate from "terriajs-cesium/Source/Core/JulianDate";
@@ -28,14 +29,17 @@ import { useViewState } from "../Context";
 import configureWaterQualityOverlay from "./configureWaterQualityOverlay";
 import activateWaterQualityProduct from "./activateWaterQualityProduct";
 import observeWaterQualityTimeline from "./observeWaterQualityTimeline";
+import useDashboardPosition from "../SimpleDashboard/useDashboardPosition";
+import openCogCalculationTool from "../Tools/CogCalculation/openCogCalculationTool";
+import waterDashboardDraft from "./waterDashboardDraft";
 
 const COLORS = ["#0877ac", "#bb5930", "#6e55a3"];
 const format = (value: number | null | undefined) =>
   value === null || value === undefined || !Number.isFinite(value)
     ? "—"
-    : new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 }).format(
-        value
-      );
+    : new Intl.NumberFormat(i18next.resolvedLanguage || "en", {
+        maximumFractionDigits: 2
+      }).format(value);
 const isoDate = (date: string) =>
   `${
     date.length === 4
@@ -47,7 +51,10 @@ const isoDate = (date: string) =>
 
 /** Only configured pilots opt into this interface. Existing COGs are unchanged. */
 const WaterQualityPanel = observer(() => {
-  const { terria } = useViewState();
+  const viewState = useViewState();
+  const { terria } = viewState;
+  const { t } = useTranslation();
+  if (viewState.currentTool?.toolName === "cog-calculation-tool") return null;
   const items = terria.workbench.items.filter(
     (item): item is CogTimeSeriesCatalogItem =>
       item instanceof CogTimeSeriesCatalogItem &&
@@ -55,6 +62,20 @@ const WaterQualityPanel = observer(() => {
       !!item.waterQuality?.product
   );
   const active = items.find((item) => item.show) ?? items[0];
+  if (active && terria.waterQualityPanelClosed)
+    return (
+      <ReopenButton
+        type="button"
+        data-water-quality-reopen
+        onClick={() =>
+          runInAction(() => {
+            terria.waterQualityPanelClosed = false;
+          })
+        }
+      >
+        {t("waterQuality.openPanel")}
+      </ReopenButton>
+    );
   return active ? (
     <PilotPanel
       key={active.waterQuality?.pilotId}
@@ -74,7 +95,8 @@ const PilotPanel = observer(
   }) => {
     const viewState = useViewState();
     const { terria } = viewState;
-    const { i18n } = useTranslation();
+    const { i18n, t } = useTranslation();
+    const position = useDashboardPosition(terria, "waterQualityPanelPosition");
     const language = i18n.language.startsWith("es")
       ? "es"
       : i18n.language.startsWith("uk")
@@ -380,13 +402,25 @@ const PilotPanel = observer(
 
     return (
       <Panel
+        ref={position.panel}
+        style={position.style}
         aria-label={text(
           "Water quality analysis",
           "Análisis de calidad del agua"
         )}
         data-water-quality-panel
       >
-        <Header>
+        <Header
+          tabIndex={0}
+          title={t("simpleDashboard.movePanel")}
+          aria-label={t("waterQuality.movePanel")}
+          onPointerDown={position.onPointerDown}
+          onPointerMove={position.onPointerMove}
+          onPointerUp={position.onPointerUp}
+          onPointerCancel={position.onPointerUp}
+          onLostPointerCapture={position.onPointerUp}
+          onKeyDown={position.onKeyDown}
+        >
           <div>
             <Eyebrow>
               {text(
@@ -412,6 +446,18 @@ const PilotPanel = observer(
           >
             {collapsed ? "+" : "−"}
           </IconButton>
+          <IconButton
+            type="button"
+            aria-label={t("waterQuality.closePanel")}
+            title={t("waterQuality.closePanel")}
+            onClick={() =>
+              runInAction(() => {
+                terria.waterQualityPanelClosed = true;
+              })
+            }
+          >
+            ×
+          </IconButton>
         </Header>
         {!collapsed && (
           <Content>
@@ -421,6 +467,44 @@ const PilotPanel = observer(
                 "Explora observaciones satelitales. Selecciona un cuerpo de agua para conectar mapa, historia y calidad del dato."
               )}
             </Intro>
+            <PanelActions>
+              <Action
+                type="button"
+                data-area-launcher
+                onClick={() => openCogCalculationTool(viewState, item.uniqueId)}
+              >
+                {t("models.cogCalculation.drawAndCalculate")}
+              </Action>
+              {terria.configParameters.simpleDashboards?.enabled && (
+                <Action
+                  type="button"
+                  disabled={!selected.length || loading}
+                  onClick={() => {
+                    if (!terria.ckanSession?.isAuthenticated) {
+                      terria.ckanSession?.openLogin();
+                      return;
+                    }
+                    runInAction(() => {
+                      terria.simpleDashboardDraft = waterDashboardDraft(
+                        item,
+                        selected,
+                        selectedDate,
+                        language
+                      );
+                      terria.simpleDashboard = undefined;
+                      terria.simpleDashboardOpen = true;
+                    });
+                  }}
+                >
+                  {t(
+                    terria.ckanSession?.isAuthenticated
+                      ? "waterQuality.editCopy"
+                      : "waterQuality.signInToCopy"
+                  )}
+                </Action>
+              )}
+            </PanelActions>
+            <Fine>{t("waterQuality.analysisHelp")}</Fine>
             {error && (
               <Alert role="alert">
                 {error}{" "}
@@ -904,25 +988,6 @@ const PilotPanel = observer(
                     "Clics en el mapa: analizar píxeles individuales"
                   )}
                 </Field>
-                <Action
-                  type="button"
-                  onClick={() => {
-                    setCollapsed(true);
-                    viewState.openTool({
-                      toolName: "cog-calculation-tool",
-                      getToolComponent: () =>
-                        import("../Tools/CogCalculation/CogCalculationTool").then(
-                          (module) => module.default as any
-                        ),
-                      params: {}
-                    });
-                  }}
-                >
-                  {text(
-                    "Draw an analysis polygon",
-                    "Dibujar un polígono de análisis"
-                  )}
-                </Action>
               </>
             )}
           </Content>
@@ -1028,7 +1093,26 @@ function WaterChart({
   );
 }
 
+const ReopenButton = styled.button`
+  position: absolute;
+  z-index: 12;
+  right: 56px;
+  bottom: 110px;
+  max-width: calc(100% - 70px);
+  padding: 8px 12px;
+  border: 1px solid #cbdce5;
+  border-radius: 6px;
+  background: white;
+  color: #116b99;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  &:focus-visible {
+    outline: 2px solid #1698d3;
+  }
+`;
 const Panel = styled.aside`
+  box-sizing: border-box;
   position: absolute;
   z-index: 12;
   top: 78px;
@@ -1085,13 +1169,13 @@ const Panel = styled.aside`
     bottom: 36px;
     left: 8px;
     right: 8px;
-    width: auto;
+    width: calc(100% - 20px);
     max-width: none;
     max-height: 62%;
     border-radius: 14px;
   }
 `;
-const Header = styled.div`
+const Header = styled.header`
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1099,6 +1183,25 @@ const Header = styled.div`
   padding: 14px 18px;
   border-bottom: 1px solid #e5edf1;
   flex-shrink: 0;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  > div {
+    flex: 1;
+    min-width: 0;
+  }
+  &:active {
+    cursor: grabbing;
+  }
+  &:focus-visible {
+    outline: 2px solid #1698d3;
+    outline-offset: -2px;
+  }
+`;
+const PanelActions = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
 `;
 const Eyebrow = styled.div`
   font-size: 9px;
@@ -1113,6 +1216,7 @@ const Title = styled.h2`
   line-height: 1.25;
 `;
 const IconButton = styled.button`
+  flex-shrink: 0;
   border: 1px solid #d8e4ea;
   border-radius: 50%;
   width: 32px;

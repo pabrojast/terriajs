@@ -11,6 +11,8 @@ interface Dimension {
   readonly id?: string;
   /** Human readable name */
   readonly name?: string;
+  /** Optional plain-language help displayed below the control. */
+  readonly description?: string;
 }
 
 export interface EnumDimensionOption<T = string> {
