@@ -68,7 +68,7 @@ describe("BuildShareLink", function () {
     expect(initSources.previewedItemId).toBeUndefined();
   });
 
-  it("strips the CKAN proxy token from private catalog items", async function () {
+  it("strips the CKAN proxy token from private catalog items", function () {
     const privateId = "__ckan_private_catalog__/nonce/resource/r1/view/0";
     const publicId = "public-wms";
     for (const id of [privateId, publicId]) {
@@ -79,8 +79,14 @@ describe("BuildShareLink", function () {
         "/api/terria/resource/r1/content/a.tif?token=123.abc&keep=1"
       );
       terria.addModel(model);
-      await terria.workbench.add(model);
     }
+    // This verifies serialization of already loaded layers. Fetching an
+    // unstubbed WMS here fails to add it and never exercises token removal.
+    runInAction(() => {
+      terria.workbench.items = [privateId, publicId].map(
+        (id) => terria.getModelById(BaseModel, id)!
+      );
+    });
 
     const params = decodeAndParseStartHash(buildShareLink(terria, viewState));
     const models = flattenInitSources(params.initSources).models as any;

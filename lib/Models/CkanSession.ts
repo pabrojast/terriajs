@@ -40,8 +40,10 @@ export interface CkanSessionConfig {
   profileUrl?: string;
   /** Optional name template for the private catalog group (`{{user}}`). Defaults to the i18n key `ckanSession.privateCatalogName`. */
   catalogGroupName?: string;
-  /** Id of the root catalog group that wraps the private catalog. Default "ckan-private-catalog". */
+  /** Id of the group that wraps the private catalog. Default "ckan-private-catalog". */
   catalogGroupId?: string;
+  /** Root group to place private data inside. Default "//IHP-WINS"; missing groups fall back to the catalog root. Use "/" for the legacy layout. */
+  catalogParentGroupId?: string;
   /** Re-check the session when the window regains focus/visibility. Default true. */
   checkOnFocus?: boolean;
   /** Minimum interval between focus re-checks in milliseconds. Default 5000. */
@@ -72,6 +74,7 @@ const DEFAULT_CONFIG = {
   loginUrl: "/user/login",
   logoutUrl: "/user/_logout",
   catalogGroupId: "ckan-private-catalog",
+  catalogParentGroupId: "//IHP-WINS",
   checkOnFocus: true,
   focusThrottleMs: 5000
 };
@@ -173,6 +176,12 @@ function resolveConfig(config: CkanSessionConfig): ResolvedConfig {
   if (typeof config.catalogGroupId === "string" && config.catalogGroupId) {
     resolved.catalogGroupId = config.catalogGroupId;
   }
+  if (
+    typeof config.catalogParentGroupId === "string" &&
+    config.catalogParentGroupId.trim()
+  ) {
+    resolved.catalogParentGroupId = config.catalogParentGroupId;
+  }
   if (typeof config.checkOnFocus === "boolean") {
     resolved.checkOnFocus = config.checkOnFocus;
   }
@@ -188,19 +197,18 @@ function resolveConfig(config: CkanSessionConfig): ResolvedConfig {
 
 /**
  * Tracks the CKAN portal session of the current browser (same-origin cookie)
- * and keeps a root catalog group with the user's private datasets in sync
+ * and keeps a catalog group with the user's private datasets in sync
  * with it.
  *
  * - `refresh()` calls the whoami endpoint (relative URL, never proxied).
- * - When the user is authenticated (and `setReady()` has been called) a root
+ * - When the user is authenticated (and `setReady()` has been called) a
  *   group `groupId` wrapping a `ckan-private-catalog-reference` is added to
  *   the catalog and loaded eagerly.
  * - When the user becomes anonymous the group, its loaded descendants, the
  *   workbench items and any orphan `__ckan_private_catalog__/*` model are
  *   removed.
- * - In the CKAN embedded view the `#start=` data already injects a root member
- *   whose id starts with `CKAN_PRIVATE_CATALOG_ID_PREFIX`; in that case no
- *   extra group is added.
+ * - Private data sits below the public JSON inside IHP-WINS when available.
+ *   Embedded `#start=` catalogs are reused instead of requesting another index.
  */
 export default class CkanSession {
   @observable status: CkanSessionStatus = "unknown";
@@ -254,6 +262,25 @@ export default class CkanSession {
       )
     );
 
+    // Init sources and shared catalogs may arrive after the session. Observe
+    // membership separately so relocation never refreshes the private index.
+    this._disposers.push(
+      reaction(
+        () => ({
+          ready: this.ready,
+          user: this.user?.name,
+          status: this.status,
+          parent: this.catalogParent,
+          rootMembers: this.terria.catalog.group.members.slice(),
+          parentMembers: this.catalogParent.members.slice(),
+          injected: this.injectedPrivateCatalogMembers,
+          wrapper: this.terria.getModelById(BaseModel, this.groupId)
+        }),
+        () => this.placePrivateCatalog(),
+        { equals: comparer.structural }
+      )
+    );
+
     if (this.config.checkOnFocus && typeof window !== "undefined") {
       window.addEventListener("focus", this.onFocus);
       this._disposers.push(() =>
@@ -299,29 +326,54 @@ export default class CkanSession {
       : undefined;
   }
 
-  /**
-   * Id of a root catalog member injected by the CKAN embedded view
-   * (`#start=` data), if any.
-   */
+  /** Only use a real top-level group; never nest inside our own private tree. */
+  @computed
+  private get catalogParent() {
+    const root = this.terria.catalog.group;
+    const parent = root.memberModels.find(
+      (model) =>
+        model.uniqueId === this.config.catalogParentGroupId &&
+        model.uniqueId !== this.groupId &&
+        !model.uniqueId.startsWith(CKAN_PRIVATE_CATALOG_ID_PREFIX)
+    );
+    return GroupMixin.isMixedInto(parent) ? parent : root;
+  }
+
+  @computed
+  private get injectedPrivateCatalogMembers(): BaseModel[] {
+    const wrapper = this.terria.getModelById(BaseModel, this.groupId);
+    return Array.from(
+      new Set([
+        ...this.terria.catalog.group.memberModels,
+        ...this.catalogParent.memberModels,
+        ...(GroupMixin.isMixedInto(wrapper) ? wrapper.memberModels : [])
+      ])
+    ).filter((model) =>
+      model.uniqueId?.startsWith(CKAN_PRIVATE_CATALOG_ID_PREFIX)
+    );
+  }
+
+  /** Embedded private catalog, also recognized after nesting it under IHP. */
   @computed
   get injectedPrivateCatalogId(): string | undefined {
-    return this.terria.catalog.group.memberModels.find(
-      (m) =>
-        m.uniqueId !== undefined &&
-        m.uniqueId.startsWith(CKAN_PRIVATE_CATALOG_ID_PREFIX)
-    )?.uniqueId;
+    return this.injectedPrivateCatalogMembers[0]?.uniqueId;
   }
 
   /** Id of the root member that currently holds the private catalog, if any. */
   @computed
   get activeCatalogId(): string | undefined {
-    const injected = this.injectedPrivateCatalogId;
-    if (injected !== undefined) return injected;
+    const parent = this.catalogParent;
+    if (
+      parent !== this.terria.catalog.group &&
+      parent.memberModels.some((model) => model.uniqueId === this.groupId)
+    ) {
+      return parent.uniqueId;
+    }
     return this.terria.catalog.group.memberModels.some(
       (m) => m.uniqueId === this.groupId
     )
       ? this.groupId
-      : undefined;
+      : this.injectedPrivateCatalogId;
   }
 
   buildLoginHref(): string {
@@ -561,6 +613,7 @@ export default class CkanSession {
     if (this.injectedPrivateCatalogId !== undefined) {
       // Embedded view: the `#start=` data already injected the private catalog.
       this._attached = undefined;
+      this.placePrivateCatalog();
       return;
     }
     if (
@@ -603,6 +656,7 @@ export default class CkanSession {
       .logError();
     this._attached = { name: user.name, url };
     this.catalogGeneration++;
+    this.placePrivateCatalog();
 
     // Eager load (one GET with the session cookie) so the catalog tab shows
     // Group -> Organisations -> datasets without extra clicks.
@@ -623,6 +677,88 @@ export default class CkanSession {
     }
   }
 
+  /** Remove membership, including share/user strata and obsolete ancestors. */
+  private detachCatalogMember(model: BaseModel): void {
+    const containers = new Set([
+      this.terria.catalog.group,
+      ...model.knownContainerUniqueIds
+        .map((id) => this.terria.getModelById(BaseModel, id))
+        .filter((container): container is BaseModel => container !== undefined)
+        .map(getDereferencedIfExists)
+        .filter(GroupMixin.isMixedInto)
+    ]);
+    containers.forEach((container) => {
+      Array.from(container.strata.keys()).forEach((stratum) => {
+        const members = container.getTrait(stratum, "members");
+        while (Array.isArray(members) && members.includes(model.uniqueId!)) {
+          container.remove(stratum, model);
+        }
+      });
+    });
+    model.knownContainerUniqueIds.splice(0);
+  }
+
+  @action
+  private placePrivateCatalog(): void {
+    if (!this.ready || this.user === undefined) return;
+    const root = this.terria.catalog.group;
+    const parent = this.catalogParent;
+    const injected = this.injectedPrivateCatalogMembers;
+    let wrapper = this.terria.getModelById(BaseModel, this.groupId);
+    // Preserve the legacy embedded layout if no parent group is available.
+    if (wrapper === undefined && parent !== root && injected.length > 0) {
+      parent
+        .addMembersFromJson(CommonStrata.definition, [
+          {
+            id: this.groupId,
+            type: "group",
+            name: this.groupName(this.user),
+            isOpen: false,
+            shareable: false,
+            members: []
+          }
+        ])
+        .logError();
+      wrapper = this.terria.getModelById(BaseModel, this.groupId);
+      this.catalogGeneration++;
+    }
+    if (!GroupMixin.isMixedInto(wrapper)) return;
+    // JSON construction registers children before loadMembers establishes
+    // their ancestors. The shortcut must reveal a still-closed wrapper too.
+    wrapper.refreshKnownContainerUniqueIds(this.groupId);
+
+    if (
+      !parent.members.includes(this.groupId) ||
+      wrapper.knownContainerUniqueIds.some((id) => id !== parent.uniqueId)
+    ) {
+      this.detachCatalogMember(wrapper);
+      parent.add(CommonStrata.definition, wrapper);
+      if (parent !== root) {
+        wrapper.setTrait(CommonStrata.definition, "isOpen", false);
+      }
+      this.catalogGeneration++;
+    }
+
+    if (injected.length > 0) {
+      // A share can arrive after our index. Stop displaying that second index
+      // without disposing any of its already loaded workbench items.
+      const reference = this.terria.getModelById(BaseModel, this.referenceId);
+      if (reference && wrapper.members.includes(this.referenceId)) {
+        this.detachCatalogMember(reference);
+      }
+      injected.forEach((model) => {
+        if (
+          !wrapper.members.includes(model.uniqueId!) ||
+          model.knownContainerUniqueIds.some((id) => id !== this.groupId)
+        ) {
+          this.detachCatalogMember(model);
+          wrapper.add(CommonStrata.definition, model);
+          this.catalogGeneration++;
+        }
+      });
+    }
+  }
+
   /**
    * Removes the wrapper group, its loaded descendants and (when
    * `sweepOrphans` is true) every model whose id starts with
@@ -635,7 +771,6 @@ export default class CkanSession {
     workbenchItems: number;
   } {
     const terria = this.terria;
-    const root = terria.catalog.group;
     const doomed: BaseModel[] = [];
     const seen = new Set<BaseModel>();
     const visit = (model: BaseModel): void => {
@@ -675,14 +810,9 @@ export default class CkanSession {
     const workbenchItems = workbenchIndices.size;
 
     doomed.forEach((model) => {
+      this.detachCatalogMember(model);
       terria.removeModelReferences(model);
       model.dispose();
-    });
-
-    // Root membership may live in any stratum (e.g. `#start=` uses `user`).
-    const rootStrata = Array.from(root.strata.keys());
-    doomed.forEach((model) => {
-      rootStrata.forEach((stratumId) => root.remove(stratumId, model));
     });
 
     this._attached = undefined;
