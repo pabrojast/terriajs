@@ -152,7 +152,15 @@ const Panel = observer(function Panel() {
         if (controller.signal.aborted) return;
         setResult((old) => ({
           ...value,
-          profiles: value.profiles || old?.profiles
+          // Pending jobs have no profiles yet. Keep column/body choices stable
+          // for the selected sources while their new results are calculated.
+          profiles: Object.fromEntries(
+            current.sources.flatMap((source) => {
+              const profile =
+                value.profiles?.[source.id] || old?.profiles?.[source.id];
+              return profile ? [[source.id, profile]] : [];
+            })
+          )
         }));
         setError("");
         timer = setTimeout(
