@@ -16,6 +16,19 @@ El seguimiento de movimiento, idiomas y ejemplos incorpora TerriaJS `506c7f9fb7c
 
 ## Resumen
 
+El catálogo privado bajo IHP-WINS (`4c4470dd0`, integrado en `develop` como
+`e9be6a7028508f5e79c21be5cd7c95bfb39eb70d`) se desplegó en DEV mediante
+TerriaMap `b8b18573c302dd34f04da65fd24ca1dae032df83` y el
+[workflow 40976088761](https://github.com/pabrojast/ckan-unesco-docker/actions/runs/40976088761).
+La matriz Node 22/24/26 del consumidor pasó. El contenedor confirma ese pin;
+el pod está Ready y no tiene reinicios. Se agregaron ejemplos públicos de
+CSV GEMS/Water, GeoJSON miniSASS y series satelitales de Kyiv, además del
+ejemplo DataStore sintético existente. Las definiciones, enlaces y evidencia
+están en la [validación de catálogo y tipos de datos](https://github.com/pabrojast/ckan-unesco-docker/blob/miserver-2.10/deploy/envoy-dev/validation-private-catalog-data-types-2026-10-29.md).
+Esta entrega no cambia el backend CKAN ni producción. La suite general de
+TerriaJS mantiene los fallos previos de Stories/STAC documentados en el PR #14;
+las 100 pruebas focalizadas de sesión, catálogo, enlaces, agua y asistente pasan.
+
 El seguimiento del observatorio de agua agrega cierre/movimiento compartible,
 accesos visibles al análisis de área, ayuda EN/ES para los valores del mapa y
 copia al editor de dashboards. El botón del dashboard alterna abrir/ocultar.
