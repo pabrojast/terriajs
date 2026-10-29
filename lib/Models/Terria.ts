@@ -1,3 +1,4 @@
+import { SimpleDashboardRef, validDashboardRef } from "./SimpleDashboard/Types";
 import { StoryOptions } from "./StoryComposition";
 import i18next, { keyFromSelector } from "i18next";
 import {
@@ -486,6 +487,7 @@ export interface ConfigParameters {
   ckanSession?: CkanSessionConfig;
   /** Authenticated, same-origin data assistant. Disabled unless explicitly enabled. */
   dataAssistant?: DataAssistantConfig;
+  simpleDashboards?: { enabled: boolean };
   /** Same-origin CKAN image upload endpoint for story photos. */
   storyImageUploadUrl?: string;
   /** Same-origin CKAN image library picker. */
@@ -702,6 +704,7 @@ export default class Terria {
     magdaReferenceHeaders: undefined,
     ckanSession: undefined,
     dataAssistant: undefined,
+    simpleDashboards: undefined,
     storyImageUploadUrl: undefined,
     storyImageLibraryUrl: undefined,
     locationSearchBoundingBox: undefined,
@@ -825,6 +828,9 @@ export default class Terria {
   @observable depthTestAgainstTerrainEnabled = false;
 
   @observable stories: StoryData[] = [];
+  @observable simpleDashboard: SimpleDashboardRef | undefined = undefined;
+  @observable simpleDashboardOpen = false;
+
   @observable storyOptions: StoryOptions = {
     version: 1,
     displayMode: "slides"
@@ -2201,6 +2207,16 @@ export default class Terria {
             }
           });
         }
+      }
+    });
+
+    applyPart("simpleDashboard", () => {
+      if (validDashboardRef(initData.simpleDashboard)) {
+        this.simpleDashboard = {
+          id: initData.simpleDashboard.id,
+          revision: initData.simpleDashboard.revision
+        };
+        this.simpleDashboardOpen = true;
       }
     });
 

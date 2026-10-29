@@ -1,3 +1,4 @@
+import SimpleDashboardButton from "../Panels/SimpleDashboardButton";
 import { storyPresentation } from "../../../Models/StoryComposition";
 import classNames from "classnames";
 import { runInAction } from "mobx";
@@ -136,6 +137,7 @@ const MenuBar = observer((props: PropsType) => {
         {terria.ckanSession && (
           <ul className={classNames(Styles.menu)}>
             <li className={Styles.menuItem}>
+              <SimpleDashboardButton />
               <DataAssistantButton
                 smallScreen={viewState.useSmallScreenInterface}
               />

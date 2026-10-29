@@ -1,3 +1,4 @@
+import type { SimpleDashboardRef } from "./SimpleDashboard/Types";
 import {
   StoryComposition,
   StoryOptions,
@@ -84,6 +85,7 @@ export interface InitSourceData {
   elements?: Map<string, IElementConfig>;
   stories?: StoryData[];
   storyOptions?: StoryOptions;
+  simpleDashboard?: SimpleDashboardRef;
   viewerMode?: ViewModeJson;
   baseMaps?: BaseMapsJson;
   homeCamera?: JsonObject;

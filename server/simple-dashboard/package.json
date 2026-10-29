@@ -1,0 +1,19 @@
+{
+  "name": "terria-simple-dashboard-calculator",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "esbuild index.ts --bundle --platform=node --format=esm --packages=external --outfile=dist/calculator.mjs",
+    "test": "node --test transport.test.mjs"
+  },
+  "dependencies": {
+    "geotiff": "2.1.3",
+    "proj4": "2.20.9",
+    "ipaddr.js": "2.2.0",
+    "proj4-fully-loaded": "0.2.0"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.12"
+  }
+}

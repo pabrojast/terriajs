@@ -1,3 +1,4 @@
+import SimpleDashboardPanel from "../SimpleDashboard/SimpleDashboardPanel";
 import { observer } from "mobx-react";
 import { FC, useRef } from "react";
 import { useTranslation } from "react-i18next";
@@ -136,7 +137,10 @@ export const MapColumn: FC<IMapColumnProps> = observer(
             </details>
           )}
           {!viewState.hideMapUi && !viewState.explorerPanelIsVisible && (
-            <WaterQualityPanel />
+            <>
+              <SimpleDashboardPanel />
+              {!viewState.terria.simpleDashboardOpen && <WaterQualityPanel />}
+            </>
           )}
           {!viewState.hideMapUi && (
             <>

@@ -1,3 +1,5 @@
+import { DashboardView } from "../SimpleDashboard/DashboardView";
+import { useViewState } from "../Context";
 import { useEffect, useRef, useState } from "react";
 import {
   dashboardState,
@@ -137,7 +139,7 @@ function DashboardFrame({
   );
 }
 
-export default function StoryDashboardPanel({
+function LegacyStoryDashboardPanel({
   dashboard,
   state,
   onStatus
@@ -176,4 +178,29 @@ export default function StoryDashboardPanel({
       ))}
     </>
   );
+}
+
+export default function StoryDashboardPanel(
+  props: Parameters<typeof LegacyStoryDashboardPanel>[0]
+) {
+  const { terria } = useViewState();
+  if (props.dashboard?.kind === "simple" && props.dashboard.simple)
+    return (
+      <div
+        style={{
+          background: "white",
+          color: "#183c50",
+          padding: 18,
+          height: "100%",
+          overflow: "auto"
+        }}
+      >
+        <DashboardView
+          reference={props.dashboard.simple}
+          terria={terria}
+          onStatus={props.onStatus}
+        />
+      </div>
+    );
+  return <LegacyStoryDashboardPanel {...props} />;
 }
