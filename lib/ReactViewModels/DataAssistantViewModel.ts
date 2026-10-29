@@ -366,7 +366,7 @@ export default class DataAssistantViewModel {
   }
   cancel() {
     this.controller?.abort();
-    if (this.turnId && this.csrf && this.authenticated)
+    if (this.busy && this.turnId && this.csrf && this.authenticated)
       void this.api(`/turns/${this.turnId}/cancel`, "POST", {}).catch(() => {});
     else if (
       this.busy &&

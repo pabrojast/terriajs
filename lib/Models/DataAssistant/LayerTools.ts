@@ -96,6 +96,16 @@ export function readLayerRows(item: BaseModel): {
   );
 }
 
+function rasterContext(
+  item: CogCatalogItem | CogTimeSeriesCatalogItem,
+  band: number
+) {
+  if (!(item instanceof CogTimeSeriesCatalogItem)) return "";
+  const resolution = item.activeResolution;
+  const selectedBand = item.availableBands.find((b) => b.band === band);
+  return ` Source temporal resolution: ${resolution?.name ?? resolution?.id ?? "unspecified"}; source band: ${selectedBand?.name ?? selectedBand?.id ?? band}. Values retain the source band's aggregation (e.g. monthly median); sampled pixel/date counts are not counts of satellite acquisitions.`;
+}
+
 async function raster(
   item: CogCatalogItem | CogTimeSeriesCatalogItem,
   query: DataQuery,
@@ -265,11 +275,13 @@ async function raster(
     },
     start: entries[0].time,
     end: entries[entries.length - 1].time,
-    method: query.point
-      ? "Full-resolution point reads"
-      : rows.length === 1
-        ? "Zonal pixel statistics"
-        : "One zonal mean per date; temporal summary weights dates equally",
+    method:
+      (query.point
+        ? "Full-resolution point reads"
+        : rows.length === 1
+          ? "Zonal pixel statistics"
+          : "One zonal mean per date; temporal summary weights dates equally") +
+      rasterContext(item, band),
     warning: mosaic
       ? "Multiple tiles: pixel-weighted means; overlaps are not deduplicated and combined median is unavailable"
       : failed
@@ -284,7 +296,8 @@ async function raster(
       date_column: "x"
     });
     result.statistics = derived.statistics;
-    if (derived.method) result.method = derived.method;
+    if (derived.method)
+      result.method = derived.method + rasterContext(item, band);
     if (derived.rows) result.rows = derived.rows;
   }
   return JSON.parse(
@@ -318,7 +331,8 @@ export async function runLayerTool(
           item instanceof CogTimeSeriesCatalogItem ? item.displayUnit : null,
         band: item.renderOptions?.single?.band ?? 1,
         method:
-          "Raster: select point or polygon; operation time_series reads all dates in the specified range"
+          "Raster: select point or polygon; operation time_series reads all dates in the specified range." +
+          rasterContext(item, item.renderOptions?.single?.band ?? 1)
       };
     return raster(item, query, signal, progress);
   }
