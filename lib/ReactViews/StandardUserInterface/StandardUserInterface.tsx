@@ -270,10 +270,9 @@ const StandardUserInterfaceBase: FC<StandardUserInterfaceProps> = observer(
             )}
             {props.viewState.isToolOpen &&
               (!props.viewState.useSmallScreenInterface ||
-                props.viewState.currentTool?.toolName ===
-                  "cog-calculation-tool") && (
-                <Tool {...props.viewState.currentTool!} />
-              )}
+                ["cog-calculation-tool", "data-assistant"].includes(
+                  props.viewState.currentTool?.toolName ?? ""
+                )) && <Tool {...props.viewState.currentTool!} />}
 
             {props.viewState.panel}
 

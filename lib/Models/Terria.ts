@@ -88,6 +88,7 @@ import CatalogProvider from "./Catalog/CatalogProvider";
 import { MagdaReferenceHeaders } from "./Catalog/CatalogReferences/MagdaReference";
 import SplitItemReference from "./Catalog/CatalogReferences/SplitItemReference";
 import CkanSession, { CkanSessionConfig } from "./CkanSession";
+import type { DataAssistantConfig } from "./DataAssistant/Types";
 import CommonStrata from "./Definition/CommonStrata";
 import { BaseModel } from "./Definition/Model";
 import ModelPropertiesFromTraits from "./Definition/ModelPropertiesFromTraits";
@@ -483,6 +484,8 @@ export interface ConfigParameters {
    * be relative paths ("/api/terria/..."), never proxied.
    */
   ckanSession?: CkanSessionConfig;
+  /** Authenticated, same-origin data assistant. Disabled unless explicitly enabled. */
+  dataAssistant?: DataAssistantConfig;
   /** Same-origin CKAN image upload endpoint for story photos. */
   storyImageUploadUrl?: string;
   /** Same-origin CKAN image library picker. */
@@ -698,6 +701,7 @@ export default class Terria {
     nextExperimentalFeatures: undefined,
     magdaReferenceHeaders: undefined,
     ckanSession: undefined,
+    dataAssistant: undefined,
     storyImageUploadUrl: undefined,
     storyImageLibraryUrl: undefined,
     locationSearchBoundingBox: undefined,

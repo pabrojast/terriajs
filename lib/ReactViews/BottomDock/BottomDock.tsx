@@ -75,14 +75,15 @@ class BottomDock extends Component<PropsType & MeasureElementProps> {
         <ChartJsSeriesDock
           terria={terria}
           compact={this.props.viewState.useSmallScreenInterface}
-          temporarilyCollapsed={
-            this.props.viewState.currentTool?.toolName ===
-            "cog-calculation-tool"
-          }
+          temporarilyCollapsed={[
+            "cog-calculation-tool",
+            "data-assistant"
+          ].includes(this.props.viewState.currentTool?.toolName ?? "")}
           hidden={
             this.props.viewState.useSmallScreenInterface &&
-            this.props.viewState.currentTool?.toolName ===
-              "cog-calculation-tool"
+            ["cog-calculation-tool", "data-assistant"].includes(
+              this.props.viewState.currentTool?.toolName ?? ""
+            )
           }
         />
         {top && (

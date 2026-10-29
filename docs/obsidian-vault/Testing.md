@@ -259,3 +259,11 @@ conserva su restriccion previa de visualizacion a Cesium. EN/ES tienen las
 mismas 76 claves y plurales verificados; el consumidor DEV ofrece solo ingles.
 No se cambio esa configuracion. Compartir desde la vista previa conserva por
 igualdad profunda las cuatro historias y las series originales de 37/36 puntos.
+
+### Asistente de datos (2026-10-29)
+
+`TableToolsSpec.ts` comprueba nulos/infinitos, poblacion completa, filtros numericos, fechas inclusivas, agrupaciones, tendencia, correlacion y poligonos con huecos. `DataAssistantViewModelSpec.ts` comprueba el intercambio de herramientas cliente, bloqueo anonimo, descarte de respuestas tras cambio de cuenta y CSV seguro. Ejecutar `yarn gulp build` y `npx jasmine-browser-runner runSpecs --config=test/jasmine-browser.mjs --filter=DataAssistant`. Tambien ejecutar TypeScript y ESLint sobre los archivos modificados.
+
+Estos tests usan MSW; no demuestran conectividad real con DeepSeek ni autorizacion CKAN. La extension tiene sus propias pruebas de permisos, CSRF, caducidad, cancelacion y calculos. La validacion integrada requiere ambos componentes y workers `terria-data` en DEV.
+
+El 2026-10-29 pasan 16 specs del asistente (incluido saneamiento de Markdown), 34 de CkanSession y 159 COG. Lint y build completos pasan. La CI global sigue roja por fallos previos en STAC, stories y BuildShareLink: la rama de control `qa/ask-data-baseline-20261029` contiene la revision anterior `fcc3a9c76` y solo correcciones de formato, y reproduce los fallos ([run base](https://github.com/pabrojast/terriajs/actions/runs/40889124168), [run con asistente](https://github.com/pabrojast/terriajs/actions/runs/40887716132)). No se omiten tests ni se considera verde esa suite. La prueba integrada del backend con Flash, una cuenta no administradora y un DataStore privado sintetico confirma media 2 y un nulo; no sustituye la validacion del panel desplegado.

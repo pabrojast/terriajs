@@ -119,8 +119,8 @@ function fillNoDataPixels(
 
   const isCompositeMode = Boolean(
     imageryProvider.renderOptions.convertToRGB ||
-      imageryProvider.renderOptions.multi ||
-      imageryProvider.renderOptions.single?.expression
+    imageryProvider.renderOptions.multi ||
+    imageryProvider.renderOptions.single?.expression
   );
   const targetSampleIndex = getSampleIndexForBand(imageryProvider, band);
   const singleBandData = !isCompositeMode
@@ -133,8 +133,8 @@ function fillNoDataPixels(
           isNoDataValue(sample[index], imageryProvider.noData)
         )
       : singleBandData
-      ? isNoDataValue(singleBandData[index], imageryProvider.noData)
-      : false;
+        ? isNoDataValue(singleBandData[index], imageryProvider.noData)
+        : false;
     if (isNoDataPixel) setPixelColor(mutation.data, index, color);
   }
   mutation.commit();

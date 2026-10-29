@@ -6,6 +6,7 @@ import React from "react";
 import styled, { useTheme } from "styled-components";
 import { useViewState } from "../../Context";
 import CkanSessionPanel from "../Panels/CkanSessionPanel/CkanSessionPanel";
+import DataAssistantButton from "../Panels/DataAssistantButton";
 import withControlledVisibility from "../../HOCs/withControlledVisibility";
 import LangPanel from "../Panels/LangPanel/LangPanel";
 import SettingPanel from "../Panels/SettingPanel";
@@ -134,6 +135,11 @@ const MenuBar = observer((props: PropsType) => {
         )}
         {terria.ckanSession && (
           <ul className={classNames(Styles.menu)}>
+            <li className={Styles.menuItem}>
+              <DataAssistantButton
+                smallScreen={viewState.useSmallScreenInterface}
+              />
+            </li>
             <li className={Styles.menuItem}>
               <CkanSessionPanel
                 smallScreen={viewState.useSmallScreenInterface}

@@ -91,8 +91,8 @@ export function createAutomaticCogLegends(
             index === last && style.clampHigh
               ? `≥ ${formatValue(stopValues[index])}`
               : index === 0 && style.clampLow
-              ? `≤ ${formatValue(stopValues[index])}`
-              : formatValue(stopValues[index]),
+                ? `≤ ${formatValue(stopValues[index])}`
+                : formatValue(stopValues[index]),
           value: stopValues[index]
         })
       )

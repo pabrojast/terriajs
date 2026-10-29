@@ -574,7 +574,12 @@ export default class ViewState {
     );
   }
 
+  // Assigned only when the lazily loaded data assistant is opened.
+  disposeDataAssistant?: () => void;
+
   dispose(): void {
+    this.disposeDataAssistant?.();
+    this.disposeDataAssistant = undefined;
     this._pickedFeaturesSubscription();
     this._disclaimerVisibleSubscription();
     this._mobileMenuSubscription();

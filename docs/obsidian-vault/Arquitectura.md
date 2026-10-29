@@ -69,3 +69,11 @@ El estado raiz vive en `lib/Models/Terria.ts`. La UI estandar se construye encim
 - Viewer: `lib/ViewModels/TerriaViewer.ts`
 - Registro de catalog members: `lib/Models/Catalog/registerCatalogMembers.ts`
 - Search providers: `lib/Models/SearchProviders/registerSearchProviders.ts`
+
+## Preguntar a los datos
+
+`DataAssistantViewModel` mantiene una conversacion temporal por `ViewState`, ligada a `CkanSession`. El panel se carga bajo demanda desde el menu de escritorio/movil. El navegador envia preguntas a `/api/terriassistant/data`; CKAN valida sesion, CSRF y permisos, y ejecuta el bucle de herramientas con DeepSeek Flash en una cola RQ separada. La API key nunca llega al cliente.
+
+`Models/DataAssistant/TableTools.ts` calcula sobre todas las filas cargadas (hasta 150000), no sobre una muestra: filtros, estadisticas, agrupacion, series, tendencia anual, Pearson y atipicos IQR. `LayerTools.ts` reutiliza los lectores COG para punto/poligono, banda, fechas, NoData y escala fisica; informa fechas fallidas y nivel de resolucion. La suma de mosaicos no deduplica teselas solapadas y lo advierte. Una imagen WMS sin valores numericos no permite estos calculos.
+
+El backend puede buscar y leer recursos CKAN autorizados (CSV, GeoJSON y DataStore); las otras fuentes requieren una capa cargada. `ckanResourceId` y `ckanDatasetId` conservan procedencia; no conceden permisos. Cada resultado tiene evidencia, parametros, cobertura y fuente. Los botones para agregar, acercar y filtrar requieren un clic; las capas filtradas son temporales y no compartibles. Cerrar el panel conserva la conversacion; cambiar de cuenta, salir o destruir `ViewState` limpia el estado local. No se persiste en shares ni localStorage.

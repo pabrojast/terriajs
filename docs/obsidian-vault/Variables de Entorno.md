@@ -82,3 +82,9 @@ Ejemplo (dentro de `parameters` del `config.json` de TerriaMap):
 ## Biblioteca de imagenes de stories
 
 `ConfigParameters.storyImageUploadUrl` y `storyImageLibraryUrl` son opcionales y no tienen valor predeterminado. TerriaMap/IHP configura `/story-images/upload` y `/story-images/library` respectivamente. Ambos endpoints deben compartir origen con el visor para utilizar la sesion CKAN. El selector es independiente del endpoint de subida; ninguno envia cookies a otro origen ni pasa por el proxy de Terria.
+
+## `configParameters.dataAssistant`
+
+Opcional (default `undefined`), requiere `ckanSession`. `enabled: true` muestra el acceso; `apiBaseUrl` acepta solo ruta absoluta relativa al origen, default `/api/terriassistant/data`. El usuario anonimo recibe el acceso al login; preguntas y herramientas requieren sesion activa en el servidor. No configurar claves DeepSeek en TerriaMap.
+
+El servidor `ckanext-terriassistant` usa `ckanext.terriassistant.data_enabled` (default false), `data_model` (default `deepseek-flash`) y reutiliza `deepseek_api_key`/`deepseek_base_url`. Configuracion operativa completa en el README de esa extension.

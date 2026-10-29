@@ -200,3 +200,7 @@ En el checkout `TerriaMap-1` se creo `integrate/terriajs-8.13-20261024` desde `n
 Verificacion hecha el 2026-10-24 en ese checkout: `yarn gulp lint` y `yarn gulp build` en verde; con `terriajs-server` local y Chromium headless (Playwright, SwiftShader) cargan en modo Cesium `#cog-madagascar` (cog-time-series, 129 fechas), `#cog-xcube` (39 fechas) y un item `cog` simple via `#start=`: proveedores de imagenes listos, leyenda presente, peticiones de rango a los `.tif` sin fallos. El unico 404 es `/api/terria/user/session` (no hay CKAN en local). En terriajs, `yarn gulp test --filter=Cog` da 159 specs en verde.
 
 Integrar o publicar Git no constituye un despliegue; `main`/`node` de TerriaMap y la imagen de dev siguen con el pin anterior hasta que se fusione esta rama y se construya la imagen.
+
+### Despliegue del asistente de datos
+
+Publicar la libreria en `develop`, fijar su SHA en TerriaMap `develop` y actualizar `yarn.lock`. El backend se publica en `ckanext-terriassistant`; los identificadores de procedencia se publican en `ckanext-terria_view` rama `dev-private-dataset` usada por DEV. CKAN necesita los workers RQ `terria-data`, la clave DeepSeek del servidor y `data_enabled=true`. En `ckan-unesco-docker`, `push.yml` despliega CKAN y `deploy-terria-dev.yml` construye TerriaMap desde el SHA indicado; Helm activa `clientConfig.parameters.dataAssistant`. El config base de TerriaMap lo deja desactivado. Verificar login, consulta con evidencia y logout sobre la URL de DEV tras ambos rollouts. No implica promocion a produccion.

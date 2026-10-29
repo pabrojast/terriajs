@@ -30,8 +30,8 @@ export function createCogColorScaleDimension(
     (single?.colors && single.colors.length > 0
       ? "custom"
       : colorScale
-      ? "named"
-      : "default");
+        ? "named"
+        : "default");
 
   return {
     type: "select",
