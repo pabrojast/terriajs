@@ -6,6 +6,8 @@ Opción nativa complementaria al Dashboard Builder de CKAN. El botón abre una b
 
 `parameters.simpleDashboards.enabled` activa la interfaz. El backend independiente vive en `ckanext-dashboard_view.simple`; requiere migración, cola dedicada y su propia bandera. No modifica ResourceViews existentes ni sustituye WaterQualityPanel. Al abrir el nuevo panel se oculta temporalmente el panel del piloto para evitar solapamientos.
 
+Durante el recálculo de una vista previa se conservan las opciones de columnas y cuerpos de agua de las fuentes seleccionadas. Los valores del cálculo se actualizan por separado, sin vaciar los selectores del editor.
+
 ## Persistencia y acceso
 
 Las fuentes registradas usan sus identificadores CKAN. Los pilotos públicos usan espacios de URL autorizados por el administrador. Las tablas locales solo tienen vista previa: para guardar se necesita una fuente persistente. Crear requiere sesión IHP y lectura/descarga de todas las fuentes; editar requiere ser propietario o administrador. Cada lectura vuelve a comprobar permisos. Publicar una revisión requiere que todas las fuentes sean públicas.

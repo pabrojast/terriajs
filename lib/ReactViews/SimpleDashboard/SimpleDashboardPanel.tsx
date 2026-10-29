@@ -152,7 +152,15 @@ const Panel = observer(function Panel() {
         if (controller.signal.aborted) return;
         setResult((old) => ({
           ...value,
-          profiles: value.profiles || old?.profiles
+          // Pending jobs have no profiles yet. Keep column/body choices stable
+          // for the selected sources while their new results are calculated.
+          profiles: Object.fromEntries(
+            current.sources.flatMap((source) => {
+              const profile =
+                value.profiles?.[source.id] || old?.profiles?.[source.id];
+              return profile ? [[source.id, profile]] : [];
+            })
+          )
         }));
         setError("");
         timer = setTimeout(
@@ -338,6 +346,7 @@ const Panel = observer(function Panel() {
                 ← {tr("library")}
               </button>
               <DashboardView
+                key={saved?.published ? "published" : "private"}
                 reference={terria.simpleDashboard}
                 terria={terria}
                 onLoaded={onLoaded}
@@ -941,11 +950,11 @@ const Panel = observer(function Panel() {
 });
 export const Shell = styled.aside<{ $collapsed?: boolean; $drawing?: boolean }>`
   position: absolute;
-  top: 78px;
+  top: 136px;
   right: 62px;
   width: 380px;
   max-width: calc(100% - 30px);
-  max-height: calc(100% - 104px);
+  max-height: calc(100% - 162px);
   z-index: 96;
   background: #fff;
   color: #183c50;
@@ -1130,6 +1139,10 @@ export const Shell = styled.aside<{ $collapsed?: boolean; $drawing?: boolean }>`
     padding: 6px;
     border-bottom: 1px solid #dce6ec;
     white-space: nowrap;
+  }
+  @media (min-width: 769px) and (max-width: 1024px) {
+    top: 168px;
+    max-height: calc(100% - 194px);
   }
   @media (max-width: 768px) {
     top: auto;
