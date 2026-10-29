@@ -1,4 +1,5 @@
 import { observer } from "mobx-react";
+import { runInAction } from "mobx";
 import { useTranslation } from "react-i18next";
 import styled from "styled-components";
 import { useViewState } from "../../Context";
@@ -12,6 +13,10 @@ const DataAssistantButton = observer(
     if (!terria.configParameters.dataAssistant?.enabled || !terria.ckanSession)
       return null;
     const open = () => {
+      if (smallScreen)
+        runInAction(() => {
+          viewState.mobileMenuVisible = false;
+        });
       if (!terria.ckanSession?.isAuthenticated) {
         terria.ckanSession?.openLogin();
         return;

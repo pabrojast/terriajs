@@ -210,10 +210,16 @@ const DataAssistantTool = observer(
       void vm.initialize();
       input.current?.focus();
       const trigger = opener.current;
+      const close = (event: KeyboardEvent) => {
+        if (event.key === "Escape" && !vm.drawing) viewState.closeTool();
+      };
+      document.addEventListener("keydown", close);
       return () => {
+        document.removeEventListener("keydown", close);
+        if (vm.drawing) vm.clearArea();
         if (trigger?.isConnected) trigger.focus();
       };
-    }, [vm]);
+    }, [vm, viewState]);
     useEffect(() => {
       end.current?.scrollIntoView({ block: "nearest" });
     }, [vm.entries.length, vm.busy]);
