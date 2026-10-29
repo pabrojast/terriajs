@@ -101,6 +101,21 @@ describe("DataAssistant session and tool flow", function () {
     expect(vm.entries.length).toBe(0);
     expect(vm.busy).toBe(false);
   });
+  it("handles an expired session when CKAN returns an HTML error page", async function () {
+    const unauthorized = spyOn(session, "handleUnauthorized").and.callThrough();
+    worker.use(
+      http.get(
+        base + "/bootstrap",
+        () => new HttpResponse("<html>Sign in</html>", { status: 401 })
+      )
+    );
+    vm = new DataAssistantViewModel(viewState);
+    await vm.initialize();
+    expect(unauthorized).toHaveBeenCalledWith(401);
+    expect(vm.ready).toBe(false);
+    expect(vm.error).not.toContain("JSON");
+    expect(vm.error).not.toContain("<html>");
+  });
   it("discards late results after the account changes", async function () {
     vm = new DataAssistantViewModel(viewState);
     let release!: () => void;

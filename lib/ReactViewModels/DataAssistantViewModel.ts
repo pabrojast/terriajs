@@ -138,7 +138,11 @@ export default class DataAssistantViewModel {
       },
       body: data === undefined ? undefined : JSON.stringify(data)
     });
-    const payload = await response.json();
+    // CKAN's theme/gateway can render HTML for an expired session or an outage.
+    // Check HTTP status even when that response has no JSON error envelope.
+    const payload = await response.json().catch(() => ({
+      error: i18next.t("dataAssistant.requestFailed")
+    }));
     if (!response.ok) {
       if (response.status === 401 || response.status === 403) {
         this.viewState.terria.ckanSession?.handleUnauthorized(response.status);
