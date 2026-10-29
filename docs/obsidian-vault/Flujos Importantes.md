@@ -380,12 +380,21 @@ modo narrativo. El share conserva `waterQualityPanel.closed` y su posición
 normalizada, independiente de `simpleDashboardPosition`. Mientras se dibuja
 un área se oculta el observatorio para dejar libre el mapa.
 
-`Dibujar y calcular área` aparece al inicio del observatorio y en los controles
+`Analizar un área` aparece al inicio del observatorio y en los controles
 de la capa. Abre el análisis sobre esa capa y comienza con la banda visible.
-`Valor mostrado en el mapa` traduce las etiquetas conocidas, explica promedio,
+`Resumen de cada píxel` queda dentro de `Opciones avanzadas del mapa`, cerrado
+inicialmente. Abrir o cerrar ese grupo no cambia la banda ni los enlaces existentes;
+las capas nuevas conservan su valor predeterminado. Traduce las etiquetas y explica promedio,
 mediana, percentil y conteos y aclara que no altera el resumen del cuerpo de
 agua. Los nombres personalizados de bandas se conservan. Las ayudas cambian
 con EN/ES incluso cuando el modelo mantiene las dimensiones en caché.
+
+El análisis presenta período y `Qué calcular` como decisiones separadas del raster.
+`Ver datos utilizados` despliega la banda de entrada; la precisión, banda y muestreo
+quedan en opciones avanzadas, con un aviso visible de la precisión elegida; la indicación cambia cuando
+el análisis usa una banda distinta del mapa. Los resultados identifican el área
+dibujada y el período realmente procesado en UTC, según la resolución temporal.
+En el observatorio, la procedencia y el método quedan en `Cómo se calculó`.
 
 Con sesión IHP, `Crear dashboard editable` prepara un borrador personal con
 la fuente, resolución, cuerpos seleccionados y período del año visible; incluye

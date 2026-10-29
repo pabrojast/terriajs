@@ -23,6 +23,10 @@ La imagen efectiva y las pruebas de integración DEV se registran en el
 [informe de usabilidad del observatorio](https://github.com/pabrojast/ckan-unesco-docker/blob/miserver-2.10/deploy/envoy-dev/validation-water-panel-usability-2026-10-29.md).
 No cambia el backend ni requiere migraciones.
 
+La simplificación posterior mueve el selector del raster a opciones avanzadas
+y separa su detalle del cálculo por área. Revisiones, compatibilidad de shares
+y comprobación EN/ES en DEV: [validación de opciones del raster](https://github.com/pabrojast/ckan-unesco-docker/blob/miserver-2.10/deploy/envoy-dev/validation-raster-options-2026-10-29.md).
+
 Este repo tiene tres salidas de despliegue observables:
 
 - publicacion del paquete `terriajs` en npm

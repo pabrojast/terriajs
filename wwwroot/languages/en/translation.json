@@ -2344,7 +2344,7 @@
       "clampHigh": "Clamp above color scale"
     },
     "cogCalculation": {
-      "toolName": "Calculate by area",
+      "toolName": "Analyse an area",
       "toolTitle": "Draw a polygon and calculate its values over time",
       "needThreePoints": "A polygon needs at least 3 points.",
       "selectLayerAndPolygon": "Select a layer and draw a polygon first.",
@@ -2381,7 +2381,7 @@
       "areaReady": "Area selected",
       "redraw": "Redraw",
       "layer": "Layer",
-      "statistic": "Statistic",
+      "statistic": "What to calculate",
       "startDate": "From",
       "endDate": "To",
       "resolution": "Calculation precision",
@@ -2396,7 +2396,7 @@
       "estimateHelp": "Leave dates empty to use the full series. Narrow the period for a faster calculation.",
       "calculate": "Calculate",
       "calculateArea": "Calculate by area",
-      "resultsTitle": "Area results",
+      "resultsTitle": "Results within the drawn area",
       "processed": "{{count}} dates processed",
       "date": "Date",
       "pixels": "Valid pixels",
@@ -2422,9 +2422,17 @@
         "median": "Median",
         "stddev": "Standard deviation"
       },
-      "drawAndCalculate": "Draw and calculate an area",
-      "areaStatisticHelp": "Summarizes the valid pixels inside your polygon for each date. Mean is their average; median is their middle value.",
-      "bandHelp": "Input values: {{name}} (band {{band}}). The statistic above combines these pixels within your area."
+      "drawAndCalculate": "Analyse an area",
+      "areaStatisticHelp": "Combines the values of the pixels inside your polygon.",
+      "bandHelp": "Summary for each pixel: {{name}} (band {{band}}).",
+      "areaResult": "{{statistic}} within the drawn area",
+      "usingMapValues": "Uses the values shown on the map.",
+      "usingCustomValues": "Uses a different raster variant selected in the advanced options.",
+      "inputDetails": "View input data",
+      "approximateSummary": "Approximate precision · change it in Advanced options.",
+      "nativeSummary": "Full precision · uses native pixels.",
+      "estimate_one": "{{count}} date to analyse",
+      "estimate_other": "{{count}} dates to analyse"
     },
     "cogTimeSeries": {
       "loadTimeEntriesErrorTitle": "Error loading COG Time Series",
@@ -2445,7 +2453,7 @@
       "pointSeriesLoading": "Reading time series… {{loaded}}/{{total}} dates",
       "pointSeriesErrors": "{{count}} date could not be read.",
       "pointSeriesErrors_plural": "{{count}} dates could not be read.",
-      "mapStatistic": "Value shown on the map",
+      "mapStatistic": "Summary for each pixel",
       "statisticHelp": "Chooses the value shown in each map pixel, its legend and pixel series.",
       "bodyStatisticHelp": "The observatory uses a separate water-body summary; this selector does not change that summary.",
       "statisticLabels": {
@@ -2467,7 +2475,8 @@
         "nObs": "Number of valid satellite observations, not a concentration.",
         "meanMonthly": "Average of the monthly median values within the year.",
         "medianMonthly": "Middle value of the monthly medians within the year."
-      }
+      },
+      "advancedMapOptions": "Advanced map options"
     }
   },
   "searchProvider": {
@@ -2850,6 +2859,7 @@
     "movePanel": "Move water observatory",
     "editCopy": "Create editable dashboard",
     "signInToCopy": "Sign in to create an editable dashboard",
-    "analysisHelp": "Draw an area to calculate values inside your polygon. Create a personal dashboard to choose its charts and content."
+    "analysisHelp": "Draw an area to calculate values inside your polygon. Create a personal dashboard to choose its charts and content.",
+    "calculationMethod": "How it was calculated"
   }
 }

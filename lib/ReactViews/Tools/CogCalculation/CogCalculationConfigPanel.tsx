@@ -1,7 +1,7 @@
 import { observer } from "mobx-react";
 import { useTranslation } from "react-i18next";
 import CogCalculationViewModel from "../../../ReactViewModels/CogCalculationViewModel";
-import { cogStatisticLabel } from "../../Workbench/Controls/cogStatisticHelp";
+import CogCalculationSource from "./CogCalculationSource";
 import {
   Action,
   Actions,
@@ -43,36 +43,6 @@ const CogCalculationConfigPanel = observer(
             ))}
           </select>
         </Field>
-        <Field>
-          {tr("statistic")}
-          <select
-            value={vm.selectedStatistic}
-            onChange={(e) =>
-              vm.setStatistic(e.target.value as typeof vm.selectedStatistic)
-            }
-          >
-            {["mean", "min", "max", "sum", "count", "median", "stddev"].map(
-              (key) => (
-                <option key={key} value={key}>
-                  {tr(`statistics.${key}`)}
-                </option>
-              )
-            )}
-          </select>
-        </Field>
-        <Hint>{tr("areaStatisticHelp")}</Hint>
-        {vm.selectedTimeSeriesItem && (
-          <Hint>
-            {tr("bandHelp", {
-              name: cogStatisticLabel(
-                vm.selectedTimeSeriesItem.availableBands.find(
-                  (band) => band.band === vm.selectedBand
-                )?.name || String(vm.selectedBand)
-              ),
-              band: vm.selectedBand
-            })}
-          </Hint>
-        )}
         {vm.isTimeSeries ? (
           <Grid>
             <Field>
@@ -100,28 +70,56 @@ const CogCalculationConfigPanel = observer(
           </Grid>
         ) : null}
         <Field>
-          {tr("resolution")}
+          {tr("statistic")}
           <select
-            value={
-              vm.overviewLevel === undefined ? "auto" : String(vm.overviewLevel)
-            }
+            value={vm.selectedStatistic}
             onChange={(e) =>
-              vm.setOverviewLevel(
-                e.target.value === "auto" ? undefined : Number(e.target.value)
-              )
+              vm.setStatistic(e.target.value as typeof vm.selectedStatistic)
             }
           >
-            <option value="auto">{tr("automatic")}</option>
-            <option value="0">{tr("native")}</option>
+            {["mean", "min", "max", "sum", "count", "median", "stddev"].map(
+              (key) => (
+                <option key={key} value={key}>
+                  {tr(`statistics.${key}`)}
+                </option>
+              )
+            )}
           </select>
         </Field>
+        <Hint>{tr("areaStatisticHelp")}</Hint>
+        <CogCalculationSource vm={vm} />
         <Hint>
           {tr(
-            vm.overviewLevel === undefined ? "approximateHelp" : "nativeHelp"
+            vm.overviewLevel === undefined
+              ? "approximateSummary"
+              : "nativeSummary"
           )}
         </Hint>
         <Details>
           <summary>{tr("advanced")}</summary>
+          <Field>
+            {tr("resolution")}
+            <select
+              value={
+                vm.overviewLevel === undefined
+                  ? "auto"
+                  : String(vm.overviewLevel)
+              }
+              onChange={(e) =>
+                vm.setOverviewLevel(
+                  e.target.value === "auto" ? undefined : Number(e.target.value)
+                )
+              }
+            >
+              <option value="auto">{tr("automatic")}</option>
+              <option value="0">{tr("native")}</option>
+            </select>
+          </Field>
+          <Hint>
+            {tr(
+              vm.overviewLevel === undefined ? "approximateHelp" : "nativeHelp"
+            )}
+          </Hint>
           <Grid>
             <Field>
               {tr("band")}
