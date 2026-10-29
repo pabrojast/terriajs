@@ -3,6 +3,7 @@ import { observer } from "mobx-react";
 import { FC, MouseEvent, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import styled from "styled-components";
+import { CKAN_PRIVATE_CATALOG_ID_PREFIX } from "../../../../Models/CkanSession";
 import { BaseModel } from "../../../../Models/Definition/Model";
 import AnimatedSpinnerIcon from "../../../../Styled/AnimatedSpinnerIcon";
 import Box from "../../../../Styled/Box";
@@ -82,6 +83,11 @@ const CkanSessionPanel: FC<Props> = observer(function CkanSessionPanel({
         runInAction(() => {
           const tabId = viewState.activeTabIdInCategory;
           if (
+            tabId === session.groupId ||
+            tabId?.startsWith(CKAN_PRIVATE_CATALOG_ID_PREFIX)
+          ) {
+            viewState.activeTabIdInCategory = session.activeCatalogId;
+          } else if (
             tabId !== undefined &&
             terria.getModelById(BaseModel, tabId) === undefined
           ) {
@@ -121,6 +127,7 @@ const CkanSessionPanel: FC<Props> = observer(function CkanSessionPanel({
           BaseModel,
           session.injectedPrivateCatalogId ?? session.referenceId
         ) ??
+        terria.getModelById(BaseModel, session.groupId) ??
         (tabId !== undefined
           ? terria.getModelById(BaseModel, tabId)
           : undefined);

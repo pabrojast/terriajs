@@ -43,22 +43,24 @@ Estas viven en JSON/configuracion del consumidor y conviene no confundirlas con 
 
 Integracion de sesion CKAN same-origin (`CkanSessionConfig` en `lib/Models/CkanSession.ts`). Default `undefined`: sin la clave no se crea `terria.ckanSession`, no aparece el boton y no se hace ninguna peticion. El flujo completo esta en [[Flujos Importantes]] (seccion 10).
 
-| Clave               | Default                                               | Uso                                                                                                                        |
-| ------------------- | ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| `sessionUrl`        | `/api/terria/user/session`                            | whoami; se le agrega `_=<timestamp>` anti-cache                                                                            |
-| `privateCatalogUrl` | `/api/terria/user/private-catalog`                    | indice del catalogo privado cuando el whoami no trae `private_catalog_url`; se le agrega `catalog_id=<nonce>`              |
-| `loginUrl`          | `/user/login`                                         | pagina de login; se le agrega `came_from=<pathname>`; el `login_url` del whoami tiene prioridad                            |
-| `logoutUrl`         | `/user/_logout`                                       | logout; se le agrega `came_from`; el `logout_url` del whoami tiene prioridad                                               |
-| `profileUrl`        | sin valor                                             | plantilla opcional con `{{user}}`; el `profile_url` del whoami tiene prioridad                                             |
-| `catalogGroupName`  | sin valor (usa i18n `ckanSession.privateCatalogName`) | plantilla con `{{user}}` para el nombre del grupo privado                                                                  |
-| `catalogGroupId`    | `ckan-private-catalog`                                | id del grupo raiz; la referencia interna es `<catalogGroupId>/catalog`                                                     |
-| `checkOnFocus`      | `true`                                                | re-check de sesion al recuperar foco o visibilidad                                                                         |
-| `focusThrottleMs`   | `5000`                                                | intervalo minimo entre re-checks por foco; mientras hay login/logout pendiente se usa 1000 ms (constante, no configurable) |
+| Clave                  | Default                                               | Uso                                                                                                                        |
+| ---------------------- | ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `sessionUrl`           | `/api/terria/user/session`                            | whoami; se le agrega `_=<timestamp>` anti-cache                                                                            |
+| `privateCatalogUrl`    | `/api/terria/user/private-catalog`                    | indice del catalogo privado cuando el whoami no trae `private_catalog_url`; se le agrega `catalog_id=<nonce>`              |
+| `loginUrl`             | `/user/login`                                         | pagina de login; se le agrega `came_from=<pathname>`; el `login_url` del whoami tiene prioridad                            |
+| `logoutUrl`            | `/user/_logout`                                       | logout; se le agrega `came_from`; el `logout_url` del whoami tiene prioridad                                               |
+| `profileUrl`           | sin valor                                             | plantilla opcional con `{{user}}`; el `profile_url` del whoami tiene prioridad                                             |
+| `catalogGroupName`     | sin valor (usa i18n `ckanSession.privateCatalogName`) | plantilla con `{{user}}` para el nombre del grupo privado                                                                  |
+| `catalogGroupId`       | `ckan-private-catalog`                                | id estable del grupo privado; la referencia interna es `<catalogGroupId>/catalog`                                          |
+| `catalogParentGroupId` | `//IHP-WINS`                                          | id del grupo de primer nivel que contiene los privados; `/` conserva la ubicacion en la raiz; si no existe se usa la raiz  |
+| `checkOnFocus`         | `true`                                                | re-check de sesion al recuperar foco o visibilidad                                                                         |
+| `focusThrottleMs`      | `5000`                                                | intervalo minimo entre re-checks por foco; mientras hay login/logout pendiente se usa 1000 ms (constante, no configurable) |
 
 Reglas de validacion (`resolveConfig`):
 
 - Solo rutas relativas: empiezan por `/` y no por `//`, sin `\`, espacios ni caracteres de control. Asi el XHR es same-origin, lleva la cookie de CKAN y nunca pasa por el proxy de terriajs-server. Un valor no seguro en `sessionUrl`, `privateCatalogUrl`, `loginUrl` o `logoutUrl` se ignora con `console.warn` y se usa el default; un `profileUrl` no seguro se descarta.
-- `checkOnFocus` debe ser booleano y `focusThrottleMs` un numero finito `>= 0`; strings vacios en `catalogGroupName`/`catalogGroupId` se ignoran.
+- `checkOnFocus` debe ser booleano y `focusThrottleMs` un numero finito `>= 0`; strings vacios en `catalogGroupName`/`catalogGroupId`/`catalogParentGroupId` se ignoran.
+- `catalogParentGroupId` es un identificador de modelo, no una URL. `//IHP-WINS` es el ID generado para el grupo raiz sin ID explicito llamado `IHP-WINS` (raiz `/` + `/` + nombre). Solo se aceptan como destino grupos de primer nivel ajenos al catalogo privado; si el destino llega tarde, se mueve el mismo grupo sin recargar el indice. El nombre y el ID del envoltorio siguen controlados por `catalogGroupName` y `catalogGroupId`.
 - La clave existe como `ckanSession: undefined` en los defaults de `configParameters` de `Terria.ts` porque `updateParameters` solo copia claves presentes en los defaults.
 
 Ejemplo (dentro de `parameters` del `config.json` de TerriaMap):
@@ -70,6 +72,7 @@ Ejemplo (dentro de `parameters` del `config.json` de TerriaMap):
   "loginUrl": "/user/login",
   "logoutUrl": "/user/_logout",
   "catalogGroupId": "ckan-private-catalog",
+  "catalogParentGroupId": "//IHP-WINS",
   "checkOnFocus": true,
   "focusThrottleMs": 5000
 }
