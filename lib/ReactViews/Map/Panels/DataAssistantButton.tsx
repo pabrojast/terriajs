@@ -47,8 +47,8 @@ export default DataAssistantButton;
 const Button = styled.button`
   border: 1px solid rgba(255, 255, 255, 0.35);
   border-radius: 5px;
-  color: inherit;
-  background: transparent;
+  color: ${(p) => p.theme.textLight};
+  background: ${(p) => p.theme.dark};
   cursor: pointer;
   padding: 8px;
   font: inherit;
