@@ -12,6 +12,8 @@ Los ejemplos adicionales, pins de extensiones, verificaciones y límites de CI e
 
 La corrección posterior de cuentas desactivadas fija el backend `549dac45582703d1f16564c75ab3b5fbc49f67f9` (PR #4 de `ckanext-dashboard_view`). Se publica mediante el [workflow 40924813374](https://github.com/pabrojast/ckan-unesco-docker/actions/runs/40924813374); consultar el informe anterior para el digest final y la verificación independiente de esa actualización. No cambia la imagen Terria ni la configuración de producción.
 
+El seguimiento de movimiento, idiomas y ejemplos incorpora TerriaJS `506c7f9fb7c466e30c3398930432c06ee11bb5e1` (PR #10), fijado por TerriaMap `5bdd10ba2bb99293e0890b178a0ca63b1ee0f521` (PR #6). La matriz Node 22/24/26 pasó en los runs 40940135907 y 40940603764. La publicación DEV usa el [workflow 40941408965](https://github.com/pabrojast/ckan-unesco-docker/actions/runs/40941408965). El [informe del seguimiento](https://github.com/pabrojast/ckan-unesco-docker/blob/miserver-2.10/deploy/envoy-dev/validation-simple-dashboard-followup-2026-10-29.md) registra la imagen efectiva, comprobaciones del navegador, posición compartida y dos ejemplos públicos nuevos. No requiere actualizar el backend. Ver [[Dashboards Sencillos]] para el comportamiento y [[Testing]] para los límites de la suite general de Firefox.
+
 ## Resumen
 
 Este repo tiene tres salidas de despliegue observables:
