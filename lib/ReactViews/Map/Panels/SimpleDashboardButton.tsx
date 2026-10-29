@@ -15,7 +15,8 @@ export default observer(function SimpleDashboardButton({
   if (!viewState.terria.configParameters.simpleDashboards?.enabled) return null;
   const open = () =>
     runInAction(() => {
-      viewState.terria.simpleDashboardOpen = true;
+      viewState.terria.simpleDashboardOpen =
+        !viewState.terria.simpleDashboardOpen;
       viewState.mobileMenuVisible = false;
     });
   return smallScreen ? (

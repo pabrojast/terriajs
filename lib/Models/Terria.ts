@@ -1,5 +1,6 @@
 import {
   DashboardPosition,
+  DashboardConfig,
   SimpleDashboardRef,
   validDashboardPosition,
   validDashboardRef
@@ -836,6 +837,11 @@ export default class Terria {
   @observable simpleDashboard: SimpleDashboardRef | undefined = undefined;
   @observable simpleDashboardOpen = false;
   @observable simpleDashboardPosition: DashboardPosition | undefined =
+    undefined;
+  /** Unsaved editor hand-off; never included in a share. */
+  @observable.ref simpleDashboardDraft: DashboardConfig | undefined = undefined;
+  @observable waterQualityPanelClosed = false;
+  @observable waterQualityPanelPosition: DashboardPosition | undefined =
     undefined;
 
   @observable storyOptions: StoryOptions = {
@@ -2233,6 +2239,15 @@ export default class Terria {
             }
           : undefined;
       }
+    });
+
+    applyPart("waterQualityPanel", () => {
+      const panel = initData.waterQualityPanel;
+      if (!isJsonObject(panel, false)) return;
+      this.waterQualityPanelClosed = panel.closed === true;
+      this.waterQualityPanelPosition = validDashboardPosition(panel.position)
+        ? { x: panel.position.x, y: panel.position.y }
+        : undefined;
     });
 
     // Add stories

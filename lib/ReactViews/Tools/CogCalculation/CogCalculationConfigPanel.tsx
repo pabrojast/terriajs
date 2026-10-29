@@ -1,6 +1,7 @@
 import { observer } from "mobx-react";
 import { useTranslation } from "react-i18next";
 import CogCalculationViewModel from "../../../ReactViewModels/CogCalculationViewModel";
+import { cogStatisticLabel } from "../../Workbench/Controls/cogStatisticHelp";
 import {
   Action,
   Actions,
@@ -59,6 +60,19 @@ const CogCalculationConfigPanel = observer(
             )}
           </select>
         </Field>
+        <Hint>{tr("areaStatisticHelp")}</Hint>
+        {vm.selectedTimeSeriesItem && (
+          <Hint>
+            {tr("bandHelp", {
+              name: cogStatisticLabel(
+                vm.selectedTimeSeriesItem.availableBands.find(
+                  (band) => band.band === vm.selectedBand
+                )?.name || String(vm.selectedBand)
+              ),
+              band: vm.selectedBand
+            })}
+          </Hint>
+        )}
         {vm.isTimeSeries ? (
           <Grid>
             <Field>

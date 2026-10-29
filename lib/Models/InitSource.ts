@@ -90,6 +90,7 @@ export interface InitSourceData {
   storyOptions?: StoryOptions;
   simpleDashboard?: SimpleDashboardRef;
   simpleDashboardPosition?: DashboardPosition;
+  waterQualityPanel?: { closed?: boolean; position?: DashboardPosition };
   viewerMode?: ViewModeJson;
   baseMaps?: BaseMapsJson;
   homeCamera?: JsonObject;

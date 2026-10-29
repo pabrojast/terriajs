@@ -20,12 +20,13 @@ export const SelectableDimensionEnum: FC<{
   if (dim.display === "pills") {
     return <SelectableDimensionPills id={id} dim={dim} />;
   }
-  return <SelectableDimensionDropdown dim={dim} />;
+  return <SelectableDimensionDropdown id={id} dim={dim} />;
 });
 
 const SelectableDimensionDropdown: FC<{
+  id: string;
   dim: SelectableDimensionEnumModel;
-}> = observer(({ dim }) => {
+}> = observer(({ id, dim }) => {
   const theme = useTheme();
 
   const undefinedOption = {
@@ -52,6 +53,8 @@ const SelectableDimensionDropdown: FC<{
 
   return dim.allowCustomInput ? (
     <ReactSelectCreatable
+      inputId={id}
+      aria-describedby={dim.description ? `${id}-help` : undefined}
       styles={{
         control: (baseStyles) => ({
           ...baseStyles,
@@ -88,6 +91,8 @@ const SelectableDimensionDropdown: FC<{
     />
   ) : (
     <ReactSelect
+      inputId={id}
+      aria-describedby={dim.description ? `${id}-help` : undefined}
       styles={{
         control: (baseStyles) => ({
           ...baseStyles,

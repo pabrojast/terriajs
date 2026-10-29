@@ -79,6 +79,17 @@ const Panel = observer(function Panel() {
   }, [step]);
   const available = dashboardSources(terria);
   const authenticated = !!terria.ckanSession?.isAuthenticated;
+  useEffect(() => {
+    const draft = terria.simpleDashboardDraft;
+    if (!draft || !authenticated) return;
+    setConfig(draft);
+    setSaved(undefined);
+    setResult(undefined);
+    setStep("blocks");
+    runInAction(() => {
+      terria.simpleDashboardDraft = undefined;
+    });
+  }, [terria, terria.simpleDashboardDraft, authenticated]);
   const configKey = JSON.stringify(config);
   const onLoaded = useCallback((value: SavedDashboard) => setSaved(value), []);
   const editConfig = (patch: Partial<DashboardConfig>) =>

@@ -104,6 +104,7 @@ export default class CogCalculationViewModel {
     this.viewState = viewState;
     this.selectedItemId = itemId;
     makeObservable(this);
+    this.selectedBand = this.selectedTimeSeriesItem?.activeBand?.band ?? 1;
   }
 
   // ─── Computed ──────────────────────────────────────────────
@@ -262,6 +263,7 @@ export default class CogCalculationViewModel {
   @action
   setSelectedItem(itemId: string): void {
     this.selectedItemId = itemId;
+    this.selectedBand = this.selectedTimeSeriesItem?.activeBand?.band ?? 1;
   }
 
   @action

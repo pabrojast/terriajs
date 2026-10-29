@@ -13,7 +13,12 @@ const margin = 10;
 const clamp = (value: number) => Math.max(0, Math.min(1, value));
 
 /** Store fractions of the available map space, so shared panels fit other screens. */
-export default function useDashboardPosition(terria: Terria) {
+export default function useDashboardPosition(
+  terria: Terria,
+  property:
+    | "simpleDashboardPosition"
+    | "waterQualityPanelPosition" = "simpleDashboardPosition"
+) {
   const panel = useRef<HTMLElement>(null);
   const drag = useRef<{ id: number; dx: number; dy: number }>();
   const [bounds, setBounds] = useState({ width: 0, height: 0, top: margin });
@@ -66,16 +71,18 @@ export default function useDashboardPosition(terria: Terria) {
   }, []);
   const move = (left: number, top: number) =>
     runInAction(() => {
-      terria.simpleDashboardPosition = {
+      terria[property] = {
         x: bounds.width
           ? clamp((left - margin) / bounds.width)
-          : (terria.simpleDashboardPosition?.x ?? 1),
+          : (terria[property]?.x ?? 1),
         y: bounds.height
           ? clamp((top - bounds.top) / bounds.height)
-          : (terria.simpleDashboardPosition?.y ?? 0)
+          : (terria[property]?.y ?? 0)
       };
     });
-  const position = terria.simpleDashboardPosition;
+  const position =
+    terria[property] ??
+    (property === "waterQualityPanelPosition" ? { x: 0.95, y: 0 } : undefined);
   const style: CSSProperties | undefined = position
     ? {
         left: margin + position.x * bounds.width,
@@ -127,7 +134,7 @@ export default function useDashboardPosition(terria: Terria) {
       if (event.key === "Home") {
         event.preventDefault();
         runInAction(() => {
-          terria.simpleDashboardPosition = undefined;
+          terria[property] = undefined;
         });
         return;
       }

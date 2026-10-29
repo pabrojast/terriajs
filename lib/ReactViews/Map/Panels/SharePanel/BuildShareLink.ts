@@ -153,6 +153,14 @@ export function getShareData(
     addFeaturePicking(terria, initSource);
     addAccumulatedChartSeries(terria, initSource);
     addSimpleDashboard(terria, initSource);
+    if (terria.waterQualityPanelClosed || terria.waterQualityPanelPosition) {
+      initSource.waterQualityPanel = {
+        closed: terria.waterQualityPanelClosed,
+        ...(terria.waterQualityPanelPosition
+          ? { position: { ...terria.waterQualityPanelPosition } }
+          : {})
+      };
+    }
     if (includeStories) {
       // info that are not needed in scene share data
       addStories(terria, initSource);

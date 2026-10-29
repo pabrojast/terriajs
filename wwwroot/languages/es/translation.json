@@ -608,8 +608,8 @@
       "clampHigh": "Ajustar Valores Altos"
     },
     "cogCalculation": {
-      "toolName": "Estadísticas zonales COG",
-      "toolTitle": "Calcular estadísticas de una capa COG dentro de un polígono",
+      "toolName": "Calcular por área",
+      "toolTitle": "Dibuja un polígono y calcula sus valores en el tiempo",
       "needThreePoints": "Un polígono necesita al menos 3 puntos.",
       "selectLayerAndPolygon": "Primero selecciona una capa y dibuja un polígono.",
       "calculationError": "El cálculo falló.",
@@ -677,7 +677,7 @@
       "showChart": "Mostrar en el panel de gráficos",
       "hideChart": "Quitar del panel de gráficos",
       "statistics": {
-        "mean": "Media",
+        "mean": "Promedio (media)",
         "min": "Mínimo",
         "max": "Máximo",
         "sum": "Suma",
@@ -685,7 +685,10 @@
         "noDataCount": "Píxeles sin datos",
         "median": "Mediana",
         "stddev": "Desviación estándar"
-      }
+      },
+      "drawAndCalculate": "Dibujar y calcular área",
+      "areaStatisticHelp": "Resume los píxeles válidos dentro de tu polígono para cada fecha. Promedio es su media; mediana es su valor central.",
+      "bandHelp": "Valores de entrada: {{name}} (banda {{band}}). La estadística anterior combina estos píxeles dentro de tu área."
     },
     "cogTimeSeries": {
       "loadTimeEntriesErrorTitle": "Error al cargar la serie temporal COG",
@@ -705,7 +708,30 @@
       "partialCoverageHint": "Cada fecha cubre solo una parte del área. Si el mapa aparece vacío aquí, prueba otra fecha.",
       "pointSeriesLoading": "Leyendo serie temporal… {{loaded}}/{{total}} fechas",
       "pointSeriesErrors": "No se pudo leer {{count}} fecha.",
-      "pointSeriesErrors_plural": "No se pudieron leer {{count}} fechas."
+      "pointSeriesErrors_plural": "No se pudieron leer {{count}} fechas.",
+      "mapStatistic": "Valor mostrado en el mapa",
+      "statisticHelp": "Elige el valor de cada píxel del mapa, su leyenda y su serie temporal.",
+      "bodyStatisticHelp": "El observatorio usa un resumen del cuerpo de agua por separado; este selector no cambia ese resumen.",
+      "statisticLabels": {
+        "mean": "Promedio (media)",
+        "median": "Mediana",
+        "p90": "Percentil 90 (valores altos)",
+        "maxMonth": "Mes con mayor valor",
+        "nMonths": "Meses con datos",
+        "nObs": "Observaciones satelitales",
+        "meanMonthly": "Promedio de medianas mensuales",
+        "medianMonthly": "Mediana de medianas mensuales"
+      },
+      "statisticHelpText": {
+        "mean": "Promedio: suma las observaciones válidas y divide por su cantidad.",
+        "median": "Mediana: valor central al ordenar las observaciones; los valores extremos le afectan menos.",
+        "p90": "Percentil 90: el 90 % de las observaciones válidas queda en este valor o por debajo.",
+        "maxMonth": "Valor mensual más alto dentro del año.",
+        "nMonths": "Cantidad de meses con datos válidos; no es una concentración.",
+        "nObs": "Cantidad de observaciones satelitales válidas; no es una concentración.",
+        "meanMonthly": "Promedio de los valores de mediana de cada mes del año.",
+        "medianMonthly": "Valor central de las medianas mensuales del año."
+      }
     }
   },
   "analytics": {
@@ -1978,5 +2004,13 @@
       "Choose a supported satellite product and resolution.": "Elige un producto satelital y una resolución compatibles.",
       "This dashboard changed. Reopen it before saving a new revision.": "Este dashboard cambió. Ábrelo de nuevo antes de guardar una revisión."
     }
+  },
+  "waterQuality": {
+    "openPanel": "Abrir observatorio del agua",
+    "closePanel": "Cerrar observatorio del agua",
+    "movePanel": "Mover observatorio del agua",
+    "editCopy": "Crear dashboard editable",
+    "signInToCopy": "Iniciar sesión para crear un dashboard editable",
+    "analysisHelp": "Dibuja un área para calcular los valores dentro de tu polígono. Crea un dashboard propio para elegir sus gráficos y contenido."
   }
 }
