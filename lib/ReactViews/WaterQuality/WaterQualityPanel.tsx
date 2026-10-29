@@ -41,8 +41,8 @@ const isoDate = (date: string) =>
     date.length === 4
       ? `${date}-01-01`
       : date.length === 7
-      ? `${date}-01`
-      : date
+        ? `${date}-01`
+        : date
   }T00:00:00Z`;
 
 /** Only configured pilots opt into this interface. Existing COGs are unchanged. */
@@ -78,8 +78,8 @@ const PilotPanel = observer(
     const language = i18n.language.startsWith("es")
       ? "es"
       : i18n.language.startsWith("uk")
-      ? "uk"
-      : "en";
+        ? "uk"
+        : "en";
     const es = language === "es";
     const text = (en: string, spanish: string) => (es ? spanish : en);
     const base = item.waterQuality!.dataUrl!;
@@ -481,8 +481,8 @@ const PilotPanel = observer(
                         {mode === "daily"
                           ? text("Daily", "Diaria")
                           : mode === "monthly"
-                          ? text("Monthly", "Mensual")
-                          : text("Annual", "Anual")}
+                            ? text("Monthly", "Mensual")
+                            : text("Annual", "Anual")}
                       </button>
                     ))}
                 </Segments>
@@ -809,8 +809,8 @@ const PilotPanel = observer(
                                       {resolution === "daily"
                                         ? text("Coverage", "Cobertura")
                                         : resolution === "annual"
-                                        ? text("Months", "Meses")
-                                        : text("Passes", "Pasadas")}
+                                          ? text("Months", "Meses")
+                                          : text("Passes", "Pasadas")}
                                     </th>
                                   </tr>
                                 </thead>
@@ -836,7 +836,7 @@ const PilotPanel = observer(
                                                 ? undefined
                                                 : point.coverage * 100
                                             )} %`
-                                          : point.count ?? "—"}
+                                          : (point.count ?? "—")}
                                       </td>
                                     </tr>
                                   ))}
@@ -911,9 +911,9 @@ const PilotPanel = observer(
                     viewState.openTool({
                       toolName: "cog-calculation-tool",
                       getToolComponent: () =>
-                        import(
-                          "../Tools/CogCalculation/CogCalculationTool"
-                        ).then((module) => module.default as any),
+                        import("../Tools/CogCalculation/CogCalculationTool").then(
+                          (module) => module.default as any
+                        ),
                       params: {}
                     });
                   }}

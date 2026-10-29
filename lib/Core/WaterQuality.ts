@@ -77,18 +77,18 @@ export function waterPeriodCrossesCutoff(
     date.length === 4
       ? `${date}-01-01`
       : date.length === 7
-      ? `${date}-01`
-      : date;
+        ? `${date}-01`
+        : date;
   const end =
     date.length === 4
       ? `${date}-12-31`
       : date.length === 7
-      ? new Date(
-          Date.UTC(Number(date.slice(0, 4)), Number(date.slice(5, 7)), 0)
-        )
-          .toISOString()
-          .slice(0, 10)
-      : date;
+        ? new Date(
+            Date.UTC(Number(date.slice(0, 4)), Number(date.slice(5, 7)), 0)
+          )
+            .toISOString()
+            .slice(0, 10)
+        : date;
   return start <= cutoff && end > cutoff;
 }
 
@@ -156,7 +156,7 @@ export function waterBodyPoints(
     resolution === "annual" ? series.annualMonths : series.monthlyDays;
   return dates.map((date, i) => ({
     date,
-    value: index >= 0 ? matrix[index]?.[i] ?? null : null,
+    value: index >= 0 ? (matrix[index]?.[i] ?? null) : null,
     count: index >= 0 ? counts[index]?.[i] : undefined,
     partial:
       (resolution === "annual" &&

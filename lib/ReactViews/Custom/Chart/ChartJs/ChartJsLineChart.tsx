@@ -253,8 +253,8 @@ const ChartJsLineChart: FC<ChartJsChartProps> = observer((props) => {
             ? 3
             : 1
           : theme.analysisSurface
-          ? 2.25
-          : 1.5;
+            ? 2.25
+            : 1.5;
         return {
           label: chartItem.name,
           data: buildLinePoints(chartItem),
