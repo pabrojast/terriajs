@@ -1,6 +1,7 @@
 import { runInAction } from "mobx";
 import { act } from "react-dom/test-utils";
 import { ReactTestInstance, ReactTestRenderer } from "react-test-renderer";
+import CatalogGroup from "../../../../../lib/Models/Catalog/CatalogGroup";
 import CkanSession, {
   CkanSessionStatus,
   CkanSessionUser
@@ -284,6 +285,64 @@ describe("CkanSessionPanel", function () {
     expect(viewState.activeTabCategory).toBe("data-catalog");
     expect(viewState.activeTabIdInCategory).toBe(GROUP_ID);
     expect(viewState.previewedItem?.uniqueId).toBe(GROUP_ID);
+  });
+
+  [false, true].forEach((smallScreen) => {
+    it(`opens the private group inside IHP from the shortcut (mobile=${smallScreen})`, async function () {
+      runInAction(() => {
+        terria.configParameters.tabbedCatalog = true;
+      });
+      addPrivateGroup();
+      terria.catalog.group
+        .addMembersFromJson(CommonStrata.definition, [
+          { id: "//IHP-WINS", type: "group", name: "IHP-WINS", members: [] }
+        ])
+        .throwIfError();
+      setSession("authenticated", ALICE);
+      session.setReady();
+      const renderer = render(smallScreen);
+      if (smallScreen) {
+        act(() => {
+          renderer.root.findByType(MobileMenuItem.Button).props.onClick({
+            nativeEvent: {}
+          });
+        });
+      } else {
+        openPanel(renderer);
+      }
+      const open = closest(
+        findByText(renderer, "ckanSession.openPrivateCatalog")[0],
+        "button"
+      );
+      await act(async () => {
+        open.props.onClick();
+      });
+      expect(viewState.explorerPanelIsVisible).toBe(true);
+      expect(viewState.activeTabIdInCategory).toBe("//IHP-WINS");
+      expect(viewState.previewedItem?.uniqueId).toBe(GROUP_ID);
+      expect(terria.getModelById(CatalogGroup, GROUP_ID)!.isOpen).toBe(true);
+    });
+  });
+
+  it("follows a private tab into IHP when init arrives late", async function () {
+    runInAction(() => {
+      terria.configParameters.tabbedCatalog = true;
+      viewState.activeTabIdInCategory = GROUP_ID;
+    });
+    const group = addPrivateGroup();
+    setSession("authenticated", ALICE);
+    session.setReady();
+    render();
+    await viewState.viewCatalogMember(group, true, CommonStrata.user, false);
+    act(() => {
+      terria.catalog.group
+        .addMembersFromJson(CommonStrata.definition, [
+          { id: "//IHP-WINS", type: "group", name: "IHP-WINS", members: [] }
+        ])
+        .throwIfError();
+    });
+    expect(viewState.activeTabIdInCategory).toBe("//IHP-WINS");
+    expect(viewState.previewedItem).toBe(group);
   });
 
   it("renders a retry button when the session check failed", function () {
