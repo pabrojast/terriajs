@@ -325,3 +325,11 @@ El build de la librería pasa. El consumidor local de revisión usa dependencias
 El run `41101805712` detectó un DELETE tardío de la limpieza de `DataAssistantViewModelSpec` durante el primer caso de `DatasetSearch`. El teardown ahora espera sus peticiones antes de que MSW restablezca los handlers. Tras reconstruir, pasan juntas las 163 specs del filtro `Data` en Firefox (`--browser=headlessFirefox --filter=Data`), incluidos ambos flujos; no se omiten peticiones ni se desactivan casos. La suite global conserva los fallos previos de Stories/STAC.
 
 El caso de interfaz también espera que termine el bootstrap iniciado al montar el asistente, antes de desmontarlo y restablecer MSW. El callback de `waitFor` lanza mientras no esté listo: una expectativa Jasmine que falla no lanza y por sí sola no hace reintentar `waitFor`. Las 8 specs de `DatasetSearch` pasan en Firefox con esta espera; evita atribuir el GET tardío al siguiente suite.
+
+## Inicialización del editor Stories (2026-10-30)
+
+`node --test buildprocess/EditorBootstrap.test.cjs` compila el componente TSX con los presets de la aplicación y evalúa sus importaciones en un contexto nuevo. Comprueba que el núcleo TinyMCE se inicialice antes de iconos, tema, modelo y plugins, tanto en desarrollo como en release. Antes del arreglo, ambos casos fallaban porque Babel eliminaba la importación con una variable sin uso; con la importación por efecto lateral pasan. CI ejecuta esta comprobación antes del build de Jasmine.
+
+Esta prueba aísla el contrato de inicialización de módulos y no sustituye al navegador. El recorrido de aceptación usa una compilación release y una página sin TinyMCE precargado: abrir Story, capturar una escena, escribir y dar formato, guardar, reabrir/editar, reproducir y compartir. Comprobar también una historia existente, idiomas EN/ES y ventana reducida. La suite de ciclo de vida del borrador utiliza un editor simulado y por sí sola no detecta fallos al cargar el chunk real.
+
+La prueba de bootstrap verifica también el registro del paquete español, la normalización de `es-CL`/`es_ES` y el fallback inglés sin descargar scripts de idioma externos.

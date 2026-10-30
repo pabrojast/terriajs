@@ -1101,6 +1101,7 @@
     "mixedManualHelp": "Esta historia incluye ventanas clásicas. Usa Anterior y Siguiente para avanzar a tu ritmo."
   },
   "featureInfo": {
+    "autoSize": "Restablecer tamaño automático",
     "noInfoAvailable": "No hay información disponible",
     "latLon": "Lat / Lon ",
     "siteData": "Datos del Sitio",

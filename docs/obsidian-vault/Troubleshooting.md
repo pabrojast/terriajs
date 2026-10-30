@@ -75,3 +75,11 @@ yarn gulp docs
 - confirmar que ya corriste `yarn gulp`
 - probar `yarn gulp test-firefox`
 - abrir `http://localhost:3002/SpecRunner.html` para inspeccion manual
+
+## Stories: `ReferenceError: tinymce is not defined`
+
+Si Capturar escena o editar un capítulo rompe la interfaz al cargar el chunk de `Generic/Editor.tsx`, comprobar primero el JavaScript emitido. Una importación `import tinymce from "tinymce"` cuya variable no se usa puede desaparecer durante la transformación TypeScript. Los plugins conservan sus importaciones y buscan una variable global que nunca se inicializó. La entrada debe importar el núcleo por efecto lateral antes de los plugins (`import "tinymce"`), también dentro del bundle cargado de forma diferida. Es el patrón de inicialización indicado en la [guía oficial de TinyMCE 7](https://www.tiny.cloud/docs/tinymce/7/react-pm-bundle/).
+
+Los avisos de clave Google Analytics ausente, `proxyableDomainsUrl` obsoleto, Nominatim y contornos sobre terreno no son esta excepción. No introducir claves ficticias ni cambiar proveedores para ocultarlos. La traducción EN/ES de `featureInfo.autoSize` cubre el aviso separado de Restablecer tamaño automático.
+
+El editor incluye el paquete comunitario español de TinyMCE 7 en `lib/ThirdParty/tinymce/es.js` (fuente, fecha y hash originales en la cabecera; licencia adjunta). Se registra en el mismo chunk, después del núcleo. Los idiomas `es` y sus variantes regionales usan ese paquete; inglés y otros idiomas usan el inglés incorporado. La antigua petición `languages/tinymce/es.js` recibía el HTML del fallback de la aplicación y causaba `Unexpected token <`; no debe reintroducirse `language_url` para estos idiomas.
