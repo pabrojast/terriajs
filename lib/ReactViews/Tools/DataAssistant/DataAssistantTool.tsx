@@ -22,6 +22,7 @@ import {
 import { Evidence, Row } from "../../../Models/DataAssistant/Types";
 import { number } from "../../../Models/DataAssistant/TableTools";
 import formatAnswer from "../../../Models/DataAssistant/formatAnswer";
+import MapAssistantControls, { ProposalCard } from "./MapAssistantControls";
 import WorkflowPanel from "../../Workflow/WorkflowPanel";
 import Icon from "../../../Styled/Icon";
 
@@ -257,6 +258,7 @@ const DataAssistantTool = observer(
     const content = (
       <Body>
         <Intro>{t("dataAssistant.intro")}</Intro>
+        {vm.authenticated && <MapAssistantControls vm={vm} />}
         <details>
           <summary>
             {t("dataAssistant.context", {
@@ -269,7 +271,7 @@ const DataAssistantTool = observer(
               <label key={s.id}>
                 <input
                   type="checkbox"
-                  disabled={vm.busy}
+                  disabled={vm.working}
                   checked={vm.selectedIds.includes(s.id)}
                   onChange={() => vm.toggleSource(s.id)}
                 />
@@ -284,7 +286,7 @@ const DataAssistantTool = observer(
               <input
                 type="date"
                 value={vm.start}
-                disabled={vm.busy}
+                disabled={vm.working}
                 onChange={(e) => vm.setDates(e.target.value, vm.end)}
               />
             </label>
@@ -293,7 +295,7 @@ const DataAssistantTool = observer(
               <input
                 type="date"
                 value={vm.end}
-                disabled={vm.busy}
+                disabled={vm.working}
                 onChange={(e) => vm.setDates(vm.start, e.target.value)}
               />
             </label>
@@ -308,16 +310,33 @@ const DataAssistantTool = observer(
             </small>
           </p>
           {!vm.datesAutomatic && (
-            <Button type="button" disabled={vm.busy} onClick={vm.useDataDates}>
+            <Button
+              type="button"
+              disabled={vm.working}
+              onClick={vm.useDataDates}
+            >
               {t("dataAssistant.useDataDates")}
             </Button>
           )}
         </details>
         <Actions>
-          <Button type="button" disabled={vm.busy} onClick={vm.drawArea}>
+          <Button type="button" disabled={vm.working} onClick={vm.drawArea}>
             {t("dataAssistant.draw")}
           </Button>
-          <Button type="button" disabled={vm.busy} onClick={vm.usePickedPoint}>
+          {vm.mapEditing && vm.polygon && (
+            <Button
+              type="button"
+              disabled={vm.working}
+              onClick={() => void vm.searchCatalog("")}
+            >
+              {t("dataAssistant.searchArea")}
+            </Button>
+          )}
+          <Button
+            type="button"
+            disabled={vm.working}
+            onClick={vm.usePickedPoint}
+          >
             {t("dataAssistant.usePoint")}
           </Button>
           {(vm.polygon || vm.point || vm.drawing) && (
@@ -373,12 +392,19 @@ const DataAssistantTool = observer(
                     <Button
                       type="button"
                       key={i}
-                      disabled={vm.busy}
+                      disabled={vm.working}
                       onClick={() => void vm.apply(action)}
                     >
                       {action.title ??
                         t(`dataAssistant.actions.${action.action}`)}
                     </Button>
+                  ))}
+                  {entry.turn?.proposals?.map((proposal) => (
+                    <ProposalCard
+                      key={proposal.id}
+                      vm={vm}
+                      proposal={proposal}
+                    />
                   ))}
                 </article>
               ))}
@@ -424,7 +450,7 @@ const DataAssistantTool = observer(
                 maxLength={8000}
                 value={question}
                 placeholder={t("dataAssistant.placeholder")}
-                disabled={!vm.authenticated || vm.busy}
+                disabled={!vm.authenticated || vm.working}
                 onChange={(e) => setQuestion(e.target.value)}
                 onKeyDown={(e) => {
                   if (
@@ -441,7 +467,7 @@ const DataAssistantTool = observer(
                 <Button
                   type="submit"
                   $primary
-                  disabled={!vm.authenticated || vm.busy || !question.trim()}
+                  disabled={!vm.authenticated || vm.working || !question.trim()}
                 >
                   {t("dataAssistant.send")}
                 </Button>
@@ -452,7 +478,7 @@ const DataAssistantTool = observer(
                 )}
                 <Button
                   type="button"
-                  disabled={vm.busy}
+                  disabled={vm.working}
                   onClick={() => vm.reset()}
                 >
                   {t("dataAssistant.newChat")}

@@ -305,3 +305,9 @@ Verificación local de esta revisión: lint/build completos y TypeScript sin err
 La validación con el CSV real de DataStore detectó cabecera CRLF seguida de registros LF. `CsvSpec.ts` añade regresiones para leer las cuatro observaciones y conservar campos multilínea con comillas escapadas; no se cambian los datos fuente. La validación de CI se compara por nombres con la revisión base porque persisten los fallos previos de STAC/historias.
 
 Tras el ajuste pasan las 17 specs filtradas por `Csv` y las 10 del flujo del asistente, además del build completo y TypeScript. En Chromium con la exportación real de DEV se reconocen cuatro filas y el período 2026-01-01 a 2026-04-01. El GeoJSON de Seychelles selecciona 2025-11-07 a 2026-03-19 y el COG mensual de Kyiv 2023-01-01 a 2026-10-01. Se verificaron también cambio de tamaño táctil y el título/iconos de análisis con color blanco calculado sobre fondo azul.
+
+## Asistente IA: edición y búsqueda
+
+`MapEditsSpec.ts` verifica aplicación, ausencia de modificaciones parciales ante una propuesta inválida, rollback, deshacer sin borrar otras propiedades manuales, detección de conflictos, retirada/restauración de capas, cambio de cuenta durante una carga, regeneración de leyendas y restauración de un mapa compartido. Ejecutar `yarn gulp build` y `npx jasmine-browser-runner runSpecs --config=test/jasmine-browser.mjs --filter=DataAssistant`, además de TypeScript y ESLint sobre los archivos afectados.
+
+La validación integrada requiere backend y frontend candidatos: consulta numérica con evidencia, propuesta/aplicación/deshacer, carga CKAN con vista guardada, URL y archivo local, polígono con candidatos fuera del área, paginación, apertura de shortlink y nuevo enlace, escritorio/móvil y dos cuentas con permisos diferentes. La documentación de entrega DEV registra los SHA y resultados efectivos; las pruebas locales no acreditan un despliegue.
