@@ -54,6 +54,7 @@ export interface DataSourceRef {
   private?: boolean;
   dataset_title?: string;
   dataset_name?: string;
+  organization?: string;
 }
 export interface MapLayerContext {
   id: string;

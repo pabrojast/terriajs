@@ -3,6 +3,7 @@ import { observer } from "mobx-react";
 import { useViewState } from "../Context";
 import ModalPopup from "./ModalPopup";
 import Tabs from "./Tabs";
+import DatasetSearchEntry from "../Tools/DatasetSearch/DatasetSearchEntry";
 import Text from "../../Styled/Text";
 import Box from "../../Styled/Box";
 import { useTheme } from "styled-components";
@@ -54,6 +55,7 @@ export default observer<React.FC>(function ExplorerWindow() {
           {t(($) => $.addData.dataCatalogue)}
         </Text>
       </Box>
+      <DatasetSearchEntry viewState={viewState} />
       <Tabs terria={viewState.terria} viewState={viewState} />
     </ModalPopup>
   );

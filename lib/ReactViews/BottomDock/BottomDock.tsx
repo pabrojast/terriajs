@@ -77,13 +77,16 @@ class BottomDock extends Component<PropsType & MeasureElementProps> {
           compact={this.props.viewState.useSmallScreenInterface}
           temporarilyCollapsed={[
             "cog-calculation-tool",
-            "data-assistant"
+            "data-assistant",
+            "dataset-search"
           ].includes(this.props.viewState.currentTool?.toolName ?? "")}
           hidden={
             this.props.viewState.useSmallScreenInterface &&
-            ["cog-calculation-tool", "data-assistant"].includes(
-              this.props.viewState.currentTool?.toolName ?? ""
-            )
+            [
+              "cog-calculation-tool",
+              "data-assistant",
+              "dataset-search"
+            ].includes(this.props.viewState.currentTool?.toolName ?? "")
           }
         />
         {top && (

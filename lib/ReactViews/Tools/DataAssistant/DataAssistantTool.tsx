@@ -22,7 +22,7 @@ import {
 import { Evidence, Row } from "../../../Models/DataAssistant/Types";
 import { number } from "../../../Models/DataAssistant/TableTools";
 import formatAnswer from "../../../Models/DataAssistant/formatAnswer";
-import MapAssistantControls, { ProposalCard } from "./MapAssistantControls";
+import { ProposalCard } from "./MapProposalCard";
 import WorkflowPanel from "../../Workflow/WorkflowPanel";
 import Icon from "../../../Styled/Icon";
 
@@ -258,7 +258,6 @@ const DataAssistantTool = observer(
     const content = (
       <Body>
         <Intro>{t("dataAssistant.intro")}</Intro>
-        {vm.authenticated && <MapAssistantControls vm={vm} />}
         <details>
           <summary>
             {t("dataAssistant.context", {
@@ -318,38 +317,47 @@ const DataAssistantTool = observer(
               {t("dataAssistant.useDataDates")}
             </Button>
           )}
-        </details>
-        <Actions>
-          <Button type="button" disabled={vm.working} onClick={vm.drawArea}>
-            {t("dataAssistant.draw")}
-          </Button>
-          {vm.mapEditing && vm.polygon && (
+          <Actions>
+            <Button type="button" disabled={vm.working} onClick={vm.drawArea}>
+              {t("dataAssistant.draw")}
+            </Button>
             <Button
               type="button"
               disabled={vm.working}
-              onClick={() => void vm.searchCatalog("")}
+              onClick={vm.usePickedPoint}
             >
-              {t("dataAssistant.searchArea")}
+              {t("dataAssistant.usePoint")}
             </Button>
+            {(vm.polygon || vm.point || vm.drawing) && (
+              <Button type="button" onClick={vm.clearArea}>
+                {t("dataAssistant.clearArea")}
+              </Button>
+            )}
+          </Actions>
+          {(vm.polygon || vm.point) && (
+            <small>
+              {vm.polygon
+                ? t("dataAssistant.areaSelected")
+                : `${t("dataAssistant.pointSelected")}: ${vm.point!.map((n) => n.toFixed(4)).join(", ")}`}
+            </small>
           )}
+        </details>
+        {vm.history.length > 0 && (
           <Button
             type="button"
-            disabled={vm.working}
-            onClick={vm.usePickedPoint}
+            disabled={vm.working || !vm.undoAvailable}
+            onClick={() => void vm.undo()}
           >
-            {t("dataAssistant.usePoint")}
+            {t("dataAssistant.undo")}
           </Button>
-          {(vm.polygon || vm.point || vm.drawing) && (
-            <Button type="button" onClick={vm.clearArea}>
-              {t("dataAssistant.clearArea")}
-            </Button>
-          )}
-        </Actions>
+        )}
         {(vm.polygon || vm.point) && (
           <small>
-            {vm.polygon
-              ? t("dataAssistant.areaSelected")
-              : `${t("dataAssistant.pointSelected")}: ${vm.point!.map((n) => n.toFixed(4)).join(", ")}`}
+            {t(
+              vm.polygon
+                ? "dataAssistant.areaSelected"
+                : "dataAssistant.pointSelected"
+            )}
           </small>
         )}
         {vm.drawing && (
@@ -417,20 +425,18 @@ const DataAssistantTool = observer(
             </Conversation>
             {!vm.entries.length && (
               <Actions>
-                {["suggestStats", "suggestTrend", "suggestCatalog"].map(
-                  (key) => (
-                    <Button
-                      type="button"
-                      key={key}
-                      onClick={() => {
-                        setQuestion(t(`dataAssistant.${key}`));
-                        input.current?.focus();
-                      }}
-                    >
-                      {t(`dataAssistant.${key}`)}
-                    </Button>
-                  )
-                )}
+                {["suggestStats", "suggestStyle"].map((key) => (
+                  <Button
+                    type="button"
+                    key={key}
+                    onClick={() => {
+                      setQuestion(t(`dataAssistant.${key}`));
+                      input.current?.focus();
+                    }}
+                  >
+                    {t(`dataAssistant.${key}`)}
+                  </Button>
+                ))}
               </Actions>
             )}
             {vm.error && <Notice role="alert">{vm.error}</Notice>}

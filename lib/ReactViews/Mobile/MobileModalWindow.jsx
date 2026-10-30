@@ -11,6 +11,9 @@ import DataPreview from "../Preview/DataPreview";
 import WorkbenchList from "../Workbench/WorkbenchList";
 import Styles from "./mobile-modal-window.scss";
 import MobileSearch from "./MobileSearch";
+import DatasetSearchEntry from "../Tools/DatasetSearch/DatasetSearchEntry";
+import MyDataTab from "../ExplorerWindow/Tabs/MyDataTab/MyDataTab";
+import Button from "../../Styled/Button";
 
 @observer
 class MobileModalWindow extends Component {
@@ -40,11 +43,34 @@ class MobileModalWindow extends Component {
 
     switch (viewState.mobileView) {
       case viewState.mobileViewOptions.data:
-        // No multiple catalogue tabs in mobile
         return (
-          <ExplorerWindowComponents.DataCatalog
-            items={this.props.terria.catalog.group.memberModels}
-          />
+          <Box column styledMinHeight="0" fullHeight>
+            <Box paddedRatio={2} gap={2}>
+              <Button secondary onClick={() => viewState.openAddData()}>
+                {this.props.t(($) => $.addData.dataCatalogue)}
+              </Button>
+              {!this.props.terria.configParameters.disableUserAddedData && (
+                <Button secondary onClick={() => viewState.openUserData()}>
+                  {this.props.t(($) => $.addData.myData)}
+                </Button>
+              )}
+            </Box>
+            {viewState.activeTabCategory === "my-data" ? (
+              <MyDataTab
+                terria={this.props.terria}
+                viewState={viewState}
+                onFileAddFinished={() => viewState.closeCatalog()}
+                onUrlAddFinished={() => viewState.closeCatalog()}
+              />
+            ) : (
+              <>
+                <DatasetSearchEntry viewState={viewState} />
+                <ExplorerWindowComponents.DataCatalog
+                  items={this.props.terria.catalog.group.memberModels}
+                />
+              </>
+            )}
+          </Box>
         );
       case viewState.mobileViewOptions.preview:
         return (
