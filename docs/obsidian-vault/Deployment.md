@@ -2,6 +2,14 @@
 
 Ver tambien: [[Variables de Entorno]], [[Comandos Utiles]], [[Arquitectura]]
 
+## Tamaño del Dashboard y fechas automáticas (2026-10-30)
+
+TerriaJS `bf69cc638e3c542df42343cfa2cef3cee9092fae` ([PR #16](https://github.com/pabrojast/terriajs/pull/16), integrado como `1ec8a4a6c420b95085aa26cd39ab83353fe30ce2`) agrega tamaño persistente/compartible, nombre Dashboard EN/ES, fechas automáticas del asistente y contraste del encabezado de análisis. Incluye la corrección de lectura del CSV de DataStore con cabecera CRLF y registros LF, necesaria para conservar el rango de todas sus observaciones.
+
+TerriaMap fija ese SHA mediante [PR #10](https://github.com/pabrojast/TerriaMap/pull/10), integrado como `72f4f59b2126306252cb7cda2296a092cedfc212`. Las seis compilaciones Node 22/24/26 de los runs [41061247817](https://github.com/pabrojast/TerriaMap/actions/runs/41061247817) y [41061259210](https://github.com/pabrojast/TerriaMap/actions/runs/41061259210) pasan. La publicación usa el [workflow DEV 41062128239](https://github.com/pabrojast/ckan-unesco-docker/actions/runs/41062128239), con ese merge exacto. La imagen, rollout y comprobaciones del sitio se registran en la [validación del seguimiento](https://github.com/pabrojast/ckan-unesco-docker/blob/miserver-2.10/deploy/envoy-dev/validation-dashboard-size-dates-2026-10-30.md). No requiere cambios del backend ni migraciones.
+
+Pasan lint/build, TypeScript y 42 specs focalizadas. La suite global no está verde: el run [41061173007](https://github.com/pabrojast/terriajs/actions/runs/41061173007) conserva los nombres de fallos de STAC/historias de la base; el run [41061181778](https://github.com/pabrojast/terriajs/actions/runs/41061181778) presenta además un error intermitente de limpieza Canvas en `DataPreviewMapSpec`. Las cinco specs de ese componente pasan por separado tanto en Chromium como en Firefox; sus archivos no fueron modificados. Esta limitación se conserva explícita, sin desactivar pruebas.
+
 ## Dashboards sencillos en IHP DEV (2026-10-29)
 
 [[Dashboards Sencillos]] se entrega como opción adicional, manteniendo los dashboards CKAN, WaterQualityPanel, CkanSession y el asistente DeepSeek existentes. TerriaMap `d83d970928cc42313fdf75b4b1aa695dda6da2a6` fija TerriaJS `209dc5c4c9939886bd8a8fbbb1ae3bb1bda23959`. El [workflow 40921021565](https://github.com/pabrojast/ckan-unesco-docker/actions/runs/40921021565) desplegó `pabrojast/terriamap:20261029142439-d83d970`, digest `sha256:d71a49a02a77255741098fde6f2f10d13d396320f47562cbe0278a96a7f3e2d7`.
