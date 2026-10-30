@@ -22,7 +22,7 @@ export default class Csv {
     options: papaparse.ParseConfig = {}
   ): Promise<string[][]> {
     return new Promise<string[][]>((resolve, reject) => {
-      papaparse.parse(csv, {
+      papaparse.parse(normalizeHeaderNewline(csv, options), {
         ...getParseOptions(columnMajor, filterOutComments, resolve, reject),
         ...options
       });
@@ -77,6 +77,41 @@ export default class Csv {
     //   });
     // });
   }
+}
+
+/** CKAN DataStore dumps can use CRLF for the header and LF for the records.
+ * PapaParse guesses CRLF from that header and merges every record into one.
+ * Match just that header to the next record separator, preserving quoted data.
+ */
+function normalizeHeaderNewline(
+  csv: string,
+  options: papaparse.ParseConfig
+): string {
+  if (
+    options.newline ||
+    (options.quoteChar && options.quoteChar !== '"') ||
+    (options.escapeChar && options.escapeChar !== '"')
+  )
+    return csv;
+  let quoted = false;
+  let headerEnd: number | undefined;
+  for (let i = 0; i < csv.length; i++) {
+    const character = csv[i];
+    if (character === '"') {
+      if (quoted && csv[i + 1] === '"') i++;
+      else quoted = !quoted;
+    } else if (!quoted && (character === "\r" || character === "\n")) {
+      if (headerEnd === undefined) {
+        if (character !== "\r" || csv[i + 1] !== "\n") return csv;
+        headerEnd = i++;
+      } else {
+        return character === "\n"
+          ? csv.slice(0, headerEnd) + csv.slice(headerEnd + 1)
+          : csv;
+      }
+    }
+  }
+  return csv;
 }
 
 function getParseOptions(

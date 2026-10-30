@@ -21,4 +21,26 @@ describe("Csv", function () {
     const data = await Csv.parseString(csvString, true, true);
     checkCsvParse(data);
   });
+  it("reads every observation in a CKAN dump with a CRLF header and LF records", async () => {
+    const rows = await Csv.parseString(
+      "_id,date,value,site\r\n1,2026-01-01,1,A\n2,2026-02-01,3,A\n3,2026-03-01,5,B\n4,2026-04-01,,B\n",
+      true
+    );
+    expect(rows).toEqual([
+      ["_id", "1", "2", "3", "4"],
+      ["date", "2026-01-01", "2026-02-01", "2026-03-01", "2026-04-01"],
+      ["value", "1", "3", "5", ""],
+      ["site", "A", "A", "B", "B"]
+    ]);
+  });
+  it("preserves quoted line breaks and escaped quotes when repairing a mixed header", async () => {
+    const rows = await Csv.parseString(
+      'date,note\r\n2026-01-01,"First\r\nline ""quoted""\nlast"\n2026-04-01,end\n'
+    );
+    expect(rows).toEqual([
+      ["date", "note"],
+      ["2026-01-01", 'First\r\nline "quoted"\nlast'],
+      ["2026-04-01", "end"]
+    ]);
+  });
 });
