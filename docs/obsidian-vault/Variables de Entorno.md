@@ -91,3 +91,5 @@ Ejemplo (dentro de `parameters` del `config.json` de TerriaMap):
 Opcional (default `undefined`), requiere `ckanSession`. `enabled: true` muestra el acceso; `apiBaseUrl` acepta solo ruta absoluta relativa al origen, default `/api/terriassistant/data`. El usuario anonimo recibe el acceso al login; preguntas y herramientas requieren sesion activa en el servidor. No configurar claves DeepSeek en TerriaMap.
 
 El servidor `ckanext-terriassistant` usa `ckanext.terriassistant.data_enabled` (default false), `data_model` (default `deepseek-flash`) y reutiliza `deepseek_api_key`/`deepseek_base_url`. Configuracion operativa completa en el README de esa extension.
+
+El Asistente IA conserva la configuración `dataAssistant` existente. El cliente habilita edición, buscador y carga cuando el bootstrap devuelve `capabilities.map_editing=1`. La clave y el modelo continúan gestionándose en CKAN. No se añade infraestructura vectorial: la guía revisada se distribuye con la extensión.

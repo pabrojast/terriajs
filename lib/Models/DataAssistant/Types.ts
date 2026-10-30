@@ -1,4 +1,5 @@
 import type { Polygon } from "geojson";
+import type { JsonObject } from "../../Core/Json";
 
 export interface DataAssistantConfig {
   enabled?: boolean;
@@ -51,6 +52,74 @@ export interface DataSourceRef {
   units?: string;
   time?: string;
   private?: boolean;
+  dataset_title?: string;
+  dataset_name?: string;
+}
+export interface MapLayerContext {
+  id: string;
+  name: string;
+  type: string;
+  resource_id?: string;
+  traits: JsonObject;
+  capabilities: string[];
+  columns?: { name: string; type: string }[];
+  dates?: { start: string; end: string };
+  wms_styles?: string[];
+  bands?: number[];
+}
+export interface AssistantMapContext {
+  revision: string;
+  camera_revision: string;
+  camera: { west: number; south: number; east: number; north: number };
+  layers: MapLayerContext[];
+  basemaps: { id: string; name: string }[];
+  basemap_id?: string;
+}
+export type MapEdit =
+  | {
+      kind: "update_layer";
+      source_id: string;
+      traits: JsonObject;
+      refresh_legend?: boolean;
+    }
+  | { kind: "remove_layer" | "zoom"; source_id: string }
+  | { kind: "move_layer"; source_id: string; index: number }
+  | { kind: "add_ckan"; resource_id: string; view_id?: string }
+  | { kind: "add_url"; url: string; format?: string; name?: string }
+  | { kind: "set_basemap"; basemap_id: string }
+  | {
+      kind: "set_view";
+      rectangle: { west: number; south: number; east: number; north: number };
+    };
+export interface MapProposal {
+  id: string;
+  title: string;
+  base_revision: string;
+  view_revision?: string;
+  operations: MapEdit[];
+}
+export interface CatalogSearch {
+  query: string;
+  polygon?: Polygon;
+  formats?: string[];
+  organization?: string;
+  tags?: string[];
+  cursor?: string;
+}
+export interface CatalogSearchResult {
+  sources: DataSourceRef[];
+  datasets_found: number;
+  candidates_found: number;
+  examined: number;
+  unknown_coverage: number;
+  next_cursor?: string | null;
+  truncated: boolean;
+  spatial_basis?: string | null;
+}
+export interface MapSource {
+  source: DataSourceRef;
+  views: { id: string; title: string }[];
+  model: JsonObject;
 }
 export interface ToolCall {
   id: string;
@@ -119,4 +188,5 @@ export interface DataTurn {
     chart: "table" | "line" | "bar" | "scatter";
   }[];
   actions?: MapAction[];
+  proposals?: MapProposal[];
 }

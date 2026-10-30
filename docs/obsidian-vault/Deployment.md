@@ -248,3 +248,9 @@ Integrar o publicar Git no constituye un despliegue; `main`/`node` de TerriaMap 
 ### Despliegue del asistente de datos
 
 Publicar la libreria en `develop`, fijar su SHA en TerriaMap `develop` y actualizar `yarn.lock`. El backend se publica en `ckanext-terriassistant`; los identificadores de procedencia se publican en `ckanext-terria_view` rama `dev-private-dataset` usada por DEV. CKAN necesita los workers RQ `terria-data`, la clave DeepSeek del servidor y `data_enabled=true`. En `ckan-unesco-docker`, `push.yml` despliega CKAN y `deploy-terria-dev.yml` construye TerriaMap desde el SHA indicado; Helm activa `clientConfig.parameters.dataAssistant`. El config base de TerriaMap lo deja desactivado. Verificar login, consulta con evidencia y logout sobre la URL de DEV tras ambos rollouts. No implica promocion a produccion.
+
+### Candidato Asistente IA (2026-10-30)
+
+Esta revisión se publica en ramas aisladas `feat/ai-assistant-20261030` de TerriaJS, TerriaMap y las extensiones, sin fusionarlas. La rama de entrega es `deploy/ai-assistant-dev-20261030`; los workflows permiten exactamente esa rama adicional y conservan las comprobaciones de identidad del clúster, migraciones, imagen y Solr. TerriaMap fija la biblioteca `0a5eec80f5f40fab415c30aae9f82cca222e0a7a`. El backend anuncia `map_editing: 1` y `spatial_search: 1` en bootstrap para activar los nuevos controles.
+
+El [informe del candidato DEV](https://github.com/pabrojast/ckan-unesco-docker/blob/deploy/ai-assistant-dev-20261030/deploy/envoy-dev/validation-ai-assistant-2026-10-30.md) registra imágenes, workflows, rollback y resultados de navegador. La entrega de Terria `41070126909` terminó correctamente. El informe distingue la revisión de código, la entrega de CKAN y las limitaciones conocidas de CI. Producción no forma parte de esta entrega.

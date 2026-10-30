@@ -17,8 +17,27 @@ import {
   DataQuery,
   DataTurn,
   MapAction,
-  Row
+  Row,
+  MapProposal,
+  MapSource,
+  DataSourceRef,
+  CatalogSearch,
+  CatalogSearchResult
 } from "../Models/DataAssistant/Types";
+import {
+  mapContext,
+  applyMapChanges,
+  undoMapChanges,
+  canUndo,
+  MapUndo,
+  addLocalFiles
+} from "../Models/DataAssistant/MapEdits";
+import {
+  buildShortShareLink,
+  buildShareLink,
+  canShorten,
+  isShareable
+} from "../ReactViews/Map/Panels/SharePanel/BuildShareLink";
 import CkanItemReference from "../Models/Catalog/Ckan/CkanItemReference";
 import CsvCatalogItem from "../Models/Catalog/CatalogItems/CsvCatalogItem";
 import GeoJsonCatalogItem from "../Models/Catalog/CatalogItems/GeoJsonCatalogItem";
@@ -77,6 +96,17 @@ export default class DataAssistantViewModel {
   point: [number, number] | undefined;
   drawing = false;
   ready = false;
+  mapEditing = false;
+  editing = false;
+  searching = false;
+  searchResult: CatalogSearchResult | undefined;
+  searchRequest: CatalogSearch | undefined;
+  mapSources = new Map<string, MapSource>();
+  localProposals: MapProposal[] = [];
+  appliedIds: string[] = [];
+  history: MapUndo[] = [];
+  shareUrl = "";
+  shareExcluded: string[] = [];
   private csrf = "";
   private conversation: string | undefined;
   private turnId: string | undefined;
@@ -183,13 +213,16 @@ export default class DataAssistantViewModel {
     if (!this.authenticated) return;
     const gen = this.generation;
     try {
-      const config = await this.api<{ csrf_token: string; enabled: boolean }>(
-        "/bootstrap"
-      );
+      const config = await this.api<{
+        csrf_token: string;
+        enabled: boolean;
+        capabilities?: { map_editing?: number };
+      }>("/bootstrap");
       if (gen !== this.generation) return;
       runInAction(() => {
         this.csrf = config.csrf_token;
         this.ready = config.enabled;
+        this.mapEditing = config.capabilities?.map_editing === 1;
       });
       if (!config.enabled)
         throw new Error(i18next.t("dataAssistant.unavailable"));
@@ -262,7 +295,8 @@ export default class DataAssistantViewModel {
     this.drawingTool.enterDrawMode();
   }
   async ask(question: string) {
-    if (this.busy || !this.authenticated || !question.trim()) return;
+    if (this.busy || this.editing || !this.authenticated || !question.trim())
+      return;
     this.busy = true;
     this.turnId = undefined;
     this.error = "";
@@ -304,7 +338,10 @@ export default class DataAssistantViewModel {
           request_id: crypto.randomUUID(),
           question,
           sources: selectedSources,
-          selection
+          selection,
+          ...(this.mapEditing
+            ? { map_context: mapContext(this.viewState.terria) }
+            : {})
         },
         controller.signal
       );
@@ -420,6 +457,17 @@ export default class DataAssistantViewModel {
     this.turnId = undefined;
     this.csrf = "";
     this.ready = false;
+    this.mapEditing = false;
+    this.editing = false;
+    this.searching = false;
+    this.searchResult = undefined;
+    this.searchRequest = undefined;
+    this.mapSources.clear();
+    this.localProposals = [];
+    this.appliedIds = [];
+    this.history = [];
+    this.shareUrl = "";
+    this.shareExcluded = [];
     this.entries = [];
     this.error = "";
     this.clearArea();
@@ -437,6 +485,19 @@ export default class DataAssistantViewModel {
       if (!this.authenticated)
         throw new Error(i18next.t("dataAssistant.signIn"));
       const terria = this.viewState.terria;
+      if (this.mapEditing && action.action !== "filter") {
+        const proposal: MapProposal = {
+          id: crypto.randomUUID(),
+          title: action.title ?? action.source.name,
+          base_revision: mapContext(terria).revision,
+          operations:
+            action.action === "add_layer"
+              ? [{ kind: "add_ckan", resource_id: action.source.resource_id! }]
+              : [{ kind: "zoom", source_id: action.source_id }]
+        };
+        await this.applyProposal(proposal);
+        return;
+      }
       if (action.action === "add_layer") {
         if (
           !action.source.resource_id ||
@@ -535,6 +596,275 @@ export default class DataAssistantViewModel {
       runInAction(() => {
         this.error = String((error as Error).message);
       });
+    }
+  }
+  get working() {
+    return this.busy || this.editing || this.searching;
+  }
+  get undoAvailable() {
+    const last = this.history[this.history.length - 1];
+    return !!last && canUndo(this.viewState.terria, last);
+  }
+  async loadMapSource(resourceId: string, viewId?: string) {
+    return this.api<MapSource>(
+      `/sources/${encodeURIComponent(resourceId)}/map${viewId ? "?view_id=" + encodeURIComponent(viewId) : ""}`
+    );
+  }
+  async inspectMapSource(source: DataSourceRef) {
+    if (!source.resource_id || this.working) return;
+    this.editing = true;
+    const gen = this.generation;
+    try {
+      const result = await this.loadMapSource(source.resource_id);
+      if (gen === this.generation)
+        runInAction(() => this.mapSources.set(source.resource_id!, result));
+    } catch (error) {
+      if (gen === this.generation)
+        runInAction(() => {
+          this.error = (error as Error).message;
+        });
+    } finally {
+      if (gen === this.generation)
+        runInAction(() => {
+          this.editing = false;
+        });
+    }
+  }
+  async searchCatalog(
+    query: string,
+    more = false,
+    options: { format?: string; organization?: string; tags?: string } = {}
+  ) {
+    if (this.working || !this.authenticated) return;
+    const gen = this.generation;
+    this.searching = true;
+    this.error = "";
+    try {
+      await this.initialize();
+      if (!this.ready || gen !== this.generation) return;
+      const request: CatalogSearch =
+        more && this.searchRequest
+          ? {
+              ...this.searchRequest,
+              cursor: this.searchResult?.next_cursor ?? undefined
+            }
+          : {
+              query,
+              ...(this.polygon
+                ? { polygon: JSON.parse(JSON.stringify(this.polygon)) }
+                : {}),
+              ...(options.format ? { formats: [options.format] } : {}),
+              ...(options.organization
+                ? { organization: options.organization }
+                : {}),
+              ...(options.tags
+                ? {
+                    tags: options.tags
+                      .split(",")
+                      .map((t) => t.trim())
+                      .filter(Boolean)
+                  }
+                : {})
+            };
+      const result = await this.api<CatalogSearchResult>(
+        "/catalog/search",
+        "POST",
+        request
+      );
+      if (gen !== this.generation) return;
+      runInAction(() => {
+        this.searchRequest = request;
+        this.searchResult = {
+          ...result,
+          sources: more
+            ? [
+                ...new Map(
+                  [
+                    ...(this.searchResult?.sources ?? []),
+                    ...result.sources
+                  ].map((source) => [source.id, source])
+                ).values()
+              ]
+            : result.sources
+        };
+      });
+    } catch (error) {
+      if (gen === this.generation)
+        runInAction(() => {
+          this.error = (error as Error).message;
+        });
+    } finally {
+      if (gen === this.generation)
+        runInAction(() => {
+          this.searching = false;
+        });
+    }
+  }
+  proposeSource(source: DataSourceRef, viewId?: string) {
+    if (!source.resource_id) return;
+    this.localProposals.push({
+      id: crypto.randomUUID(),
+      title: source.name,
+      base_revision: mapContext(this.viewState.terria).revision,
+      operations: [
+        {
+          kind: "add_ckan",
+          resource_id: source.resource_id,
+          ...(viewId ? { view_id: viewId } : {})
+        }
+      ]
+    });
+  }
+  proposeUrl(url: string, format = "auto") {
+    try {
+      const parsed = new URL(url);
+      if (
+        !["http:", "https:"].includes(parsed.protocol) ||
+        parsed.username ||
+        parsed.password
+      )
+        throw new Error(i18next.t("dataAssistant.invalidUrl"));
+      this.localProposals.push({
+        id: crypto.randomUUID(),
+        title: i18next.t("dataAssistant.addUrl"),
+        base_revision: mapContext(this.viewState.terria).revision,
+        operations: [{ kind: "add_url", url, format }]
+      });
+    } catch {
+      this.error = i18next.t("dataAssistant.invalidUrl");
+    }
+  }
+  async applyProposal(proposal: MapProposal) {
+    if (this.working || this.appliedIds.includes(proposal.id)) return;
+    const gen = this.generation;
+    const user = this.viewState.terria.ckanSession?.user?.name;
+    this.editing = true;
+    this.error = "";
+    try {
+      await this.viewState.terria.ckanSession?.refresh();
+      const authorized = () =>
+        gen === this.generation &&
+        this.authenticated &&
+        this.viewState.terria.ckanSession?.user?.name === user;
+      const undo = await applyMapChanges(
+        this.viewState.terria,
+        proposal,
+        this.loadMapSource,
+        authorized
+      );
+      if (!authorized()) return;
+      runInAction(() => {
+        this.history.push(undo);
+        this.appliedIds.push(proposal.id);
+        this.selectedIds = [
+          ...new Set([
+            ...this.selectedIds,
+            ...undo.added.map((item) => "layer:" + item.uniqueId)
+          ])
+        ];
+        this.shareUrl = "";
+      });
+    } catch (error) {
+      if (gen === this.generation)
+        runInAction(() => {
+          this.error = (error as Error).message;
+        });
+    } finally {
+      if (gen === this.generation)
+        runInAction(() => {
+          this.editing = false;
+        });
+    }
+  }
+  async undo() {
+    const last = this.history[this.history.length - 1];
+    if (this.working || !last) return;
+    const gen = this.generation;
+    this.editing = true;
+    this.error = "";
+    try {
+      await this.viewState.terria.ckanSession?.refresh();
+      if (gen !== this.generation || !this.authenticated) return;
+      await undoMapChanges(this.viewState.terria, last);
+      if (gen === this.generation)
+        runInAction(() => {
+          this.history.pop();
+          this.appliedIds = this.appliedIds.filter((id) => id !== last.id);
+          this.shareUrl = "";
+        });
+    } catch (error) {
+      if (gen === this.generation)
+        runInAction(() => {
+          this.error = (error as Error).message;
+        });
+    } finally {
+      if (gen === this.generation)
+        runInAction(() => {
+          this.editing = false;
+        });
+    }
+  }
+  async importFiles(files: FileList) {
+    if (this.working || !this.authenticated) return;
+    const gen = this.generation;
+    this.editing = true;
+    this.error = "";
+    try {
+      const undo = await addLocalFiles(
+        this.viewState.terria,
+        Array.from(files),
+        () => gen === this.generation && this.authenticated
+      );
+      if (gen === this.generation)
+        runInAction(() => {
+          this.history.push(undo);
+          this.selectedIds = [
+            ...new Set([
+              ...this.selectedIds,
+              ...undo.added.map((item) => "layer:" + item.uniqueId)
+            ])
+          ];
+          this.shareUrl = "";
+        });
+    } catch (error) {
+      if (gen === this.generation)
+        runInAction(() => {
+          this.error = (error as Error).message;
+        });
+    } finally {
+      if (gen === this.generation)
+        runInAction(() => {
+          this.editing = false;
+        });
+    }
+  }
+  async shareMap() {
+    if (this.working) return;
+    const gen = this.generation;
+    const terria = this.viewState.terria;
+    this.editing = true;
+    this.error = "";
+    this.shareExcluded = this.sources
+      .filter((s) => !isShareable(terria)(s.id.slice(6)))
+      .map((s) => s.name);
+    try {
+      const url = canShorten(terria)
+        ? await buildShortShareLink(terria, this.viewState)
+        : buildShareLink(terria, this.viewState);
+      if (gen === this.generation)
+        runInAction(() => {
+          this.shareUrl = url;
+        });
+    } catch (error) {
+      if (gen === this.generation)
+        runInAction(() => {
+          this.error = (error as Error).message;
+        });
+    } finally {
+      if (gen === this.generation)
+        runInAction(() => {
+          this.editing = false;
+        });
     }
   }
   dispose() {
