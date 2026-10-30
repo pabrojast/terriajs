@@ -138,6 +138,37 @@ describe("DataAssistant map editing", function () {
     expect(layer.name).toBe("Water");
   });
 
+  it("undoes a reused CKAN layer without removing its existing catalog registration", async function () {
+    const rid = "12345678-1234-1234-1234-123456789abc";
+    const existing = new GeoJsonCatalogItem("assistant/" + rid, terria);
+    updateModelFromJson(existing, CommonStrata.definition, {
+      geoJsonData: { type: "FeatureCollection", features: [] }
+    }).throwIfError();
+    terria.addModel(existing);
+    runInAction(() =>
+      terria.catalog.userAddedDataGroup.add(CommonStrata.user, existing)
+    );
+    const undo = await applyMapChanges(
+      terria,
+      proposal([{ kind: "add_ckan", resource_id: rid }]),
+      async () => ({
+        source: { id: "ckan:" + rid, name: "Existing", format: "GeoJSON" },
+        views: [],
+        model: { type: "geojson" }
+      }),
+      () => true
+    );
+    expect(terria.workbench.contains(existing)).toBe(true);
+    await undoMapChanges(terria, undo);
+    expect(terria.workbench.contains(existing)).toBe(false);
+    expect(terria.getModelById(GeoJsonCatalogItem, existing.uniqueId!)).toBe(
+      existing
+    );
+    expect(terria.catalog.userAddedDataGroup.members).toContain(
+      existing.uniqueId!
+    );
+  });
+
   it("rolls back earlier edits when a viewer operation fails", async function () {
     spyOn(terria.currentViewer, "zoomTo").and.returnValue(
       Promise.reject(new Error("Viewer failed"))

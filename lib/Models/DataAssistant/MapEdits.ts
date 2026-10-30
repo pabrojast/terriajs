@@ -419,6 +419,8 @@ export interface MapUndo {
   camera?: CameraView;
   afterCamera?: string;
   added: BaseModel[];
+  created: BaseModel[];
+  groupAdded: BaseModel[];
 }
 
 function userTraits(item: BaseModel): JsonObject {
@@ -465,7 +467,11 @@ async function restore(terria: Terria, undo: MapUndo) {
     if (undo.order) terria.workbench.items = undo.order;
     for (const item of undo.added) {
       terria.workbench.remove(item);
+    }
+    for (const item of undo.groupAdded) {
       terria.catalog.userAddedDataGroup.remove(CommonStrata.user, item);
+    }
+    for (const item of undo.created) {
       terria.removeModelReferences(item);
     }
   });
@@ -505,7 +511,9 @@ export async function applyMapChanges(
     id: proposal.id,
     title: proposal.title,
     layers: [],
-    added: []
+    added: [],
+    created,
+    groupAdded: []
   };
   try {
     for (const op of operations) {
@@ -650,7 +658,12 @@ export async function applyMapChanges(
           (await terria.workbench.add(item)).throwIfError();
           if (!stillAuthorized())
             throw new Error(i18next.t("dataAssistant.signIn"));
-          terria.catalog.userAddedDataGroup.add(CommonStrata.user, item);
+          if (
+            !terria.catalog.userAddedDataGroup.members.includes(item.uniqueId!)
+          ) {
+            undo.groupAdded.push(item);
+            terria.catalog.userAddedDataGroup.add(CommonStrata.user, item);
+          }
         }
       }
       if (!stillAuthorized())
@@ -689,7 +702,9 @@ export async function addLocalFiles(
     title: files.map((file) => file.name).join(", "),
     layers: [],
     order: [...terria.workbench.items],
-    added: []
+    added: [],
+    created: [],
+    groupAdded: []
   };
   try {
     for (const file of files) {
@@ -698,6 +713,7 @@ export async function addLocalFiles(
       if (!item || !HasLocalData.is(item) || !MappableMixin.isMixedInto(item))
         throw new Error(i18next.t("dataAssistant.unsupported"));
       undo.added.push(item);
+      undo.created.push(item);
       (await item.loadMapItems()).throwIfError();
       if (!authorized()) throw new Error(i18next.t("dataAssistant.signIn"));
     }
@@ -709,7 +725,10 @@ export async function addLocalFiles(
     for (const item of undo.added) {
       (await terria.workbench.add(item)).throwIfError();
       if (!authorized()) throw new Error(i18next.t("dataAssistant.signIn"));
-      terria.catalog.userAddedDataGroup.add(CommonStrata.user, item);
+      if (!terria.catalog.userAddedDataGroup.members.includes(item.uniqueId!)) {
+        undo.groupAdded.push(item);
+        terria.catalog.userAddedDataGroup.add(CommonStrata.user, item);
+      }
     }
     undo.afterOrder = fingerprint(terria.workbench.itemIds);
     return undo;
