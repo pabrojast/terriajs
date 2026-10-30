@@ -137,6 +137,10 @@ const Container = styled.div<{ $analysis?: boolean }>`
 
 const TitleBar = styled.div<{ $analysis?: boolean }>`
   background: ${(p) => (p.$analysis ? "#0b5c73" : "transparent")};
+  ${(p) =>
+    p.$analysis
+      ? `&& > *, && button { color: #fff; } && svg { fill: #fff; }`
+      : ""}
   display: flex;
   flex-direction: row;
   justify-content: space-between;

@@ -2653,6 +2653,9 @@
     "cancel": "Cancel"
   },
   "dataAssistant": {
+    "automaticDates": "Automatic dates from the selected layers. Layers without dates do not limit the period.",
+    "manualDates": "Custom period. You can return to all available dates.",
+    "useDataDates": "Use data dates",
     "title": "Ask the data",
     "intro": "Explore your layers and the IHP catalogue with answers supported by calculations and sources.",
     "signIn": "Sign in to IHP to ask about data",
@@ -2731,7 +2734,8 @@
     "no": "No"
   },
   "simpleDashboard": {
-    "title": "Simple dashboard",
+    "title": "Dashboard",
+    "resizePanel": "Resize: drag this corner or use the arrow keys. Home resets the size.",
     "library": "My dashboards in IHP",
     "create": "Create dashboard",
     "public": "Public dashboards",

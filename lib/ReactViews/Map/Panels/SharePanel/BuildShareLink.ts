@@ -523,6 +523,8 @@ function addAccumulatedChartSeries(terria: Terria, initSource: InitSourceData) {
 function addSimpleDashboard(terria: Terria, initSource: InitSourceData) {
   if (terria.simpleDashboard && terria.simpleDashboardOpen) {
     initSource.simpleDashboard = { ...terria.simpleDashboard };
+    if (terria.simpleDashboardSize)
+      initSource.simpleDashboardSize = { ...terria.simpleDashboardSize };
     if (terria.simpleDashboardPosition)
       initSource.simpleDashboardPosition = {
         ...terria.simpleDashboardPosition

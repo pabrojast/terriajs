@@ -112,4 +112,51 @@ describe("Simple dashboards", () => {
       expect(terria.simpleDashboardPosition).toBeUndefined();
     }
   });
+  it("shares the preferred size, restores it and accepts older links without it", async () => {
+    const terria = new Terria({ baseUrl: "./" });
+    await terria.applyInitData({
+      initData: {
+        simpleDashboard: { id, revision: 1 },
+        simpleDashboardSize: { width: 620, height: 720 }
+      }
+    });
+    const share = getShareData(terria, undefined, { includeStories: false });
+    const init = share.initSources.find(
+      (s) => typeof s === "object" && "simpleDashboard" in s
+    ) as any;
+    expect(init.simpleDashboardSize).toEqual({ width: 620, height: 720 });
+    const recipient = new Terria({ baseUrl: "./" });
+    await recipient.applyInitData({ initData: init });
+    expect(recipient.simpleDashboardSize).toEqual({ width: 620, height: 720 });
+    await recipient.applyInitData({
+      initData: { simpleDashboard: { id, revision: 1 } }
+    });
+    expect(recipient.simpleDashboardSize).toBeUndefined();
+    runInAction(() => {
+      terria.simpleDashboardOpen = false;
+    });
+    expect(JSON.stringify(getShareData(terria))).not.toContain(
+      '"simpleDashboardSize"'
+    );
+  });
+  it("ignores malformed sizes without preventing the dashboard from opening", async () => {
+    const terria = new Terria({ baseUrl: "./" });
+    for (const size of [
+      { width: 0, height: 400 },
+      { width: -1, height: 400 },
+      { width: "600", height: 400 },
+      { width: 600 },
+      { width: Infinity, height: 400 },
+      { width: 10001, height: 400 }
+    ]) {
+      await terria.applyInitData({
+        initData: {
+          simpleDashboard: { id, revision: 1 },
+          simpleDashboardSize: size
+        } as any
+      });
+      expect(terria.simpleDashboardSize).toBeUndefined();
+      expect(terria.simpleDashboardOpen).toBe(true);
+    }
+  });
 });

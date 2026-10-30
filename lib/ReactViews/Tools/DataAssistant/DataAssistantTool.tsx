@@ -298,6 +298,20 @@ const DataAssistantTool = observer(
               />
             </label>
           </Dates>
+          <p>
+            <small>
+              {t(
+                vm.datesAutomatic
+                  ? "dataAssistant.automaticDates"
+                  : "dataAssistant.manualDates"
+              )}
+            </small>
+          </p>
+          {!vm.datesAutomatic && (
+            <Button type="button" disabled={vm.busy} onClick={vm.useDataDates}>
+              {t("dataAssistant.useDataDates")}
+            </Button>
+          )}
         </details>
         <Actions>
           <Button type="button" disabled={vm.busy} onClick={vm.drawArea}>

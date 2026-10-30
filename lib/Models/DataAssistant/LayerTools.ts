@@ -4,6 +4,8 @@ import getDereferencedIfExists from "../../Core/getDereferencedIfExists";
 import { calculateZonalStatistics } from "../../Core/CogZonalEngine";
 import { readCogStepPointValue } from "../../Core/CogPointReader";
 import TableMixin from "../../ModelMixins/TableMixin";
+import TimeVarying from "../../ModelMixins/TimeVarying";
+import TableColumnType from "../../Table/TableColumnType";
 import GeoJsonMixin from "../../ModelMixins/GeojsonMixin";
 import CatalogMemberMixin from "../../ModelMixins/CatalogMemberMixin";
 import CogCatalogItem from "../Catalog/CatalogItems/CogCatalogItem";
@@ -51,6 +53,51 @@ export function findLayer(terria: Terria, id: string): BaseModel {
     .find((item) => "layer:" + item.uniqueId === id);
   if (!item) throw new Error("The layer is no longer loaded; select it again");
   return item;
+}
+
+/** Full data coverage, independent of the map's currently displayed instant. */
+export function selectedLayerDateRange(terria: Terria, selectedIds: string[]) {
+  let minimum = Infinity;
+  let maximum = -Infinity;
+  const add = (date: Date | undefined) => {
+    const value = date?.getTime();
+    if (value !== undefined && Number.isFinite(value)) {
+      minimum = Math.min(minimum, value);
+      maximum = Math.max(maximum, value);
+    }
+  };
+  for (const item of terria.workbench.items.map(getDereferencedIfExists)) {
+    if (!selectedIds.includes("layer:" + item.uniqueId)) continue;
+    if (item instanceof CogTimeSeriesCatalogItem) {
+      for (const entry of item.timeEntries) {
+        if (!entry.time) continue;
+        try {
+          add(JulianDate.toDate(JulianDate.fromIso8601(entry.time)));
+        } catch {
+          /* Match the timeline's handling of unparseable entries. */
+        }
+      }
+    } else if (TableMixin.isMixedInto(item)) {
+      const column =
+        item.activeTableStyle.timeColumn ??
+        item.tableColumns.find((c) => c.type === TableColumnType.time);
+      add(column?.valuesAsDates.minimum);
+      add(column?.valuesAsDates.maximum);
+    } else if (TimeVarying.is(item)) {
+      if (item.startTimeAsJulianDate)
+        add(JulianDate.toDate(item.startTimeAsJulianDate));
+      if (item.stopTimeAsJulianDate)
+        add(JulianDate.toDate(item.stopTimeAsJulianDate));
+    }
+  }
+  return {
+    start: Number.isFinite(minimum)
+      ? new Date(minimum).toISOString().slice(0, 10)
+      : "",
+    end: Number.isFinite(maximum)
+      ? new Date(maximum).toISOString().slice(0, 10)
+      : ""
+  };
 }
 function cell(value: unknown): Cell {
   if (value === null || value === undefined) return null;

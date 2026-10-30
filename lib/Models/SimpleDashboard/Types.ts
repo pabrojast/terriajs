@@ -7,6 +7,23 @@ export interface DashboardPosition {
   x: number;
   y: number;
 }
+export interface DashboardSize {
+  width: number;
+  height: number;
+}
+export function validDashboardSize(value: unknown): value is DashboardSize {
+  const size = value as DashboardSize | undefined;
+  return (
+    !!size &&
+    [size.width, size.height].every(
+      (dimension) =>
+        typeof dimension === "number" &&
+        Number.isFinite(dimension) &&
+        dimension > 0 &&
+        dimension <= 10000
+    )
+  );
+}
 export function validDashboardPosition(
   value: unknown
 ): value is DashboardPosition {

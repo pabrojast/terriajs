@@ -8,6 +8,7 @@ import { isSafeRelativePath } from "../Models/CkanSession";
 import {
   findLayer,
   layerSources,
+  selectedLayerDateRange,
   readLayerRows,
   runLayerTool
 } from "../Models/DataAssistant/LayerTools";
@@ -71,6 +72,7 @@ export default class DataAssistantViewModel {
   progress = "";
   start = "";
   end = "";
+  datesAutomatic = true;
   polygon: Polygon | undefined;
   point: [number, number] | undefined;
   drawing = false;
@@ -83,14 +85,26 @@ export default class DataAssistantViewModel {
   private drawingTool: UserDrawing | undefined;
   private derived: BaseModel[] = [];
   private readonly disposeSession: () => void;
+  private readonly disposeDates: () => void;
 
   constructor(readonly viewState: ViewState) {
-    makeAutoObservable<this, "disposeSession">(
+    makeAutoObservable<this, "disposeSession" | "disposeDates">(
       this,
-      { viewState: false, disposeSession: false },
+      { viewState: false, disposeSession: false, disposeDates: false },
       { autoBind: true }
     );
     this.selectedIds = this.sources.map((s) => s.id);
+    this.disposeDates = reaction(
+      () => ({
+        selection: this.selectedIds.slice().sort().join("\n"),
+        ...this.availableDateRange
+      }),
+      (next, previous) => {
+        if (this.datesAutomatic || next.selection !== previous?.selection)
+          this.useDataDates();
+      },
+      { fireImmediately: true }
+    );
     this.disposeSession = reaction(
       () => {
         const session = viewState.terria.ckanSession;
@@ -105,6 +119,14 @@ export default class DataAssistantViewModel {
   }
   get sources() {
     return layerSources(this.viewState.terria);
+  }
+  get availableDateRange() {
+    return selectedLayerDateRange(this.viewState.terria, this.selectedIds);
+  }
+  useDataDates() {
+    this.datesAutomatic = true;
+    this.start = this.availableDateRange.start;
+    this.end = this.availableDateRange.end;
   }
   get authenticated() {
     return this.viewState.terria.ckanSession?.isAuthenticated === true;
@@ -184,6 +206,7 @@ export default class DataAssistantViewModel {
       : [...this.selectedIds, id];
   }
   setDates(start: string, end: string) {
+    this.datesAutomatic = false;
     this.start = start;
     this.end = end;
   }
@@ -405,6 +428,7 @@ export default class DataAssistantViewModel {
       this.viewState.terria.removeModelReferences(item);
     });
     this.derived = [];
+    this.useDataDates();
   }
   async apply(action: MapAction) {
     this.error = "";
@@ -514,6 +538,7 @@ export default class DataAssistantViewModel {
     }
   }
   dispose() {
+    this.disposeDates();
     this.reset();
     this.disposeSession();
   }

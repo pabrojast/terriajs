@@ -440,3 +440,11 @@ ajena al piloto que esté controlando la línea temporal.
 - Finalizar libera la interaccion de dibujo, no el overlay retenido. Cerrar la herramienta elimina sus elementos temporales de forma idempotente sin retirar modos ajenos; las respuestas de picking tardias no agregan vertices tras cerrar.
 - En movil el panel inferior se mantiene compacto al dibujar y se amplia para configurar/resultados, con un limite de 70dvh. El grafico de puntos queda oculto mientras la herramienta movil esta abierta, conservando sus series. En escritorio se pliega temporalmente mientras la herramienta esta abierta para no cubrir la geometria.
 - El grafico acumulado y su vista ampliada usan superficies claras; el canvas ocupa la altura disponible y los controles/leyenda tienen desplazamiento cuando falta espacio. El resultado zonal se amplia en Chart.js sin alterar las series de puntos existentes. El estado de geometria sigue siendo temporal: esta entrega no agrega persistencia del poligono al formato share.
+
+## Fechas del asistente de datos
+
+Al abrir «Preguntar a los datos», Desde/Hasta toman la primera y última fecha disponibles entre las capas seleccionadas. Las tablas CSV y GeoJSON usan la columna temporal activa o detectada; las series COG usan todos los pasos de la resolución activa, independientemente de la fecha que muestra el mapa. Otras capas temporales usan su intervalo declarado. Sin información temporal se dejan los campos vacíos.
+
+El rango automático se actualiza al terminar la carga o cambiar los datos. Editar una fecha conserva el período manual mientras no cambie la selección. «Usar fechas de los datos» recupera el automático; cambiar las capas seleccionadas recalcula el rango. Esto no modifica los datos ni el período del mapa.
+
+Las exportaciones CSV de DataStore pueden combinar una cabecera CRLF con registros LF. El lector de tablas armoniza solamente ese separador de cabecera antes de autodetectar el CSV, conservando los saltos de línea y comillas dentro de campos. Las opciones explícitas de separador de línea o comillas se respetan. Sin este ajuste el CSV de demostración de DEV se interpretaba como una sola observación, lo que también reducía su rango temporal.

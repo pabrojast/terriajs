@@ -22,6 +22,7 @@ import {
 import { DashboardView, DashboardResults } from "./DashboardView";
 import { tr, dashboardLocale, dashboardMessage } from "./text";
 import useDashboardPosition from "./useDashboardPosition";
+import useDashboardSize from "./useDashboardSize";
 
 const empty = (): DashboardConfig => ({
   version: 1,
@@ -72,6 +73,7 @@ const Panel = observer(function Panel() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [drawing, setDrawing] = useState(false);
+  const size = useDashboardSize(terria, position, collapsed || drawing);
   const drawingTool = useRef<UserDrawing>();
   const scroll = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -285,7 +287,7 @@ const Panel = observer(function Panel() {
   return (
     <Shell
       ref={position.panel}
-      style={position.style}
+      style={{ ...position.style, ...size.style }}
       lang={dashboardLocale()}
       $collapsed={collapsed}
       $drawing={drawing}
@@ -975,6 +977,22 @@ const Panel = observer(function Panel() {
           )}
         </div>
       )}
+      {!collapsed && !drawing && (
+        <button
+          type="button"
+          className="simple-resize"
+          aria-label={tr("resizePanel")}
+          title={tr("resizePanel")}
+          onPointerDown={size.onPointerDown}
+          onPointerMove={size.onPointerMove}
+          onPointerUp={size.onPointerUp}
+          onPointerCancel={size.onPointerUp}
+          onLostPointerCapture={size.onPointerUp}
+          onKeyDown={size.onKeyDown}
+        >
+          <span aria-hidden="true">◢</span>
+        </button>
+      )}
     </Shell>
   );
 });
@@ -995,6 +1013,23 @@ export const Shell = styled.aside<{ $collapsed?: boolean; $drawing?: boolean }>`
   display: flex;
   flex-direction: column;
   font-size: 13px;
+  button.simple-resize {
+    position: absolute;
+    right: 2px;
+    bottom: 2px;
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    border: 0;
+    border-radius: 4px 0 8px;
+    background: #fff;
+    color: #0079a5;
+    cursor: nwse-resize;
+    touch-action: none;
+  }
+  button.simple-resize:focus-visible {
+    outline: 2px solid #0079a5;
+  }
   * {
     box-sizing: border-box;
   }
