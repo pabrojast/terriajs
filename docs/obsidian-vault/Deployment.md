@@ -2,6 +2,14 @@
 
 Ver tambien: [[Variables de Entorno]], [[Comandos Utiles]], [[Arquitectura]]
 
+## Buscador de datasets separado del asistente (2026-10-30)
+
+[PR #20](https://github.com/pabrojast/terriajs/pull/20), integrado en `develop` como `321517012e0f4a72989b164b94e07f2643338d51`, mueve la búsqueda con polígono a Añadir datos, conserva archivos/URL en Mis datos y deja el asistente con chat, contexto plegado y Aplicar/Deshacer. TerriaMap [PR #12](https://github.com/pabrojast/TerriaMap/pull/12), merge `b5967058ad9e2a48ce8d61b69bd10284ad106d35`, fija el código funcional `311a6b27475b0500458d83883ad97171d4b462b9`; los commits posteriores de la biblioteca solo sincronizan declaraciones SCSS y aíslan la limpieza de las pruebas.
+
+Pasan las seis compilaciones Node 22/24/26 de los runs `41101862778` y `41101867220`, 41 specs focalizadas de Chromium y 163 specs del filtro `Data` juntas en Firefox. La suite global conserva fallos de Stories/STAC; ver [[Testing]]. CKAN agrega únicamente el nombre visible de la organización en los resultados autorizados y pasa sus 42 pruebas.
+
+La publicación utiliza los workflows canónicos [CKAN 41098946813](https://github.com/pabrojast/ckan-unesco-docker/actions/runs/41098946813) y [Terria 41104249489](https://github.com/pabrojast/ckan-unesco-docker/actions/runs/41104249489), con TerriaMap `develop` y despliegue `miserver-2.10`. Imágenes efectivas, rollout, revisión de escritorio/móvil y limpieza de fixtures se registran en la [validación de búsqueda de datasets](https://github.com/pabrojast/ckan-unesco-docker/blob/miserver-2.10/deploy/envoy-dev/validation-dataset-search-2026-10-30.md). No requiere migraciones ni cambia producción.
+
 ## Tamaño del Dashboard y fechas automáticas (2026-10-30)
 
 TerriaJS `bf69cc638e3c542df42343cfa2cef3cee9092fae` ([PR #16](https://github.com/pabrojast/terriajs/pull/16), integrado como `1ec8a4a6c420b95085aa26cd39ab83353fe30ce2`) agrega tamaño persistente/compartible, nombre Dashboard EN/ES, fechas automáticas del asistente y contraste del encabezado de análisis. Incluye la corrección de lectura del CSV de DataStore con cabecera CRLF y registros LF, necesaria para conservar el rango de todas sus observaciones.

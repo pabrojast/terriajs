@@ -1,9 +1,10 @@
-import { cleanup, fireEvent, screen } from "@testing-library/react";
+import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import { runInAction } from "mobx";
 import { http, HttpResponse } from "msw";
 import Terria from "../../lib/Models/Terria";
 import CkanSession from "../../lib/Models/CkanSession";
 import ViewState from "../../lib/ReactViewModels/ViewState";
+import { getDataAssistant } from "../../lib/ReactViewModels/DataAssistantViewModel";
 import DatasetSearchEntry from "../../lib/ReactViews/Tools/DatasetSearch/DatasetSearchEntry";
 import DataAssistantTool from "../../lib/ReactViews/Tools/DataAssistant/DataAssistantTool";
 import { renderWithContexts } from "./withContext";
@@ -51,7 +52,7 @@ describe("DatasetSearch entry and simplified assistant", () => {
       jasmine.objectContaining({ toolName: "dataset-search" })
     );
   });
-  it("keeps the assistant context collapsed and omits search, upload and map link forms", () => {
+  it("keeps the assistant context collapsed and omits search, upload and map link forms", async () => {
     renderWithContexts(<DataAssistantTool viewState={viewState} />, viewState);
     expect(
       screen.getByRole("textbox", { name: "dataAssistant.question" })
@@ -64,5 +65,11 @@ describe("DatasetSearch entry and simplified assistant", () => {
     expect(screen.queryByText("dataAssistant.shareMap")).toBeNull();
     expect(screen.queryByText("dataAssistant.searchArea")).toBeNull();
     expect(document.querySelector('input[type="file"]')).toBeNull();
+    // The mounted assistant starts bootstrap in an effect. Finish it before
+    // cleanup lets the next spec reset the network handlers.
+    await waitFor(() => {
+      if (!getDataAssistant(viewState).ready)
+        throw new Error("Waiting for assistant bootstrap");
+    });
   });
 });
