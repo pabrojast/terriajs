@@ -122,6 +122,7 @@ class MyDataTab extends Component {
   render() {
     const showTwoColumn = !!(this.hasUserAddedData() && !this.state.activeTab);
     const { t, className } = this.props;
+    const mobile = this.props.viewState.useSmallScreenInterface;
     return (
       <Box
         className={classNames(Styles.root, {
@@ -129,6 +130,11 @@ class MyDataTab extends Component {
         })}
       >
         <div
+          style={
+            mobile
+              ? { width: "100%", margin: 0, padding: "12px", height: "auto" }
+              : undefined
+          }
           className={classNames({
             [Styles.leftCol]: showTwoColumn,
             [Styles.oneCol]: !showTwoColumn
@@ -140,6 +146,7 @@ class MyDataTab extends Component {
                 type="button"
                 onClick={() => this.resetTab()}
                 className={Styles.btnBackToMyData}
+                style={mobile ? { position: "static" } : undefined}
                 css={`
                   color: ${(p) => p.theme.colorPrimary};
                   &:hover,
@@ -194,7 +201,7 @@ class MyDataTab extends Component {
           )}
           {!this.state.activeTab && this.renderPromptBox()}
         </div>
-        {showTwoColumn && (
+        {showTwoColumn && !mobile && (
           <Box styledWidth="60%">
             <DataPreview
               terria={this.props.terria}

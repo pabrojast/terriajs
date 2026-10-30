@@ -5,6 +5,8 @@ declare namespace MobileModalWindowScssNamespace {
     backButton: string;
     backButtonInactive: string;
     button: string;
+    "catalog-content": string;
+    catalogContent: string;
     "data-catalog": string;
     dataCatalog: string;
     "done-button": string;

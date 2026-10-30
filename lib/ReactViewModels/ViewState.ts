@@ -576,10 +576,13 @@ export default class ViewState {
 
   // Assigned only when the lazily loaded data assistant is opened.
   disposeDataAssistant?: () => void;
+  disposeDatasetSearch?: () => void;
 
   dispose(): void {
     this.disposeDataAssistant?.();
     this.disposeDataAssistant = undefined;
+    this.disposeDatasetSearch?.();
+    this.disposeDatasetSearch = undefined;
     this._pickedFeaturesSubscription();
     this._disclaimerVisibleSubscription();
     this._mobileMenuSubscription();
@@ -641,6 +644,7 @@ export default class ViewState {
     }
     this.explorerPanelIsVisible = true;
     this.activeTabCategory = USER_DATA_NAME;
+    this.switchMobileView(this.mobileViewOptions.data);
   }
 
   @action

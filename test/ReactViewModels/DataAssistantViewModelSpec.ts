@@ -18,8 +18,16 @@ describe("DataAssistant session and tool flow", function () {
   let viewState: ViewState;
   let vm: DataAssistantViewModel;
   let session: CkanSession;
+  let requests: Promise<Response>[];
   const base = "/api/terriassistant/data";
   beforeEach(function () {
+    requests = [];
+    const fetch = window.fetch.bind(window);
+    spyOn(window, "fetch").and.callFake((...args) => {
+      const request = fetch(...args);
+      requests.push(request);
+      return request;
+    });
     terria = new Terria({ baseUrl: "./" });
     terria.configParameters.dataAssistant = { enabled: true };
     viewState = new ViewState({ terria, catalogSearchProvider: undefined });
@@ -45,10 +53,13 @@ describe("DataAssistant session and tool flow", function () {
       )
     );
   });
-  afterEach(function () {
+  afterEach(async function () {
     vm?.dispose();
     session.dispose();
     viewState.dispose();
+    // Dispose/account changes send best-effort DELETEs. Keep this spec's MSW
+    // handlers installed until those requests finish, before the next reset.
+    await Promise.allSettled(requests);
   });
   it("uses the selected tables' full dates, preserving manual dates until the selection changes", () => {
     const first = new CsvCatalogItem("first", terria, undefined);

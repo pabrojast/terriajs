@@ -448,3 +448,12 @@ Al abrir «Preguntar a los datos», Desde/Hasta toman la primera y última fecha
 El rango automático se actualiza al terminar la carga o cambiar los datos. Editar una fecha conserva el período manual mientras no cambie la selección. «Usar fechas de los datos» recupera el automático; cambiar las capas seleccionadas recalcula el rango. Esto no modifica los datos ni el período del mapa.
 
 Las exportaciones CSV de DataStore pueden combinar una cabecera CRLF con registros LF. El lector de tablas armoniza solamente ese separador de cabecera antes de autodetectar el CSV, conservando los saltos de línea y comillas dentro de campos. Las opciones explícitas de separador de línea o comillas se respetan. Sin este ajuste el CSV de demostración de DEV se interpretaba como una sola observación, lo que también reducía su rango temporal.
+
+## Buscar datasets por área
+
+1. Añadir datos → Buscar datasets abre un panel lateral. El catálogo original sigue disponible.
+2. Dibujar área permite cerrar un polígono sobre el primer punto. Su contorno permanece visible; texto, formato, organización y etiquetas son opcionales.
+3. Buscar datasets en esta área consulta CKAN/Solr y verifica intersección con cobertura declarada, no con observaciones individuales. Los resultados se agrupan por dataset y Continúa búsqueda permite recorrer lotes parciales, incluso los que aún no contienen coincidencias.
+4. Añadir al mapa importa el recurso con su vista predeterminada o elegida, usando la misma resolución de estilos/shortlinks y comprobación de permisos de la edición de mapas. No se pide confirmación al chat: la acción explícita es el botón Añadir.
+5. Área, filtros y resultados sobreviven al cierre o cambio de herramienta. Un dibujo incompleto se cancela al cerrar. Cambiar filtros descarta resultados y cursores anteriores. Usar esta área en el Asistente IA copia el polígono al contexto del análisis; posteriores cambios en la búsqueda no cambian ese contexto.
+6. Logout/cambio de cuenta limpia resultados y selecciones privadas y evita aplicar respuestas de la cuenta anterior. Mis datos permite cargar archivos y URL desde escritorio o móvil; Compartir mantiene los shortlinks y muestra capas excluidas.

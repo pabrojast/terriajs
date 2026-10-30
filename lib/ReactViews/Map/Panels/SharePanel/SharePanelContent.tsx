@@ -1,12 +1,13 @@
 import { FC, useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { getName } from "../../../../ModelMixins/CatalogMemberMixin";
 import Terria from "../../../../Models/Terria";
 import ViewState from "../../../../ReactViewModels/ViewState";
 import Box from "../../../../Styled/Box";
 import Spacing from "../../../../Styled/Spacing";
 import Text, { TextSpan } from "../../../../Styled/Text";
 import { useCallbackRef } from "../../../useCallbackRef";
-import { canShorten } from "./BuildShareLink";
+import { canShorten, isShareable } from "./BuildShareLink";
 import { PrintSection } from "./Print/PrintSection";
 import { shouldShorten as shouldShortenDefault } from "./SharePanel";
 import { IShareUrlRef, ShareUrl, ShareUrlBookmark } from "./ShareUrl";
@@ -47,6 +48,9 @@ export const SharePanelContent: FC<ISharePanelContentProps> = ({
   }, [terria]);
 
   const shareUrl = shareUrlRef?.current;
+  const excluded = terria.workbench.items.filter(
+    (item) => item.uniqueId && !isShareable(terria)(item.uniqueId)
+  );
 
   return (
     <Box paddedRatio={3} column>
@@ -65,6 +69,12 @@ export const SharePanelContent: FC<ISharePanelContentProps> = ({
         <ShareUrlBookmark viewState={viewState} />
       </ShareUrl>
       <Spacing bottom={1} />
+      {excluded.length > 0 && (
+        <Text small role="status">
+          {t("dataAssistant.excludedFromShare")}:{" "}
+          {excluded.map(getName).join(", ")}
+        </Text>
+      )}
       {terria.stories && terria.stories.length > 0 && (
         <>
           <Checkbox

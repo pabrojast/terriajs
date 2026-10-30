@@ -56,3 +56,9 @@ Dentro de `lib/Models/Catalog/` hay conectores y familias de integracion para:
 ## Nota
 
 - **Inferencia:** `lib/ReactViewModels` y `lib/ViewModels` coexisten por razones historicas; en la practica ambos participan del estado cercano a UI.
+
+## Búsqueda de datasets y Asistente IA
+
+`DatasetSearchViewModel` conserva consulta, filtros, polígono, resultados, paginación y vistas elegidas durante la sesión del mapa. `DatasetSearchTool` se abre desde Añadir datos, mantiene visible el mapa y se recoge al dibujar en móvil. Las solicitudes reutilizan `/api/terriassistant/data/catalog/search` sin crear conversaciones ni turnos de IA. Cambiar filtros invalida resultados anteriores; logout o cambio de usuario elimina el estado y descarta respuestas pendientes.
+
+`DataAssistantViewModel` mantiene conversación, selección para análisis y propuestas Aplicar/Deshacer. El área de búsqueda solo pasa a su contexto mediante «Usar esta área en el Asistente IA», como copia independiente. Reiniciar el chat no borra la búsqueda. Archivos y URL usan Mis datos (también accesible desde Añadir datos en móvil); los enlaces y sus exclusiones se muestran en Compartir.
