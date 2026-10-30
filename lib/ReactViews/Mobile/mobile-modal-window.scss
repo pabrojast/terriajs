@@ -78,3 +78,13 @@
 .data-catalog {
   composes: data-catalog from "../ExplorerWindow/Tabs/data-catalog-tab.scss";
 }
+
+.catalog-content {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+
+  > ul {
+    top: 0;
+  }
+}

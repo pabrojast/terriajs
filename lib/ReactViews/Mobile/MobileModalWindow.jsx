@@ -65,9 +65,11 @@ class MobileModalWindow extends Component {
             ) : (
               <>
                 <DatasetSearchEntry viewState={viewState} />
-                <ExplorerWindowComponents.DataCatalog
-                  items={this.props.terria.catalog.group.memberModels}
-                />
+                <div className={Styles.catalogContent}>
+                  <ExplorerWindowComponents.DataCatalog
+                    items={this.props.terria.catalog.group.memberModels}
+                  />
+                </div>
               </>
             )}
           </Box>
