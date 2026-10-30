@@ -337,6 +337,7 @@
     "hideWorkbench": "Hide Workbench"
   },
   "featureInfo": {
+    "autoSize": "Reset automatic size",
     "catalogItem": {
       "moreThanMax": "More than {{maximum}} {{catalogItemName}} features were found.",
       "featuresFound": "{{featCount}} {{catalogItemName}} features were found.",

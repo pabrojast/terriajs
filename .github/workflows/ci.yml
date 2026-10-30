@@ -37,6 +37,9 @@ jobs:
       - name: Check formatting with prettier
         run: yarn prettier-check
 
+      - name: Check lazy editor bootstrap
+        run: node --test buildprocess/EditorBootstrap.test.cjs
+
       - name: Build TerriaJS tests
         run: yarn gulp lint build --continue
         env:

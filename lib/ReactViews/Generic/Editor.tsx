@@ -1,8 +1,9 @@
 import { useRef } from "react";
 import { Editor } from "@tinymce/tinymce-react";
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-import tinymce from "tinymce"; // must import despite being unused
+// Initialize the global before extensions run. TypeScript removes unused bindings.
+import "tinymce";
 import type { Editor as TinyMCEEditor } from "tinymce";
+import "../../ThirdParty/tinymce/es";
 /* Required TinyMCE components */
 import "tinymce/icons/default";
 import "tinymce/themes/silver";
@@ -45,6 +46,8 @@ interface ITinyEditorProps {
 
 export default function TinyEditor(props: ITinyEditorProps) {
   const { html, onChange, language, terria } = props;
+  // Bundle supported translations with the editor; do not fetch missing scripts.
+  const editorLanguage = /^es(?:-|_|$)/i.test(language) ? "es" : "en";
   const editorRef = useRef<TinyMCEEditor | null>(null);
   const storyImageLibraryUrl = terria?.configParameters.storyImageLibraryUrl;
   const storyImageUploadUrl = terria?.configParameters.storyImageUploadUrl;
@@ -105,14 +108,13 @@ export default function TinyEditor(props: ITinyEditorProps) {
 
   return (
     <Editor
-      key={language}
+      key={editorLanguage}
       licenseKey="gpl"
       onInit={(_evt, editor) => (editorRef.current = editor)}
       value={html}
       onEditorChange={onChange}
       init={{
-        language: language,
-        language_url: `languages/tinymce/${language}.js`,
+        language: editorLanguage,
         height: 450,
         skin: false,
         menubar: false,
