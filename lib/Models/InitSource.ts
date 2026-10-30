@@ -1,5 +1,6 @@
 import type {
   DashboardPosition,
+  DashboardSize,
   SimpleDashboardRef
 } from "./SimpleDashboard/Types";
 import {
@@ -90,6 +91,7 @@ export interface InitSourceData {
   storyOptions?: StoryOptions;
   simpleDashboard?: SimpleDashboardRef;
   simpleDashboardPosition?: DashboardPosition;
+  simpleDashboardSize?: DashboardSize;
   waterQualityPanel?: { closed?: boolean; position?: DashboardPosition };
   viewerMode?: ViewModeJson;
   baseMaps?: BaseMapsJson;

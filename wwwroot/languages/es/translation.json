@@ -1814,6 +1814,9 @@
     }
   },
   "dataAssistant": {
+    "automaticDates": "Fechas automáticas según las capas seleccionadas. Las capas sin fechas no limitan el período.",
+    "manualDates": "Período personalizado. Puedes volver a usar todas las fechas disponibles.",
+    "useDataDates": "Usar fechas de los datos",
     "title": "Preguntar a los datos",
     "intro": "Explora tus capas y el catálogo IHP con respuestas respaldadas por cálculos y fuentes.",
     "signIn": "Inicia sesión en IHP para preguntar a los datos",
@@ -1892,7 +1895,8 @@
     "no": "No"
   },
   "simpleDashboard": {
-    "title": "Dashboard sencillo",
+    "title": "Dashboard",
+    "resizePanel": "Cambiar tamaño: arrastra esta esquina o usa las flechas. Inicio restablece el tamaño.",
     "library": "Mis dashboards en IHP",
     "create": "Crear dashboard",
     "public": "Dashboards públicos",

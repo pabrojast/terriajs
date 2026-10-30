@@ -21,7 +21,13 @@ export default function useDashboardPosition(
 ) {
   const panel = useRef<HTMLElement>(null);
   const drag = useRef<{ id: number; dx: number; dy: number }>();
-  const [bounds, setBounds] = useState({ width: 0, height: 0, top: margin });
+  const [bounds, setBounds] = useState({
+    width: 0,
+    height: 0,
+    top: margin,
+    availableWidth: 0,
+    availableHeight: 0
+  });
   useLayoutEffect(() => {
     const element = panel.current;
     const parent = element?.offsetParent;
@@ -48,6 +54,8 @@ export default function useDashboardPosition(
             ? Math.max(margin, 60 - parent.getBoundingClientRect().top)
             : margin;
       setBounds({
+        availableWidth: Math.max(0, parent.clientWidth - 2 * margin),
+        availableHeight: Math.max(0, parent.clientHeight - top - margin),
         width: Math.max(
           0,
           parent.clientWidth - element.offsetWidth - 2 * margin
@@ -82,7 +90,9 @@ export default function useDashboardPosition(
     });
   const position =
     terria[property] ??
-    (property === "waterQualityPanelPosition" ? { x: 0.95, y: 0 } : undefined);
+    (property === "waterQualityPanelPosition" || terria.simpleDashboardSize
+      ? { x: 0.95, y: 0 }
+      : undefined);
   const style: CSSProperties | undefined = position
     ? {
         left: margin + position.x * bounds.width,
@@ -93,6 +103,7 @@ export default function useDashboardPosition(
     : undefined;
   return {
     panel,
+    bounds,
     style,
     onPointerDown(event: PointerEvent<HTMLElement>) {
       if (

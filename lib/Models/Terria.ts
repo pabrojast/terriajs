@@ -1,8 +1,10 @@
 import {
   DashboardPosition,
+  DashboardSize,
   DashboardConfig,
   SimpleDashboardRef,
   validDashboardPosition,
+  validDashboardSize,
   validDashboardRef
 } from "./SimpleDashboard/Types";
 import { StoryOptions } from "./StoryComposition";
@@ -838,6 +840,7 @@ export default class Terria {
   @observable simpleDashboardOpen = false;
   @observable simpleDashboardPosition: DashboardPosition | undefined =
     undefined;
+  @observable simpleDashboardSize: DashboardSize | undefined = undefined;
   /** Unsaved editor hand-off; never included in a share. */
   @observable.ref simpleDashboardDraft: DashboardConfig | undefined = undefined;
   @observable waterQualityPanelClosed = false;
@@ -2230,6 +2233,14 @@ export default class Terria {
           revision: initData.simpleDashboard.revision
         };
         this.simpleDashboardOpen = true;
+        this.simpleDashboardSize = validDashboardSize(
+          initData.simpleDashboardSize
+        )
+          ? {
+              width: initData.simpleDashboardSize.width,
+              height: initData.simpleDashboardSize.height
+            }
+          : undefined;
         this.simpleDashboardPosition = validDashboardPosition(
           initData.simpleDashboardPosition
         )
