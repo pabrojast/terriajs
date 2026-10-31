@@ -2940,7 +2940,7 @@
     "scopePixels": "Pixels inside the area",
     "scopeBodies": "Intersecting whole water bodies",
     "scopeUnfiltered": "No spatial filter",
-    "validData": "valid observations / pixels / bodies",
+    "validData": "valid values",
     "extentEmpty": "No data in this area",
     "bodiesMedian": "Area-weighted median of body summaries; not a clipped-pixel mean.",
     "nativeResolution": "Native resolution",
@@ -2949,7 +2949,9 @@
     "latitudeColumn": "Latitude column",
     "longitudeColumn": "Longitude column",
     "autoCoordinates": "Detect automatically",
-    "viewportBodies": "Water bodies in the map extent"
+    "viewportBodies": "Water bodies in the map extent",
+    "validPixels": "valid pixels",
+    "intersectingBodies": "intersecting bodies"
   },
   "waterQuality": {
     "openPanel": "Open water observatory",

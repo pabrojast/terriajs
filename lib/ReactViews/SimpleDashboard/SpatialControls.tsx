@@ -1,3 +1,4 @@
+import styled from "styled-components";
 import type Terria from "../../Models/Terria";
 import type { DashboardState } from "../../Models/SimpleDashboard/Types";
 import { mapBounds } from "../../Models/SimpleDashboard/Spatial";
@@ -33,7 +34,7 @@ export default function SpatialControls({
   };
   const embedded = terria.userProperties.get("dashboardOnly") === "1";
   return (
-    <fieldset className="simple-spatial">
+    <Fieldset className="simple-spatial">
       <legend>{tr("spatialScope")}</legend>
       <select
         aria-label={tr("spatialScope")}
@@ -73,6 +74,27 @@ export default function SpatialControls({
         <small>{tr("extentApproximate")}</small>
       )}
       {state.spatial?.quality === "native" && <p>{tr("nativeRequested")}</p>}
-    </fieldset>
+    </Fieldset>
   );
 }
+
+const Fieldset = styled.fieldset`
+  min-width: 0;
+  margin: 12px 0;
+  border: 1px solid #b9cbd4;
+  border-radius: 6px;
+  padding: 10px;
+  select {
+    width: 100%;
+    min-width: 0;
+  }
+  button {
+    max-width: 100%;
+    white-space: normal;
+    margin: 8px 5px 0 0;
+  }
+  small {
+    display: block;
+    margin-top: 6px;
+  }
+`;

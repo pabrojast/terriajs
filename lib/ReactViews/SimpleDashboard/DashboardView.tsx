@@ -147,9 +147,11 @@ function SpatialResult({
             : ""}
         {tr(scopes[result.spatial_scope ?? "configured"])}
         {count !== undefined &&
-          ` · ${count.toLocaleString(dashboardLocale())} ${tr("validData")}`}
+          ` · ${count.toLocaleString(dashboardLocale())} ${tr(result.spatial_scope === "pixels" ? "validPixels" : result.spatial_scope === "bodies" ? "intersectingBodies" : "validData")}`}
       </small>
-      {count === 0 && <p>{tr("extentEmpty")}</p>}
+      {(count === 0 || result.valid_count === 0 || result.count === 0) && (
+        <p>{tr("extentEmpty")}</p>
+      )}
       {result.spatial_scope === "bodies" && (
         <p>
           <small>

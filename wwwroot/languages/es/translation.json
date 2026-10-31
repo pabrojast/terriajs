@@ -2101,7 +2101,7 @@
     "scopePixels": "Píxeles dentro del área",
     "scopeBodies": "Cuerpos de agua completos que intersectan el área",
     "scopeUnfiltered": "Sin filtro espacial",
-    "validData": "observaciones / píxeles / cuerpos válidos",
+    "validData": "valores válidos",
     "extentEmpty": "Sin datos en esta área",
     "bodiesMedian": "Mediana de los resúmenes por cuerpo ponderada por superficie; no equivale al promedio de los píxeles recortados.",
     "nativeResolution": "Resolución nativa",
@@ -2110,7 +2110,9 @@
     "latitudeColumn": "Columna de latitud",
     "longitudeColumn": "Columna de longitud",
     "autoCoordinates": "Detectar automáticamente",
-    "viewportBodies": "Cuerpos de agua en el encuadre"
+    "viewportBodies": "Cuerpos de agua en el encuadre",
+    "validPixels": "píxeles válidos",
+    "intersectingBodies": "cuerpos intersectados"
   },
   "waterQuality": {
     "openPanel": "Abrir observatorio del agua",
