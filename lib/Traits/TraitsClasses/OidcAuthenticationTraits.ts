@@ -17,9 +17,9 @@ export default class OidcAuthenticationTraits extends ModelTraits {
     type: "string",
     name: "Authentication Mode",
     description:
-      "Authentication mode for protected assets. Use `oidc_password` for Terrascope OIDC password grant, `bearer` for pre-issued tokens, or `none` to disable auth."
+      "Authentication mode for protected assets. Use `oidc_password` for Terrascope OIDC password grant, `bearer` for pre-issued tokens, or `none` to disable auth. When omitted, Terrascope URLs default to `oidc_password` and other URLs to `none`."
   })
-  mode: "none" | "bearer" | "oidc_password" = "none";
+  mode?: "none" | "bearer" | "oidc_password";
 
   @primitiveTrait({
     type: "string",

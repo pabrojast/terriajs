@@ -580,7 +580,12 @@ export default class StacCollectionCatalogItem extends UrlMixin(
           !this.isLoadingMapItems &&
           this._stacStratum
         ) {
-          void this.updateProvidersForCurrentTime();
+          this.updateProvidersForCurrentTime().catch((error) =>
+            runInAction(() => {
+              this._loadError =
+                error instanceof Error ? error.message : String(error);
+            })
+          );
         }
       }
     );

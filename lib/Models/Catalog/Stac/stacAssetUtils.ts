@@ -295,9 +295,11 @@ function previewAssetScore(key: string, asset: StacAssetLike): number {
 }
 
 function isLikelyImageAsset(key: string, asset: StacAssetLike): boolean {
+  // An explicit media type is authoritative; key/href heuristics only apply
+  // to assets that do not declare one.
   const typeLower = asset.type?.toLowerCase();
-  if (typeLower?.startsWith("image/")) {
-    return true;
+  if (typeLower) {
+    return typeLower.startsWith("image/");
   }
 
   const href = asset.href?.toLowerCase();

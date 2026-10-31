@@ -123,31 +123,25 @@ describe("Mixed story readers", function () {
   it("does not navigate when a touch gesture moves the title bar", async function () {
     spyOn(terria, "applyInitData").and.returnValue(Promise.resolve());
     await mount();
+    // Desktop Firefox (CI) defines neither Touch nor TouchEvent. react-swipeable
+    // only reads `touches[0].clientX/clientY`, so a plain event carrying its own
+    // touch lists behaves the same in every browser.
+    const touchEvent = (type: string, target: Element, x: number) => {
+      const event = new Event(type, { bubbles: true, cancelable: true });
+      const list = [{ identifier: 1, target, clientX: x, clientY: 80 }];
+      const active = type === "touchend" ? [] : list;
+      Object.defineProperties(event, {
+        touches: { value: active },
+        targetTouches: { value: active },
+        changedTouches: { value: list }
+      });
+      return event;
+    };
     const swipe = async (target: Element) =>
       act(async () => {
-        const touch = (x: number) =>
-          new Touch({ identifier: 1, target, clientX: x, clientY: 80 });
-        target.dispatchEvent(
-          new TouchEvent("touchstart", {
-            bubbles: true,
-            touches: [touch(200)],
-            changedTouches: [touch(200)]
-          })
-        );
-        target.dispatchEvent(
-          new TouchEvent("touchmove", {
-            bubbles: true,
-            touches: [touch(100)],
-            changedTouches: [touch(100)]
-          })
-        );
-        target.dispatchEvent(
-          new TouchEvent("touchend", {
-            bubbles: true,
-            touches: [],
-            changedTouches: [touch(100)]
-          })
-        );
+        target.dispatchEvent(touchEvent("touchstart", target, 200));
+        target.dispatchEvent(touchEvent("touchmove", target, 100));
+        target.dispatchEvent(touchEvent("touchend", target, 100));
       });
     await swipe(container.querySelector(".story-drag-handle")!);
     expect(viewState.currentStoryId).toBe(0);

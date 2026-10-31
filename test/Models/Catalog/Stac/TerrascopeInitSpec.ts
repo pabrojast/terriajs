@@ -1,21 +1,39 @@
+import { http, HttpResponse } from "msw";
 import Terria from "../../../../lib/Models/Terria";
 import StacCollectionCatalogItem from "../../../../lib/Models/Catalog/Stac/StacCollectionCatalogItem";
 import terrascopeStacInit from "../../../../wwwroot/test/init/terrascope-stac-timeseries.json";
+import { worker } from "../../../mocks/browser";
 
 describe("Terrascope STAC init", function () {
   let terria: Terria;
 
   beforeEach(async function () {
-    terria = new Terria();
-    await terria.start({ configUrl: "" });
+    worker.use(
+      http.get("*/serverconfig/*", () => HttpResponse.json({})),
+      http.get("*/test-config.json", () => HttpResponse.json({}))
+    );
+    // The init source only needs the model definition; loading the real
+    // Terrascope collection would leave requests running into the next suite.
+    // Loaders are bound when the model is constructed inside applyInitData.
+    spyOn(
+      StacCollectionCatalogItem.prototype as any,
+      "forceLoadMetadata"
+    ).and.resolveTo();
+    spyOn(
+      StacCollectionCatalogItem.prototype as any,
+      "forceLoadMapItems"
+    ).and.resolveTo();
+    terria = new Terria({ appBaseHref: "/", baseUrl: "./" });
+    await terria.start({
+      configUrl: "test-config.json",
+      i18nOptions: { skipInit: true }
+    });
   });
 
   it("loads the Terrascope STAC time-series init source", async function () {
-    terria.applyInitData({
+    await terria.applyInitData({
       initData: terrascopeStacInit
     });
-
-    await terria.loadInitSources();
 
     const model = terria.getModelById(
       StacCollectionCatalogItem,
