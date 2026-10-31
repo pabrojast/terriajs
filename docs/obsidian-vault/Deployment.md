@@ -2,6 +2,16 @@
 
 Ver tambien: [[Variables de Entorno]], [[Comandos Utiles]], [[Arquitectura]]
 
+## Dashboard por encuadre (2026-10-30)
+
+TerriaJS [PR #23](https://github.com/pabrojast/terriajs/pull/23), integrado en `develop` como `d3514fabc4f1d97b8bebb86a7367c3bd5eb1675d`, agrega selección configurada, seguimiento del mapa y área fija al dashboard nativo. Conserva sus fechas, permite fijar el encuadre y conserva el estado al compartir/exportar. La selección se aplica antes de agregar los datos. Los resultados distinguen observaciones, entidades completas, resúmenes de cuerpos de agua y píxeles; las fuentes sin ubicación aparecen explícitamente sin filtro espacial. Ver [[Dashboards Sencillos]].
+
+TerriaMap [PR #14](https://github.com/pabrojast/TerriaMap/pull/14), merge `8aa0b6fdf8a70c7a9ff789bf8118e69a6f091ea8`, fija la biblioteca `830f70bf2e0af814aac629a0dc826e8ba5cb3d05`. El backend `ckanext-dashboard_view` [PR #5](https://github.com/pabrojast/ckanext-dashboard_view/pull/5) queda fijado en `c04ef2978c1a431668035a408c36d1546f785c17`, con motor `simple-2-spatial`; el calculador utiliza el mismo SHA de TerriaJS. No requiere migración.
+
+La entrega utiliza primero [CKAN 41150954025](https://github.com/pabrojast/ckan-unesco-docker/actions/runs/41150954025) y después [TerriaMap 41153813144](https://github.com/pabrojast/ckan-unesco-docker/actions/runs/41153813144), desde `develop` y con la configuración `miserver-2.10`. El primer intento de CKAN perdió la conexión con GitHub antes de desplegar; el segundo completó los controles de imagen, rollout, worker, Solr y rutas. Las imágenes efectivas, comprobaciones del sitio y límites de la validación están en el [informe de entrega por encuadre](https://github.com/pabrojast/ckan-unesco-docker/blob/miserver-2.10/deploy/envoy-dev/validation-dashboard-viewport-2026-10-30.md).
+
+Pasan 11 specs focalizadas de Firefox, seis pruebas del calculador, 176 del backend y ambas matrices Node 22/24/26 del consumidor. La suite global de la biblioteca conserva fallos previos de STAC/Stories y errores asíncronos de inicialización, documentados en [[Testing]]. La publicación y las comprobaciones corresponden a DEV (`default/ckan`).
+
 ## Buscador de datasets separado del asistente (2026-10-30)
 
 [PR #20](https://github.com/pabrojast/terriajs/pull/20), integrado en `develop` como `321517012e0f4a72989b164b94e07f2643338d51`, mueve la búsqueda con polígono a Añadir datos, conserva archivos/URL en Mis datos y deja el asistente con chat, contexto plegado y Aplicar/Deshacer. TerriaMap [PR #12](https://github.com/pabrojast/TerriaMap/pull/12), merge `b5967058ad9e2a48ce8d61b69bd10284ad106d35`, fija el código funcional `311a6b27475b0500458d83883ad97171d4b462b9`; los commits posteriores de la biblioteca solo sincronizan declaraciones SCSS y aíslan la limpieza de las pruebas.
