@@ -1,3 +1,4 @@
+import i18next from "i18next";
 import Terria from "../../../../lib/Models/Terria";
 import StacCatalogGroup from "../../../../lib/Models/Catalog/Stac/StacCatalogGroup";
 import CommonStrata from "../../../../lib/Models/Definition/CommonStrata";
@@ -47,7 +48,7 @@ describe("StacCatalogGroup", function () {
 
   describe("typeName", function () {
     it("returns STAC Catalog", function () {
-      expect(group.typeName).toBe("STAC Catalog");
+      expect(group.typeName).toBe(i18next.t(($) => $.models.stac.catalogName));
     });
   });
 

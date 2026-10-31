@@ -332,7 +332,8 @@ export function resolveStacSearchUrl(
     const collectionPathMatch = parsedCollectionUrl.pathname.match(
       /^(.*)\/collections\/[^/]+\/?$/i
     );
-    if (collectionPathMatch?.[1]) {
+    // The prefix is "" for root-level APIs (https://host/collections/x).
+    if (collectionPathMatch) {
       return new URL(
         `${collectionPathMatch[1]}/search`,
         parsedCollectionUrl.origin

@@ -18,9 +18,25 @@ describe("Story dashboard guidance and selection", function () {
   let root: Root;
   let previousLanguage: string;
   let previousResources: Record<string, object | undefined>;
+  type SupportedLngs = false | readonly string[] | undefined;
+  let previousSupportedLngs: SupportedLngs[];
+  // i18next keeps the supported-language restriction in two places.
+  const languageUtils = () =>
+    i18next.services.languageUtils as unknown as {
+      supportedLngs: SupportedLngs;
+    };
   beforeEach(function () {
     (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
     previousLanguage = i18next.language;
+    // `Terria.start()` in earlier specs re-initialises i18next with the default
+    // languageConfiguration (supportedLngs = ["en"], load: "languageOnly"), so
+    // es-CL would silently resolve to English in a full run. Lift it here.
+    previousSupportedLngs = [
+      i18next.options.supportedLngs,
+      languageUtils().supportedLngs
+    ];
+    i18next.options.supportedLngs = false;
+    languageUtils().supportedLngs = false;
     previousResources = {};
     for (const [language, resources] of Object.entries({
       en: english,
@@ -41,6 +57,8 @@ describe("Story dashboard guidance and selection", function () {
       dialog.dispatchEvent(new Event("cancel", { cancelable: true }));
     await act(async () => root.unmount());
     container.remove();
+    [i18next.options.supportedLngs, languageUtils().supportedLngs] =
+      previousSupportedLngs;
     await i18next.changeLanguage(previousLanguage);
     for (const [language, resources] of Object.entries(previousResources)) {
       i18next.removeResourceBundle(language, "translation");

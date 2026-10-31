@@ -40,7 +40,10 @@
     "sso.terrascope.be"
   ],
   "homeCamera": {
-    "focusWorkbenchItems": true
+    "west": 2.5,
+    "south": 49.5,
+    "east": 6.4,
+    "north": 51.5
   },
   "initialCamera": {
     "focusWorkbenchItems": true

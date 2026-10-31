@@ -1,3 +1,4 @@
+import i18next from "i18next";
 import Terria from "../../../../lib/Models/Terria";
 import StacCollectionCatalogItem from "../../../../lib/Models/Catalog/Stac/StacCollectionCatalogItem";
 import CommonStrata from "../../../../lib/Models/Definition/CommonStrata";
@@ -71,6 +72,13 @@ describe("StacCollectionCatalogItem", function () {
 
   beforeEach(function () {
     terria = new Terria();
+    // Time-series cases assign `_stacStratum` directly; the constructor
+    // reaction would then fetch real COGs and leak rejections into later
+    // suites. No case in this file inspects real imagery providers.
+    spyOn(
+      StacCollectionCatalogItem.prototype as any,
+      "updateProvidersForCurrentTime"
+    ).and.resolveTo();
     item = new StacCollectionCatalogItem("test-stac", terria);
   });
 
@@ -231,7 +239,9 @@ describe("StacCollectionCatalogItem", function () {
 
   describe("typeName", function () {
     it("returns STAC Collection", function () {
-      expect(item.typeName).toBe("STAC Collection");
+      expect(item.typeName).toBe(
+        i18next.t(($) => $.models.stac.collectionName)
+      );
     });
   });
 
