@@ -1,3 +1,4 @@
+import { validDashboardState } from "./SimpleDashboard/Spatial";
 import {
   DashboardPosition,
   DashboardSize,
@@ -2230,7 +2231,10 @@ export default class Terria {
       if (validDashboardRef(initData.simpleDashboard)) {
         this.simpleDashboard = {
           id: initData.simpleDashboard.id,
-          revision: initData.simpleDashboard.revision
+          revision: initData.simpleDashboard.revision,
+          ...(validDashboardState(initData.simpleDashboard.state)
+            ? { state: initData.simpleDashboard.state }
+            : {})
         };
         this.simpleDashboardOpen = true;
         this.simpleDashboardSize = validDashboardSize(

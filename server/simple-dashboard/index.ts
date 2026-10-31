@@ -1,3 +1,6 @@
+import { readFile } from "node:fs/promises";
+import booleanIntersects from "@turf/boolean-intersects";
+import { viewportWaterPoints, combineZonalResults } from "./spatial";
 import { fromCustomClient } from "geotiff";
 import {
   openCogSource,
@@ -27,7 +30,23 @@ for await (const chunk of process.stdin) {
 try {
   const job = JSON.parse(input);
   let result: unknown;
-  if (job.operation === "water") {
+  if (job.operation === "intersects") {
+    const data = JSON.parse(await readFile(job.path, "utf8"));
+    if (data.type !== "FeatureCollection")
+      throw new Error("Invalid geometry collection");
+    result = data.features.flatMap((feature: any, index: number) => {
+      if (!feature.geometry) return [];
+      try {
+        return job.areas.some((area: any) => booleanIntersects(area, feature))
+          ? [index]
+          : [];
+      } catch {
+        throw new Error("Invalid source geometry");
+      }
+    });
+  } else if (job.operation === "water_view") {
+    result = { points: viewportWaterPoints(job) };
+  } else if (job.operation === "water") {
     const points = waterBodyPoints(
       job.body,
       job.series,
@@ -59,14 +78,38 @@ try {
       noDataValues: job.noDataValues
     });
   } else {
-    result = await calculateZonalStatistics({
-      cogUrl: job.url,
-      polygon: job.area,
-      band: job.band,
-      valueScale: job.scale,
-      valueOffset: job.offset,
-      noDataValues: job.noDataValues
-    });
+    const results = [];
+    for (const polygon of job.areas ?? [job.area])
+      results.push(
+        await calculateZonalStatistics({
+          cogUrl: job.url,
+          polygon,
+          overviewLevel: job.native ? 0 : undefined,
+          maxWindowPixels: 500_000,
+          band: job.band,
+          valueScale: job.scale,
+          valueOffset: job.offset,
+          noDataValues: job.noDataValues
+        })
+      );
+    const overview = Math.max(...results.map((r) => r.overviewLevel));
+    for (let i = 0; i < results.length; i++) {
+      if (
+        results[i].overviewLevel !== overview &&
+        results[i].windowPixelCount > 0
+      )
+        results[i] = await calculateZonalStatistics({
+          cogUrl: job.url,
+          polygon: (job.areas ?? [job.area])[i],
+          band: job.band,
+          overviewLevel: overview,
+          maxWindowPixels: 500_000,
+          valueScale: job.scale,
+          valueOffset: job.offset,
+          noDataValues: job.noDataValues
+        });
+    }
+    result = combineZonalResults(results);
   }
   process.stdout.write(JSON.stringify(result));
 } catch (_) {

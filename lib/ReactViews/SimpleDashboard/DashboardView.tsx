@@ -1,6 +1,9 @@
+import QueryRunner from "../../Models/SimpleDashboard/QueryRunner";
+import SpatialControls from "./SpatialControls";
+import useDashboardSpatial from "./useDashboardSpatial";
 import { useTranslation } from "react-i18next";
 import styled from "styled-components";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { observer } from "mobx-react";
 import { runInAction } from "mobx";
 import JulianDate from "terriajs-cesium/Source/Core/JulianDate";
@@ -46,6 +49,7 @@ export function DashboardResults({
       {config.blocks.map((block) => (
         <section className="simple-card" key={block.id}>
           <h3>{block.title}</h3>
+          <SpatialResult result={result?.results?.[block.id]} />
           <DashboardChart
             block={block}
             result={result?.results?.[block.id]}
@@ -113,6 +117,68 @@ export function DashboardResults({
     </>
   );
 }
+function SpatialResult({
+  result
+}: {
+  result?: import("../../Models/SimpleDashboard/Types").BlockResult;
+}) {
+  if (!result) return null;
+  const scopes = {
+    configured: "scopeConfigured",
+    observations: "scopeObservations",
+    entities: "scopeEntities",
+    pixels: "scopePixels",
+    bodies: "scopeBodies",
+    unfiltered: "scopeUnfiltered"
+  } as const;
+  const count =
+    result.body_count ??
+    result.pixel_count ??
+    result.valid_count ??
+    result.count;
+  const mode = result.spatial_state?.mode;
+  return (
+    <div className="simple-spatial-result">
+      <small>
+        {mode === "viewport"
+          ? tr("scopeViewport") + " · "
+          : mode === "fixed"
+            ? tr("scopeFixed") + " · "
+            : ""}
+        {tr(scopes[result.spatial_scope ?? "configured"])}
+        {count !== undefined &&
+          ` · ${count.toLocaleString(dashboardLocale())} ${tr(result.spatial_scope === "pixels" ? "validPixels" : result.spatial_scope === "bodies" ? "intersectingBodies" : "validData")}`}
+      </small>
+      {(count === 0 || result.valid_count === 0 || result.count === 0) && (
+        <p>{tr("extentEmpty")}</p>
+      )}
+      {result.spatial_scope === "bodies" && (
+        <p>
+          <small>
+            {result.method ===
+            "Area-weighted median of intersecting water bodies"
+              ? tr("bodiesMedian")
+              : tr("waterMethod")}
+          </small>
+        </p>
+      )}
+      {result.spatial_scope === "pixels" && (
+        <p>
+          <small>
+            {result.quality === "native"
+              ? tr("nativeResolution")
+              : tr("quickResolution")}{" "}
+            · {tr("pixelResolution")}:{" "}
+            {result.pixel_resolutions
+              ?.map((r) => r.map((v) => Number(v.toPrecision(5))).join(" × "))
+              .filter((v, i, a) => a.indexOf(v) === i)
+              .join(", ")}
+          </small>
+        </p>
+      )}
+    </div>
+  );
+}
 export const DashboardView = observer(function DashboardView({
   reference,
   terria,
@@ -129,65 +195,109 @@ export const DashboardView = observer(function DashboardView({
   useTranslation();
   const api = useMemo(() => new SimpleDashboardApi(), []);
   const [item, setItem] = useState<SavedDashboard>();
-  const [result, setResult] = useState<DashboardResult>();
+  const [response, setResponse] = useState<{
+    key: string;
+    value: DashboardResult;
+  }>();
   const [error, setError] = useState("");
   const [selection, setSelection] = useState<DashboardState>();
   const authenticated = terria.ckanSession?.isAuthenticated;
-  const stateKey = JSON.stringify(selection ?? state);
+  const requested =
+    selection ?? state ?? reference.state ?? item?.config.state ?? {};
+  const chosen: DashboardState =
+    terria.userProperties.get("dashboardOnly") === "1" &&
+    requested.spatial?.mode === "viewport" &&
+    requested.spatial.bounds
+      ? { ...requested, spatial: { ...requested.spatial, mode: "fixed" } }
+      : requested;
+  const spatial = useDashboardSpatial(terria, chosen);
+  const stateKey = JSON.stringify(spatial.effective);
+  const result = response?.key === stateKey ? response.value : undefined;
+  const runner = useRef<QueryRunner>();
+  const onStatusRef = useRef(onStatus);
+  onStatusRef.current = onStatus;
   useEffect(() => {
     const controller = new AbortController();
-    let timer: ReturnType<typeof setTimeout>;
     setItem(undefined);
-    setResult(undefined);
+    setResponse(undefined);
+    setSelection(undefined);
     setError("");
-    async function refresh() {
+    void (async () => {
       try {
-        onStatus?.(true);
         await api.initialize(controller.signal);
         const saved = await api.request<SavedDashboard>(
           `/${reference.id}?revision=${reference.revision}`,
           undefined,
           controller.signal
         );
-        const value = await api.request<DashboardResult>(
-          `/${reference.id}/query`,
-          {
-            revision: reference.revision,
-            ...(stateKey ? { state: JSON.parse(stateKey) } : {})
-          },
-          controller.signal
-        );
-        if (controller.signal.aborted) return;
-        setItem(saved);
-        setResult(value);
-        setError("");
-        onLoaded?.(saved);
-        onStatus?.(value.status === "pending", value.error);
-        timer = setTimeout(
-          refresh,
-          value.status === "pending" || value.refreshing ? 2000 : 300000
-        );
+        if (!controller.signal.aborted) {
+          setItem(saved);
+          onLoaded?.(saved);
+        }
       } catch (e) {
-        if (controller.signal.aborted) return;
-        setItem(undefined);
-        setResult(undefined);
-        setError(String(e));
-        onStatus?.(false, String(e));
+        if (!controller.signal.aborted) {
+          setError(String(e));
+          onStatusRef.current?.(false, String(e));
+        }
       }
-    }
-    void refresh();
+    })();
+    const query = new QueryRunner(
+      async (key, signal) => {
+        await api.initialize(signal);
+        return api.request<DashboardResult>(
+          `/${reference.id}/query`,
+          { revision: reference.revision, state: JSON.parse(key) },
+          signal
+        );
+      },
+      (key, value) => {
+        setResponse({ key, value });
+        setError("");
+        onStatusRef.current?.(
+          value.status === "pending" || !!value.refreshing,
+          value.error
+        );
+      },
+      (_key, e) => {
+        setResponse(undefined);
+        setError(String(e));
+        onStatusRef.current?.(false, String(e));
+      }
+    );
+    runner.current = query;
     return () => {
       controller.abort();
-      clearTimeout(timer);
+      query.dispose();
     };
+  }, [api, reference.id, reference.revision, authenticated, onLoaded]);
+  useEffect(() => {
+    runner.current?.update(item && spatial.enabled ? stateKey : undefined);
+    if (item && spatial.enabled) {
+      setError("");
+      onStatusRef.current?.(true);
+    }
+    if (item && spatial.needsMap)
+      onStatusRef.current?.(false, tr("extentRequired"));
+  }, [stateKey, item, spatial.enabled, spatial.needsMap]);
+  useEffect(() => {
+    if (!item || !spatial.enabled) return;
+    runInAction(() => {
+      if (
+        terria.simpleDashboard?.id === reference.id &&
+        terria.simpleDashboard.revision === reference.revision
+      )
+        terria.simpleDashboard = {
+          ...terria.simpleDashboard,
+          state: JSON.parse(stateKey)
+        };
+    });
   }, [
-    api,
+    terria,
+    item,
     reference.id,
     reference.revision,
-    authenticated,
     stateKey,
-    onLoaded,
-    onStatus
+    spatial.enabled
   ]);
   return (
     <Surface className="simple-dashboard-content" lang={dashboardLocale()}>
@@ -200,17 +310,24 @@ export const DashboardView = observer(function DashboardView({
             {tr("revision")} {reference.revision} ·{" "}
             {item.published ? tr("published") : tr("private")}
           </small>
+          <SpatialControls
+            terria={terria}
+            state={spatial.effective}
+            onChange={setSelection}
+            needsMap={spatial.needsMap}
+            native={item.config.sources.some(
+              (s) => s.kind === "cog" || !!s.analysis_resource_id
+            )}
+          />
           <div className="simple-row">
             <label>
               {tr("start")}
               <input
                 type="date"
-                value={(selection ?? state ?? item.config.state).start || ""}
+                value={chosen.start || ""}
                 onChange={(e) =>
                   setSelection({
-                    ...item.config.state,
-                    ...state,
-                    ...selection,
+                    ...chosen,
                     start: e.target.value
                   })
                 }
@@ -220,30 +337,36 @@ export const DashboardView = observer(function DashboardView({
               {tr("end")}
               <input
                 type="date"
-                value={(selection ?? state ?? item.config.state).end || ""}
+                value={chosen.end || ""}
                 onChange={(e) =>
                   setSelection({
-                    ...item.config.state,
-                    ...state,
-                    ...selection,
+                    ...chosen,
                     end: e.target.value
                   })
                 }
               />
             </label>
           </div>
-          <DashboardResults
-            terria={terria}
-            config={item.config}
-            result={result}
-          />
+          {!spatial.needsMap && (
+            <DashboardResults
+              terria={terria}
+              config={item.config}
+              result={result}
+            />
+          )}
           <button
             type="button"
+            disabled={
+              !result?.results ||
+              result.status === "pending" ||
+              result.refreshing ||
+              !spatial.enabled
+            }
             onClick={() =>
               void api
                 .export(item.id, {
                   revision: reference.revision,
-                  ...((selection ?? state) ? { state: selection ?? state } : {})
+                  state: spatial.effective
                 })
                 .catch((e) => setError(String(e)))
             }

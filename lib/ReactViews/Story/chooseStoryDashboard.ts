@@ -1,3 +1,4 @@
+import { validDashboardState } from "../../Models/SimpleDashboard/Spatial";
 import { validDashboardRef } from "../../Models/SimpleDashboard/Types";
 import i18next from "i18next";
 import createStoryDialog from "./createStoryDialog";
@@ -54,7 +55,13 @@ export default function chooseStoryDashboard(): Promise<
           ...(d.kind === "simple"
             ? {
                 kind: "simple" as const,
-                simple: { id: d.simple.id, revision: d.simple.revision }
+                simple: {
+                  id: d.simple.id,
+                  revision: d.simple.revision,
+                  ...(validDashboardState(d.simple.state)
+                    ? { state: d.simple.state }
+                    : {})
+                }
               }
             : {}),
           title: String(d.title || "Dashboard"),

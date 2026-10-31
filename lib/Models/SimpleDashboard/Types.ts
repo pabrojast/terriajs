@@ -2,6 +2,7 @@ import type { Point, Polygon } from "geojson";
 export interface SimpleDashboardRef {
   id: string;
   revision: number;
+  state?: DashboardState;
 }
 export interface DashboardPosition {
   x: number;
@@ -39,7 +40,20 @@ export function validDashboardPosition(
     )
   );
 }
+export interface DashboardBounds {
+  west: number;
+  south: number;
+  east: number;
+  north: number;
+}
+export interface DashboardSpatial {
+  mode: "configured" | "viewport" | "fixed";
+  bounds?: DashboardBounds;
+  quality?: "quick" | "native";
+  approximate?: boolean;
+}
 export interface DashboardState {
+  spatial?: DashboardSpatial;
   start?: string | null;
   end?: string | null;
   area?: Point | Polygon | null;
@@ -54,6 +68,9 @@ export interface DashboardSource {
   product?: string;
   resolution?: "daily" | "monthly" | "annual";
   source?: { kind: "file" | "datastore" };
+  latitude_field?: string;
+  longitude_field?: string;
+  analysis_resource_id?: string;
   date_field?: string;
   filters?: { field: string; op: "eq"; value: string }[];
 }
@@ -67,6 +84,7 @@ export interface DashboardBlock {
   y_field?: string;
   unit?: string;
   body_id?: number;
+  body_scope?: "fixed" | "viewport";
   band?: number;
   limit?: number;
   time_grain?: "none" | "day" | "month" | "year";
@@ -89,6 +107,20 @@ export interface SavedDashboard {
   can_edit?: boolean;
 }
 export interface BlockResult {
+  spatial_scope?:
+    | "configured"
+    | "observations"
+    | "entities"
+    | "pixels"
+    | "bodies"
+    | "unfiltered";
+  spatial_state?: DashboardSpatial;
+  valid_count?: number;
+  body_count?: number;
+  pixel_count?: number;
+  pixel_resolutions?: [number, number][];
+  overview_levels?: number[];
+  quality?: "quick" | "native";
   type: DashboardBlock["type"];
   error?: string;
   value?: number | null;

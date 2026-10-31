@@ -38,6 +38,8 @@ export interface ZonalCalculationOptions {
   valueOffset?: number;
   /** Maximum overview level index to use (0 = full res). Undefined = auto-select. */
   overviewLevel?: number;
+  /** Hard read budget, checked before allocating raster arrays. */
+  maxWindowPixels?: number;
   /** EPSG code of the COG CRS. If undefined, reads from GeoKeys. */
   epsgCode?: number;
   /** AbortSignal for cancellation */
@@ -382,6 +384,8 @@ export async function calculateZonalStatistics(
 
   const ovWidth = ovWindowRight - ovWindowLeft;
   const ovHeight = ovWindowBottom - ovWindowTop;
+  if (options.maxWindowPixels && ovWidth * ovHeight > options.maxWindowPixels)
+    throw new Error("Raster window exceeds the pixel budget; reduce the area.");
 
   if (ovWidth <= 0 || ovHeight <= 0) {
     return {
