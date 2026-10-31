@@ -333,3 +333,7 @@ El caso de interfaz también espera que termine el bootstrap iniciado al montar 
 Esta prueba aísla el contrato de inicialización de módulos y no sustituye al navegador. El recorrido de aceptación usa una compilación release y una página sin TinyMCE precargado: abrir Story, capturar una escena, escribir y dar formato, guardar, reabrir/editar, reproducir y compartir. Comprobar también una historia existente, idiomas EN/ES y ventana reducida. La suite de ciclo de vida del borrador utiliza un editor simulado y por sí sola no detecta fallos al cargar el chunk real.
 
 La prueba de bootstrap verifica también el registro del paquete español, la normalización de `es-CL`/`es_ES` y el fallback inglés sin descargar scripts de idioma externos.
+
+## Dashboard por encuadre
+
+`test/Models/SimpleDashboard/ViewportSpec.ts` verifica el antimeridiano, el estado compartido y la cola de consultas con movimientos sucesivos. `server/simple-dashboard/spatial.test.mjs` prueba un GeoTIFF controlado con escala/unidades/nodata, el límite de píxeles, geometrías con agujeros y agregación de cuerpos. Ejecutar `npm ci --prefix server/simple-dashboard`, `npm run build --prefix server/simple-dashboard` y `npm test --prefix server/simple-dashboard`. El backend agrega `test_simple_spatial.py` para medias sobre snapshots completos, rango temporal, campos de coordenadas, área vacía, validación y caducidad de resultados.

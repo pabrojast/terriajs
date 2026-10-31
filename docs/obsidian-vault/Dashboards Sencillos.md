@@ -36,3 +36,15 @@ El servidor prepara CSV/DataStore/GeoJSON con el motor DuckDB existente. Los res
 - Las pruebas de permisos, revisiones, CSRF, cálculo y caché residen en `ckanext-dashboard_view`.
 
 Los resultados de CI, ejemplos y despliegue deben registrarse con el SHA e imagen efectivos en [[Deployment]].
+
+## Ámbito del cálculo y seguimiento del mapa
+
+El selector **Ámbito de cálculo** ofrece selección configurada (predeterminada para revisiones existentes), seguir el mapa y área fija. Sigue la extensión geográfica de Leaflet o Cesium, conserva las fuentes y fechas del Dashboard y no depende de la visibilidad de las capas. En 3D el rectángulo es aproximado; una cámara sin extensión válida no dispara cálculos. Los encuadres que cruzan el antimeridiano se dividen en dos ventanas sin solapamiento.
+
+CSV/DataStore filtran coordenadas numéricas antes de agregar; el editor permite corregir las columnas detectadas. GeoJSON conserva las geometrías de la generación y selecciona entidades completas por intersección (incluye agujeros). Los bloques sin ubicación se identifican como **Sin filtro espacial**. Un promedio vacío es nulo, no cero. El resumen de cuerpos usa su bbox y mediana ponderada por superficie por fecha, preservando la selección de un cuerpo fijo; requiere elegir **Cuerpos de agua en el encuadre** para un resumen regional.
+
+Los COG muestran el tamaño de píxel utilizado. El cálculo rápido puede usar overviews. **Fijar área y calcular a resolución nativa** fija el encuadre y usa el nivel 0; exige un COG autorizado, limita cada ventana a 500.000 píxeles y cada bloque temporal a 5.000.000 píxeles leídos. Se mantienen los límites del worker y de 366 fechas. Las fuentes de cuerpos pueden asociar un `analysis_resource_id` de CKAN: se reautoriza también esa fuente en lectura, publicación y cálculo. La resolución nativa corresponde al ráster asociado, no reconstruye las observaciones originales de una serie preagregada.
+
+El cliente espera 750 ms de estabilidad para capturar el mapa y otros 750 ms antes de enviar la consulta. Mantiene un trabajo activo y solo el último encuadre pendiente; respuestas de un encuadre anterior no se muestran como actuales. Cerrar/contraer el panel detiene el seguimiento; los trabajos ya enviados pueden terminar en el servidor. Los resultados por encuadre caducan en Redis tras una hora; las generaciones de fuentes se reutilizan.
+
+`DashboardState.spatial` contiene `mode`, `bounds`, `quality` y `approximate`. Las revisiones siguen siendo inmutables: navegar solo cambia el estado de consulta. El estado del Dashboard se conserva en enlaces compartidos/shortlinks, independientemente de incluir Stories, y la exportación usa el mismo estado. Sin mapa, un dashboard incrustado necesita área fija; el seguimiento no se sustituye por una consulta global.

@@ -1,3 +1,6 @@
+import QueryRunner from "../../Models/SimpleDashboard/QueryRunner";
+import SpatialControls from "./SpatialControls";
+import useDashboardSpatial from "./useDashboardSpatial";
 import { useTranslation } from "react-i18next";
 import { localPreview } from "../../Models/SimpleDashboard/LocalPreview";
 import DashboardEmbed from "./DashboardEmbed";
@@ -92,7 +95,15 @@ const Panel = observer(function Panel() {
       terria.simpleDashboardDraft = undefined;
     });
   }, [terria, terria.simpleDashboardDraft, authenticated]);
-  const configKey = JSON.stringify(config);
+  const spatial = useDashboardSpatial(
+    terria,
+    config.state,
+    !collapsed && ["data", "blocks", "review"].includes(step)
+  );
+  const configKey = JSON.stringify({ ...config, state: spatial.effective });
+  const previewRunner = useRef<QueryRunner>();
+  const latestPreviewKey = useRef(configKey);
+  latestPreviewKey.current = configKey;
   const onLoaded = useCallback((value: SavedDashboard) => setSaved(value), []);
   const editConfig = (patch: Partial<DashboardConfig>) =>
     setConfig((old) => ({ ...old, ...patch }));
@@ -132,14 +143,10 @@ const Panel = observer(function Panel() {
   }, [step, loadLibrary]);
   useEffect(() => () => drawingTool.current?.cleanUp(), []);
   useEffect(() => {
-    if (!["data", "blocks", "review"].includes(step) || !config.sources.length)
-      return;
-    const controller = new AbortController();
-    let timer: ReturnType<typeof setTimeout>;
-    async function preview() {
-      try {
-        await api.initialize(controller.signal);
-        const current: DashboardConfig = JSON.parse(configKey);
+    const query = new QueryRunner(
+      async (key, signal) => {
+        await api.initialize(signal);
+        const current: DashboardConfig = JSON.parse(key);
         const local = localPreview(terria, current);
         const durable = current.sources.filter(
           (s) => s.resource_id || s.catalog_url
@@ -156,45 +163,43 @@ const Panel = observer(function Panel() {
                   )
                 }
               },
-              controller.signal
+              signal
             )
           : local;
-        const value = {
+        return {
           ...remote,
           results: { ...local.results, ...remote.results },
           profiles: { ...local.profiles, ...remote.profiles }
         };
-        if (controller.signal.aborted) return;
+      },
+      (key, value) => {
+        if (key !== latestPreviewKey.current) return;
         setResult((old) => ({
           ...value,
-          // Pending jobs have no profiles yet. Keep column/body choices stable
-          // for the selected sources while their new results are calculated.
-          profiles: Object.fromEntries(
-            current.sources.flatMap((source) => {
-              const profile =
-                value.profiles?.[source.id] || old?.profiles?.[source.id];
-              return profile ? [[source.id, profile]] : [];
-            })
-          )
+          profiles: { ...old?.profiles, ...value.profiles }
         }));
         setError("");
-        timer = setTimeout(
-          preview,
-          value.status === "pending" || value.refreshing ? 2000 : 300000
-        );
-      } catch (e) {
-        if (!controller.signal.aborted) {
-          setError(String(e));
-          setResult(undefined);
-        }
+      },
+      (_key, e) => {
+        setError(String(e));
+        setResult(undefined);
       }
-    }
-    timer = setTimeout(preview, 500);
-    return () => {
-      controller.abort();
-      clearTimeout(timer);
-    };
-  }, [api, configKey, step, config.sources.length, terria]);
+    );
+    previewRunner.current = query;
+    return () => query.dispose();
+  }, [api, terria, authenticated]);
+  useEffect(() => {
+    const active =
+      spatial.enabled &&
+      !collapsed &&
+      ["data", "blocks", "review"].includes(step) &&
+      config.sources.length > 0;
+    previewRunner.current?.update(active ? configKey : undefined);
+    if (active)
+      setResult((old) =>
+        old ? { status: "pending", profiles: old.profiles } : undefined
+      );
+  }, [configKey, step, spatial.enabled, collapsed, config.sources.length]);
   async function act(action: () => Promise<void>) {
     setBusy(true);
     setError("");
@@ -209,6 +214,7 @@ const Panel = observer(function Panel() {
   }
   function addBlock() {
     const source = config.sources[0];
+    if (!source) return;
     const fields = result?.profiles?.[source.id]?.fields || [];
     editConfig({
       blocks: [
@@ -251,7 +257,8 @@ const Panel = observer(function Panel() {
           ...old,
           state: {
             ...old.state,
-            area: { type: "Polygon", coordinates: [ring] }
+            area: { type: "Polygon", coordinates: [ring] },
+            spatial: { mode: "configured" }
           }
         }));
         setDrawing(false);
@@ -630,7 +637,53 @@ const Panel = observer(function Panel() {
                       </section>
                     );
                   })}
+                  {config.sources
+                    .filter((s) => s.kind === "table")
+                    .map((source) => (
+                      <div key={source.id} className="simple-row">
+                        <small>{source.name}</small>
+                        {(["latitude_field", "longitude_field"] as const).map(
+                          (axis) => (
+                            <label key={axis}>
+                              {tr(
+                                axis === "latitude_field"
+                                  ? "latitudeColumn"
+                                  : "longitudeColumn"
+                              )}
+                              <select
+                                value={source[axis] || ""}
+                                onChange={(e) =>
+                                  changeSource(source.id, {
+                                    [axis]: e.target.value || undefined
+                                  })
+                                }
+                              >
+                                <option value="">
+                                  {tr("autoCoordinates")}
+                                </option>
+                                {result?.profiles?.[source.id]?.fields
+                                  ?.filter((f) => f.type === "number")
+                                  .map((f) => (
+                                    <option key={f.key} value={f.key}>
+                                      {f.label}
+                                    </option>
+                                  ))}
+                              </select>
+                            </label>
+                          )
+                        )}
+                      </div>
+                    ))}
                   {controls}
+                  <SpatialControls
+                    terria={terria}
+                    state={spatial.effective}
+                    onChange={(state) => editConfig({ state })}
+                    needsMap={spatial.needsMap}
+                    native={config.sources.some(
+                      (s) => s.kind === "cog" || !!s.analysis_resource_id
+                    )}
+                  />
                   {config.sources.some((s) => s.kind === "cog") && (
                     <div className="simple-actions">
                       <button type="button" onClick={draw}>
@@ -645,6 +698,7 @@ const Panel = observer(function Panel() {
                             editConfig({
                               state: {
                                 ...config.state,
+                                spatial: { mode: "configured" },
                                 area: {
                                   type: "Point",
                                   coordinates: coordinate(point)
@@ -744,7 +798,8 @@ const Panel = observer(function Panel() {
                                   source_id: e.target.value,
                                   x_field: undefined,
                                   y_field: undefined,
-                                  body_id: undefined
+                                  body_id: undefined,
+                                  body_scope: "fixed"
                                 })
                               }
                             >
@@ -779,14 +834,29 @@ const Panel = observer(function Panel() {
                           <label>
                             {tr("body")}
                             <select
-                              value={block.body_id ?? ""}
+                              value={
+                                block.body_scope === "viewport"
+                                  ? "viewport"
+                                  : (block.body_id ?? "")
+                              }
                               onChange={(e) =>
                                 changeBlock(block.id, {
-                                  body_id: Number(e.target.value)
+                                  body_id:
+                                    e.target.value &&
+                                    e.target.value !== "viewport"
+                                      ? Number(e.target.value)
+                                      : undefined,
+                                  body_scope:
+                                    e.target.value === "viewport"
+                                      ? "viewport"
+                                      : "fixed"
                                 })
                               }
                             >
                               <option value="">—</option>
+                              <option value="viewport">
+                                {tr("viewportBodies")}
+                              </option>
                               {profile?.bodies?.map((b) => (
                                 <option key={b.id} value={b.id}>
                                   {b.name}
@@ -935,7 +1005,10 @@ const Panel = observer(function Panel() {
                       void act(async () => {
                         const item = await api.request<SavedDashboard>(
                           saved ? `/${saved.id}` : "",
-                          { config, revision: saved?.revision }
+                          {
+                            config: { ...config, state: spatial.effective },
+                            revision: saved?.revision
+                          }
                         );
                         open(item);
                       })

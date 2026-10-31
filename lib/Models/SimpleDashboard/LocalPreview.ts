@@ -1,3 +1,5 @@
+import booleanIntersects from "@turf/boolean-intersects";
+import { boundsPolygons } from "./Spatial";
 import Terria from "../Terria";
 import { findLayer, readLayerRows } from "../DataAssistant/LayerTools";
 import {
@@ -22,9 +24,9 @@ export function localPreview(
     (s) => !s.resource_id && !s.catalog_url
   )) {
     if (!source.local_id) continue;
-    const { rows, geometries, names } = readLayerRows(
-      findLayer(terria, source.local_id)
-    );
+    const data = readLayerRows(findLayer(terria, source.local_id));
+    let { rows, geometries } = data;
+    const { names } = data;
     result.profiles![source.id] = {
       fields: describeRows(rows, names).columns?.map((c) => ({
         key: c.name,
@@ -32,6 +34,40 @@ export function localPreview(
         type: c.type
       }))
     };
+    const latitude =
+      source.latitude_field || names.find((n) => /^_?(lat|latitude)$/i.test(n));
+    const longitude =
+      source.longitude_field ||
+      names.find((n) => /^_?(lon|lng|longitude)$/i.test(n));
+    const spatial = config.state.spatial;
+    const bounds =
+      spatial && spatial.mode !== "configured" ? spatial.bounds : undefined;
+    const filterable = !!geometries || !!(latitude && longitude);
+    if (bounds && filterable) {
+      const areas = boundsPolygons(bounds);
+      const keep = rows.map((r, i) => {
+        const lon = r[longitude || ""],
+          lat = r[latitude || ""];
+        const geometry =
+          geometries?.[i] ||
+          (lon !== null &&
+          lat !== null &&
+          String(lon ?? "").trim() &&
+          String(lat ?? "").trim() &&
+          Number.isFinite(Number(lon)) &&
+          Number.isFinite(Number(lat)) &&
+          Math.abs(Number(lon)) <= 180 &&
+          Math.abs(Number(lat)) <= 90
+            ? {
+                type: "Point" as const,
+                coordinates: [Number(lon), Number(lat)]
+              }
+            : undefined);
+        return !!geometry && areas.some((a) => booleanIntersects(a, geometry));
+      });
+      rows = rows.filter((_, i) => keep[i]);
+      geometries = geometries?.filter((_, i) => keep[i]);
+    }
     for (const block of config.blocks.filter(
       (b) => b.source_id === source.id
     )) {
@@ -43,6 +79,8 @@ export function localPreview(
           column: block.y_field,
           metric: block.aggregate === "avg" ? "mean" : block.aggregate,
           date_column: source.date_field,
+          latitude_column: latitude,
+          longitude_column: longitude,
           start: config.state.start || undefined,
           end: config.state.end || undefined,
           filters: source.filters?.map((f) => ({
@@ -51,7 +89,7 @@ export function localPreview(
             value: f.value
           })),
           polygon:
-            config.state.area?.type === "Polygon"
+            !bounds && filterable && config.state.area?.type === "Polygon"
               ? config.state.area
               : undefined,
           limit: 100
@@ -65,6 +103,7 @@ export function localPreview(
               block.aggregate === "count"
                 ? filtered.length
                 : stats[query.metric!],
+            valid_count: Number(stats.count),
             count: filtered.length
           };
         } else {
@@ -92,6 +131,13 @@ export function localPreview(
                   truncated: value.truncated
                 };
         }
+        result.results![block.id].spatial_scope = bounds
+          ? filterable
+            ? source.kind === "geojson"
+              ? "entities"
+              : "observations"
+            : "unfiltered"
+          : "configured";
       } catch (e) {
         result.results![block.id] = { type: block.type, error: String(e) };
       }

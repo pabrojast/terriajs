@@ -27,6 +27,7 @@ export function dashboardSources(terria: Terria): DashboardSource[] {
             ...common,
             kind: "water",
             resource_id: undefined,
+            analysis_resource_id: item.ckanResourceId,
             catalog_url: item.waterQuality.dataUrl,
             product: item.waterQuality.product,
             resolution: "monthly"
