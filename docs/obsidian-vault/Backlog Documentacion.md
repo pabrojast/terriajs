@@ -1,5 +1,10 @@
 # Backlog de documentacion
 
+## Consola de Leaflet al reabrir enlaces (2026-10-30)
+
+- Hecho observado: durante navegaciones sucesivas entre shortlinks en DEV apareció una vez `Cannot read properties of undefined (reading 'length')` en `Leaflet.syncDataSourceCollection`. El cálculo y la restauración del dashboard siguieron funcionando. Una pestaña nueva abriendo el mismo enlace completó sin errores de página ni consola. `lib/Models/Leaflet.ts` no cambió en la entrega por encuadre.
+- Pendiente por confirmar: reproducción estable y relación con el ciclo de destrucción/sincronización del visor; no atribuir una causa ni marcarlo como regresión sin evidencia. Recibos y enlace reproducible en la [validación del dashboard por encuadre](https://github.com/pabrojast/ckan-unesco-docker/blob/miserver-2.10/deploy/envoy-dev/validation-dashboard-viewport-2026-10-30.md).
+
 ## Operación de dashboards sencillos (2026-10-29)
 
 - Hecho observado: resultados y revisiones usan tablas propias de PostgreSQL; snapshots/DuckDB usan `simple-sources` y `simple-tables`. El pruning antiguo de ResourceViews no administra estas rutas. Pendiente definir la retención operativa sin eliminar revisiones compartidas.
