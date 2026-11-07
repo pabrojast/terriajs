@@ -3,7 +3,13 @@
 ## Asistente y share del CSV ROBIN (2026-11-06)
 
 - Hecho observado: el contexto con cientos de estilos automáticos supera el límite del backend; el HTML del logo de la organización provoca otro rechazo al crear el share. Las regresiones locales de los tres componentes pasan; evidencia y comandos en [[Testing]].
-- Pendiente por confirmar tras publicar TerriaJS/TerriaMap, `ckanext-terriassistant` y la configuración Coraza DEV: consulta real con el CSV `robin station metadata public v1 1` de `Testing Dataset Nov`, propuesta de rojo, Aplicar/Deshacer y creación/reapertura del shortlink. No marcar resuelto en DEV a partir de las pruebas locales.
+- Verificado en DEV el 2026-11-07: consulta real con ese CSV, propuesta de rojo mediante DeepSeek, Aplicar/Deshacer y creación/reapertura anónima del shortlink. Se conserva el logo HTML de la organización; ver [[Deployment]] y [[Testing]].
+- Pendiente por confirmar: comportamiento deseado de Compartir mientras se aplica una propuesta. Una prueba automática abrió el panel antes de que apareciera `Applied` y guardó el estado anterior; al esperar esa confirmación y reabrir Compartir, el enlace conserva correctamente el rojo. Evaluar si conviene deshabilitar Compartir durante la aplicación; no atribuirlo al filtro WAF ni al tamaño del contexto.
+
+## Reconstrucción completa de CKAN DEV (2026-11-07)
+
+- Hecho observado: una publicación IHP-IX simultánea incluye parches del tema que todavía no están en las entradas del Dockerfile completo. Se conserva esa imagen y se añade únicamente la revisión del asistente; ver [[Deployment]].
+- Pendiente por confirmar: publicación e integración de esos cambios IHP-IX antes de volver a ejecutar `push.yml` completo. Reconstruir ahora desde las entradas genéricas puede perderlos; no corresponde integrar trabajo ajeno sin revisar su alcance.
 
 ## Consola de Leaflet al reabrir enlaces (2026-10-30)
 
