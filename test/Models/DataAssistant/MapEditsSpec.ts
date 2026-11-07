@@ -1,7 +1,10 @@
 import { runInAction } from "mobx";
+import { keepAlive } from "mobx-utils";
 import Terria from "../../../lib/Models/Terria";
 import GeoJsonCatalogItem from "../../../lib/Models/Catalog/CatalogItems/GeoJsonCatalogItem";
 import CogCatalogItem from "../../../lib/Models/Catalog/CatalogItems/CogCatalogItem";
+import CsvCatalogItem from "../../../lib/Models/Catalog/CatalogItems/CsvCatalogItem";
+import { JsonObject } from "../../../lib/Core/Json";
 import CommonStrata from "../../../lib/Models/Definition/CommonStrata";
 import updateModelFromJson from "../../../lib/Models/Definition/updateModelFromJson";
 import {
@@ -17,6 +20,7 @@ import registerCatalogMembers from "../../../lib/Models/Catalog/registerCatalogM
 describe("DataAssistant map editing", function () {
   let terria: Terria;
   let layer: GeoJsonCatalogItem;
+  let disposeCaches: (() => void)[];
   const noSource = () => Promise.reject(new Error("Unexpected catalog fetch"));
   const proposal = (operations: MapEdit[]): MapProposal => ({
     id: "test-proposal",
@@ -25,6 +29,7 @@ describe("DataAssistant map editing", function () {
     operations
   });
   beforeEach(function () {
+    disposeCaches = [];
     terria = new Terria({ baseUrl: "./" });
     layer = new GeoJsonCatalogItem("water", terria);
     updateModelFromJson(layer, CommonStrata.definition, {
@@ -36,6 +41,214 @@ describe("DataAssistant map editing", function () {
     runInAction(() => {
       terria.workbench.items = [layer];
     });
+  });
+
+  afterEach(() => disposeCaches.reverse().forEach((dispose) => dispose()));
+
+  function wideTable(columnCount = 215) {
+    const table = new CsvCatalogItem("wide-table", terria, undefined);
+    // The real workbench observes these computed values. Keep the same cache
+    // lifetime in this model-only test while exercising hundreds of columns.
+    for (const key of [
+      "tableColumns",
+      "styles",
+      "tableStyles",
+      "activeTableStyle"
+    ])
+      disposeCaches.push(keepAlive(table, key));
+    updateModelFromJson(table, CommonStrata.definition, {
+      activeStyle: "value214",
+      defaultStyle: {
+        longitudeColumn: "longitude",
+        latitudeColumn: "latitude",
+        point: { null: { rotation: 15, width: 13, height: 13 } },
+        color: { minimumValue: 0, maximumValue: 100 }
+      },
+      styles: [
+        {
+          id: "value214",
+          color: { colorColumn: "value214", colorPalette: "Blues" }
+        }
+      ]
+    }).throwIfError();
+    terria.addModel(table);
+    runInAction(() => {
+      table.dataColumnMajor = [
+        ["longitude", "-70", "-71"],
+        ["latitude", "-30", "-31"],
+        ...Array.from({ length: columnCount }, (_, i) => [
+          "value" + (i === columnCount - 1 ? 214 : i),
+          "1",
+          "2"
+        ])
+      ];
+      terria.workbench.items = [table];
+    });
+    return table;
+  }
+
+  it("keeps a wide table's active style and referenced columns within a compact context", () => {
+    const table = wideTable();
+    expect(table.styles.length).toBeGreaterThan(200);
+    const context = mapContext(terria);
+    const current = context.layers[0];
+    const styles = current.traits.styles as JsonObject[];
+    expect(styles.length).toBe(1);
+    expect(styles[0].id).toBe("value214");
+    expect(current.traits.activeStyle).toBe("value214");
+    expect(styles[0].point).toEqual(
+      jasmine.objectContaining({
+        null: jasmine.objectContaining({ rotation: 15, width: 13, height: 13 })
+      })
+    );
+    expect(styles[0].color).toEqual(
+      jasmine.objectContaining({
+        colorColumn: "value214",
+        minimumValue: 0,
+        maximumValue: 100
+      })
+    );
+    expect(current.columns?.length).toBe(200);
+    expect(current.columns?.map((c) => c.name)).toEqual(
+      jasmine.arrayContaining(["value214", "longitude", "latitude"])
+    );
+    expect(JSON.stringify(context).length).toBeLessThan(25000);
+    // Inactive manual changes must still invalidate an outstanding proposal.
+    updateModelFromJson(table, CommonStrata.user, {
+      styles: [{ id: "value0", color: { nullColor: "red" } }]
+    }).throwIfError();
+    expect(mapContext(terria).revision).not.toBe(context.revision);
+    expect(mapContext(terria).layers[0].traits).toEqual(current.traits);
+  });
+
+  it("describes the effective default style when a named table style is unavailable", () => {
+    const table = wideTable();
+    updateModelFromJson(table, CommonStrata.user, {
+      activeStyle: "missing-style",
+      defaultStyle: { color: { colorColumn: "value214" } }
+    }).throwIfError();
+    const current = mapContext(terria).layers[0];
+    const styles = current.traits.styles as JsonObject[];
+    expect(current.traits.activeStyle).toBe(table.activeTableStyle.id);
+    expect(styles.map((s) => s.id)).toEqual([table.activeTableStyle.id]);
+    expect(current.columns?.some((c) => c.name === "value214")).toBe(true);
+  });
+
+  it("preserves inactive user styles through compact proposals, sharing and undo", async () => {
+    const table = wideTable(3);
+    // Inline CSV lets a second Terria instance reopen this share without HTTP.
+    runInAction(() =>
+      table.setTrait(
+        CommonStrata.definition,
+        "csvString",
+        table
+          .dataColumnMajor![0].map((_, row) =>
+            table.dataColumnMajor!.map((column) => column[row]).join(",")
+          )
+          .join("\n")
+      )
+    );
+    const inactive = { id: "value0", color: { colorPalette: "Greens" } };
+    const original = [
+      inactive,
+      { id: "value214", pointSize: { nullSize: 17 } }
+    ];
+    updateModelFromJson(table, CommonStrata.user, {
+      styles: original
+    }).throwIfError();
+    const current = mapContext(terria).layers[0];
+    const active = (current.traits.styles as JsonObject[])[0];
+    const undo = await applyMapChanges(
+      terria,
+      proposal([
+        {
+          kind: "update_layer",
+          source_id: "layer:wide-table",
+          traits: {
+            activeStyle: "assistant-red",
+            styles: [
+              ...(current.traits.styles as JsonObject[]),
+              {
+                ...active,
+                id: "assistant-red",
+                color: { mapType: "constant", nullColor: "#ff0000" }
+              }
+            ]
+          }
+        }
+      ]),
+      noSource,
+      () => true
+    );
+    const saved = table.traits.styles.toJson(
+      table.getTrait(CommonStrata.user, "styles")
+    ) as JsonObject[];
+    expect(saved.find((s) => s.id === "value0")).toEqual(inactive);
+    expect(saved.length).toBe(3);
+    expect(table.activeTableStyle.colorTraits.nullColor).toBe("#ff0000");
+    expect(
+      table.activeTableStyle.colorMap.mapValueToColor(1).toCssHexString()
+    ).toBe("#ff0000");
+    expect(table.activeTableStyle.pointSizeTraits.nullSize).toBe(17);
+    const share = getShareData(terria);
+    registerCatalogMembers();
+    const restored = new Terria({ baseUrl: "./" });
+    for (const initData of share.initSources ?? [])
+      if (typeof initData === "object")
+        await restored.applyInitData({ initData });
+    const reopened = restored.workbench.items[0] as CsvCatalogItem;
+    for (const key of [
+      "tableColumns",
+      "styles",
+      "tableStyles",
+      "activeTableStyle"
+    ])
+      disposeCaches.push(keepAlive(reopened, key));
+    expect(reopened.activeStyle).toBe("assistant-red");
+    expect(
+      reopened.activeTableStyle.colorMap.mapValueToColor(1).toCssHexString()
+    ).toBe("#ff0000");
+    expect(
+      reopened.styles.find((s) => s.id === "value0")?.color.colorPalette
+    ).toBe("Greens");
+    await undoMapChanges(terria, undo);
+    expect(table.activeStyle).toBe("value214");
+    expect(
+      table.traits.styles.toJson(table.getTrait(CommonStrata.user, "styles"))
+    ).toEqual(original);
+  });
+
+  it("restores inherited private symbol URLs when updating an existing compact style", async () => {
+    const table = new CsvCatalogItem("symbols", terria, undefined);
+    updateModelFromJson(table, CommonStrata.definition, {
+      activeStyle: "named",
+      defaultStyle: {
+        point: { null: { marker: "https://example.test/private-symbol.svg" } }
+      },
+      styles: [{ id: "named", color: { colorColumn: "value" } }]
+    }).throwIfError();
+    terria.addModel(table);
+    runInAction(() => {
+      table.dataColumnMajor = [["value", "1", "2"]];
+      terria.workbench.items = [table];
+    });
+    const context = mapContext(terria);
+    expect(JSON.stringify(context)).not.toContain("private-symbol");
+    await applyMapChanges(
+      terria,
+      proposal([
+        {
+          kind: "update_layer",
+          source_id: "layer:symbols",
+          traits: { styles: context.layers[0].traits.styles }
+        }
+      ]),
+      noSource,
+      () => true
+    );
+    expect(table.activeTableStyle.styleTraits.point.null.marker).toBe(
+      "https://example.test/private-symbol.svg"
+    );
   });
 
   it("changes presentation, preserves the original definition and undoes only affected traits", async function () {

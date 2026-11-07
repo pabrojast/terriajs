@@ -61,6 +61,32 @@ describe("DataAssistant session and tool flow", function () {
     // handlers installed until those requests finish, before the next reset.
     await Promise.allSettled(requests);
   });
+  it("shows a context-size error without losing the session and permits a retry", async () => {
+    const message =
+      "Map context is too large; remove some layers from the map and try again";
+    let attempts = 0;
+    worker.use(
+      http.post(base + "/conversations/conversation/turns", () => {
+        attempts++;
+        return attempts === 1
+          ? HttpResponse.json({ error: message }, { status: 413 })
+          : HttpResponse.json({
+              id: "retry",
+              status: "completed",
+              answer: "Ready"
+            });
+      })
+    );
+    vm = new DataAssistantViewModel(viewState);
+    await vm.ask("Change this layer's colours to red.");
+    expect(vm.error).toBe(message);
+    expect(vm.busy).toBe(false);
+    expect(session.isAuthenticated).toBe(true);
+    await vm.ask("Try again with the smaller map.");
+    expect(vm.error).toBe("");
+    expect(vm.entries[1].turn?.status).toBe("completed");
+    expect(attempts).toBe(2);
+  });
   it("uses the selected tables' full dates, preserving manual dates until the selection changes", () => {
     const first = new CsvCatalogItem("first", terria, undefined);
     const second = new CsvCatalogItem("second", terria, undefined);
