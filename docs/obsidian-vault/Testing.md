@@ -324,7 +324,11 @@ Verificación local del candidato: `node_modules/.bin/gulp build`, TypeScript (`
 
 El backend candidato en `ckanext-terriassistant` pasa **45 pruebas** con `python -m pytest -q tests`, tanto con jsonschema 3.0.0 como 4.23.0: mantiene el límite exacto de 200000, devuelve 413 antes de crear el turno/enviar trabajo y permite reintentar. El candidato de `ckan-unesco-docker` pasa **13 pruebas** de `python3 -m unittest discover -s deploy/envoy-dev -p test_gateway.py` y **30 casos** de `python3 deploy/envoy-dev/check_terria_share.py`. Este último usa Coraza/Envoy local y almacenamiento en memoria: el logo real se acepta, mientras scripts, handlers, URLs javascript, SQL y comandos siguen bloqueados. No crea Gists ni cambia DEV.
 
-Pendiente por confirmar tras publicar los tres componentes: sesión real de DEV con ese CSV, propuesta de rojo mediante DeepSeek, Aplicar/Deshacer y creación/reapertura del shortlink. Las pruebas locales no acreditan el despliegue. Ver [[Arquitectura]] y [[Backlog Documentacion]].
+El 2026-11-07, la revisión publicada en DEV se prueba con una cuenta temporal no administradora y el CSV real de ROBIN: 213 columnas, 215 estilos originales y 3060 puntos. El contexto enviado contiene un solo estilo activo, ocupa 11132 caracteres compactos (12303 con la serialización Python del backend) y excluye URLs de origen y filas. DeepSeek acepta el turno con 202 y devuelve una propuesta de rojo. Antes de Aplicar todos los puntos siguen en `#66c2a5`; después son `#ff0000`, y Deshacer restaura exactamente el estado anterior. Se comparan geometría, tiempo, forma/tamaño/rotación, borde y etiquetas.
+
+Tras esperar el estado visible `Applied`, Compartir responde 201. Una sesión anónima nueva reabre el enlace con los 3060 puntos rojos y el logo HTML de CAZALAC, sin errores de página. Un intento automático previo abrió Compartir mientras seguía la reaplicación y guardó el estado anterior: esperar la confirmación de la interfaz antes de comparar el resultado compartido. Referencias de código/despliegue en [[Deployment]]; evidencia local en `output/playwright/ai-share-dev-20261107/`.
+
+Con el backend final Ready, un contexto sintético de 255617 caracteres compactos devuelve 413 con el mensaje accionable `Map context is too large; remove some layers from the map and try again`. La misma conversación acepta un reintento normal y DeepSeek confirma el nombre de la capa y su estilo rojo. En viewport de 390 px, el panel no produce desbordamiento horizontal de página.
 
 ## Búsqueda independiente de datasets (2026-10-30)
 

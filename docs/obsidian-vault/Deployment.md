@@ -2,6 +2,16 @@
 
 Ver tambien: [[Variables de Entorno]], [[Comandos Utiles]], [[Arquitectura]]
 
+## Asistente IA y share de ROBIN (2026-11-07)
+
+TerriaJS [PR #28](https://github.com/pabrojast/terriajs/pull/28) se integra en `develop`; TerriaMap [PR #16](https://github.com/pabrojast/TerriaMap/pull/16) fija `938ed9074f078cdde9c22148ad13dfe86951144d` en paquete y lockfile. La CI completa de la biblioteca y ambas matrices Node 22/24/26 del consumidor pasan. El [workflow Terria 42380968327](https://github.com/pabrojast/ckan-unesco-docker/actions/runs/42380968327) entrega `pabrojast/terriamap:20261107111829-95899d2`; el pin se verifica dentro del pod Ready sin reinicios.
+
+La configuración Coraza se publica en `miserver-2.10` mediante [PR #28 de deployment](https://github.com/pabrojast/ckan-unesco-docker/pull/28). GitHub no tiene registrado el workflow Envoy en su rama predeterminada; se ejecutan los scripts canónicos `manage.py guard/apply/ready` y `smoke.py --blocking` desde el checkout limpio de DEV. El diff efectivo solo modifica las dos exclusiones de `info[].content`; el gateway acepta la generación 13 y las pruebas públicas de navegación/bloqueo pasan.
+
+El workflow completo de CKAN se cancela al detectar cambios IHP-IX publicados en paralelo que su imagen no conservaba. La entrega usa `deploy/docker/Dockerfile.terriassistant-dev`, con base inmutable de la imagen actual de DEV y una sola capa adicional para el asistente. La imagen final `sha256:3f3f539ac0f5376e0db87d29e24476dcadbb574fab4b2e5efd45deb65f412698` está Ready sin reinicios, con los ocho workers RUNNING. Antes de volver a usar el workflow completo, sus entradas deben incluir esos parches IHP-IX; el informe explica el motivo y el procedimiento.
+
+El registro de backend, imágenes, controles y pruebas del navegador se conserva en [validation-ai-share-2026-11-07](https://github.com/pabrojast/ckan-unesco-docker/blob/miserver-2.10/deploy/envoy-dev/validation-ai-share-2026-11-07.md). [Mapa rojo verificado](https://data.dev-wins.com/terria/#share=g-a30a52e8adc814ae0e6561c0573e4a57&hideWelcomeMessage=1). Ver [[Testing]] y [[Backlog Documentacion]]. La entrega corresponde solo a DEV.
+
 ## Dashboard por encuadre (2026-10-30)
 
 TerriaJS [PR #23](https://github.com/pabrojast/terriajs/pull/23), integrado en `develop` como `d3514fabc4f1d97b8bebb86a7367c3bd5eb1675d`, agrega selección configurada, seguimiento del mapa y área fija al dashboard nativo. Conserva sus fechas, permite fijar el encuadre y conserva el estado al compartir/exportar. La selección se aplica antes de agregar los datos. Los resultados distinguen observaciones, entidades completas, resúmenes de cuerpos de agua y píxeles; las fuentes sin ubicación aparecen explícitamente sin filtro espacial. Ver [[Dashboards Sencillos]].
