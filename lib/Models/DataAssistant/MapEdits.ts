@@ -4,7 +4,7 @@ import JulianDate from "terriajs-cesium/Source/Core/JulianDate";
 import Rectangle from "terriajs-cesium/Source/Core/Rectangle";
 import CesiumMath from "terriajs-cesium/Source/Core/Math";
 import getDereferencedIfExists from "../../Core/getDereferencedIfExists";
-import JsonValue, { JsonObject } from "../../Core/Json";
+import JsonValue, { isJsonObject, JsonObject } from "../../Core/Json";
 import CatalogMemberMixin from "../../ModelMixins/CatalogMemberMixin";
 import DiscretelyTimeVaryingMixin from "../../ModelMixins/DiscretelyTimeVaryingMixin";
 import GeoJsonMixin from "../../ModelMixins/GeojsonMixin";
@@ -76,6 +76,56 @@ function effective(item: BaseModel, keys: readonly string[]): JsonObject {
     }
   }
   return result;
+}
+
+/** Include inherited defaults, even when no named style is selected. */
+function activeTableStyleTraits(item: TableMixin.Instance): JsonObject {
+  const style = item.activeTableStyle;
+  return {
+    ...effective(style.styleTraits, Object.keys(style.styleTraits.traits)),
+    id: style.id
+  };
+}
+
+function tableContextColumns(item: TableMixin.Instance, traits: JsonObject) {
+  const style = item.activeTableStyle;
+  const referenced = new Set(
+    [
+      style.longitudeColumn,
+      style.latitudeColumn,
+      style.regionColumn,
+      style.timeColumn,
+      style.endTimeColumn,
+      style.xAxisColumn,
+      style.colorColumn,
+      style.pointSizeColumn,
+      ...(style.idColumns ?? [])
+    ].flatMap((column) => (column ? [column.name] : []))
+  );
+  // Symbol/label maps can also refer to columns by name or index.
+  const visit = (value: JsonValue) => {
+    if (!value || typeof value !== "object") return;
+    for (const [key, entry] of Object.entries(value)) {
+      if (/columns?$/i.test(key)) {
+        for (const ref of Array.isArray(entry) ? entry : [entry]) {
+          if (typeof ref === "string") referenced.add(ref);
+          else if (typeof ref === "number" && item.tableColumns[ref])
+            referenced.add(item.tableColumns[ref].name);
+        }
+      }
+      visit(entry);
+    }
+  };
+  visit(traits);
+  return [
+    ...item.tableColumns.filter((column) => referenced.has(column.name)),
+    ...item.tableColumns.filter((column) => !referenced.has(column.name))
+  ]
+    .slice(0, 200)
+    .map((column) => ({
+      name: column.name,
+      type: TableColumnType[column.type]
+    }));
 }
 
 /** The model sees presentation metadata, never source URLs, tokens or raw files. */
@@ -154,25 +204,43 @@ function preserveStyleReferences(item: BaseModel, traits: JsonObject) {
       Array.isArray(current.styles)
     ) {
       const existing = current.styles;
-      const active = existing.find(
-        (style) =>
-          style &&
-          typeof style === "object" &&
-          !Array.isArray(style) &&
-          style.id === current.activeStyle
-      );
+      const active = TableMixin.isMixedInto(item)
+        ? activeTableStyleTraits(item)
+        : existing.find(
+            (style) =>
+              style &&
+              typeof style === "object" &&
+              !Array.isArray(style) &&
+              style.id === current.activeStyle
+          );
       traits.styles = traits.styles.map((style) => {
         if (!style || typeof style !== "object" || Array.isArray(style))
           return style;
-        const previous = existing.find(
-          (entry) =>
-            entry &&
-            typeof entry === "object" &&
-            !Array.isArray(entry) &&
-            entry.id === style.id
-        );
+        const previous =
+          isJsonObject(active, false) && active.id === style.id
+            ? active
+            : existing.find(
+                (entry) => isJsonObject(entry, false) && entry.id === style.id
+              );
         return preservePrivateStyle(previous ?? active, style);
       });
+      // The compact context omits inactive styles. Retain their user overrides
+      // without copying every generated column style into the user stratum.
+      const patched = traits.styles;
+      const previousUserStyles = userTraits(item).styles;
+      if (Array.isArray(previousUserStyles))
+        traits.styles = [
+          ...previousUserStyles.filter(
+            (style) =>
+              !patched.some(
+                (patch) =>
+                  isJsonObject(style, false) &&
+                  isJsonObject(patch, false) &&
+                  patch.id === style.id
+              )
+          ),
+          ...patched
+        ];
     } else traits[key] = preservePrivateStyle(current[key], traits[key]);
   }
 }
@@ -195,23 +263,29 @@ export function mapContext(terria: Terria): AssistantMapContext {
         item.availableStyles.length === 1
       )
         capabilities.push("wms_style");
+      const table = TableMixin.isMixedInto(item);
+      const traits = effective(
+        item,
+        table ? editable.filter((key) => key !== "styles") : editable
+      );
+      if (table) {
+        const active = activeTableStyleTraits(item);
+        traits.styles = [active];
+        traits.activeStyle = active.id;
+      }
       const layer: MapLayerContext = {
         id: "layer:" + item.uniqueId,
         name: CatalogMemberMixin.isMixedInto(item)
           ? (item.name ?? item.uniqueId ?? "Layer").slice(0, 200)
           : "Layer",
         type: item.type,
-        traits: forModel(effective(item, editable)) as JsonObject,
+        traits: forModel(traits) as JsonObject,
         capabilities,
         resource_id: CatalogMemberMixin.isMixedInto(item)
           ? item.ckanResourceId
           : undefined
       };
-      if (TableMixin.isMixedInto(item))
-        layer.columns = item.tableColumns.slice(0, 200).map((column) => ({
-          name: column.name,
-          type: TableColumnType[column.type]
-        }));
+      if (table) layer.columns = tableContextColumns(item, traits);
       if (TimeVarying.is(item))
         layer.dates = selectedLayerDateRange(terria, [layer.id]);
       if (

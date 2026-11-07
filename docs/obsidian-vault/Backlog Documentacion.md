@@ -1,5 +1,10 @@
 # Backlog de documentacion
 
+## Asistente y share del CSV ROBIN (2026-11-06)
+
+- Hecho observado: el contexto con cientos de estilos automáticos supera el límite del backend; el HTML del logo de la organización provoca otro rechazo al crear el share. Las regresiones locales de los tres componentes pasan; evidencia y comandos en [[Testing]].
+- Pendiente por confirmar tras publicar TerriaJS/TerriaMap, `ckanext-terriassistant` y la configuración Coraza DEV: consulta real con el CSV `robin station metadata public v1 1` de `Testing Dataset Nov`, propuesta de rojo, Aplicar/Deshacer y creación/reapertura del shortlink. No marcar resuelto en DEV a partir de las pruebas locales.
+
 ## Consola de Leaflet al reabrir enlaces (2026-10-30)
 
 - Hecho observado: durante navegaciones sucesivas entre shortlinks en DEV apareció una vez `Cannot read properties of undefined (reading 'length')` en `Leaflet.syncDataSourceCollection`. El cálculo y la restauración del dashboard siguieron funcionando. Una pestaña nueva abriendo el mismo enlace completó sin errores de página ni consola. `lib/Models/Leaflet.ts` no cambió en la entrega por encuadre.
